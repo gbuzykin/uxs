@@ -15,9 +15,8 @@ auto find(Container&& c, const Key& k) -> std::pair<decltype(c.find(k)), bool> {
     auto it = c.find(k);
     return std::make_pair(it, it != std::end(c));
 }
-
 template<typename Range, typename Val, typename... Dummy>
-auto find(Range&& r, const Val& v, Dummy&&... dummy) -> std::pair<decltype(std::end(r)), bool> {
+auto find(Range&& r, const Val& v, Dummy&&...) -> std::pair<decltype(std::end(r)), bool> {
     auto it = std::find(std::begin(r), std::end(r), v);
     return std::make_pair(it, it != std::end(r));
 }
@@ -55,10 +54,8 @@ auto erase(Container& c, Range&& r, const Val& v) -> decltype(std::begin(c) + 1 
     c.erase(std::remove(std::begin(r), std::end(r), v), std::end(r));
     return old_sz - c.size();
 }
-
 template<typename Container, typename Range, typename Val, typename... Dummy>
-auto erase(Container& c, Range&& r, const Val& v, Dummy&&... dummy)
-    -> decltype(std::begin(c) == std::end(r), c.size()) {
+auto erase(Container& c, Range&& r, const Val& v, Dummy&&...) -> decltype(std::end(c) == std::end(r), c.size()) {
     auto old_sz = c.size();
     for (auto first = std::begin(r), last = std::end(r); first != last;) {
         if (*first == v) {
@@ -76,16 +73,14 @@ auto erase(Container& c, const Val& v) -> decltype(c.find(v), c.size()) {
                   "function `util::erase_one` should be used for associative containers to erase by key!");
     return 0;
 }
-
 template<typename Container, typename Range>
-auto erase(Container& c, Range&& r) -> decltype(std::begin(c) == std::end(r), c.size()) {
+auto erase(Container& c, Range&& r) -> decltype(std::end(c) == std::end(r), c.size()) {
     auto old_sz = c.size();
     c.erase(std::begin(r), std::end(r));
     return old_sz - c.size();
 }
-
 template<typename Container, typename Val, typename... Dummy>
-auto erase(Container& c, const Val& v, Dummy&&... dummy) -> decltype(c.size()) {
+auto erase(Container& c, const Val& v, Dummy&&...) -> decltype(c.size()) {
     return detail::erase(c, c, v);
 }
 }  // namespace detail
@@ -108,10 +103,9 @@ auto erase_if(Container& c, Range&& r, Pred p)  //
     c.erase(std::remove_if(std::begin(r), std::end(r), p), std::end(r));
     return old_sz - c.size();
 }
-
 template<typename Container, typename Range, typename Pred, typename... Dummy>
-auto erase_if(Container& c, Range&& r, Pred p, Dummy&&... dummy)  //
-    -> decltype(std::begin(c) == std::end(r), c.size()) {
+auto erase_if(Container& c, Range&& r, Pred p, Dummy&&...)  //
+    -> decltype(std::end(c) == std::end(r), c.size()) {
     auto old_sz = c.size();
     for (auto first = std::begin(r), last = std::end(r); first != last;) {
         if (p(*first)) {
@@ -144,10 +138,9 @@ auto unique(Container& c, Range&& r, Pred p)  //
     c.erase(std::unique(std::begin(r), std::end(r), p), std::end(r));
     return old_sz - c.size();
 }
-
 template<typename Container, typename Range, typename Pred, typename... Dummy>
-auto unique(Container& c, Range&& r, Pred p, Dummy&&... dummy)  //
-    -> decltype(std::begin(c) == std::end(r), c.size()) {
+auto unique(Container& c, Range&& r, Pred p, Dummy&&...)  //
+    -> decltype(std::end(c) == std::end(r), c.size()) {
     auto old_sz = c.size();
     if (old_sz == 0) { return 0; }
     for (auto it0 = std::begin(r), first = std::next(it0), last = std::end(r); first != last;) {

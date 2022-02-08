@@ -7,7 +7,6 @@
 namespace util {
 
 namespace detail {
-
 template<>
 struct string_finder<std::regex> {
     const std::regex& regex;
@@ -44,7 +43,6 @@ struct reversed_string_finder<std::regex> {
         return result;
     }
 };
-
 }  // namespace detail
 
 }  // namespace util

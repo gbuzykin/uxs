@@ -70,11 +70,11 @@ CORE_EXPORT bool assert_impl(const char* file, int line, const char* message, bo
 }
 
 namespace util {
-template<typename Ty, typename TestTy>
+template<typename Ty, typename TestTy = void>
 struct type_identity {
     using type = Ty;
 };
-template<typename Ty, typename TestTy>
+template<typename Ty, typename TestTy = void>
 using type_identity_t = typename type_identity<Ty, TestTy>::type;
 }  // namespace util
 
@@ -266,7 +266,7 @@ auto get_n(Ty&& v) -> decltype(Func1{}(std::get<n>(Func2{}(std::forward<Ty>(v)))
     return Func1{}(std::get<n>(Func2{}(std::forward<Ty>(v))));
 }
 template<typename Ty, size_t n, typename Func1, typename Func2, typename... Dummy>
-auto get_n(Ty&& v, Dummy&&... dummy) -> decltype(Func1{}(Func2{}(std::forward<Ty>(v)))) {
+auto get_n(Ty&& v, Dummy&&...) -> decltype(Func1{}(Func2{}(std::forward<Ty>(v)))) {
     static_assert(n == 0, "template parameter `n` should be 0!");
     return Func1{}(Func2{}(std::forward<Ty>(v)));
 }
@@ -286,7 +286,7 @@ auto get_key(Ty&& v) -> decltype(v.key()) {
     return v.key();
 }
 template<typename Ty, typename... Dummy>
-auto get_key(Ty&& v, Dummy&&... dummy) -> decltype(util::get_n<0>{}(std::forward<Ty>(v))) {
+auto get_key(Ty&& v, Dummy&&...) -> decltype(util::get_n<0>{}(std::forward<Ty>(v))) {
     return util::get_n<0>{}(std::forward<Ty>(v));
 }
 }  // namespace detail
