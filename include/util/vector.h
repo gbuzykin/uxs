@@ -36,15 +36,30 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
     vector() NOEXCEPT_IF(std::is_nothrow_default_constructible<alloc_type>::value) : alloc_type(allocator_type()) {}
     explicit vector(const allocator_type& alloc) NOEXCEPT : alloc_type(alloc) {}
     explicit vector(size_type sz, const allocator_type& alloc = allocator_type()) : alloc_type(alloc) {
-        tidy_invoke([&]() { init_default(sz); });
+        try {
+            init_default(sz);
+        } catch (...) {
+            tidy();
+            throw;
+        }
     }
 
     vector(size_type sz, const value_type& val, const allocator_type& alloc = allocator_type()) : alloc_type(alloc) {
-        tidy_invoke([&]() { init(sz, const_value(val)); });
+        try {
+            init(sz, const_value(val));
+        } catch (...) {
+            tidy();
+            throw;
+        }
     }
 
     vector(std::initializer_list<value_type> l, const allocator_type& alloc = allocator_type()) : alloc_type(alloc) {
-        tidy_invoke([&]() { init(l.size(), l.begin()); });
+        try {
+            init(l.size(), l.begin());
+        } catch (...) {
+            tidy();
+            throw;
+        }
     }
 
     vector& operator=(std::initializer_list<value_type> l) {
@@ -54,15 +69,30 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     vector(InputIt first, InputIt last, const allocator_type& alloc = allocator_type()) : alloc_type(alloc) {
-        tidy_invoke([&]() { init_from_range(first, last, is_random_access_iterator<InputIt>()); });
+        try {
+            init_from_range(first, last, is_random_access_iterator<InputIt>());
+        } catch (...) {
+            tidy();
+            throw;
+        }
     }
 
     vector(const vector& other) : alloc_type(alloc_traits::select_on_container_copy_construction(other)) {
-        tidy_invoke([&]() { init(other.size(), other.begin()); });
+        try {
+            init(other.size(), other.begin());
+        } catch (...) {
+            tidy();
+            throw;
+        }
     }
 
     vector(const vector& other, const allocator_type& alloc) : alloc_type(alloc) {
-        tidy_invoke([&]() { init(other.size(), other.begin()); });
+        try {
+            init(other.size(), other.begin());
+        } catch (...) {
+            tidy();
+            throw;
+        }
     }
 
     vector& operator=(const vector& other) {
@@ -82,7 +112,12 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
             v_ = other.v_;
             other.v_.nullify();
         } else {
-            tidy_invoke([&]() { init(other.size(), std::make_move_iterator(other.begin())); });
+            try {
+                init(other.size(), std::make_move_iterator(other.begin()));
+            } catch (...) {
+                tidy();
+                throw;
+            }
         }
     }
 
@@ -312,16 +347,6 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
     vector_ptrs_t v_;
 
     enum : size_type { kStartCapacity = 8 };
-
-    template<typename Func>
-    void tidy_invoke(Func fn) {
-        try {
-            fn();
-        } catch (...) {
-            tidy();
-            throw;
-        }
-    }
 
     bool is_same_alloc(const alloc_type& alloc) { return static_cast<alloc_type&>(*this) == alloc; }
 
