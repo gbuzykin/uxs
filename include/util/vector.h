@@ -198,7 +198,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
 
     void resize(size_type sz) {
         if (sz > size()) {
-            auto count = sz - size();
+            size_type count = sz - size();
             if (count > static_cast<size_type>(v_.boundary - v_.end)) {
                 auto v = alloc_new(grow_capacity(count));
                 relocate_to_and_append_default(v, count, std::is_nothrow_move_constructible<Ty>(),
@@ -214,7 +214,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
 
     void resize(size_type sz, const value_type& val) {
         if (sz > size()) {
-            auto count = sz - size();
+            size_type count = sz - size();
             if (count > static_cast<size_type>(v_.boundary - v_.end)) {
                 auto v = alloc_new(grow_capacity(count));
                 relocate_to_and_append(v, count, val, std::is_nothrow_move_constructible<Ty>(),
@@ -294,7 +294,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         auto p_first = to_ptr(first);
         auto p_last = to_ptr(last);
         assert(v_.begin <= p_first && p_first <= p_last && p_last <= v_.end);
-        auto count = static_cast<size_type>(p_last - p_first);
+        size_type count = static_cast<size_type>(p_last - p_first);
         if (count) { helpers::erase(*this, p_first, v_.end - count, v_.end); }
         return iterator(p_first, v_.begin, v_.end);
     }
@@ -749,7 +749,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
     pointer insert_from_range(pointer p, InputIt first, InputIt last, std::false_type /* random access iterator */,
                               Bool /* assignable */) {
         size_type count = 0;
-        auto n = static_cast<size_type>(p - v_.begin);
+        size_type n = static_cast<size_type>(p - v_.begin);
         for (; first != last; ++first) {
             emplace_back(*first);
             ++count;
@@ -829,8 +829,8 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         template<typename RandIt>
         static void insert_copy(alloc_type& alloc, pointer pos, pointer& end, pointer end_new, RandIt src) {
             assert(pos != end && end != end_new);
-            auto count = static_cast<size_t>(end_new - end);
-            auto tail = static_cast<size_t>(end - pos);
+            size_type count = static_cast<size_type>(end_new - end);
+            size_type tail = static_cast<size_type>(end - pos);
             if (count > tail) {
                 auto p = end;
                 append_copy(alloc, end, end + count - tail,
@@ -852,7 +852,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
 
         static void erase(alloc_type& alloc, pointer p, pointer end_new, pointer& end) {
             assert(end_new != end);
-            auto count = static_cast<size_t>(end - end_new);
+            size_type count = static_cast<size_type>(end - end_new);
             for (; p != end_new; ++p) { *p = std::move(*(p + count)); }
             truncate(alloc, end_new, end);
         }
