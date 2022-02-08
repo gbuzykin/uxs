@@ -7,6 +7,18 @@
 
 namespace util {
 
+template<unsigned base>
+CONSTEXPR int dig(char ch) {
+    return static_cast<int>(ch - '0');
+}
+
+template<>
+CONSTEXPR int dig<16>(char ch) {
+    if ((ch >= 'a') && (ch <= 'f')) { return static_cast<int>(ch - 'a') + 10; }
+    if ((ch >= 'A') && (ch <= 'F')) { return static_cast<int>(ch - 'A') + 10; }
+    return static_cast<int>(ch - '0');
+}
+
 template<typename InputIt, typename InputFn = nofunc>
 unsigned from_hex(InputIt in, int digs, bool* ok = nullptr, InputFn fn = InputFn{}) {
     unsigned val = 0;
@@ -14,12 +26,8 @@ unsigned from_hex(InputIt in, int digs, bool* ok = nullptr, InputFn fn = InputFn
         char ch = fn(*in++);
         val <<= 4;
         --digs;
-        if ((ch >= '0') && (ch <= '9')) {
-            val |= ch - '0';
-        } else if ((ch >= 'A') && (ch <= 'F')) {
-            val |= ch - 'A' + 10;
-        } else if ((ch >= 'a') && (ch <= 'f')) {
-            val |= ch - 'a' + 10;
+        if (std::isxdigit(static_cast<unsigned char>(ch))) {
+            val |= dig<16>(ch);
         } else {
             if (ok) { *ok = false; }
             return val;

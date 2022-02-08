@@ -6,6 +6,34 @@
 
 namespace util {
 
+namespace detail {
+
+UTIL_EXPORT const char* format(const char* p, const char* last, std::string& str, std::string_view arg);
+
+template<typename Ty, typename = std::void_t<typename string_converter<Ty>::is_string_converter>>
+const char* format(const char* p, const char* last, std::string& str, const Ty& arg) {
+    return detail::format(p, last, str, to_string(arg));
+}
+
+template<typename Ty1, typename Ty2, typename... Ts>
+const char* format(const char* p, const char* last, std::string& str, Ty1&& arg1, Ty2&& arg2, Ts&&... other) {
+    p = detail::format(p, last, str, std::forward<Ty1>(arg1));
+    return detail::format(p, last, str, std::forward<Ty2>(arg2), std::forward<Ts>(other)...);
+}
+
+}  // namespace detail
+
+inline std::string format(std::string_view fmt) { return std::string(fmt); }
+
+template<typename... Ts>
+std::string format(std::string_view fmt, Ts&&... args) {
+    std::string str;
+    str.reserve(256);
+    const char* p = detail::format(fmt.data(), fmt.data() + fmt.size(), str, std::forward<Ts>(args)...);
+    str.append(p, fmt.size() - static_cast<size_t>(p - fmt.data()));
+    return str;
+}
+
 struct sfield {
     explicit sfield(int in_width, char in_fill = ' ') : width(in_width), fill(in_fill) {}
     int width;
@@ -26,8 +54,8 @@ class UTIL_EXPORT sformat {
 
     template<typename Ty, typename... Args>
     sformat& arg(Ty&& v, sfield field, Args&&... args) {
-        auto s = arg_cvt(std::forward<Ty>(v), std::forward<Args>(args)...);
-        auto width = static_cast<size_t>(field.width);
+        std::string s = arg_cvt(std::forward<Ty>(v), std::forward<Args>(args)...);
+        size_t width = static_cast<size_t>(field.width);
         if (width > s.size()) { s.insert(0, width - s.size(), field.fill); }
         args_.emplace_back(std::move(s));
         return *this;
