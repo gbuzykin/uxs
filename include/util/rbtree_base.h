@@ -450,16 +450,6 @@ class rbtree_base : protected rbtree_compare<NodeTy, Alloc, Comp> {
         key_compare comp;
     };
 
-    template<typename Func>
-    void tidy_invoke(Func fn) {
-        try {
-            fn();
-        } catch (...) {
-            tidy();
-            throw;
-        }
-    }
-
     bool is_same_alloc(const alloc_type& alloc) { return static_cast<alloc_type&>(*this) == alloc; }
 
     template<typename InputIt>

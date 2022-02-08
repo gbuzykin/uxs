@@ -45,13 +45,23 @@ class multimap : public detail::rbtree_multi<detail::map_node_type<Key, Ty>, All
 #endif  // __cplusplus < 201703L
 
     multimap(std::initializer_list<value_type> l, const allocator_type& alloc) : super(alloc) {
-        this->tidy_invoke([&]() { this->insert_impl(l.begin(), l.end()); });
+        try {
+            this->insert_impl(l.begin(), l.end());
+        } catch (...) {
+            this->tidy();
+            throw;
+        }
     }
 
     multimap(std::initializer_list<value_type> l, const key_compare& comp = key_compare(),
              const allocator_type& alloc = allocator_type())
         : super(comp, alloc) {
-        this->tidy_invoke([&]() { this->insert_impl(l.begin(), l.end()); });
+        try {
+            this->insert_impl(l.begin(), l.end());
+        } catch (...) {
+            this->tidy();
+            throw;
+        }
     }
 
     multimap& operator=(std::initializer_list<value_type> l) {
@@ -61,14 +71,24 @@ class multimap : public detail::rbtree_multi<detail::map_node_type<Key, Ty>, All
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     multimap(InputIt first, InputIt last, const allocator_type& alloc) : super(alloc) {
-        this->tidy_invoke([&]() { this->insert_impl(first, last); });
+        try {
+            this->insert_impl(first, last);
+        } catch (...) {
+            this->tidy();
+            throw;
+        }
     }
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     multimap(InputIt first, InputIt last, const key_compare& comp = key_compare(),
              const allocator_type& alloc = allocator_type())
         : super(comp, alloc) {
-        this->tidy_invoke([&]() { this->insert_impl(first, last); });
+        try {
+            this->insert_impl(first, last);
+        } catch (...) {
+            this->tidy();
+            throw;
+        }
     }
 
     multimap(const multimap& other, const allocator_type& alloc) : super(other, alloc) {}
