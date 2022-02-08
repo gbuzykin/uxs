@@ -28,8 +28,8 @@ std::string util::from_wide_to_utf8(std::wstring_view s) {
 
 std::string_view util::trim_string(std::string_view s) {
     auto p1 = s.begin(), p2 = s.end();
-    while (p1 < p2 && std::isblank(*p1)) { ++p1; }
-    while (p1 < p2 && std::isblank(*(p2 - 1))) { --p2; }
+    while (p1 < p2 && std::isspace(static_cast<unsigned char>(*p1))) { ++p1; }
+    while (p1 < p2 && std::isspace(static_cast<unsigned char>(*(p2 - 1)))) { --p2; }
     return s.substr(p1 - s.begin(), p2 - p1);
 }
 
@@ -96,7 +96,8 @@ std::pair<unsigned, unsigned> util::parse_flag_string(
 int util::compare_strings_nocase(std::string_view lhs, std::string_view rhs) {
     auto p1_end = lhs.begin() + std::min(lhs.size(), rhs.size());
     for (auto p1 = lhs.begin(), p2 = rhs.begin(); p1 < p1_end; ++p1, ++p2) {
-        auto ch1 = std::toupper(*p1), ch2 = std::toupper(*p2);
+        char ch1 = std::tolower(static_cast<unsigned char>(*p1));
+        char ch2 = std::tolower(static_cast<unsigned char>(*p2));
         if (std::string_view::traits_type::lt(ch1, ch2)) {
             return -1;
         } else if (std::string_view::traits_type::lt(ch2, ch1)) {
@@ -381,13 +382,15 @@ struct fp_exp10_format {
 static const char* starts_with(const char* p, const char* end, std::string_view s) {
     if (static_cast<size_t>(end - p) < s.size()) { return p; }
     for (const char *p1 = p, *p2 = s.data(); p1 < end; ++p1, ++p2) {
-        if (std::toupper(*p1) != std::toupper(*p2)) { return p; }
+        char ch1 = std::tolower(static_cast<unsigned char>(*p1));
+        char ch2 = std::tolower(static_cast<unsigned char>(*p2));
+        if (ch1 != ch2) { return p; }
     }
     return p + s.size();
 }
 
 inline const char* skip_spaces(const char* p, const char* end) {
-    while (p < end && std::isspace(*p)) { ++p; }
+    while (p < end && std::isspace(static_cast<unsigned char>(*p))) { ++p; }
     return p;
 }
 
@@ -402,9 +405,9 @@ char get_dig_and_div(Ty& v) {
 
 template<typename Ty>
 const char* to_unsigned(const char* p, const char* end, Ty& val) {
-    if (p == end || !std::isdigit(*p)) { return p; }
+    if (p == end || !std::isdigit(static_cast<unsigned char>(*p))) { return p; }
     val = static_cast<Ty>(*p++ - '0');
-    while (p < end && std::isdigit(*p)) { val = 10 * val + static_cast<Ty>(*p++ - '0'); }
+    while (p < end && std::isdigit(static_cast<unsigned char>(*p))) { val = 10 * val + static_cast<Ty>(*p++ - '0'); }
     return p;
 }
 
@@ -426,7 +429,7 @@ const char* to_signed(const char* p, const char* end, Ty& val) {
 }
 
 static const char* accum_mantissa(const char* p, const char* end, uint64_t& m, int& exp) {
-    for (; p < end && std::isdigit(*p); ++p) {
+    for (; p < end && std::isdigit(static_cast<unsigned char>(*p)); ++p) {
         if (m < pow_table_t::kMaxMantissa10 / 10) {  // decimal mantissa can hold up to 18 digits
             m = 10 * m + static_cast<uint64_t>(*p - '0');
         } else {
@@ -448,11 +451,11 @@ static const char* to_exp10_float(const char* p, const char* end, fp_exp10_forma
     }
     if (p == end) {
         return p0;
-    } else if (std::isdigit(*p)) {  // integer part
+    } else if (std::isdigit(static_cast<unsigned char>(*p))) {  // integer part
         fp10.mantissa = static_cast<uint64_t>(*p++ - '0');
         p = accum_mantissa(p, end, fp10.mantissa, fp10.exp);
         if (p < end && *p == '.') { ++p; }  // skip decimal point
-    } else if (*p == '.' && p + 1 < end && std::isdigit(*(p + 1))) {
+    } else if (*p == '.' && p + 1 < end && std::isdigit(static_cast<unsigned char>(*(p + 1)))) {
         fp10.mantissa = static_cast<uint64_t>(*(p + 1) - '0');  // tenth
         fp10.exp = -1;
         p += 2;
@@ -833,14 +836,14 @@ char* from_float(char* p, Ty val, scvt_fp fmt, int prec) {
         val = true;
     } else if ((p1 = scvt::starts_with(p, end, "false")) > p) {
         val = false;
-    } else if (p < end && std::isdigit(*p)) {
+    } else if (p < end && std::isdigit(static_cast<unsigned char>(*p))) {
         val = false;
         do {
             if (*p++ != '0') {
                 val = true;
                 break;
             }
-        } while (p < end && std::isdigit(*p));
+        } while (p < end && std::isdigit(static_cast<unsigned char>(*p)));
         p1 = p;
     }
     if (ok) { *ok = p1 > p; }
@@ -861,9 +864,11 @@ std::string sformat::str() const {
         result.append(p0, p++);
         if (p == fmt_.end()) {
             return result;
-        } else if (std::isdigit(*p)) {
+        } else if (std::isdigit(static_cast<unsigned char>(*p))) {
             size_t n = static_cast<size_t>(*p++ - '0');
-            while (p < fmt_.end() && std::isdigit(*p)) { n = 10 * n + static_cast<size_t>(*p++ - '0'); }
+            while (p < fmt_.end() && std::isdigit(static_cast<unsigned char>(*p))) {
+                n = 10 * n + static_cast<size_t>(*p++ - '0');
+            }
             if (n > 0 && n <= args_.size()) { result.append(args_[n - 1]); }
             p0 = p;
         } else {

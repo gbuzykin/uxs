@@ -614,7 +614,7 @@ separate_words(std::string_view s, char sep, OutputIt out,  //
     enum class state_t : char { kStart = 0, kSepFound, kSkipSep } state = state_t::kStart;
     if (!max_count) { return 0; }
     for (auto p = s.begin();; ++p) {
-        while ((p < s.end()) && std::isblank(*p)) { ++p; }  // skip blanks
+        while ((p < s.end()) && std::isspace(static_cast<unsigned char>(*p))) { ++p; }  // skip spaces
         auto p0 = p;
         if (p == s.end()) {
             if (state != state_t::kSepFound) { break; }
@@ -623,7 +623,7 @@ separate_words(std::string_view s, char sep, OutputIt out,  //
             do {  // find separator or blank
                 if (*p == '\\') {
                     if (++p == s.end()) { break; }
-                } else if (std::isblank(*p)) {
+                } else if (std::isspace(static_cast<unsigned char>(*p))) {
                     state = state_t::kSkipSep;
                     break;
                 } else if (*p == sep) {
