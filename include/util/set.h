@@ -51,7 +51,7 @@ class set : public detail::rbtree_unique<detail::set_node_type<Key>, Alloc, Comp
     }
 
     set& operator=(std::initializer_list<value_type> l) {
-        this->assign_impl(l.begin(), l.end(), typename node_t::is_value_copy_assignable());
+        this->assign_impl(l.begin(), l.end(), std::is_copy_assignable<typename node_t::writable_value_t>());
         return *this;
     }
 
