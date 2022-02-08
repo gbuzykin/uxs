@@ -1,11 +1,10 @@
 #pragma once
 
-#include "iterator.h"
+#include "functional.h"
+
+#include <algorithm>
 
 namespace util {
-
-//-----------------------------------------------------------------------------
-// Utility algorithms
 
 // ---- find & contains
 

@@ -2,9 +2,6 @@
 
 using namespace util;
 
-//---------------------------------------------------------------------------------
-// Pool allocator implementation
-
 /*static*/ pool_base::global_pool_list_item_t* pool_base::global_pool_list_ = nullptr;
 /*static*/ pool_base pool_base::global_pool_;
 

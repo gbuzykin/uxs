@@ -1,3 +1,6 @@
+#pragma once
+
+#include "allocator.h"
 #include "rbtree.h"
 
 namespace util {

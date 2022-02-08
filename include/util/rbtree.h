@@ -2,10 +2,9 @@
 
 #include "common.h"
 
-namespace util {
+#include <utility>
 
-//-----------------------------------------------------------------------------
-// Red-black tree functions
+namespace util {
 
 struct rbtree_node_t {
     rbtree_node_t* left;
@@ -234,7 +233,7 @@ std::pair<rbtree_node_t*, rbtree_node_t*> rbtree_equal_range(rbtree_node_t* head
     return std::make_pair(upper, upper);
 }
 
-CORE_EXPORT void rbtree_insert(rbtree_node_t* head, rbtree_node_t* node, rbtree_node_t* pos, bool left);
-CORE_EXPORT rbtree_node_t* rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos);
+UTIL_EXPORT void rbtree_insert(rbtree_node_t* head, rbtree_node_t* node, rbtree_node_t* pos, bool left);
+UTIL_EXPORT rbtree_node_t* rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos);
 
 }  // namespace util

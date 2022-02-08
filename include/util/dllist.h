@@ -4,9 +4,6 @@
 
 namespace util {
 
-//-----------------------------------------------------------------------------
-// Double-linked list functions
-
 struct dllist_node_t {
     dllist_node_t* next;
     dllist_node_t* prev;

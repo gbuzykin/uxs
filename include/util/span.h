@@ -3,6 +3,7 @@
 #include "iterator.h"
 
 #include <limits>
+#include <stdexcept>
 
 namespace util {
 

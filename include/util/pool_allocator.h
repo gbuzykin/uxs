@@ -1,16 +1,15 @@
 #pragma once
 
+#include "alignment.h"
+#include "allocator.h"
 #include "dllist.h"
 
 namespace util {
 
-//-----------------------------------------------------------------------------
-// Pool allocators
-
 template<uint16_t Size, uint16_t Alignment>
 class sized_pool;
 
-class CORE_EXPORT pool_base {
+class UTIL_EXPORT pool_base {
  public:
     struct part_hdr_t : dllist_node_t {
         uint32_t use_count;

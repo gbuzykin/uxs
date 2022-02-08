@@ -1,5 +1,6 @@
 #pragma once
 
+#include "functional.h"
 #include "rbtree_unique.h"
 
 namespace util {

@@ -1,6 +1,10 @@
+#pragma once
+
 #include "common.h"
 
 #include <atomic>
+#include <memory>
+#include <utility>
 
 namespace util {
 

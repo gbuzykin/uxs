@@ -1,10 +1,12 @@
 #pragma once
 
+#include "alignment.h"
 #include "cow_ptr.h"
 #include "stream.h"
+#include "string_cvt.h"
 
 #include <array>
-#include <cmath>
+#include <cstring>
 
 namespace util {
 
@@ -30,7 +32,7 @@ struct variant_type_impl;
 template<typename Ty, variant_id TypeId, typename = void>
 struct variant_type_base_impl;
 
-class CORE_EXPORT variant {
+class UTIL_EXPORT variant {
  private:
     template<typename... Ts>
     using aligned_storage_t = typename std::aligned_storage<size_of<Ts...>::value, alignment_of<Ts...>::value>::type;

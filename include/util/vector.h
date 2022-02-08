@@ -1,6 +1,9 @@
 #pragma once
 
+#include "allocator.h"
 #include "iterator.h"
+
+#include <algorithm>
 
 namespace util {
 

@@ -2,9 +2,6 @@
 
 using namespace util;
 
-//---------------------------------------------------------------------------------
-// Red-black tree implementation
-
 inline void rbtree_rotate_left(rbtree_node_t* node) {
     auto right = node->right;
     node->right = right->left;
