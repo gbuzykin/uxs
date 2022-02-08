@@ -301,20 +301,6 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
 
     enum : size_type { kStartCapacity = 8 };
 
-    struct value_instance_t {
-        alloc_type& alloc;
-        typename std::aligned_storage<sizeof(value_type), std::alignment_of<value_type>::value>::type storage;
-        template<typename... Args>
-        explicit value_instance_t(alloc_type& alloc_, Args&&... args) : alloc(alloc_) {
-            alloc_traits::construct(alloc, reinterpret_cast<value_type*>(std::addressof(storage)),
-                                    std::forward<Args>(args)...);
-        }
-        value_type& val() { return *reinterpret_cast<value_type*>(std::addressof(storage)); }
-        ~value_instance_t() { alloc_traits::destroy(alloc, reinterpret_cast<value_type*>(std::addressof(storage))); }
-        value_instance_t(const value_instance_t&) = delete;
-        value_instance_t& operator=(const value_instance_t&) = delete;
-    };
-
     struct destroy_guard_t {
         alloc_type& alloc;
         pointer begin, end;
@@ -537,8 +523,16 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         if (count > static_cast<size_type>(boundary_ - end_)) {
             return insert_realloc(p, count, const_value(val));
         } else if (count) {
-            value_instance_t val_copy(*this, val);
-            insert_no_realloc(p, count, const_value(val_copy.val()), Bool());
+            typename std::aligned_storage<sizeof(value_type), std::alignment_of<value_type>::value>::type buf;
+            auto* val_copy = reinterpret_cast<value_type*>(std::addressof(buf));
+            alloc_traits::construct(*this, val_copy, val);
+            try {
+                insert_no_relocate(p, count, const_value(*val_copy), Bool());
+            } catch (...) {
+                alloc_traits::destroy(*this, val_copy);
+                throw;
+            }
+            alloc_traits::destroy(*this, val_copy);
         }
         return p;
     }
@@ -638,8 +632,16 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
 
         template<typename... Args>
         static void emplace(alloc_type& alloc, pointer pos, pointer& end, Args&&... args) {
-            value_instance_t val_inst(alloc, std::forward<Args>(args)...);
-            emplace(alloc, pos, end, std::move(val_inst.val()));
+            typename std::aligned_storage<sizeof(value_type), std::alignment_of<value_type>::value>::type buf;
+            auto* val = reinterpret_cast<value_type*>(std::addressof(buf));
+            alloc_traits::construct(alloc, val, std::forward<Args>(args)...);
+            try {
+                emplace(alloc, pos, end, std::move(*val));
+            } catch (...) {
+                alloc_traits::destroy(alloc, val);
+                throw;
+            }
+            alloc_traits::destroy(alloc, val);
         }
 
         template<typename RandIt>
