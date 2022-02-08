@@ -65,7 +65,7 @@ class rbtree_multi : public rbtree_base<NodeTy, Alloc, Comp> {
             super::helpers::delete_node(*this, node);
             throw;
         }
-        return iterator(node);
+        return iterator::from_base(node);
     }
 
     iterator insert(const_iterator hint, const value_type& val) { return emplace_hint(hint, val); }
@@ -83,7 +83,7 @@ class rbtree_multi : public rbtree_base<NodeTy, Alloc, Comp> {
             super::helpers::delete_node(*this, node);
             throw;
         }
-        return iterator(node);
+        return iterator::from_base(node);
     }
 
     iterator insert(node_type&& nh) {
@@ -98,7 +98,7 @@ class rbtree_multi : public rbtree_base<NodeTy, Alloc, Comp> {
         ++this->size_;
         nh.node_ = nullptr;
         rbtree_insert(std::addressof(this->head_), node, result.first, result.second);
-        return iterator(node);
+        return iterator::from_base(node);
     }
 
     iterator insert(const_iterator hint, node_type&& nh) {
@@ -113,7 +113,7 @@ class rbtree_multi : public rbtree_base<NodeTy, Alloc, Comp> {
         ++this->size_;
         nh.node_ = nullptr;
         rbtree_insert(std::addressof(this->head_), node, result.first, result.second);
-        return iterator(node);
+        return iterator::from_base(node);
     }
 
     template<typename Val, typename = std::enable_if_t<std::is_constructible<value_type, Val&&>::value>>

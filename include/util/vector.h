@@ -143,13 +143,13 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
     size_type capacity() const NOEXCEPT { return static_cast<size_type>(v_.boundary - v_.begin); }
     size_type max_size() const NOEXCEPT { return alloc_traits::max_size(*this); }
 
-    iterator begin() NOEXCEPT { return iterator(v_.begin, v_.begin, v_.end); }
-    const_iterator begin() const NOEXCEPT { return const_iterator(v_.begin, v_.begin, v_.end); }
-    const_iterator cbegin() const NOEXCEPT { return const_iterator(v_.begin, v_.begin, v_.end); }
+    iterator begin() NOEXCEPT { return iterator::from_base(v_.begin, v_.begin, v_.end); }
+    const_iterator begin() const NOEXCEPT { return const_iterator::from_base(v_.begin, v_.begin, v_.end); }
+    const_iterator cbegin() const NOEXCEPT { return const_iterator::from_base(v_.begin, v_.begin, v_.end); }
 
-    iterator end() NOEXCEPT { return iterator(v_.end, v_.begin, v_.end); }
-    const_iterator end() const NOEXCEPT { return const_iterator(v_.end, v_.begin, v_.end); }
-    const_iterator cend() const NOEXCEPT { return const_iterator(v_.end, v_.begin, v_.end); }
+    iterator end() NOEXCEPT { return iterator::from_base(v_.end, v_.begin, v_.end); }
+    const_iterator end() const NOEXCEPT { return const_iterator::from_base(v_.end, v_.begin, v_.end); }
+    const_iterator cend() const NOEXCEPT { return const_iterator::from_base(v_.end, v_.begin, v_.end); }
 
     reverse_iterator rbegin() NOEXCEPT { return reverse_iterator(end()); }
     const_reverse_iterator rbegin() const NOEXCEPT { return const_reverse_iterator(end()); }
@@ -265,19 +265,19 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
 
     iterator insert(const_iterator pos, size_type count, const value_type& val) {
         auto p = insert_from_const(to_ptr(pos), count, val, std::is_copy_assignable<Ty>());
-        return iterator(p, v_.begin, v_.end);
+        return iterator::from_base(p, v_.begin, v_.end);
     }
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     iterator insert(const_iterator pos, InputIt first, InputIt last) {
         auto p = insert_from_range(to_ptr(pos), first, last, is_random_access_iterator<InputIt>(),
                                    std::is_assignable<Ty&, decltype(*first)>());
-        return iterator(p, v_.begin, v_.end);
+        return iterator::from_base(p, v_.begin, v_.end);
     }
 
     iterator insert(const_iterator pos, std::initializer_list<value_type> l) {
         auto p = insert_impl(to_ptr(pos), l.size(), l.begin(), std::is_copy_assignable<Ty>());
-        return iterator(p, v_.begin, v_.end);
+        return iterator::from_base(p, v_.begin, v_.end);
     }
 
     iterator insert(const_iterator pos, const value_type& val) { return emplace(pos, val); }
@@ -295,7 +295,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         } else {
             helpers::append(*this, v_.end, std::forward<Args>(args)...);
         }
-        return iterator(p, v_.begin, v_.end);
+        return iterator::from_base(p, v_.begin, v_.end);
     }
 
     void push_back(const value_type& val) { emplace_back(val); }
@@ -322,7 +322,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         auto p = to_ptr(pos);
         assert(p != v_.end);
         helpers::erase(*this, p, v_.end);
-        return iterator(p, v_.begin, v_.end);
+        return iterator::from_base(p, v_.begin, v_.end);
     }
 
     iterator erase(const_iterator first, const_iterator last) {
@@ -331,7 +331,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         assert(v_.begin <= p_first && p_first <= p_last && p_last <= v_.end);
         size_type count = static_cast<size_type>(p_last - p_first);
         if (count) { helpers::erase(*this, p_first, v_.end - count, v_.end); }
-        return iterator(p_first, v_.begin, v_.end);
+        return iterator::from_base(p_first, v_.begin, v_.end);
     }
 
  private:
@@ -351,7 +351,8 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
     bool is_same_alloc(const alloc_type& alloc) { return static_cast<alloc_type&>(*this) == alloc; }
 
     pointer to_ptr(const_iterator it) const {
-        auto p = std::addressof(const_cast<reference>(*it.ptr(v_.begin, v_.end)));
+        auto p = std::addressof(const_cast<reference>(*it.base().ptr()));
+        iterator_assert(it.base().begin() == v_.begin && it.base().end() == v_.end);
         assert(v_.begin <= p && p <= v_.end);
         return p;
     }

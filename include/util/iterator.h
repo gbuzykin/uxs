@@ -69,325 +69,376 @@ auto reverse_range(Range&& r) -> iterator_range<std::reverse_iterator<decltype(s
             std::reverse_iterator<decltype(std::begin(r))>(std::begin(r))};
 }
 
+template<typename IterL, typename IterR>
+bool operator==(const iterator_range<IterL>& lhs, const iterator_range<IterR>& rhs) {
+    return lhs.begin() == rhs.begin() && lhs.end() == rhs.end();
+}
+template<typename IterL, typename IterR>
+bool operator!=(const iterator_range<IterL>& lhs, const iterator_range<IterR>& rhs) {
+    return !(lhs == rhs);
+}
+
 //-----------------------------------------------------------------------------
-// Iterator facade
+// Normal iterator facade
 
-template<typename Iter, typename ValTy, typename Tag,  //
-         typename RefTy, typename PtrTy, typename DiffTy = std::ptrdiff_t>
-class iterator_facade {
+template<typename BaseIter, typename Container = void>
+class normal_iterator {
  public:
-    using iterator_category = Tag;
-    using value_type = ValTy;
-    using difference_type = DiffTy;
-    using reference = RefTy;
-    using pointer = PtrTy;
+    using iterator_category = typename BaseIter::iterator_category;
+    using value_type = typename BaseIter::value_type;
+    using difference_type = typename BaseIter::difference_type;
+    using reference = typename BaseIter::reference;
+    using pointer = typename BaseIter::pointer;
 
-    Iter& operator++() NOEXCEPT {
-        static_cast<Iter&>(*this).increment();
-        return static_cast<Iter&>(*this);
+    normal_iterator() NOEXCEPT : base_() {}
+    normal_iterator(const normal_iterator& it) NOEXCEPT : base_(it.base()) {}
+    normal_iterator& operator=(const normal_iterator& it) NOEXCEPT {
+        base_ = it.base();
+        return *this;
     }
 
-    Iter operator++(int) NOEXCEPT {
-        auto it = static_cast<Iter&>(*this);
-        ++(*this);
-        return it;
+    template<typename... Args>
+    explicit normal_iterator(const BaseIter& base) NOEXCEPT : base_(base) {}
+
+    template<typename... Args>
+    static normal_iterator from_base(Args&&... args) NOEXCEPT {
+        return normal_iterator(BaseIter(std::forward<Args>(args)...));
     }
 
-    Iter& operator+=(difference_type j) NOEXCEPT {
-        static_cast<Iter&>(*this).advance(j);
-        return static_cast<Iter&>(*this);
+    // Note: iterator can be copied if the underlying iterator can be converted to the type of
+    // current underlying iterator
+    template<typename BaseIter2>
+    normal_iterator(
+        const normal_iterator<BaseIter2, std::enable_if_t<std::is_convertible<BaseIter2, BaseIter>::value, Container>>&
+            it) NOEXCEPT : base_(it.base()) {}
+    template<typename BaseIter2>
+    normal_iterator& operator=(
+        const normal_iterator<BaseIter2, std::enable_if_t<std::is_convertible<BaseIter2, BaseIter>::value, Container>>&
+            it) NOEXCEPT {
+        base_ = it.base();
+        return *this;
     }
 
-    Iter operator+(difference_type j) const NOEXCEPT {
-        auto it = static_cast<const Iter&>(*this);
-        it += j;
-        return it;
+    normal_iterator& operator++() NOEXCEPT {
+        base_.increment();
+        return *this;
     }
 
-    Iter& operator--() NOEXCEPT {
-        static_cast<Iter&>(*this).decrement();
-        return static_cast<Iter&>(*this);
+    normal_iterator operator++(int) NOEXCEPT {
+        BaseIter base = base_;
+        base_.increment();
+        return normal_iterator(base);
     }
 
-    Iter operator--(int) NOEXCEPT {
-        auto it = static_cast<Iter&>(*this);
-        --(*this);
-        return it;
+    normal_iterator& operator+=(difference_type j) NOEXCEPT {
+        base_.advance(j);
+        return *this;
     }
 
-    Iter& operator-=(difference_type j) NOEXCEPT {
-        static_cast<Iter&>(*this).advance(-j);
-        return static_cast<Iter&>(*this);
+    normal_iterator operator+(difference_type j) const NOEXCEPT {
+        BaseIter base = base_;
+        base.advance(j);
+        return normal_iterator(base);
     }
 
-    Iter operator-(difference_type j) const NOEXCEPT {
-        auto it = static_cast<const Iter&>(*this);
-        it -= j;
-        return it;
+    normal_iterator& operator--() NOEXCEPT {
+        base_.decrement();
+        return *this;
     }
 
-    reference operator*() const NOEXCEPT { return static_cast<const Iter&>(*this).dereference(); }
+    normal_iterator operator--(int) NOEXCEPT {
+        BaseIter base = base_;
+        base_.decrement();
+        return normal_iterator(base);
+    }
+
+    normal_iterator& operator-=(difference_type j) NOEXCEPT {
+        base_.advance(-j);
+        return *this;
+    }
+
+    normal_iterator operator-(difference_type j) const NOEXCEPT {
+        BaseIter base = base_;
+        base.advance(-j);
+        return normal_iterator(base);
+    }
+
+    reference operator*() const NOEXCEPT { return base_.dereference(); }
     pointer operator->() const NOEXCEPT { return std::addressof(**this); }
     reference operator[](difference_type j) const NOEXCEPT { return *(*this + j); }
+
+    const BaseIter& base() const NOEXCEPT { return base_; }
+
+ private:
+    BaseIter base_;
 };
 
-template<typename Iter1, typename ValTy, typename Tag, typename RefTy1, typename PtrTy1, typename DiffTy,
-         typename Iter2, typename RefTy2, typename PtrTy2>
-auto operator==(const iterator_facade<Iter1, ValTy, Tag, RefTy1, PtrTy1, DiffTy>& lhs,
-                const iterator_facade<Iter2, ValTy, Tag, RefTy2, PtrTy2, DiffTy>& rhs) NOEXCEPT
-    -> decltype(static_cast<const Iter1&>(lhs).is_equal_to(static_cast<const Iter2&>(rhs))) {
-    return static_cast<const Iter1&>(lhs).is_equal_to(static_cast<const Iter2&>(rhs));
+template<typename BaseIterL, typename BaseIterR, typename Container>
+bool operator==(const normal_iterator<BaseIterL, Container>& lhs,
+                const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT {
+    return lhs.base().is_equal_to(rhs.base());
+}
+template<typename BaseIter, typename Container>
+bool operator==(const normal_iterator<BaseIter, Container>& lhs,
+                const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT {
+    return lhs.base().is_equal_to(rhs.base());
 }
 
-template<typename Iter1, typename ValTy, typename Tag, typename RefTy1, typename PtrTy1, typename DiffTy,
-         typename Iter2, typename RefTy2, typename PtrTy2>
-auto operator!=(const iterator_facade<Iter1, ValTy, Tag, RefTy1, PtrTy1, DiffTy>& lhs,
-                const iterator_facade<Iter2, ValTy, Tag, RefTy2, PtrTy2, DiffTy>& rhs) NOEXCEPT
-    -> decltype(static_cast<const Iter1&>(lhs).is_equal_to(static_cast<const Iter2&>(rhs))) {
-    return !static_cast<const Iter1&>(lhs).is_equal_to(static_cast<const Iter2&>(rhs));
+template<typename BaseIterL, typename BaseIterR, typename Container>
+bool operator!=(const normal_iterator<BaseIterL, Container>& lhs,
+                const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT {
+    return !lhs.base().is_equal_to(rhs.base());
+}
+template<typename BaseIter, typename Container>
+bool operator!=(const normal_iterator<BaseIter, Container>& lhs,
+                const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT {
+    return !lhs.base().is_equal_to(rhs.base());
 }
 
-template<typename Iter1, typename ValTy, typename Tag, typename RefTy1, typename PtrTy1, typename DiffTy,
-         typename Iter2, typename RefTy2, typename PtrTy2>
-auto operator<(const iterator_facade<Iter1, ValTy, Tag, RefTy1, PtrTy1, DiffTy>& lhs,
-               const iterator_facade<Iter2, ValTy, Tag, RefTy2, PtrTy2, DiffTy>& rhs) NOEXCEPT
-    -> decltype(static_cast<const Iter1&>(lhs).is_less_than(static_cast<const Iter2&>(rhs))) {
-    return static_cast<const Iter1&>(lhs).is_less_than(static_cast<const Iter2&>(rhs));
+template<typename BaseIterL, typename BaseIterR, typename Container>
+bool operator<(const normal_iterator<BaseIterL, Container>& lhs,
+               const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT {
+    return lhs.base().is_less_than(rhs.base());
+}
+template<typename BaseIter, typename Container>
+bool operator<(const normal_iterator<BaseIter, Container>& lhs,
+               const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT {
+    return lhs.base().is_less_than(rhs.base());
 }
 
-template<typename Iter1, typename ValTy, typename Tag, typename RefTy1, typename PtrTy1, typename DiffTy,
-         typename Iter2, typename RefTy2, typename PtrTy2>
-auto operator<=(const iterator_facade<Iter1, ValTy, Tag, RefTy1, PtrTy1, DiffTy>& lhs,
-                const iterator_facade<Iter2, ValTy, Tag, RefTy2, PtrTy2, DiffTy>& rhs) NOEXCEPT
-    -> decltype(static_cast<const Iter2&>(rhs).is_less_than(static_cast<const Iter1&>(lhs))) {
-    return !static_cast<const Iter2&>(rhs).is_less_than(static_cast<const Iter1&>(lhs));
+template<typename BaseIterL, typename BaseIterR, typename Container>
+bool operator<=(const normal_iterator<BaseIterL, Container>& lhs,
+                const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT {
+    return !rhs.base().is_less_than(lhs.base());
+}
+template<typename BaseIter, typename Container>
+bool operator<=(const normal_iterator<BaseIter, Container>& lhs,
+                const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT {
+    return !rhs.base().is_less_than(lhs.base());
 }
 
-template<typename Iter1, typename ValTy, typename Tag, typename RefTy1, typename PtrTy1, typename DiffTy,
-         typename Iter2, typename RefTy2, typename PtrTy2>
-auto operator>(const iterator_facade<Iter1, ValTy, Tag, RefTy1, PtrTy1, DiffTy>& lhs,
-               const iterator_facade<Iter2, ValTy, Tag, RefTy2, PtrTy2, DiffTy>& rhs) NOEXCEPT
-    -> decltype(static_cast<const Iter2&>(rhs).is_less_than(static_cast<const Iter1&>(lhs))) {
-    return static_cast<const Iter2&>(rhs).is_less_than(static_cast<const Iter1&>(lhs));
+template<typename BaseIterL, typename BaseIterR, typename Container>
+bool operator>(const normal_iterator<BaseIterL, Container>& lhs,
+               const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT {
+    return rhs.base().is_less_than(lhs.base());
+}
+template<typename BaseIter, typename Container>
+bool operator>(const normal_iterator<BaseIter, Container>& lhs,
+               const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT {
+    return rhs.base().is_less_than(lhs.base());
 }
 
-template<typename Iter1, typename ValTy, typename Tag, typename RefTy1, typename PtrTy1, typename DiffTy,
-         typename Iter2, typename RefTy2, typename PtrTy2>
-auto operator>=(const iterator_facade<Iter1, ValTy, Tag, RefTy1, PtrTy1, DiffTy>& lhs,
-                const iterator_facade<Iter2, ValTy, Tag, RefTy2, PtrTy2, DiffTy>& rhs) NOEXCEPT
-    -> decltype(static_cast<const Iter1&>(lhs).is_less_than(static_cast<const Iter2&>(rhs))) {
-    return !static_cast<const Iter1&>(lhs).is_less_than(static_cast<const Iter2&>(rhs));
+template<typename BaseIterL, typename BaseIterR, typename Container>
+bool operator>=(const normal_iterator<BaseIterL, Container>& lhs,
+                const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT {
+    return !lhs.base().is_less_than(rhs.base());
+}
+template<typename BaseIter, typename Container>
+bool operator>=(const normal_iterator<BaseIter, Container>& lhs,
+                const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT {
+    return !lhs.base().is_less_than(rhs.base());
 }
 
-template<typename Iter1, typename ValTy, typename Tag, typename RefTy1, typename PtrTy1, typename DiffTy,
-         typename Iter2, typename RefTy2, typename PtrTy2>
-auto operator-(const iterator_facade<Iter1, ValTy, Tag, RefTy1, PtrTy1, DiffTy>& lhs,
-               const iterator_facade<Iter2, ValTy, Tag, RefTy2, PtrTy2, DiffTy>& rhs) NOEXCEPT
-    -> decltype(static_cast<const Iter2&>(rhs).distance_to(static_cast<const Iter1&>(lhs))) {
-    return static_cast<const Iter2&>(rhs).distance_to(static_cast<const Iter1&>(lhs));
+template<typename BaseIterL, typename BaseIterR, typename Container>
+auto operator-(const normal_iterator<BaseIterL, Container>& lhs,
+               const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT  //
+    -> decltype(rhs.base().distance_to(lhs.base())) {
+    return rhs.base().distance_to(lhs.base());
+}
+template<typename BaseIter, typename Container>
+typename normal_iterator<BaseIter, Container>::difference_type operator-(
+    const normal_iterator<BaseIter, Container>& lhs, const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT {
+    return rhs.base().distance_to(lhs.base());
 }
 
-template<typename Traits, typename Iter, typename Tag, bool Const>
-using container_iterator_facade =
-    iterator_facade<Iter, typename Traits::value_type, Tag,
-                    std::conditional_t<Const, typename Traits::const_reference, typename Traits::reference>,
-                    std::conditional_t<Const, typename Traits::const_pointer, typename Traits::pointer>,
-                    typename Traits::difference_type>;
+template<typename BaseIter, typename Container>
+normal_iterator<BaseIter, Container> operator+(typename normal_iterator<BaseIter, Container>::difference_type j,
+                                               const normal_iterator<BaseIter, Container>& it) NOEXCEPT {
+    BaseIter base = it.base();
+    base.advance(j);
+    return normal_iterator<BaseIter, Container>(base);
+}
+
+#ifdef USE_CHECKED_ITERATORS
+template<typename BaseIter, typename Container>
+struct std::_Is_checked_helper<normal_iterator<BaseIter, Container>> : std::true_type {};
+#endif  // USE_CHECKED_ITERATORS
 
 //-----------------------------------------------------------------------------
 // Array iterator
 
-template<typename PtrTy>
-struct ranged_debug_pointer {
-    ranged_debug_pointer() NOEXCEPT = default;
-    ~ranged_debug_pointer() = default;
-    ranged_debug_pointer(const ranged_debug_pointer&) NOEXCEPT = default;
-    ranged_debug_pointer& operator=(const ranged_debug_pointer&) NOEXCEPT = default;
-#if _ITERATOR_DEBUG_LEVEL != 0
-    explicit ranged_debug_pointer(PtrTy in_ptr, PtrTy in_begin, PtrTy in_end) NOEXCEPT : ptr(in_ptr),
-                                                                                         begin(in_begin),
-                                                                                         end(in_end) {}
-    template<typename PtrTy2>
-    explicit ranged_debug_pointer(const ranged_debug_pointer<PtrTy2>& p) NOEXCEPT : ptr(p.ptr),
-                                                                                    begin(p.begin),
-                                                                                    end(p.end) {}
-    PtrTy ptr{nullptr}, begin{nullptr}, end{nullptr};
-#else   // _ITERATOR_DEBUG_LEVEL != 0
-    explicit ranged_debug_pointer(PtrTy in_ptr, PtrTy in_begin, PtrTy in_end) NOEXCEPT : ptr(in_ptr) {
-        (void)in_begin, (void)in_end;
+namespace detail {
+
+template<typename Container, bool Const>
+class array_iterator {
+ public:
+    using iterator_category = std::random_access_iterator_tag;
+    using value_type = typename Container::value_type;
+    using difference_type = typename Container::difference_type;
+    using reference = std::conditional_t<Const, typename Container::const_reference, typename Container::reference>;
+    using pointer = std::conditional_t<Const, typename Container::const_pointer, typename Container::pointer>;
+
+    template<typename, bool>
+    friend class array_iterator;
+
+    array_iterator() = default;
+    ~array_iterator() = default;
+    array_iterator(const array_iterator&) = default;
+    array_iterator& operator=(const array_iterator&) = default;
+
+    void increment() {
+        iterator_assert(ptr_ < end_);
+        ++ptr_;
     }
-    template<typename PtrTy2>
-    explicit ranged_debug_pointer(const ranged_debug_pointer<PtrTy2>& p) NOEXCEPT : ptr(p.ptr) {}
-    PtrTy ptr{nullptr};
+
+    void decrement() {
+        iterator_assert(ptr_ > begin_);
+        --ptr_;
+    }
+
+    void advance(difference_type j) {
+        iterator_assert(j >= 0 ? end_ - ptr_ >= j : ptr_ - begin_ >= -j);
+        ptr_ += j;
+    }
+
+    reference dereference() const {
+        iterator_assert(ptr_ < end_);
+        return *ptr_;
+    }
+
+    template<bool Const2>
+    bool is_equal_to(const array_iterator<Container, Const2>& it) const {
+        iterator_assert(begin_ == it.begin_ && end_ == it.end_);
+        return ptr_ == it.ptr_;
+    }
+
+    template<bool Const2>
+    bool is_less_than(const array_iterator<Container, Const2>& it) const {
+        iterator_assert(begin_ == it.begin_ && end_ == it.end_);
+        return ptr_ < it.ptr_;
+    }
+
+    template<bool Const2>
+    difference_type distance_to(const array_iterator<Container, Const2>& it) const {
+        iterator_assert(begin_ == it.begin_ && end_ == it.end_);
+        return it.ptr_ - ptr_;
+    }
+
+    pointer ptr() const { return ptr_; }
+
+#if _ITERATOR_DEBUG_LEVEL != 0
+    explicit array_iterator(pointer ptr, pointer begin, pointer end) : ptr_(ptr), begin_(begin), end_(end) {}
+    template<bool Const_ = Const>
+    array_iterator(const std::enable_if_t<Const_, array_iterator<Container, false>>& p)
+        : ptr_(p.ptr_), begin_(p.begin_), end_(p.end_) {}
+
+    pointer begin() const { return begin_; }
+    pointer end() const { return end_; }
+
+ private:
+    pointer ptr_{nullptr}, begin_{nullptr}, end_{nullptr};
+#else   // _ITERATOR_DEBUG_LEVEL != 0
+    explicit array_iterator(pointer ptr, pointer begin, pointer end) : ptr_(ptr) { (void)begin, (void)end; }
+    template<bool Const_ = Const>
+    array_iterator(const std::enable_if_t<Const_, array_iterator<Container, false>>& p) : ptr_(p.ptr_) {}
+
+ private:
+    pointer ptr_{nullptr};
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
 };
 
-template<typename Traits, bool Const>
-class array_iterator : public container_iterator_facade<Traits, array_iterator<Traits, Const>,  //
-                                                        std::random_access_iterator_tag, Const> {
- private:
-    using super = container_iterator_facade<Traits, array_iterator, std::random_access_iterator_tag, Const>;
+}  // namespace detail
 
- public:
-    using reference = typename super::reference;
-    using pointer = typename super::pointer;
-    using difference_type = typename super::difference_type;
-
-    array_iterator() NOEXCEPT = default;
-    explicit array_iterator(pointer ptr, pointer begin, pointer end) NOEXCEPT
-        : ptr_(ranged_debug_pointer<pointer>(ptr, begin, end)) {}
-    ~array_iterator() = default;
-    array_iterator(const array_iterator&) NOEXCEPT = default;
-    array_iterator& operator=(const array_iterator&) NOEXCEPT = default;
-
-    template<bool Const_ = Const>
-    array_iterator(const std::enable_if_t<Const_, array_iterator<Traits, false>>& it) NOEXCEPT
-        : ptr_(static_cast<ranged_debug_pointer<typename Traits::const_pointer>>(it.ptr_)) {}
-
-    template<bool Const_ = Const>
-    array_iterator& operator=(const std::enable_if_t<Const_, array_iterator<Traits, false>>& it) NOEXCEPT {
-        ptr_ = static_cast<ranged_debug_pointer<typename Traits::const_pointer>>(it.ptr_);
-        return *this;
-    }
-
-    pointer ptr(pointer begin, pointer end) const NOEXCEPT {
-        (void)begin, (void)end;
-        iterator_assert((!begin || (ptr_.begin == begin)) && (!end || (ptr_.end == end)));
-        return ptr_.ptr;
-    }
-
-    void increment() NOEXCEPT {
-        iterator_assert(ptr_.ptr < ptr_.end);
-        ++ptr_.ptr;
-    }
-
-    void decrement() NOEXCEPT {
-        iterator_assert(ptr_.ptr > ptr_.begin);
-        --ptr_.ptr;
-    }
-
-    void advance(difference_type j) NOEXCEPT {
-        iterator_assert((j >= 0) ? (ptr_.end - ptr_.ptr >= j) : (ptr_.ptr - ptr_.begin >= -j));
-        ptr_.ptr += j;
-    }
-
-    template<bool Const2>
-    bool is_equal_to(const array_iterator<Traits, Const2>& it) const NOEXCEPT {
-        iterator_assert((ptr_.begin == it.ptr_.begin) && (ptr_.end == it.ptr_.end));
-        return ptr_.ptr == it.ptr_.ptr;
-    }
-
-    template<bool Const2>
-    bool is_less_than(const array_iterator<Traits, Const2>& it) const NOEXCEPT {
-        iterator_assert((ptr_.begin == it.ptr_.begin) && (ptr_.end == it.ptr_.end));
-        return ptr_.ptr < it.ptr_.ptr;
-    }
-
-    template<bool Const2>
-    difference_type distance_to(const array_iterator<Traits, Const2>& it) const NOEXCEPT {
-        iterator_assert((ptr_.begin == it.ptr_.begin) && (ptr_.end == it.ptr_.end));
-        return it.ptr_.ptr - ptr_.ptr;
-    }
-
-    reference dereference() const NOEXCEPT {
-        iterator_assert(ptr_.ptr < ptr_.end);
-        return *ptr_.ptr;
-    }
-
- private:
-    template<typename, bool>
-    friend class array_iterator;
-    ranged_debug_pointer<pointer> ptr_;
-};
-
-#ifdef USE_CHECKED_ITERATORS
-template<typename Traits, bool Const>
-struct std::_Is_checked_helper<array_iterator<Traits, Const>> : std::true_type {};
-#endif  // USE_CHECKED_ITERATORS
+template<typename Container, bool Const>
+using array_iterator = normal_iterator<detail::array_iterator<Container, Const>, Container>;
 
 //-----------------------------------------------------------------------------
 // List iterator
 
-template<typename Traits, typename NodeTy, bool Const>
-class list_iterator : public container_iterator_facade<Traits, list_iterator<Traits, NodeTy, Const>,  //
-                                                       std::bidirectional_iterator_tag, Const> {
- private:
-    using super = container_iterator_facade<Traits, list_iterator, std::bidirectional_iterator_tag, Const>;
+namespace detail {
 
+template<typename Container, typename NodeTy, bool Const>
+class list_iterator {
  public:
-    using reference = typename super::reference;
+    using iterator_category = std::bidirectional_iterator_tag;
+    using value_type = typename Container::value_type;
+    using difference_type = typename Container::difference_type;
+    using reference = std::conditional_t<Const, typename Container::const_reference, typename Container::reference>;
+    using pointer = std::conditional_t<Const, typename Container::const_pointer, typename Container::pointer>;
     using node_type = typename NodeTy::iterator_node_t;
 
-    list_iterator() NOEXCEPT = default;
-    explicit list_iterator(node_type* node) NOEXCEPT : node_(node) {}
+    template<typename, typename, bool>
+    friend class list_iterator;
+
+    list_iterator() = default;
+    explicit list_iterator(node_type* node) : node_(node) {}
     ~list_iterator() = default;
-    list_iterator(const list_iterator&) NOEXCEPT = default;
-    list_iterator& operator=(const list_iterator&) NOEXCEPT = default;
+    list_iterator(const list_iterator&) = default;
+    list_iterator& operator=(const list_iterator&) = default;
 
     template<bool Const_ = Const>
-    list_iterator(const std::enable_if_t<Const_, list_iterator<Traits, NodeTy, false>>& it) NOEXCEPT : node_(it.node_) {
-    }
-
+    list_iterator(const std::enable_if_t<Const_, list_iterator<Container, NodeTy, false>>& it) : node_(it.node_) {}
     template<bool Const_ = Const>
-    list_iterator& operator=(const std::enable_if_t<Const_, list_iterator<Traits, NodeTy, false>>& it) NOEXCEPT {
+    list_iterator& operator=(const std::enable_if_t<Const_, list_iterator<Container, NodeTy, false>>& it) {
         node_ = it.node_;
         return *this;
     }
 
-    node_type* node(node_type* head) const NOEXCEPT {
-        (void)head;
-        iterator_assert(!node_ || !head || (NodeTy::get_head(node_) == head));
-        return node_;
-    }
-
-    void increment() NOEXCEPT {
-        iterator_assert(node_ && (node_ != NodeTy::get_head(node_)));
+    void increment() {
+        iterator_assert(node_ && node_ != NodeTy::get_head(node_));
         node_ = NodeTy::get_next(node_);
     }
 
-    void decrement() NOEXCEPT {
-        iterator_assert(node_ && (node_ != NodeTy::get_front(NodeTy::get_head(node_))));
+    void decrement() {
+        iterator_assert(node_ && node_ != NodeTy::get_front(NodeTy::get_head(node_)));
         node_ = NodeTy::get_prev(node_);
     }
 
-    template<bool Const2>
-    bool is_equal_to(const list_iterator<Traits, NodeTy, Const2>& it) const NOEXCEPT {
-        iterator_assert(node_ && it.node_ && (NodeTy::get_head(node_) == NodeTy::get_head(it.node_)));
-        return node_ == it.node_;
-    }
-
-    reference dereference() const NOEXCEPT {
+    reference dereference() const {
         iterator_assert(node_);
         return NodeTy::get_value(node_);
     }
 
+    template<bool Const2>
+    bool is_equal_to(const list_iterator<Container, NodeTy, Const2>& it) const {
+        iterator_assert(node_ && it.node_ && NodeTy::get_head(node_) == NodeTy::get_head(it.node_));
+        return node_ == it.node_;
+    }
+
+    node_type* node() const { return node_; }
+
  private:
-    template<typename, typename, bool>
-    friend class list_iterator;
     node_type* node_ = nullptr;
 };
 
-#ifdef USE_CHECKED_ITERATORS
-template<typename Traits, typename NodeTy, bool Const>
-struct std::_Is_checked_helper<list_iterator<Traits, NodeTy, Const>> : std::true_type {};
-#endif  // USE_CHECKED_ITERATORS
+}  // namespace detail
+
+template<typename Container, typename NodeTy, bool Const>
+using list_iterator = normal_iterator<detail::list_iterator<Container, NodeTy, Const>, Container>;
 
 //-----------------------------------------------------------------------------
 // Const value iterator
 
-template<typename Val>
-class const_value_iterator : public iterator_facade<const_value_iterator<Val>, Val,  //
-                                                    std::input_iterator_tag, const Val&, const Val*> {
- public:
-    explicit const_value_iterator(const Val& v) NOEXCEPT : v_(std::addressof(v)) {}
-    ~const_value_iterator() = default;
-    const_value_iterator(const const_value_iterator& it) NOEXCEPT = default;
-    const_value_iterator& operator=(const const_value_iterator& it) NOEXCEPT = default;
+namespace detail {
 
-    void increment() NOEXCEPT {}
-    void advance(std::ptrdiff_t j) NOEXCEPT {}
-    const Val& dereference() const NOEXCEPT { return *v_; }
-    bool is_equal_to(const const_value_iterator& it) const NOEXCEPT {
+template<typename Val>
+class const_value_iterator {
+ public:
+    using iterator_category = std::input_iterator_tag;
+    using value_type = Val;
+    using difference_type = std::ptrdiff_t;
+    using reference = const Val&;
+    using pointer = const Val*;
+
+    explicit const_value_iterator(const Val& v) : v_(std::addressof(v)) {}
+    ~const_value_iterator() = default;
+    const_value_iterator(const const_value_iterator&) = default;
+    const_value_iterator& operator=(const const_value_iterator&) = default;
+
+    void increment() {}
+    void advance(difference_type j) {}
+    const Val& dereference() const { return *v_; }
+    bool is_equal_to(const const_value_iterator& it) const {
         iterator_assert(v_ == it.v_);
         return true;
     }
@@ -396,23 +447,14 @@ class const_value_iterator : public iterator_facade<const_value_iterator<Val>, V
     const Val* v_;
 };
 
+}  // namespace detail
+
+template<typename Val>
+using const_value_iterator = normal_iterator<detail::const_value_iterator<Val>>;
+
 template<typename Val>
 const_value_iterator<Val> const_value(const Val& v) NOEXCEPT {
-    return const_value_iterator<Val>(v);
+    return const_value_iterator<Val>::from_base(v);
 }
-
-#ifdef USE_CHECKED_ITERATORS
-template<typename Val>
-struct std::_Is_checked_helper<const_value_iterator<Val>> : std::true_type {};
-#endif  // USE_CHECKED_ITERATORS
 
 }  // namespace util
-
-template<typename Iter>
-bool operator==(const util::iterator_range<Iter>& lhs, const util::iterator_range<Iter>& rhs) {
-    return lhs.begin() == rhs.begin() && lhs.end() == rhs.end();
-}
-template<typename Iter>
-bool operator!=(const util::iterator_range<Iter>& lhs, const util::iterator_range<Iter>& rhs) {
-    return !(lhs == rhs);
-}

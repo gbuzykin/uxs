@@ -37,11 +37,11 @@ class basic_string_view {
 
     explicit operator basic_string<CharT>() const { return basic_string<CharT>(begin_, size_); }
 
-    const_iterator begin() const { return const_iterator{begin_, begin_, begin_ + size_}; }
-    const_iterator cbegin() const { return const_iterator{begin_, begin_, begin_ + size_}; }
+    const_iterator begin() const { return const_iterator::from_base(begin_, begin_, begin_ + size_); }
+    const_iterator cbegin() const { return const_iterator::from_base(begin_, begin_, begin_ + size_); }
 
-    const_iterator end() const { return const_iterator{begin_ + size_, begin_, begin_ + size_}; }
-    const_iterator cend() const { return const_iterator{begin_ + size_, begin_, begin_ + size_}; }
+    const_iterator end() const { return const_iterator::from_base(begin_ + size_, begin_, begin_ + size_); }
+    const_iterator cend() const { return const_iterator::from_base(begin_ + size_, begin_, begin_ + size_); }
 
     const_reverse_iterator rbegin() const { return const_reverse_iterator{end()}; }
     const_reverse_iterator crbegin() const { return const_reverse_iterator{end()}; }
