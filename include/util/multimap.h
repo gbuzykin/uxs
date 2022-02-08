@@ -92,7 +92,8 @@ class multimap : public detail::rbtree_multi<detail::map_node_type<Key, Ty>, All
     }
 
     multimap(const multimap& other, const allocator_type& alloc) : super(other, alloc) {}
-    multimap(multimap&& other, const allocator_type& alloc) : super(std::move(other), alloc) {}
+    multimap(multimap&& other, const allocator_type& alloc) NOEXCEPT_IF(is_alloc_always_equal<alloc_type>::value)
+        : super(std::move(other), alloc) {}
 
     void swap(multimap& other) NOEXCEPT_IF(std::is_nothrow_swappable<key_compare>::value) {
         if (std::addressof(other) == this) { return; }

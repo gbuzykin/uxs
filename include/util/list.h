@@ -141,19 +141,9 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
         steal_data(other);
     }
 
-    list(list&& other, const allocator_type& alloc) : alloc_type(alloc) {
-        init();
-        if (is_alloc_always_equal<alloc_type>::value || is_same_alloc(other)) {
-            steal_data(other);
-        } else {
-            try {
-                insert_impl(std::addressof(head_), std::make_move_iterator(other.begin()),
-                            std::make_move_iterator(other.end()));
-            } catch (...) {
-                tidy();
-                throw;
-            }
-        }
+    list(list&& other, const allocator_type& alloc) NOEXCEPT_IF(is_alloc_always_equal<alloc_type>::value)
+        : alloc_type(alloc) {
+        construct_impl(std::move(other), alloc, is_alloc_always_equal<alloc_type>());
     }
 
     list& operator=(list&& other) NOEXCEPT_IF(alloc_traits::propagate_on_container_move_assignment::value ||
@@ -451,6 +441,26 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
         head_.prev->next = std::addressof(head_);
         other.reset();
         node_t::set_head(head_.next, std::addressof(head_), std::addressof(head_));
+    }
+
+    void construct_impl(list&& other, const allocator_type& alloc, std::true_type) NOEXCEPT {
+        init();
+        steal_data(other);
+    }
+
+    void construct_impl(list&& other, const allocator_type& alloc, std::false_type) {
+        init();
+        if (is_same_alloc(other)) {
+            steal_data(other);
+        } else {
+            try {
+                insert_impl(std::addressof(head_), std::make_move_iterator(other.begin()),
+                            std::make_move_iterator(other.end()));
+            } catch (...) {
+                tidy();
+                throw;
+            }
+        }
     }
 
     void assign_impl(const list& other, std::true_type) {

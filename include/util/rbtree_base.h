@@ -177,13 +177,9 @@ class rbtree_base : protected rbtree_compare<NodeTy, Alloc, Comp> {
         steal_data(other);
     }
 
-    rbtree_base(rbtree_base&& other, const allocator_type& alloc) : super(alloc, std::move(other.get_compare())) {
-        init();
-        if (is_alloc_always_equal<alloc_type>::value || is_same_alloc(other)) {
-            steal_data(other);
-        } else {
-            init_from(other, move_value);
-        }
+    rbtree_base(rbtree_base&& other, const allocator_type& alloc) NOEXCEPT_IF(is_alloc_always_equal<alloc_type>::value)
+        : super(alloc, std::move(other.get_compare())) {
+        construct_impl(std::move(other), alloc, is_alloc_always_equal<alloc_type>());
     }
 
     rbtree_base& operator=(rbtree_base&& other)
@@ -532,6 +528,20 @@ class rbtree_base : protected rbtree_compare<NodeTy, Alloc, Comp> {
         head_.left->parent = std::addressof(head_);
         other.head_.right = other.head_.parent = std::addressof(other.head_);
         node_t::set_head(head_.parent, std::addressof(head_), std::addressof(head_));
+    }
+
+    void construct_impl(rbtree_base&& other, const allocator_type& alloc, std::true_type) NOEXCEPT {
+        init();
+        steal_data(other);
+    }
+
+    void construct_impl(rbtree_base&& other, const allocator_type& alloc, std::false_type) {
+        init();
+        if (is_same_alloc(other)) {
+            steal_data(other);
+        } else {
+            init_from(other, move_value);
+        }
     }
 
     void assign_impl(const rbtree_base& other, std::true_type) {

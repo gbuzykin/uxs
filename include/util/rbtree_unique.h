@@ -44,7 +44,9 @@ class rbtree_unique : public rbtree_base<NodeTy, Alloc, Comp> {
     explicit rbtree_unique(const allocator_type& alloc) NOEXCEPT_IF(noexcept(super(alloc))) : super(alloc) {}
     explicit rbtree_unique(const key_compare& comp, const allocator_type& alloc) : super(comp, alloc) {}
     rbtree_unique(const rbtree_unique& other, const allocator_type& alloc) : super(other, alloc) {}
-    rbtree_unique(rbtree_unique&& other, const allocator_type& alloc) : super(std::move(other), alloc) {}
+    rbtree_unique(rbtree_unique&& other, const allocator_type& alloc)
+        NOEXCEPT_IF(is_alloc_always_equal<alloc_type>::value)
+        : super(std::move(other), alloc) {}
 
 #if __cplusplus < 201703L
     ~rbtree_unique() = default;

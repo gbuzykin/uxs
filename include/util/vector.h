@@ -107,18 +107,9 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         other.v_.nullify();
     }
 
-    vector(vector&& other, const allocator_type& alloc) : alloc_type(alloc) {
-        if (is_alloc_always_equal<alloc_type>::value || is_same_alloc(other)) {
-            v_ = other.v_;
-            other.v_.nullify();
-        } else {
-            try {
-                init(other.size(), std::make_move_iterator(other.begin()));
-            } catch (...) {
-                tidy();
-                throw;
-            }
-        }
+    vector(vector&& other, const allocator_type& alloc) NOEXCEPT_IF(is_alloc_always_equal<alloc_type>::value)
+        : alloc_type(alloc) {
+        construct_impl(std::move(other), alloc, is_alloc_always_equal<alloc_type>());
     }
 
     vector& operator=(vector&& other) NOEXCEPT_IF(alloc_traits::propagate_on_container_move_assignment::value ||
@@ -379,6 +370,25 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         assert(v.begin != v.boundary);
         for (auto p = v.begin; p != v.end; ++p) { alloc_traits::destroy(*this, std::addressof(*p)); }
         alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
+    }
+
+    void construct_impl(vector&& other, const allocator_type& alloc, std::true_type) NOEXCEPT {
+        v_ = other.v_;
+        other.v_.nullify();
+    }
+
+    void construct_impl(vector&& other, const allocator_type& alloc, std::false_type) {
+        if (is_same_alloc(other)) {
+            v_ = other.v_;
+            other.v_.nullify();
+        } else {
+            try {
+                init(other.size(), std::make_move_iterator(other.begin()));
+            } catch (...) {
+                tidy();
+                throw;
+            }
+        }
     }
 
     void assign_impl(const vector& other, std::true_type) {

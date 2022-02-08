@@ -28,7 +28,9 @@ class rbtree_multi : public rbtree_base<NodeTy, Alloc, Comp> {
     explicit rbtree_multi(const allocator_type& alloc) NOEXCEPT_IF(noexcept(super(alloc))) : super(alloc) {}
     explicit rbtree_multi(const key_compare& comp, const allocator_type& alloc) : super(comp, alloc) {}
     rbtree_multi(const rbtree_multi& other, const allocator_type& alloc) : super(other, alloc) {}
-    rbtree_multi(rbtree_multi&& other, const allocator_type& alloc) : super(std::move(other), alloc) {}
+    rbtree_multi(rbtree_multi&& other, const allocator_type& alloc)
+        NOEXCEPT_IF(is_alloc_always_equal<alloc_type>::value)
+        : super(std::move(other), alloc) {}
 
 #if __cplusplus < 201703L
     ~rbtree_multi() = default;

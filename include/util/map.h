@@ -93,7 +93,8 @@ class map : public detail::rbtree_unique<detail::map_node_type<Key, Ty>, Alloc, 
     }
 
     map(const map& other, const allocator_type& alloc) : super(other, alloc) {}
-    map(map&& other, const allocator_type& alloc) : super(std::move(other), alloc) {}
+    map(map&& other, const allocator_type& alloc) NOEXCEPT_IF(is_alloc_always_equal<alloc_type>::value)
+        : super(std::move(other), alloc) {}
 
     void swap(map& other) NOEXCEPT_IF(std::is_nothrow_swappable<key_compare>::value) {
         if (std::addressof(other) == this) { return; }

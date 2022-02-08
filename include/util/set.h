@@ -88,7 +88,8 @@ class set : public detail::rbtree_unique<detail::set_node_type<Key>, Alloc, Comp
     }
 
     set(const set& other, const allocator_type& alloc) : super(other, alloc) {}
-    set(set&& other, const allocator_type& alloc) : super(std::move(other), alloc) {}
+    set(set&& other, const allocator_type& alloc) NOEXCEPT_IF(is_alloc_always_equal<alloc_type>::value)
+        : super(std::move(other), alloc) {}
 
     void swap(set& other) NOEXCEPT_IF(std::is_nothrow_swappable<key_compare>::value) {
         if (std::addressof(other) == this) { return; }

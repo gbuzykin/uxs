@@ -88,7 +88,8 @@ class multiset : public detail::rbtree_multi<detail::set_node_type<Key>, Alloc, 
     }
 
     multiset(const multiset& other, const allocator_type& alloc) : super(other, alloc) {}
-    multiset(multiset&& other, const allocator_type& alloc) : super(std::move(other), alloc) {}
+    multiset(multiset&& other, const allocator_type& alloc) NOEXCEPT_IF(is_alloc_always_equal<alloc_type>::value)
+        : super(std::move(other), alloc) {}
 
     void swap(multiset& other) NOEXCEPT_IF(std::is_nothrow_swappable<key_compare>::value) {
         if (std::addressof(other) == this) { return; }
