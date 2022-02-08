@@ -80,12 +80,6 @@ struct remove_const<std::pair<Ty1, Ty2>> {
     using type = std::pair<std::remove_const_t<Ty1>, std::remove_const_t<Ty2>>;
 };
 
-struct nocopy_t {
-    nocopy_t() = default;
-    nocopy_t(const nocopy_t&) = delete;
-    nocopy_t& operator=(const nocopy_t&) = delete;
-};
-
 template<typename Ty>
 Ty get_and_set(Ty& v, std::remove_reference_t<Ty> v_new) {
     std::swap(v, v_new);

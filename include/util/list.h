@@ -370,7 +370,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
     mutable typename node_t::links_t head_;
     size_type size_ = 0;
 
-    struct dealloc_guard_t : nocopy_t {
+    struct dealloc_guard_t {
         alloc_type& alloc;
         dllist_node_t* node;
         dealloc_guard_t(alloc_type& alloc_, dllist_node_t* node_) : alloc(alloc_), node(node_) {}
@@ -378,9 +378,11 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
         ~dealloc_guard_t() {
             if (node) { alloc_traits::deallocate(alloc, static_cast<node_t*>(node), 1); }
         }
+        dealloc_guard_t(const dealloc_guard_t&) = delete;
+        dealloc_guard_t& operator=(const dealloc_guard_t&) = delete;
     };
 
-    struct temp_chain_t : nocopy_t {
+    struct temp_chain_t {
         alloc_type& alloc;
         dllist_node_t* first;
         dllist_node_t* last;
@@ -401,6 +403,8 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
                 first = next;
             }
         }
+        temp_chain_t(const temp_chain_t&) = delete;
+        temp_chain_t& operator=(const temp_chain_t&) = delete;
     };
 
     template<typename Func>

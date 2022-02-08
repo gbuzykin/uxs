@@ -301,7 +301,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
 
     enum : size_type { kStartCapacity = 8 };
 
-    struct value_instance_t : nocopy_t {
+    struct value_instance_t {
         alloc_type& alloc;
         typename std::aligned_storage<sizeof(value_type), std::alignment_of<value_type>::value>::type storage;
         template<typename... Args>
@@ -311,18 +311,22 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         }
         value_type& val() { return *reinterpret_cast<value_type*>(std::addressof(storage)); }
         ~value_instance_t() { alloc_traits::destroy(alloc, reinterpret_cast<value_type*>(std::addressof(storage))); }
+        value_instance_t(const value_instance_t&) = delete;
+        value_instance_t& operator=(const value_instance_t&) = delete;
     };
 
-    struct destroy_guard_t : nocopy_t {
+    struct destroy_guard_t {
         alloc_type& alloc;
         pointer begin, end;
         destroy_guard_t(alloc_type& alloc_, pointer begin_, pointer end_) : alloc(alloc_), begin(begin_), end(end_) {}
         ~destroy_guard_t() {
             for (; begin != end; ++begin) { alloc_traits::destroy(alloc, std::addressof(*begin)); }
         }
+        destroy_guard_t(const destroy_guard_t&) = delete;
+        destroy_guard_t& operator=(const destroy_guard_t&) = delete;
     };
 
-    struct temp_buf_t : nocopy_t {
+    struct temp_buf_t {
         alloc_type& alloc;
         pointer begin, end, boundary;
         temp_buf_t(alloc_type& alloc_, const std::tuple<pointer, pointer, pointer>& v)
@@ -335,6 +339,8 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
             for (auto p = begin; p != end; ++p) { alloc_traits::destroy(alloc, std::addressof(*p)); }
             alloc_traits::deallocate(alloc, begin, static_cast<size_type>(boundary - begin));
         }
+        temp_buf_t(const temp_buf_t&) = delete;
+        temp_buf_t& operator=(const temp_buf_t&) = delete;
     };
 
     template<typename Func>

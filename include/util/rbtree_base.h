@@ -456,7 +456,7 @@ class rbtree_base : protected rbtree_compare<NodeTy, Alloc, Comp> {
         key_compare comp;
     };
 
-    struct dealloc_guard_t : nocopy_t {
+    struct dealloc_guard_t {
         alloc_type& alloc;
         rbtree_node_t* node;
         dealloc_guard_t(alloc_type& alloc_, rbtree_node_t* node_) : alloc(alloc_), node(node_) {}
@@ -464,9 +464,11 @@ class rbtree_base : protected rbtree_compare<NodeTy, Alloc, Comp> {
         ~dealloc_guard_t() {
             if (node) { alloc_traits::deallocate(alloc, static_cast<node_t*>(node), 1); }
         }
+        dealloc_guard_t(const dealloc_guard_t&) = delete;
+        dealloc_guard_t& operator=(const dealloc_guard_t&) = delete;
     };
 
-    struct delete_guard_t : nocopy_t {
+    struct delete_guard_t {
         alloc_type& alloc;
         rbtree_node_t* node;
         delete_guard_t(alloc_type& alloc_, rbtree_node_t* node_) : alloc(alloc_), node(node_) {}
@@ -474,9 +476,11 @@ class rbtree_base : protected rbtree_compare<NodeTy, Alloc, Comp> {
         ~delete_guard_t() {
             if (node) { helpers::delete_node(alloc, node); }
         }
+        delete_guard_t(const delete_guard_t&) = delete;
+        delete_guard_t& operator=(const delete_guard_t&) = delete;
     };
 
-    struct delete_recursive_guard_t : nocopy_t {
+    struct delete_recursive_guard_t {
         alloc_type& alloc;
         rbtree_node_t* node;
         delete_recursive_guard_t(alloc_type& alloc_, rbtree_node_t* node_) : alloc(alloc_), node(node_) {}
@@ -489,9 +493,11 @@ class rbtree_base : protected rbtree_compare<NodeTy, Alloc, Comp> {
         ~delete_recursive_guard_t() {
             if (node) { delete_recursive(node); }
         }
+        delete_recursive_guard_t(const delete_recursive_guard_t&) = delete;
+        delete_recursive_guard_t& operator=(const delete_recursive_guard_t&) = delete;
     };
 
-    struct temp_chain_t : nocopy_t {
+    struct temp_chain_t {
         alloc_type& alloc;
         rbtree_node_t* first;
         rbtree_node_t* last;
@@ -513,6 +519,8 @@ class rbtree_base : protected rbtree_compare<NodeTy, Alloc, Comp> {
                 first = next;
             }
         }
+        temp_chain_t(const temp_chain_t&) = delete;
+        temp_chain_t& operator=(const temp_chain_t&) = delete;
     };
 
     template<typename Func>
