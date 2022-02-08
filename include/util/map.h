@@ -167,8 +167,8 @@ class map : public detail::rbtree_unique<detail::map_node_type<Key, Ty>, Alloc, 
     std::pair<iterator, bool> try_emplace_impl(Key2&& key, Args&&... args) {
         auto result = rbtree_find_insert_unique_pos<node_t>(std::addressof(this->head_), key, this->get_compare());
         if (result.second == 0) { return std::make_pair(iterator(result.first), false); }
-        auto node = this->new_node(std::piecewise_construct, std::forward_as_tuple(std::forward<Key2>(key)),
-                                   std::forward_as_tuple(std::forward<Args>(args)...));
+        auto* node = this->new_node(std::piecewise_construct, std::forward_as_tuple(std::forward<Key2>(key)),
+                                    std::forward_as_tuple(std::forward<Args>(args)...));
         node_t::set_head(node, std::addressof(this->head_));
         ++this->size_;
         rbtree_insert(std::addressof(this->head_), node, result.first, result.second < 0);
@@ -180,8 +180,8 @@ class map : public detail::rbtree_unique<detail::map_node_type<Key, Ty>, Alloc, 
         auto result = rbtree_find_insert_unique_pos<node_t>(std::addressof(this->head_), this->to_ptr(hint), key,
                                                             this->get_compare());
         if (result.second == 0) { return std::make_pair(iterator(result.first), false); }
-        auto node = this->new_node(std::piecewise_construct, std::forward_as_tuple(std::forward<Key2>(key)),
-                                   std::forward_as_tuple(std::forward<Args>(args)...));
+        auto* node = this->new_node(std::piecewise_construct, std::forward_as_tuple(std::forward<Key2>(key)),
+                                    std::forward_as_tuple(std::forward<Args>(args)...));
         node_t::set_head(node, std::addressof(this->head_));
         ++this->size_;
         rbtree_insert(std::addressof(this->head_), node, result.first, result.second < 0);

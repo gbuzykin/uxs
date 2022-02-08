@@ -91,7 +91,7 @@ class rbtree_multi : public rbtree_base<NodeTy, Alloc, Comp> {
         if (!is_alloc_always_equal<alloc_type>::value && !this->is_same_alloc(nh)) {
             throw std::logic_error("allocators incompatible for insert");
         }
-        auto node = nh.node_;
+        auto* node = nh.node_;
         auto result = rbtree_find_insert_pos<node_t>(std::addressof(this->head_),
                                                      node_t::get_key(node_t::get_value(node)), this->get_compare());
         node_t::set_head(node, std::addressof(this->head_));
@@ -106,7 +106,7 @@ class rbtree_multi : public rbtree_base<NodeTy, Alloc, Comp> {
         if (!is_alloc_always_equal<alloc_type>::value && !this->is_same_alloc(nh)) {
             throw std::logic_error("allocators incompatible for insert");
         }
-        auto node = nh.node_;
+        auto* node = nh.node_;
         auto result = rbtree_find_insert_pos<node_t>(std::addressof(this->head_), this->to_ptr(hint),
                                                      node_t::get_key(node_t::get_value(node)), this->get_compare());
         node_t::set_head(node, std::addressof(this->head_));
@@ -156,7 +156,7 @@ void rbtree_multi<NodeTy, Alloc, Comp>::assign_impl(InputIt first, InputIt last,
         return;
     }
     if (this->size_) {
-        auto reuse = super::reuse_first(this->head_.parent);
+        auto* reuse = super::reuse_first(this->head_.parent);
         this->reset();
         try {
             do {
@@ -165,7 +165,7 @@ void rbtree_multi<NodeTy, Alloc, Comp>::assign_impl(InputIt first, InputIt last,
                 auto result = rbtree_find_insert_pos<node_t>(std::addressof(this->head_), std::addressof(this->head_),
                                                              node_t::get_key(node_t::get_value(reuse)),
                                                              this->get_compare());
-                auto next = super::reuse_next(reuse);
+                auto* next = super::reuse_next(reuse);
                 ++this->size_;
                 rbtree_insert(std::addressof(this->head_), reuse, result.first, result.second);
                 reuse = next;
@@ -188,14 +188,14 @@ void rbtree_multi<NodeTy, Alloc, Comp>::assign_impl(InputIt first, InputIt last,
         return;
     }
     if (this->size_) {
-        auto reuse = reuse_first(this->head_.parent), node = reuse;
+        auto *reuse = reuse_first(this->head_.parent), *node = reuse;
         this->reset();
         reuse = super::reuse_next(node);
         try {
             do {
                 super::helpers::reconstruct_node(*this, node, *first);
                 ++first;
-                auto next = reuse;
+                auto* next = reuse;
                 reuse = node;
                 auto result = rbtree_find_insert_pos<node_t>(std::addressof(this->head_), std::addressof(this->head_),
                                                              node_t::get_key(node_t::get_value(node)),
@@ -223,12 +223,12 @@ void rbtree_multi<NodeTy, Alloc, Comp>::merge_impl(rbtree_base<NodeTy, Alloc, Co
     if (!is_alloc_always_equal<alloc_type>::value && !this->is_same_alloc(other)) {
         throw std::logic_error("allocators incompatible for merge");
     }
-    auto node = other.head_.parent;
+    auto* node = other.head_.parent;
     do {
         auto result = rbtree_find_insert_pos<node_t>(std::addressof(this->head_),
                                                      node_t::get_key(node_t::get_value(node)), this->get_compare());
         --other.size_;
-        auto next = rbtree_remove(std::addressof(other.head_), node);
+        auto* next = rbtree_remove(std::addressof(other.head_), node);
         node_t::set_head(node, std::addressof(this->head_));
         ++this->size_;
         rbtree_insert(std::addressof(this->head_), node, result.first, result.second);
