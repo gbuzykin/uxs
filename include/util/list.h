@@ -65,17 +65,32 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
     explicit list(const allocator_type& alloc) NOEXCEPT : alloc_type(alloc) { init(); }
     explicit list(size_type sz, const allocator_type& alloc = allocator_type()) : alloc_type(alloc) {
         init();
-        tidy_invoke([&]() { insert_default(std::addressof(head_), sz); });
+        try {
+            insert_default(std::addressof(head_), sz);
+        } catch (...) {
+            tidy();
+            throw;
+        }
     }
 
     list(size_type sz, const value_type& val, const allocator_type& alloc = allocator_type()) : alloc_type(alloc) {
         init();
-        tidy_invoke([&]() { insert_const(std::addressof(head_), sz, val); });
+        try {
+            insert_const(std::addressof(head_), sz, val);
+        } catch (...) {
+            tidy();
+            throw;
+        }
     }
 
     list(std::initializer_list<value_type> l, const allocator_type& alloc = allocator_type()) : alloc_type(alloc) {
         init();
-        tidy_invoke([&]() { insert_impl(std::addressof(head_), l.begin(), l.end()); });
+        try {
+            insert_impl(std::addressof(head_), l.begin(), l.end());
+        } catch (...) {
+            tidy();
+            throw;
+        }
     }
 
     list& operator=(std::initializer_list<value_type> l) {
@@ -86,17 +101,32 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     list(InputIt first, InputIt last, const allocator_type& alloc = allocator_type()) : alloc_type(alloc) {
         init();
-        tidy_invoke([&]() { insert_impl(std::addressof(head_), first, last); });
+        try {
+            insert_impl(std::addressof(head_), first, last);
+        } catch (...) {
+            tidy();
+            throw;
+        }
     }
 
     list(const list& other) : alloc_type(alloc_traits::select_on_container_copy_construction(other)) {
         init();
-        tidy_invoke([&]() { insert_impl(std::addressof(head_), other.begin(), other.end()); });
+        try {
+            insert_impl(std::addressof(head_), other.begin(), other.end());
+        } catch (...) {
+            tidy();
+            throw;
+        }
     }
 
     list(const list& other, const allocator_type& alloc) : alloc_type(alloc) {
         init();
-        tidy_invoke([&]() { insert_impl(std::addressof(head_), other.begin(), other.end()); });
+        try {
+            insert_impl(std::addressof(head_), other.begin(), other.end());
+        } catch (...) {
+            tidy();
+            throw;
+        }
     }
 
     list& operator=(const list& other) {
@@ -116,10 +146,13 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
         if (is_alloc_always_equal<alloc_type>::value || is_same_alloc(other)) {
             steal_data(other);
         } else {
-            tidy_invoke([&]() {
+            try {
                 insert_impl(std::addressof(head_), std::make_move_iterator(other.begin()),
                             std::make_move_iterator(other.end()));
-            });
+            } catch (...) {
+                tidy();
+                throw;
+            }
         }
     }
 
@@ -369,16 +402,6 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
  private:
     mutable typename node_t::links_t head_;
     size_type size_ = 0;
-
-    template<typename Func>
-    void tidy_invoke(Func fn) {
-        try {
-            fn();
-        } catch (...) {
-            tidy();
-            throw;
-        }
-    }
 
     bool is_same_alloc(const alloc_type& alloc) { return static_cast<alloc_type&>(*this) == alloc; }
 
