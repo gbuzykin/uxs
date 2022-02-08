@@ -3,7 +3,7 @@
 using namespace util;
 
 inline void rbtree_rotate_left(rbtree_node_t* node) {
-    auto right = node->right;
+    auto* right = node->right;
     node->right = right->left;
     right->parent = node->parent;
     if (right->left) { right->left->parent = node; }
@@ -17,7 +17,7 @@ inline void rbtree_rotate_left(rbtree_node_t* node) {
 }
 
 inline void rbtree_rotate_right(rbtree_node_t* node) {
-    auto left = node->left;
+    auto* left = node->left;
     node->left = left->right;
     left->parent = node->parent;
     if (left->right) { left->right->parent = node; }
@@ -53,11 +53,11 @@ void util::rbtree_insert(rbtree_node_t* head, rbtree_node_t* node, rbtree_node_t
     if (pos->color == rbtree_node_t::color_t::kBlack) { return; }
 
     do {
-        auto parent = pos->parent;
+        auto* parent = pos->parent;
         parent->color = rbtree_node_t::color_t::kRed;
 
         if (parent->left == pos) {
-            if (!parent->right || (parent->right->color == rbtree_node_t::color_t::kBlack)) {
+            if (!parent->right || parent->right->color == rbtree_node_t::color_t::kBlack) {
                 if (node == pos->right) {
                     rbtree_rotate_left(pos);
                     pos = node;
@@ -69,7 +69,7 @@ void util::rbtree_insert(rbtree_node_t* head, rbtree_node_t* node, rbtree_node_t
 
             parent->right->color = rbtree_node_t::color_t::kBlack;
         } else {
-            if (!parent->left || (parent->left->color == rbtree_node_t::color_t::kBlack)) {
+            if (!parent->left || parent->left->color == rbtree_node_t::color_t::kBlack) {
                 if (node == pos->left) {
                     rbtree_rotate_right(pos);
                     pos = node;
@@ -91,12 +91,12 @@ void util::rbtree_insert(rbtree_node_t* head, rbtree_node_t* node, rbtree_node_t
 }
 
 rbtree_node_t* util::rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos) {
-    auto fix = pos->right;
-    auto parent = pos->parent;
-    auto color = pos->color;
+    auto* fix = pos->right;
+    auto* parent = pos->parent;
+    rbtree_node_t::color_t color = pos->color;
 
     if (fix) {
-        auto next = rbtree_left_bound(fix);
+        auto* next = rbtree_left_bound(fix);
 
         if (pos->left) {
             std::swap(color, next->color);
@@ -174,9 +174,9 @@ rbtree_node_t* util::rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos) {
 
     if (color != rbtree_node_t::color_t::kBlack) { return pos; }
 
-    while (!fix || ((parent != head) && (fix->color == rbtree_node_t::color_t::kBlack))) {
+    while (!fix || (parent != head && fix->color == rbtree_node_t::color_t::kBlack)) {
         if (parent->left == fix) {
-            auto node = parent->right;
+            auto* node = parent->right;
 
             if (node->color != rbtree_node_t::color_t::kBlack) {
                 node->color = rbtree_node_t::color_t::kBlack;
@@ -185,9 +185,9 @@ rbtree_node_t* util::rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos) {
                 node = parent->right;
             }
 
-            if ((node->left && (node->left->color != rbtree_node_t::color_t::kBlack)) ||
-                (node->right && (node->right->color != rbtree_node_t::color_t::kBlack))) {
-                if (!node->right || (node->right->color == rbtree_node_t::color_t::kBlack)) {
+            if ((node->left && node->left->color != rbtree_node_t::color_t::kBlack) ||
+                (node->right && node->right->color != rbtree_node_t::color_t::kBlack)) {
+                if (!node->right || node->right->color == rbtree_node_t::color_t::kBlack) {
                     node->left->color = rbtree_node_t::color_t::kBlack;
                     node->color = rbtree_node_t::color_t::kRed;
                     rbtree_rotate_right(node);
@@ -203,7 +203,7 @@ rbtree_node_t* util::rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos) {
 
             node->color = rbtree_node_t::color_t::kRed;
         } else {
-            auto node = parent->left;
+            auto* node = parent->left;
 
             if (node->color != rbtree_node_t::color_t::kBlack) {
                 node->color = rbtree_node_t::color_t::kBlack;
@@ -212,9 +212,9 @@ rbtree_node_t* util::rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos) {
                 node = parent->left;
             }
 
-            if ((node->left && (node->left->color != rbtree_node_t::color_t::kBlack)) ||
-                (node->right && (node->right->color != rbtree_node_t::color_t::kBlack))) {
-                if (!node->left || (node->left->color == rbtree_node_t::color_t::kBlack)) {
+            if ((node->left && node->left->color != rbtree_node_t::color_t::kBlack) ||
+                (node->right && node->right->color != rbtree_node_t::color_t::kBlack)) {
+                if (!node->left || node->left->color == rbtree_node_t::color_t::kBlack) {
                     node->right->color = rbtree_node_t::color_t::kBlack;
                     node->color = rbtree_node_t::color_t::kRed;
                     rbtree_rotate_left(node);

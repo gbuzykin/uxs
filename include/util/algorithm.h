@@ -180,9 +180,9 @@ auto erase_at(Container& c, size_t i) -> std::void_t<decltype(std::begin(c) + i)
 template<typename Range, typename Key, typename KeyFn = key>
 auto lower_bound(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::begin(r) + 1) {
     auto first = std::begin(r);
-    auto count = static_cast<size_t>(std::distance(first, std::end(r)));
+    size_t count = static_cast<size_t>(std::distance(first, std::end(r)));
     while (count > 0) {
-        auto count2 = count / 2;
+        size_t count2 = count / 2;
         auto mid = std::next(first, count2);
         if (fn(*mid) < k) {
             first = ++mid;
@@ -197,9 +197,9 @@ auto lower_bound(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::b
 template<typename Range, typename Key, typename KeyFn = key>
 auto upper_bound(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::begin(r) + 1) {
     auto first = std::begin(r);
-    auto count = static_cast<size_t>(std::distance(first, std::end(r)));
+    size_t count = static_cast<size_t>(std::distance(first, std::end(r)));
     while (count > 0) {
-        auto count2 = count / 2;
+        size_t count2 = count / 2;
         auto mid = std::next(first, count2);
         if (!(k < fn(*mid))) {
             first = ++mid;
@@ -214,9 +214,9 @@ auto upper_bound(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::b
 template<typename Range, typename Key, typename KeyFn = key>
 auto equal_range(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> iterator_range<decltype(std::begin(r) + 1)> {
     auto first = std::begin(r);
-    auto count = static_cast<size_t>(std::distance(first, std::end(r)));
+    size_t count = static_cast<size_t>(std::distance(first, std::end(r)));
     while (count > 0) {
-        auto count2 = count / 2;
+        size_t count2 = count / 2;
         auto mid = std::next(first, count2);
         if (fn(*mid) < k) {
             first = ++mid;
@@ -224,7 +224,7 @@ auto equal_range(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> iterator_range<
         } else if (k < fn(*mid)) {
             count = count2;
         } else {
-            auto count_lower = count2;
+            size_t count_lower = count2;
             auto lower = first;
             first = ++mid;
             count -= count2 + 1;

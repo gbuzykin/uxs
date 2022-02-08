@@ -110,7 +110,14 @@ int util::compare_strings_nocase(std::string_view lhs, std::string_view rhs) {
     return 0;
 }
 
-std::string util::to_lower(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
-    return s;
+std::string util::to_lower(std::string_view s) {
+    std::string lower(s);
+    std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return std::tolower(c); });
+    return lower;
+}
+
+std::string util::to_upper(std::string_view s) {
+    std::string upper(s);
+    std::transform(upper.begin(), upper.end(), upper.begin(), [](unsigned char c) { return std::toupper(c); });
+    return upper;
 }

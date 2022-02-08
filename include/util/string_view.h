@@ -22,17 +22,17 @@ class basic_string_view {
     using size_type = size_t;
     using difference_type = std::ptrdiff_t;
 
-    static const size_type npos = size_type(-1);
+    static const size_t npos = size_t(-1);
 
     basic_string_view() = default;
-    basic_string_view(const CharT* s, size_type count) : begin_(s), size_(count) {}
+    basic_string_view(const CharT* s, size_t count) : begin_(s), size_(count) {}
     basic_string_view(const CharT* s) : begin_(s) {
         for (; *s; ++s, ++size_) {}
     }
     basic_string_view(const basic_string<CharT>& s) : basic_string_view(s.data(), s.size()) {}
 
-    size_type size() const { return size_; }
-    size_type length() const { return size_; }
+    size_t size() const { return size_; }
+    size_t length() const { return size_; }
     bool empty() const { return size_ == 0; }
 
     explicit operator basic_string<CharT>() const { return basic_string<CharT>(begin_, size_); }
@@ -49,11 +49,11 @@ class basic_string_view {
     const_reverse_iterator rend() const { return const_reverse_iterator{begin()}; }
     const_reverse_iterator crend() const { return const_reverse_iterator{begin()}; }
 
-    const_reference operator[](size_type pos) const {
+    const_reference operator[](size_t pos) const {
         assert(pos < size_);
         return begin_[pos];
     }
-    const_reference at(size_type pos) const {
+    const_reference at(size_t pos) const {
         if (pos >= size_) { throw out_of_range("invalid pos"); }
         return begin_[pos];
     }
@@ -67,16 +67,16 @@ class basic_string_view {
     }
     const_pointer data() const { return begin_; }
 
-    basic_string_view substr(size_type pos, size_type count = npos) const {
+    basic_string_view substr(size_t pos, size_t count = npos) const {
         pos = std::min(pos, size_);
         return basic_string_view(begin_ + pos, std::min(count, size_ - pos));
     }
 
     int compare(basic_string_view s) const;
-    size_type find(CharT ch, size_type pos = 0) const;
-    size_type find(basic_string_view s, size_type pos = 0) const;
-    size_type rfind(CharT ch, size_type pos = npos) const;
-    size_type rfind(basic_string_view s, size_type pos = npos) const;
+    size_t find(CharT ch, size_t pos = 0) const;
+    size_t find(basic_string_view s, size_t pos = 0) const;
+    size_t rfind(CharT ch, size_t pos = npos) const;
+    size_t rfind(basic_string_view s, size_t pos = npos) const;
 
     friend basic_string<CharT>& operator+=(basic_string<CharT>& lhs, basic_string_view rhs) {
         lhs.append(rhs.data(), rhs.size());
@@ -102,7 +102,7 @@ int basic_string_view<CharT>::compare(basic_string_view<CharT> s) const {
 }
 
 template<typename CharT>
-auto basic_string_view<CharT>::find(CharT ch, size_type pos) const -> size_type {
+size_t basic_string_view<CharT>::find(CharT ch, size_t pos) const {
     for (auto p = begin_ + pos; p < begin_ + size_; ++p) {
         if (traits_type::eq(*p, ch)) { return p - begin_; }
     }
@@ -110,7 +110,7 @@ auto basic_string_view<CharT>::find(CharT ch, size_type pos) const -> size_type 
 }
 
 template<typename CharT>
-auto basic_string_view<CharT>::find(basic_string_view s, size_type pos) const -> size_type {
+size_t basic_string_view<CharT>::find(basic_string_view s, size_t pos) const {
     for (auto p = begin_ + pos; p + s.size_ <= begin_ + size_; ++p) {
         if (std::equal(p, p + s.size_, s.begin_, traits_type::eq)) { return p - begin_; }
     }
@@ -118,7 +118,7 @@ auto basic_string_view<CharT>::find(basic_string_view s, size_type pos) const ->
 }
 
 template<typename CharT>
-auto basic_string_view<CharT>::rfind(CharT ch, size_type pos) const -> size_type {
+size_t basic_string_view<CharT>::rfind(CharT ch, size_t pos) const {
     for (auto p = begin_ + std::min(pos + 1, size_); p > begin_; --p) {
         if (traits_type::eq(*(p - 1), ch)) { return p - begin_ - 1; }
     }
@@ -126,7 +126,7 @@ auto basic_string_view<CharT>::rfind(CharT ch, size_type pos) const -> size_type
 }
 
 template<typename CharT>
-auto basic_string_view<CharT>::rfind(basic_string_view s, size_type pos) const -> size_type {
+size_t basic_string_view<CharT>::rfind(basic_string_view s, size_t pos) const {
     for (auto p = begin_ + std::min(pos + s.size_, size_); p >= begin_ + s.size_; --p) {
         if (std::equal(p - s.size_, p, s.begin_, traits_type::eq)) { return p - begin_ - s.size_; }
     }

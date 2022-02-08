@@ -6,17 +6,17 @@ using namespace util;
 /*static*/ pool_base pool_base::global_pool_;
 
 void pool_base::tidy() {
-    auto desc = desc_;
+    auto* desc = desc_;
     do {
-        auto next = desc->next_pool;
+        auto* next = desc->next_pool;
         if (desc->size_and_alignment) { desc->tidy_pool(desc); }
         alloc_type().deallocate(desc, 1);
         desc = next;
     } while (desc != desc_);
 }
 
-/*static*/ auto pool_base::find_pool(pool_desc_t* desc, uint32_t size_and_alignment) -> pool_desc_t* {
-    auto desc0 = desc;
+/*static*/ pool_base::pool_desc_t* pool_base::find_pool(pool_desc_t* desc, uint32_t size_and_alignment) {
+    auto* desc0 = desc;
     do {
         if (desc->size_and_alignment == size_and_alignment) { return desc; }
         desc = desc->next_pool;
@@ -24,15 +24,15 @@ void pool_base::tidy() {
     return nullptr;
 }
 
-/*static*/ auto pool_base::allocate_new_pool() -> pool_desc_t* {
-    auto desc = alloc_type().allocate(1);
+/*static*/ pool_base::pool_desc_t* pool_base::allocate_new_pool() {
+    auto* desc = alloc_type().allocate(1);
     dllist_make_cycle(&desc->free);
     dllist_make_cycle(&desc->partitions);
     return desc;
 }
 
-/*static*/ auto pool_base::allocate_dummy_pool(uint32_t partition_size) -> pool_desc_t* {
-    auto desc = allocate_new_pool();
+/*static*/ pool_base::pool_desc_t* pool_base::allocate_dummy_pool(uint32_t partition_size) {
+    auto* desc = allocate_new_pool();
     desc->next_pool = desc->root_pool = desc;
     desc->size_and_alignment = 0;
     desc->ref_count = 1;

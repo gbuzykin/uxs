@@ -47,7 +47,7 @@ struct reversed_string_finder<char> {
     explicit reversed_string_finder(char in_ch) : ch(in_ch) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         while (begin < end) {
-            if ((begin < --end) && (*(end - 1) == '\\')) {
+            if (begin < --end && *(end - 1) == '\\') {
             } else if (*end == ch) {
                 return std::make_pair(end, end + 1);
             }
@@ -64,7 +64,7 @@ struct string_finder<std::string_view> {
     explicit string_finder(std::string_view in_s) : s(in_s) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         if (static_cast<size_t>(end - begin) < s.size()) { return std::make_pair(end, end); }
-        for (auto last = end - s.size(); begin <= last; ++begin) {
+        for (iterator last = end - s.size(); begin <= last; ++begin) {
             if (std::equal(begin, begin + s.size(), s.begin())) { return std::make_pair(begin, begin + s.size()); }
         }
         return std::make_pair(end, end);
@@ -79,7 +79,7 @@ struct reversed_string_finder<std::string_view> {
     explicit reversed_string_finder(std::string_view in_s) : s(in_s) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         if (static_cast<size_t>(end - begin) < s.size()) { return std::make_pair(begin, begin); }
-        for (auto last = begin + s.size(); last <= end; --end) {
+        for (iterator last = begin + s.size(); last <= end; --end) {
             if (std::equal(end - s.size(), end, s.begin())) { return std::make_pair(end - s.size(), end); }
         }
         return std::make_pair(begin, begin);
@@ -145,7 +145,7 @@ split_string(std::string_view s, Finder finder, OutputIt out,  //
     size_t count = 0;
     for (auto p = s.begin();;) {
         auto sub = finder(p, s.end());
-        if (!(flags & split_flags::kSkipEmpty) || (p < sub.first)) {
+        if (!(flags & split_flags::kSkipEmpty) || p < sub.first) {
             *out++ = fn(s.substr(p - s.begin(), sub.first - p));
             if (++count == max_count) { break; }
         }
@@ -171,7 +171,7 @@ type_identity_t<std::string_view, typename Finder::is_finder> string_section(  /
     auto p = s.begin(), from = s.end();
     for (;;) {
         auto sub = finder(p, s.end());
-        if (!(flags & split_flags::kSkipEmpty) || (p < sub.first)) {
+        if (!(flags & split_flags::kSkipEmpty) || p < sub.first) {
             if (count == start) { from = p; }
             if (count++ == fin) { return s.substr(from - s.begin(), sub.first - from); }
         }
@@ -189,7 +189,7 @@ type_identity_t<std::string_view, typename Finder::is_reversed_finder> string_se
     auto p = s.end(), to = s.begin();
     for (;;) {
         auto sub = finder(s.begin(), p);
-        if (!(flags & split_flags::kSkipEmpty) || (sub.second < p)) {
+        if (!(flags & split_flags::kSkipEmpty) || sub.second < p) {
             if (count == fin) { to = p; }
             if (count++ == start) { return s.substr(sub.second - s.begin(), to - sub.second); }
         }
@@ -209,12 +209,12 @@ separate_words(std::string_view s, char sep, OutputIt out,  //
     enum class state_t : char { kStart = 0, kSepFound, kSkipSep } state = state_t::kStart;
     if (!max_count) { return 0; }
     for (auto p = s.begin();; ++p) {
-        while ((p < s.end()) && std::isspace(static_cast<unsigned char>(*p))) { ++p; }  // skip spaces
+        while (p < s.end() && std::isspace(static_cast<unsigned char>(*p))) { ++p; }  // skip spaces
         auto p0 = p;
         if (p == s.end()) {
             if (state != state_t::kSepFound) { break; }
         } else {
-            auto prev_state = state;
+            state_t prev_state = state;
             do {  // find separator or blank
                 if (*p == '\\') {
                     if (++p == s.end()) { break; }
@@ -226,10 +226,10 @@ separate_words(std::string_view s, char sep, OutputIt out,  //
                     break;
                 }
             } while (++p < s.end());
-            if ((p == p0) && (prev_state == state_t::kSkipSep)) { continue; }
+            if (p == p0 && prev_state == state_t::kSkipSep) { continue; }
         }
         *out++ = fn(s.substr(p0 - s.begin(), p - p0));
-        if ((++count == max_count) || (p == s.end())) { break; }
+        if (++count == max_count || p == s.end()) { break; }
     }
     return count;
 }
@@ -250,7 +250,7 @@ std::string pack_strings(const Range& r, char sep, InputFn fn = InputFn{}) {
         const auto& el = fn(*it);
         auto p = std::begin(el), p0 = p;
         for (; p != std::end(el); ++p) {
-            if ((*p == '\\') || (*p == sep)) {
+            if (*p == '\\' || *p == sep) {
                 s.append(p0, p);
                 s += '\\';
                 p0 = p;
@@ -288,7 +288,7 @@ unpack_strings(std::string_view s, char sep, OutputIt out,  //
             }
         }
         result.append(p0, p);
-        if ((p < s.end()) || !result.empty()) {
+        if (p < s.end() || !result.empty()) {
             *out++ = fn(std::move(result));
             if (++count == max_count) { break; }
         }
@@ -307,7 +307,8 @@ UTIL_EXPORT std::pair<unsigned, unsigned> parse_flag_string(
     std::string_view s, const std::vector<std::pair<std::string_view, unsigned>>& flag_tbl);
 
 UTIL_EXPORT int compare_strings_nocase(std::string_view lhs, std::string_view rhs);
-UTIL_EXPORT std::string to_lower(std::string s);
+UTIL_EXPORT std::string to_lower(std::string_view s);
+UTIL_EXPORT std::string to_upper(std::string_view s);
 
 template<typename Ty = void>
 struct equal_to_nocase {

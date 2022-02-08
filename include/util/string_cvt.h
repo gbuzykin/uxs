@@ -14,13 +14,13 @@ CONSTEXPR int dig(char ch) {
 
 template<>
 CONSTEXPR int dig<16>(char ch) {
-    if ((ch >= 'a') && (ch <= 'f')) { return static_cast<int>(ch - 'a') + 10; }
-    if ((ch >= 'A') && (ch <= 'F')) { return static_cast<int>(ch - 'A') + 10; }
+    if (ch >= 'a' && ch <= 'f') { return static_cast<int>(ch - 'a') + 10; }
+    if (ch >= 'A' && ch <= 'F') { return static_cast<int>(ch - 'A') + 10; }
     return static_cast<int>(ch - '0');
 }
 
 template<typename InputIt, typename InputFn = nofunc>
-unsigned from_hex(InputIt in, int digs, bool* ok = nullptr, InputFn fn = InputFn{}) {
+unsigned from_hex(InputIt in, int digs, InputFn fn = InputFn{}, bool* ok = nullptr) {
     unsigned val = 0;
     while (digs > 0) {
         char ch = fn(*in++);

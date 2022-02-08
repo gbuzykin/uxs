@@ -29,7 +29,7 @@ struct reversed_string_finder<std::regex> {
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         std::match_results<iterator> m;
         auto result = std::make_pair(begin, begin);
-        for (auto p = end; begin != p;) {
+        for (iterator p = end; begin != p;) {
             if (std::regex_search(--p, end, m, regex, std::regex_constants::match_continuous)) {
                 if (m[0].second < result.second) {
                     break;

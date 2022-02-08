@@ -35,7 +35,7 @@ class UTIL_EXPORT pool_base {
         global_pool_list_item_t* next;
         pool_base* pool;
         pool_desc_t* pool_desc() { return pool->desc_; }
-        void unref() { return pool->unref(); }
+        void reset() { return pool->reset(nullptr); }
     };
 
     using alloc_type = std::allocator<pool_desc_t>;
@@ -46,16 +46,16 @@ class UTIL_EXPORT pool_base {
     pool_base() : desc_(allocate_dummy_pool(kDefPartitionSize)) {}
     explicit pool_base(uint32_t partition_size) : desc_(allocate_dummy_pool(partition_size)) {}
 
-    pool_base(const pool_base& other) NOEXCEPT { copy_from(other); }
+    pool_base(const pool_base& other) NOEXCEPT : desc_(other.desc_) {
+        assert(desc_);
+        ++desc_->root_pool->ref_count;
+    }
     pool_base& operator=(const pool_base& other) NOEXCEPT {
-        if (&other != this) {
-            unref();
-            copy_from(other);
-        }
+        if (&other != this) { reset(other.desc_); }
         return *this;
     }
 
-    ~pool_base() { unref(); }
+    ~pool_base() { reset(nullptr); }
 
     void swap(pool_base& other) NOEXCEPT { std::swap(desc_, other.desc_); }
 
@@ -78,13 +78,15 @@ class UTIL_EXPORT pool_base {
     static void inc_use_count(dllist_node_t* node) { ++header(node)->use_count; }
     static size_t dec_use_count(dllist_node_t* node) { return --header(node)->use_count; }
 
-    void copy_from(const pool_base& other) {
-        desc_ = other.desc_;
-        ++desc_->root_pool->ref_count;
+    void reset(pool_desc_t* desc) {
+        assert(desc_);
+        if (desc) { ++desc->ref_count; }
+        if (!--desc_->ref_count) { tidy(); }
+        desc_ = desc;
     }
 
     dllist_node_t* allocate_impl() {
-        auto node = desc_->free.next;
+        auto* node = desc_->free.next;
         if (node == &desc_->free) { return desc_->allocate_new(desc_); }
         inc_use_count(node);
         dllist_remove(node);
@@ -94,11 +96,6 @@ class UTIL_EXPORT pool_base {
     void deallocate_impl(dllist_node_t* node) {
         dllist_insert_before(&desc_->free, node);
         if (dec_use_count(node) == 0) { desc_->deallocate_partition(desc_, header(node)); }
-    }
-
-    void unref() {
-        if (desc_ && !--desc_->root_pool->ref_count) { tidy(); }
-        desc_ = nullptr;
     }
 
     void tidy();
@@ -160,8 +157,8 @@ class sized_pool : public pool_base {
 
 template<uint16_t Size, uint16_t Alignment>
 void sized_pool<Size, Alignment>::init() {
-    auto desc = desc_;
-    if (auto found = find_pool(desc, kSizeAndAlignment)) {
+    auto* desc = desc_;
+    if (auto* found = find_pool(desc, kSizeAndAlignment)) {
         desc_ = found;
         return;  // pool for size found
     } else if (!dllist_is_empty(&desc->partitions)) {
@@ -184,9 +181,9 @@ void sized_pool<Size, Alignment>::init() {
 
 template<uint16_t Size, uint16_t Alignment>
 /*static*/ void sized_pool<Size, Alignment>::tidy_pool(pool_desc_t* desc) {
-    auto part_hdr = desc->partitions.next;
+    auto* part_hdr = desc->partitions.next;
     while (part_hdr != &desc->partitions) {
-        auto next_part = part_hdr->next;
+        auto* next_part = part_hdr->next;
         alloc_type().deallocate(record_t::from_node(part_hdr), desc->node_count_per_partition);
         part_hdr = next_part;
     }
@@ -194,8 +191,8 @@ template<uint16_t Size, uint16_t Alignment>
 
 template<uint16_t Size, uint16_t Alignment>
 /*static*/ dllist_node_t* sized_pool<Size, Alignment>::allocate_new(pool_desc_t* desc) {
-    auto node = desc->new_node;
-    auto next_node = (record_t::from_node(node) - 1)->node();
+    auto* node = desc->new_node;
+    auto* next_node = (record_t::from_node(node) - 1)->node();
     if (header(node) == next_node) {
         desc->allocate_new = allocate_new_partition;
         return node;
@@ -207,9 +204,9 @@ template<uint16_t Size, uint16_t Alignment>
 
 template<uint16_t Size, uint16_t Alignment>
 /*static*/ dllist_node_t* sized_pool<Size, Alignment>::allocate_new_partition(pool_desc_t* desc) {
-    auto part = alloc_type().allocate(desc->node_count_per_partition);
-    auto node = (part + desc->node_count_per_partition - 1)->node();
-    auto hdr = static_cast<part_hdr_t*>(part->node());
+    auto* part = alloc_type().allocate(desc->node_count_per_partition);
+    auto* node = (part + desc->node_count_per_partition - 1)->node();
+    auto* hdr = static_cast<part_hdr_t*>(part->node());
     hdr->use_count = desc->node_count_per_partition - 1;
     dllist_insert_after(&desc->partitions, part->node());
     desc->new_node = (part + desc->node_count_per_partition - 2)->node();
@@ -221,11 +218,11 @@ template<uint16_t Size, uint16_t Alignment>
 
 template<uint16_t Size, uint16_t Alignment>
 /*static*/ void sized_pool<Size, Alignment>::deallocate_partition(pool_desc_t* desc, part_hdr_t* part_hdr) {
-    auto part = record_t::from_node(part_hdr);
-    for (auto record = part; record < part + desc->node_count_per_partition; ++record) {
+    auto* part = record_t::from_node(part_hdr);
+    for (auto* record = part; record < part + desc->node_count_per_partition; ++record) {
         dllist_remove(record->node());
     }
-    if ((desc->allocate_new == allocate_new) && (part_hdr == header(desc->new_node))) {
+    if (desc->allocate_new == allocate_new && part_hdr == header(desc->new_node)) {
         desc->new_node = nullptr;
         desc->allocate_new = allocate_new_partition;
     }
@@ -247,6 +244,8 @@ class pool_allocator {
 
     pool_allocator() = default;
     explicit pool_allocator(uint32_t partition_size) : pool_(partition_size) {}
+    ~pool_allocator() = default;
+
     template<typename Ty2>
     pool_allocator(const pool_allocator<Ty2>& other) NOEXCEPT : pool_(other.pool_) {}
     template<typename Ty2>
@@ -294,6 +293,8 @@ class pool_allocator<void> {
 
     pool_allocator() = default;
     explicit pool_allocator(uint32_t partition_size) : pool_(partition_size) {}
+    ~pool_allocator() = default;
+
     template<typename Ty2>
     pool_allocator(const pool_allocator<Ty2>& other) NOEXCEPT : pool_(other.pool_) {}
     template<typename Ty2>
@@ -321,8 +322,17 @@ template<typename Ty1, typename Ty2>
 bool operator==(const pool_allocator<Ty1>& lhs, const pool_allocator<Ty2>& rhs) NOEXCEPT {
     return lhs.is_equal_to(rhs);
 }
+template<typename Ty>
+bool operator==(const pool_allocator<Ty>& lhs, const pool_allocator<Ty>& rhs) NOEXCEPT {
+    return lhs.is_equal_to(rhs);
+}
+
 template<typename Ty1, typename Ty2>
 bool operator!=(const pool_allocator<Ty1>& lhs, const pool_allocator<Ty2>& rhs) NOEXCEPT {
+    return !(lhs == rhs);
+}
+template<typename Ty>
+bool operator!=(const pool_allocator<Ty>& lhs, const pool_allocator<Ty>& rhs) NOEXCEPT {
     return !(lhs == rhs);
 }
 
@@ -340,6 +350,8 @@ class global_pool_allocator {
     using is_always_equal = std::true_type;
 
     global_pool_allocator() NOEXCEPT = default;
+    ~global_pool_allocator() = default;
+
     template<typename Ty2>
     global_pool_allocator(const global_pool_allocator<Ty2>&) NOEXCEPT {}
     template<typename Ty2>
@@ -375,6 +387,8 @@ class global_pool_allocator<void> {
     using is_always_equal = std::true_type;
 
     global_pool_allocator() NOEXCEPT = default;
+    ~global_pool_allocator() = default;
+
     template<typename Ty2>
     global_pool_allocator(const global_pool_allocator<Ty2>&) NOEXCEPT {}
     template<typename Ty2>
@@ -389,8 +403,17 @@ template<typename Ty1, typename Ty2>
 bool operator==(const global_pool_allocator<Ty1>& lhs, const global_pool_allocator<Ty2>& rhs) NOEXCEPT {
     return true;
 }
+template<typename Ty>
+bool operator==(const global_pool_allocator<Ty>& lhs, const global_pool_allocator<Ty>& rhs) NOEXCEPT {
+    return true;
+}
+
 template<typename Ty1, typename Ty2>
 bool operator!=(const global_pool_allocator<Ty1>& lhs, const global_pool_allocator<Ty2>& rhs) NOEXCEPT {
+    return !(lhs == rhs);
+}
+template<typename Ty>
+bool operator!=(const global_pool_allocator<Ty>& lhs, const global_pool_allocator<Ty>& rhs) NOEXCEPT {
     return !(lhs == rhs);
 }
 

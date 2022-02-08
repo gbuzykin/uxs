@@ -27,7 +27,7 @@ void dllist_make_cycle(Ty* first, Ty* last) {
 
 template<typename Ty>
 auto dllist_remove(Ty* node) -> decltype(node->next) {
-    auto next = node->next;
+    auto* next = node->next;
     node->prev->next = next;
     next->prev = node->prev;
     return next;
@@ -35,7 +35,7 @@ auto dllist_remove(Ty* node) -> decltype(node->next) {
 
 template<typename Ty>
 auto dllist_remove(Ty* first, Ty* last) -> decltype(last->prev) {
-    auto pre_last = last->prev;
+    auto* pre_last = last->prev;
     first->prev->next = last;
     last->prev = first->prev;
     return pre_last;
