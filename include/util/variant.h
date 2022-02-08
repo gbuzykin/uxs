@@ -38,8 +38,8 @@ class CORE_EXPORT variant {
     enum : unsigned { kMaxTypeId = 32 };
     enum : size_t { kStorageSize = sizeof(storage_t) };
 
-    variant() : vtable_(get_impl(id_t::kInvalid)) {}
-    explicit variant(id_t type) : vtable_(get_impl(type)) {
+    variant() : vtable_(get_vtable(id_t::kInvalid)) {}
+    explicit variant(id_t type) : vtable_(get_vtable(type)) {
         if (vtable_->type != id_t::kInvalid) { vtable_->construct_default(&data_); }
     }
 
@@ -125,10 +125,15 @@ class CORE_EXPORT variant {
         void (*serialize)(QDataStream&, const void*);
         void (*deserialize)(QDataStream&, void*);
 #endif  // USE_QT
-        std::array<void (*)(void*, const void*), kMaxTypeId> converters;
-        auto converter(id_t in_type) -> decltype(*converters.begin()) {
-            assert(static_cast<unsigned>(in_type) < kMaxTypeId);
-            return converters[static_cast<unsigned>(in_type)];
+        using cvt_func_t = void (*)(void*, const void*);
+        std::array<cvt_func_t, kMaxTypeId> cvt;
+        cvt_func_t get_cvt(id_t type) {
+            assert(static_cast<unsigned>(type) < kMaxTypeId);
+            return cvt[static_cast<unsigned>(type)];
+        }
+        void set_cvt(id_t type, cvt_func_t fn) {
+            assert(static_cast<unsigned>(type) < kMaxTypeId);
+            cvt[static_cast<unsigned>(type)] = fn;
         }
     };
 
@@ -138,24 +143,41 @@ class CORE_EXPORT variant {
     vtable_t* vtable_;
     storage_t data_;
 
-    static vtable_t* get_impl(id_t type);
+    static vtable_t* get_vtable(id_t type);
+    template<typename ImplT>
+    static void init_vtable() {
+        auto* vtable = get_vtable(ImplT::type_id);
+        vtable->type = ImplT::type_id;
+        vtable->construct_default = ImplT::construct_default;
+        vtable->construct_copy = ImplT::construct_copy;
+        vtable->construct_move = ImplT::construct_move;
+        vtable->destroy = ImplT::destroy;
+        vtable->assign_copy = ImplT::assign_copy;
+        vtable->assign_move = ImplT::assign_move;
+        vtable->get_value_ptr = ImplT::get_value_ptr;
+        vtable->is_equal = ImplT::is_equal;
+#ifdef USE_QT
+        vtable->serialize = ImplT::serialize;
+        vtable->deserialize = ImplT::deserialize;
+#endif  // USE_QT
+    }
 };
 
 template<typename Ty, typename>
-variant::variant(id_t type, const Ty& val) : vtable_(get_impl(type)) {
+variant::variant(id_t type, const Ty& val) : vtable_(get_vtable(type)) {
     if (vtable_->type == id_t::kInvalid) { return; }
-    auto val_vtable = variant_type_impl<Ty>::vtable();
+    auto* val_vtable = variant_type_impl<Ty>::vtable();
     if (vtable_ == val_vtable) {
         variant_type_impl<Ty>::construct(&data_, val);
         return;
     }
-    auto tgt = vtable_->construct_default(&data_);
-    if (auto conv_func = vtable_->converter(val_vtable->type)) { conv_func(tgt, &val); }
+    auto* tgt = vtable_->construct_default(&data_);
+    if (auto cvt_func = vtable_->get_cvt(val_vtable->type)) { cvt_func(tgt, &val); }
 }
 
 template<typename Ty, typename>
 variant& variant::operator=(const Ty& val) {
-    auto val_vtable = variant_type_impl<Ty>::vtable();
+    auto* val_vtable = variant_type_impl<Ty>::vtable();
     if (vtable_ == val_vtable) {
         if (vtable_->type != id_t::kInvalid) { variant_type_impl<Ty>::assign(&data_, val); }
         return *this;
@@ -169,7 +191,7 @@ variant& variant::operator=(const Ty& val) {
 
 template<typename Ty, typename>
 variant& variant::operator=(Ty&& val) {
-    auto val_vtable = variant_type_impl<Ty>::vtable();
+    auto* val_vtable = variant_type_impl<Ty>::vtable();
     if (vtable_ == val_vtable) {
         if (vtable_->type != id_t::kInvalid) { variant_type_impl<Ty>::assign(&data_, std::move(val)); }
         return *this;
@@ -184,13 +206,13 @@ variant& variant::operator=(Ty&& val) {
 template<typename Ty, typename>
 Ty variant::value() const {
     if (vtable_->type != id_t::kInvalid) {
-        if (auto pval = vtable_->get_value_ptr(&data_)) {
-            auto tgt_vtable = variant_type_impl<Ty>::vtable();
+        if (const auto* pval = vtable_->get_value_ptr(&data_)) {
+            auto* tgt_vtable = variant_type_impl<Ty>::vtable();
             if (vtable_ == tgt_vtable) {
                 return *(Ty*)pval;
-            } else if (auto conv_func = tgt_vtable->converter(vtable_->type)) {
+            } else if (auto cvt_func = tgt_vtable->get_cvt(vtable_->type)) {
                 Ty result;
-                conv_func(&result, pval);
+                cvt_func(&result, pval);
                 return result;
             }
         }
@@ -205,24 +227,8 @@ template<typename Ty, variant_id TypeId, typename>
 struct variant_type_base_impl {
     using is_variant_type_impl = int;
     static const variant_id type_id = TypeId;
-    static variant::vtable_t* vtable() { return variant::get_impl(type_id); }
-
-    variant_type_base_impl() {
-        auto tbl = vtable();
-        tbl->type = type_id;
-        tbl->construct_default = construct_default;
-        tbl->construct_copy = construct_copy;
-        tbl->construct_move = construct_move;
-        tbl->destroy = destroy;
-        tbl->assign_copy = assign_copy;
-        tbl->assign_move = assign_move;
-        tbl->get_value_ptr = get_value_ptr;
-        tbl->is_equal = is_equal;
-#ifdef USE_QT
-        tbl->serialize = serialize;
-        tbl->deserialize = deserialize;
-#endif  // USE_QT
-    }
+    static variant::vtable_t* vtable() { return variant::get_vtable(type_id); }
+    variant_type_base_impl() { variant::init_vtable<variant_type_base_impl>(); }
 
     template<typename Arg>
     static void construct(void* p, Arg&& val) {
@@ -245,7 +251,7 @@ struct variant_type_base_impl {
     static const void* get_value_ptr(const void* p) { return p; }
     static bool is_equal(const void* lhs, const void* rhs) { return *(Ty*)lhs == *(Ty*)rhs; }
     template<typename Ty2>
-    static void cast_conv(void* tgt, const void* src) {
+    static void cast_cvt(void* tgt, const void* src) {
         *(Ty*)tgt = static_cast<Ty>(*(Ty2*)src);
     }
 #ifdef USE_QT
@@ -261,24 +267,8 @@ struct variant_type_base_impl<
                      !std::is_nothrow_move_assignable<Ty>::value>> {
     using is_variant_type_impl = int;
     static const variant_id type_id = TypeId;
-    static variant::vtable_t* vtable() { return variant::get_impl(type_id); }
-
-    variant_type_base_impl() {
-        auto tbl = vtable();
-        tbl->type = type_id;
-        tbl->construct_default = construct_default;
-        tbl->construct_copy = construct_copy;
-        tbl->construct_move = construct_move;
-        tbl->destroy = destroy;
-        tbl->assign_copy = assign_copy;
-        tbl->assign_move = assign_move;
-        tbl->get_value_ptr = get_value_ptr;
-        tbl->is_equal = is_equal;
-#ifdef USE_QT
-        tbl->serialize = serialize;
-        tbl->deserialize = deserialize;
-#endif  // USE_QT
-    }
+    static variant::vtable_t* vtable() { return variant::get_vtable(type_id); }
+    variant_type_base_impl() { variant::init_vtable<variant_type_base_impl>(); }
 
     template<typename Arg>
     static void construct(void* p, Arg&& val) {
@@ -286,7 +276,7 @@ struct variant_type_base_impl<
     }
     static void* construct_default(void* p) { return (*(Ty**)p = new Ty()); }
     static void construct_copy(void* p, const void* src) {
-        if (auto pval = *(const Ty**)src) {
+        if (const auto* pval = *(const Ty**)src) {
             *(Ty**)p = new Ty(*pval);
         } else {
             *(Ty**)p = nullptr;
@@ -307,7 +297,7 @@ struct variant_type_base_impl<
         }
     }
     static void assign_copy(void* p, const void* src) {
-        if (auto pval = *(const Ty**)src) {
+        if (const auto* pval = *(const Ty**)src) {
             assign(p, *pval);
         } else {
             delete *(Ty**)p;
@@ -323,7 +313,7 @@ struct variant_type_base_impl<
         return (*(Ty**)lhs && *(Ty**)rhs) ? (**(Ty**)lhs == **(Ty**)rhs) : false;
     }
     template<typename Ty2>
-    static void cast_conv(void* tgt, const void* src) {
+    static void cast_cvt(void* tgt, const void* src) {
         *(Ty*)tgt = static_cast<Ty>(*(Ty2*)src);
     }
 #ifdef USE_QT
@@ -336,9 +326,7 @@ struct variant_type_base_impl<
 };
 
 template<>
-struct variant_type_impl<std::string> : variant_type_base_impl<std::string, variant_id::kString> {
-    variant_type_impl() {}
-};
+struct variant_type_impl<std::string> : variant_type_base_impl<std::string, variant_id::kString> {};
 
 inline variant::variant(std::string_view s) : variant(static_cast<std::string>(s)) {}
 inline variant::variant(id_t type, std::string_view s) : variant(type, static_cast<std::string>(s)) {}
@@ -352,50 +340,50 @@ template<typename Ty, variant_id TypeId>
 struct variant_type_with_string_converter_impl : variant_type_base_impl<Ty, TypeId> {
     using super = variant_type_base_impl<Ty, TypeId>;
     variant_type_with_string_converter_impl() {
-        super::vtable()->converter(variant_id::kString) = from_string_conv;
-        variant_type_impl<std::string>::vtable()->converter(super::type_id) = to_string_conv;
+        super::vtable()->set_cvt(variant_id::kString, from_string_cvt);
+        variant_type_impl<std::string>::vtable()->set_cvt(super::type_id, to_string_cvt);
     }
-    static void from_string_conv(void* tgt, const void* src) { *(Ty*)tgt = from_string<Ty>(*(std::string*)src); }
-    static void to_string_conv(void* tgt, const void* src) { *(std::string*)tgt = to_string(*(Ty*)src); }
+    static void from_string_cvt(void* tgt, const void* src) { *(Ty*)tgt = from_string<Ty>(*(std::string*)src); }
+    static void to_string_cvt(void* tgt, const void* src) { *(std::string*)tgt = to_string(*(Ty*)src); }
 };
 
 template<>
 struct variant_type_impl<bool> : variant_type_with_string_converter_impl<bool, variant_id::kBoolean> {
     template<typename Ty>
-    static void cast_conv(void* tgt, const void* src) {
+    static void cast_to_bool_cvt(void* tgt, const void* src) {
         *(bool*)tgt = *(Ty*)src != 0;
     }
     variant_type_impl() {
-        vtable()->converter(variant_id::kInteger) = cast_conv<int>;
-        vtable()->converter(variant_id::kUInteger) = cast_conv<unsigned>;
-        vtable()->converter(variant_id::kDouble) = cast_conv<double>;
+        vtable()->set_cvt(variant_id::kInteger, cast_to_bool_cvt<int>);
+        vtable()->set_cvt(variant_id::kUInteger, cast_to_bool_cvt<unsigned>);
+        vtable()->set_cvt(variant_id::kDouble, cast_to_bool_cvt<double>);
     }
 };
 
 template<>
 struct variant_type_impl<int> : variant_type_with_string_converter_impl<int, variant_id::kInteger> {
     variant_type_impl() {
-        vtable()->converter(variant_id::kBoolean) = cast_conv<bool>;
-        vtable()->converter(variant_id::kUInteger) = cast_conv<unsigned>;
-        vtable()->converter(variant_id::kDouble) = cast_conv<double>;
+        vtable()->set_cvt(variant_id::kBoolean, cast_cvt<bool>);
+        vtable()->set_cvt(variant_id::kUInteger, cast_cvt<unsigned>);
+        vtable()->set_cvt(variant_id::kDouble, cast_cvt<double>);
     }
 };
 
 template<>
 struct variant_type_impl<unsigned> : variant_type_with_string_converter_impl<unsigned, variant_id::kUInteger> {
     variant_type_impl() {
-        vtable()->converter(variant_id::kBoolean) = cast_conv<bool>;
-        vtable()->converter(variant_id::kInteger) = cast_conv<int>;
-        vtable()->converter(variant_id::kDouble) = cast_conv<double>;
+        vtable()->set_cvt(variant_id::kBoolean, cast_cvt<bool>);
+        vtable()->set_cvt(variant_id::kInteger, cast_cvt<int>);
+        vtable()->set_cvt(variant_id::kDouble, cast_cvt<double>);
     }
 };
 
 template<>
 struct variant_type_impl<double> : variant_type_with_string_converter_impl<double, variant_id::kDouble> {
     variant_type_impl() {
-        vtable()->converter(variant_id::kBoolean) = cast_conv<bool>;
-        vtable()->converter(variant_id::kInteger) = cast_conv<int>;
-        vtable()->converter(variant_id::kUInteger) = cast_conv<unsigned>;
+        vtable()->set_cvt(variant_id::kBoolean, cast_cvt<bool>);
+        vtable()->set_cvt(variant_id::kInteger, cast_cvt<int>);
+        vtable()->set_cvt(variant_id::kUInteger, cast_cvt<unsigned>);
     }
 };
 
