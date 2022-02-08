@@ -22,12 +22,6 @@ using is_input_iterator =
     std::is_base_of<std::input_iterator_tag, typename std::iterator_traits<Iter>::iterator_category>;
 
 template<typename Iter>
-using is_output_iterator = std::bool_constant<
-    std::is_base_of<std::output_iterator_tag, typename std::iterator_traits<Iter>::iterator_category>::value ||
-    (std::is_base_of<std::forward_iterator_tag, typename std::iterator_traits<Iter>::iterator_category>::value &&
-     !std::is_const<std::remove_reference_t<typename std::iterator_traits<Iter>::reference>>::value)>;
-
-template<typename Iter>
 using is_random_access_iterator =
     std::is_base_of<std::random_access_iterator_tag, typename std::iterator_traits<Iter>::iterator_category>;
 

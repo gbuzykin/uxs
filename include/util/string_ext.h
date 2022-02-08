@@ -134,13 +134,10 @@ std::string join_strings(const Range& r, std::string_view sep, InputFn fn = Inpu
     return s;
 }
 
-template<split_flags flags = split_flags::kNoFlags, typename Finder, typename OutputIt,  //
-         typename OutputFn = nofunc, typename = std::void_t<typename Finder::is_finder>>
-std::enable_if_t<!is_function_pointer<OutputIt>::value &&  //
-                     is_output_iterator<OutputIt>::value,  //
-                 size_t>
-split_string(std::string_view s, Finder finder, OutputIt out,  //
-             size_t max_count = std::numeric_limits<size_t>::max(), OutputFn fn = OutputFn{}) {
+template<split_flags flags = split_flags::kNoFlags, typename Finder, typename OutputFn,  //
+         typename OutputIt, typename = std::void_t<typename Finder::is_finder>>
+size_t split_string(std::string_view s, Finder finder, OutputFn fn, OutputIt out,
+                    size_t max_count = std::numeric_limits<size_t>::max()) {
     if (!max_count) { return 0; }
     size_t count = 0;
     for (auto p = s.begin();;) {
@@ -159,7 +156,7 @@ template<split_flags flags = split_flags::kNoFlags, typename Finder, typename Ou
 auto split_string(std::string_view s, Finder finder, OutputFn fn = OutputFn{})
     -> std::vector<std::decay_t<decltype(fn(s))>> {
     std::vector<std::decay_t<decltype(fn(s))>> result;
-    split_string<flags>(s, finder, std::back_inserter(result), std::numeric_limits<size_t>::max(), fn);
+    split_string<flags>(s, finder, fn, std::back_inserter(result));
     return result;
 }
 
@@ -199,15 +196,12 @@ type_identity_t<std::string_view, typename Finder::is_reversed_finder> string_se
     return s.substr(0, to - s.begin());
 }
 
-template<typename OutputIt, typename OutputFn = nofunc>
-std::enable_if_t<!is_function_pointer<OutputIt>::value &&  //
-                     is_output_iterator<OutputIt>::value,  //
-                 size_t>
-separate_words(std::string_view s, char sep, OutputIt out,  //
-               size_t max_count = std::numeric_limits<size_t>::max(), OutputFn fn = OutputFn{}) {
+template<typename OutputFn, typename OutputIt>
+size_t separate_words(std::string_view s, char sep, OutputFn fn, OutputIt out,
+                      size_t max_count = std::numeric_limits<size_t>::max()) {
+    if (!max_count) { return 0; }
     size_t count = 0;
     enum class state_t : char { kStart = 0, kSepFound, kSkipSep } state = state_t::kStart;
-    if (!max_count) { return 0; }
     for (auto p = s.begin();; ++p) {
         while (p < s.end() && std::isspace(static_cast<unsigned char>(*p))) { ++p; }  // skip spaces
         auto p0 = p;
@@ -238,7 +232,7 @@ template<typename OutputFn = nofunc>
 auto separate_words(std::string_view s, char sep, OutputFn fn = OutputFn{})
     -> std::vector<std::decay_t<decltype(fn(s))>> {
     std::vector<std::decay_t<decltype(fn(s))>> result;
-    separate_words(s, sep, std::back_inserter(result), std::numeric_limits<size_t>::max(), fn);
+    separate_words(s, sep, fn, std::back_inserter(result));
     return result;
 }
 
@@ -267,14 +261,11 @@ std::string pack_strings(const Range& r, char sep, InputFn fn = InputFn{}) {
     return s;
 }
 
-template<typename OutputIt, typename OutputFn = nofunc>
-std::enable_if_t<!is_function_pointer<OutputIt>::value &&  //
-                     is_output_iterator<OutputIt>::value,  //
-                 size_t>
-unpack_strings(std::string_view s, char sep, OutputIt out,  //
-               size_t max_count = std::numeric_limits<size_t>::max(), OutputFn fn = OutputFn{}) {
-    size_t count = 0;
+template<typename OutputFn, typename OutputIt>
+size_t unpack_strings(std::string_view s, char sep, OutputFn fn, OutputIt out,
+                      size_t max_count = std::numeric_limits<size_t>::max()) {
     if (!max_count) { return 0; }
+    size_t count = 0;
     for (auto p = s.begin();; ++p) {
         std::string result;
         auto p0 = p;  // append chars till separator

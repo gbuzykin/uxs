@@ -33,7 +33,7 @@ std::string_view util::trim_string(std::string_view s) {
 
 std::vector<std::string> util::unpack_strings(std::string_view s, char sep) {
     std::vector<std::string> result;
-    unpack_strings(s, sep, std::back_inserter(result));
+    unpack_strings(s, sep, nofunc(), std::back_inserter(result));
     return result;
 }
 
@@ -76,7 +76,7 @@ std::string util::decode_escapes(std::string_view s, std::string_view symb, std:
 std::pair<unsigned, unsigned> util::parse_flag_string(
     std::string_view s, const std::vector<std::pair<std::string_view, unsigned>>& flag_tbl) {
     std::pair<unsigned, unsigned> flags(0, 0);
-    separate_words(s, ' ', function_caller([&](std::string_view flag) {
+    separate_words(s, ' ', nofunc(), function_caller([&](std::string_view flag) {
                        bool add_flag = (flag[0] != '-');
                        if (flag[0] == '+' || flag[0] == '-') { flag = flag.substr(1); }
                        auto it = std::find_if(flag_tbl.begin(), flag_tbl.end(),
