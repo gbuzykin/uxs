@@ -293,7 +293,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
     iterator erase(const_iterator first, const_iterator last) {
         auto p_first = to_ptr(first);
         auto p_last = to_ptr(last);
-        assert((v_.begin <= p_first) && (p_first <= p_last) && (p_last <= v_.end));
+        assert(v_.begin <= p_first && p_first <= p_last && p_last <= v_.end);
         auto count = static_cast<size_type>(p_last - p_first);
         if (count) { helpers::erase(*this, p_first, v_.end - count, v_.end); }
         return iterator(p_first, v_.begin, v_.end);
@@ -327,7 +327,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
 
     pointer to_ptr(const_iterator it) const {
         auto p = std::addressof(const_cast<reference>(*it.ptr(v_.begin, v_.end)));
-        assert((v_.begin <= p) && (p <= v_.end));
+        assert(v_.begin <= p && p <= v_.end);
         return p;
     }
 
@@ -628,7 +628,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
     void assign_from_range(InputIt first, InputIt last, std::false_type /* random access iterator */,
                            std::true_type /* assignable */) {
         auto end_new = v_.begin;
-        for (; (end_new != v_.end) && (first != last); ++first) { *end_new++ = *first; }
+        for (; end_new != v_.end && first != last; ++first) { *end_new++ = *first; }
         if (end_new != v_.end) {
             helpers::truncate(*this, end_new, v_.end);
         } else {
@@ -828,7 +828,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
 
         template<typename RandIt>
         static void insert_copy(alloc_type& alloc, pointer pos, pointer& end, pointer end_new, RandIt src) {
-            assert((pos != end) && (end != end_new));
+            assert(pos != end && end != end_new);
             auto count = static_cast<size_t>(end_new - end);
             auto tail = static_cast<size_t>(end - pos);
             if (count > tail) {
