@@ -16,7 +16,7 @@ struct list_links_type : dllist_node_t {
 #if _ITERATOR_DEBUG_LEVEL != 0
     static void set_head(dllist_node_t* node, dllist_node_t* head) { static_cast<list_links_type*>(node)->head = head; }
     static void set_head(dllist_node_t* first, dllist_node_t* last, dllist_node_t* head) {
-        for (auto p = first; p != last; p = get_next(p)) { set_head(p, head); }
+        for (auto* p = first; p != last; p = get_next(p)) { set_head(p, head); }
     }
     static dllist_node_t* get_head(dllist_node_t* node) { return static_cast<list_links_type*>(node)->head; }
     static dllist_node_t* get_front(dllist_node_t* head) { return head->next; }
@@ -191,7 +191,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
 
     void resize(size_type sz) {
         if (sz < size_) {
-            auto p = head_.prev;
+            auto* p = head_.prev;
             while (++sz < size_) { p = p->prev; }
             erase_impl(p, std::addressof(head_));
         } else {
@@ -201,7 +201,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
 
     void resize(size_type sz, const value_type& val) {
         if (sz < size_) {
-            auto p = head_.prev;
+            auto* p = head_.prev;
             while (++sz < size_) { p = p->prev; }
             erase_impl(p, std::addressof(head_));
         } else {
@@ -226,7 +226,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
     iterator insert(const_iterator pos, value_type&& val) { return emplace(pos, std::move(val)); }
     template<typename... Args>
     iterator emplace(const_iterator pos, Args&&... args) {
-        auto node = new_node(std::forward<Args>(args)...);
+        auto* node = new_node(std::forward<Args>(args)...);
         dllist_insert_before(to_ptr(pos), node);
         return iterator(node);
     }
@@ -235,7 +235,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
     void push_front(value_type&& val) { emplace_front(std::move(val)); }
     template<typename... Args>
     reference emplace_front(Args&&... args) {
-        auto node = new_node(std::forward<Args>(args)...);
+        auto* node = new_node(std::forward<Args>(args)...);
         dllist_insert_after<dllist_node_t>(std::addressof(head_), node);
         return node_t::get_value(node);
     }
@@ -243,7 +243,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
     void pop_front() {
         assert(size_);
         --size_;
-        auto p = head_.next;
+        auto* p = head_.next;
         dllist_remove(p);
         helpers::delete_node(*this, p);
     }
@@ -252,7 +252,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
     void push_back(value_type&& val) { emplace_back(std::move(val)); }
     template<typename... Args>
     reference emplace_back(Args&&... args) {
-        auto node = new_node(std::forward<Args>(args)...);
+        auto* node = new_node(std::forward<Args>(args)...);
         dllist_insert_before<dllist_node_t>(std::addressof(head_), node);
         return node_t::get_value(node);
     }
@@ -260,33 +260,33 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
     void pop_back() {
         assert(size_);
         --size_;
-        auto p = head_.prev;
+        auto* p = head_.prev;
         dllist_remove(p);
         helpers::delete_node(*this, p);
     }
 
     iterator erase(const_iterator pos) {
-        auto p = to_ptr(pos);
+        auto* p = to_ptr(pos);
         assert(p != std::addressof(head_));
         --size_;
-        auto next = dllist_remove(p);
+        auto* next = dllist_remove(p);
         helpers::delete_node(*this, p);
         return iterator(next);
     }
 
     iterator erase(const_iterator first, const_iterator last) {
-        auto p_first = to_ptr(first);
-        auto p_last = to_ptr(last);
+        auto* p_first = to_ptr(first);
+        auto* p_last = to_ptr(last);
         if (p_first != p_last) { erase_impl(p_first, p_last); }
         return iterator(p_last);
     }
 
     size_type remove(const value_type& val) {
-        auto old_sz = size_;
-        for (auto p = head_.next; p != std::addressof(head_);) {
+        size_type old_sz = size_;
+        for (auto* p = head_.next; p != std::addressof(head_);) {
             if (node_t::get_value(p) == val) {
                 --size_;
-                auto next = dllist_remove(p);
+                auto* next = dllist_remove(p);
                 helpers::delete_node(*this, p);
                 p = next;
             } else {
@@ -298,11 +298,11 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
 
     template<typename Pred>
     size_type remove_if(Pred pred) {
-        auto old_sz = size_;
-        for (auto p = head_.next; p != std::addressof(head_);) {
+        size_type old_sz = size_;
+        for (auto* p = head_.next; p != std::addressof(head_);) {
             if (pred(node_t::get_value(p))) {
                 --size_;
-                auto next = dllist_remove(p);
+                auto* next = dllist_remove(p);
                 helpers::delete_node(*this, p);
                 p = next;
             } else {
@@ -315,12 +315,12 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
     size_type unique() { return unique(std::equal_to<value_type>()); }
     template<typename Pred>
     size_type unique(Pred pred) {
-        auto old_sz = size_;
+        size_type old_sz = size_;
         if (!old_sz) { return 0; }
-        for (auto p0 = head_.next, p = p0->next; p != std::addressof(head_);) {
+        for (auto *p0 = head_.next, *p = p0->next; p != std::addressof(head_);) {
             if (pred(node_t::get_value(p0), node_t::get_value(p))) {
                 --size_;
-                auto next = dllist_remove(p);
+                auto* next = dllist_remove(p);
                 helpers::delete_node(*this, p);
                 p = next;
             } else {
@@ -333,7 +333,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
 
     void reverse() {
         if (!size_) { return; }
-        auto p = static_cast<dllist_node_t*>(std::addressof(head_));
+        auto* p = static_cast<dllist_node_t*>(std::addressof(head_));
         do {
             std::swap(p->next, p->prev);
             p = p->prev;
@@ -404,7 +404,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
 
     void delete_node_chain(dllist_node_t* node) {
         while (node != std::addressof(head_)) {
-            auto next = node->next;
+            auto* next = node->next;
             helpers::delete_node(*this, node);
             node = next;
         }
@@ -483,7 +483,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
     template<typename InputIt>
     void assign_impl(InputIt first, InputIt last, std::true_type /* assignable */) {
         assert(helpers::check_iterator_range(first, last, is_random_access_iterator<InputIt>()));
-        auto p = head_.next;
+        auto* p = head_.next;
         for (; (p != std::addressof(head_)) && (first != last); ++first) {
             node_t::get_value(p) = *first;
             p = p->next;
@@ -558,19 +558,19 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
     template<typename InputIt>
     dllist_node_t* insert_impl(dllist_node_t* pos, InputIt first, InputIt last) {
         assert(helpers::check_iterator_range(first, last, is_random_access_iterator<InputIt>()));
-        auto pre_first = pos->prev;
+        auto* pre_first = pos->prev;
         for (; first != last; ++first) { dllist_insert_before(pos, new_node(*first)); }
         return pre_first->next;
     }
 
     dllist_node_t* insert_const(dllist_node_t* pos, size_type sz, const value_type& val) {
-        auto pre_first = pos->prev;
+        auto* pre_first = pos->prev;
         for (; sz; --sz) { dllist_insert_before(pos, new_node(val)); }
         return pre_first->next;
     }
 
     dllist_node_t* insert_default(dllist_node_t* pos, size_type sz) {
-        auto pre_first = pos->prev;
+        auto* pre_first = pos->prev;
         for (; sz; --sz) { dllist_insert_before(pos, new_node()); }
         return pre_first->next;
     }
@@ -581,7 +581,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
         do {
             assert(first != std::addressof(head_));
             --size_;
-            auto next = first->next;
+            auto* next = first->next;
             helpers::delete_node(*this, first);
             first = next;
         } while (first != last);
@@ -656,7 +656,7 @@ void list<Ty, Alloc>::splice_impl(const_iterator pos, list&& other) {
 
 template<typename Ty, typename Alloc>
 void list<Ty, Alloc>::splice_impl(const_iterator pos, list&& other, const_iterator it) {
-    auto p = other.to_ptr(it);
+    auto* p = other.to_ptr(it);
     if (std::addressof(other) != this) {
         if (!is_alloc_always_equal<alloc_type>::value && !is_same_alloc(other)) {
             throw std::logic_error("allocators incompatible for splice");
@@ -673,15 +673,15 @@ void list<Ty, Alloc>::splice_impl(const_iterator pos, list&& other, const_iterat
 
 template<typename Ty, typename Alloc>
 void list<Ty, Alloc>::splice_impl(const_iterator pos, list&& other, const_iterator first, const_iterator last) {
-    auto p_first = other.to_ptr(first);
-    auto p_last = other.to_ptr(last);
+    auto* p_first = other.to_ptr(first);
+    auto* p_last = other.to_ptr(last);
     if (p_first == p_last) { return; }
     if (std::addressof(other) != this) {
         if (!is_alloc_always_equal<alloc_type>::value && !is_same_alloc(other)) {
             throw std::logic_error("allocators incompatible for splice");
         }
         size_type count = 0;
-        auto p = p_first;
+        auto* p = p_first;
         do {
             assert(p != std::addressof(other.head_));
             node_t::set_head(p, std::addressof(head_));
@@ -696,7 +696,7 @@ void list<Ty, Alloc>::splice_impl(const_iterator pos, list&& other, const_iterat
         for (auto it = first; it != last; ++it) { assert(it != pos); }
 #endif  // !defined(NDEBUG)
     }
-    auto pre_last = dllist_remove(p_first, p_last);
+    auto* pre_last = dllist_remove(p_first, p_last);
     dllist_insert_before(to_ptr(pos), p_first, pre_last);
 }
 
@@ -707,7 +707,7 @@ void list<Ty, Alloc>::merge_impl(list&& other, Comp comp) {
     if (!is_alloc_always_equal<alloc_type>::value && !is_same_alloc(other)) {
         throw std::logic_error("allocators incompatible for merge");
     }
-    auto head_src = std::addressof(other.head_);
+    auto* head_src = std::addressof(other.head_);
     node_t::set_head(head_src->next, head_src, std::addressof(head_));
     size_ += other.size_;
     other.size_ = 0;
@@ -715,7 +715,7 @@ void list<Ty, Alloc>::merge_impl(list&& other, Comp comp) {
         merge_impl(std::addressof(head_), head_src, comp);
     } catch (...) {
         node_t::set_head(head_src->next, head_src, head_src);
-        for (auto p = head_src->next; p != head_src; p = p->next, --size_, ++other.size_) {}
+        for (auto* p = head_src->next; p != head_src; p = p->next, --size_, ++other.size_) {}
         throw;
     }
 }
@@ -723,12 +723,12 @@ void list<Ty, Alloc>::merge_impl(list&& other, Comp comp) {
 template<typename Ty, typename Alloc>
 template<typename Comp>
 void list<Ty, Alloc>::merge_impl(dllist_node_t* head_tgt, dllist_node_t* head_src, Comp comp) {
-    auto p_first = head_src->next;
-    auto p_last = p_first;
-    for (auto p = head_tgt->next; (p != head_tgt) && (p_last != head_src); p = p->next) {
+    auto* p_first = head_src->next;
+    auto* p_last = p_first;
+    for (auto* p = head_tgt->next; (p != head_tgt) && (p_last != head_src); p = p->next) {
         while ((p_last != head_src) && comp(node_t::get_value(p_last), node_t::get_value(p))) { p_last = p_last->next; }
         if (p_first != p_last) {
-            auto pre_last = dllist_remove(p_first, p_last);
+            auto* pre_last = dllist_remove(p_first, p_last);
             dllist_insert_before(p, p_first, pre_last);
             p_first = p_last;
         }
@@ -745,8 +745,8 @@ void list<Ty, Alloc>::sort(Comp comp) {
     if (size_ < 2) { return; }
 
     // worth sorting, do it
-    const size_t max_bins = 25;
-    size_t maxbin = 0;
+    const size_type max_bins = 25;
+    size_type maxbin = 0;
     dllist_node_t tmp_list, bin_lists[max_bins];
 
     dllist_make_cycle(std::addressof(tmp_list));
@@ -754,11 +754,11 @@ void list<Ty, Alloc>::sort(Comp comp) {
     try {
         while (!dllist_is_empty(std::addressof(head_))) {
             // sort another element, using bins
-            auto p = head_.next;
+            auto* p = head_.next;
             dllist_remove(p);
             dllist_insert_before(std::addressof(tmp_list), p);
 
-            size_t bin;
+            size_type bin;
 
             // merge into ever larger bins
             for (bin = 0; (bin < maxbin) && !dllist_is_empty(std::addressof(bin_lists[bin])); ++bin) {
@@ -776,7 +776,7 @@ void list<Ty, Alloc>::sort(Comp comp) {
         }
 
         // merge up
-        for (size_t bin = 1; bin < maxbin; ++bin) {
+        for (size_type bin = 1; bin < maxbin; ++bin) {
             merge_impl(std::addressof(bin_lists[bin]), std::addressof(bin_lists[bin - 1]), comp);
         }
 
@@ -786,7 +786,7 @@ void list<Ty, Alloc>::sort(Comp comp) {
     } catch (...) {
         // collect all stuff
         dllist_insert_before<dllist_node_t>(std::addressof(head_), tmp_list.next, tmp_list.prev);
-        for (size_t bin = 0; bin < maxbin; ++bin) {
+        for (size_type bin = 0; bin < maxbin; ++bin) {
             dllist_insert_before<dllist_node_t>(std::addressof(head_), bin_lists[bin].next, bin_lists[bin].prev);
         }
         throw;
