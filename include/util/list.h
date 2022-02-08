@@ -507,7 +507,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
     void assign_impl(InputIt first, InputIt last, std::true_type /* assignable */) {
         assert(helpers::check_iterator_range(first, last, is_random_access_iterator<InputIt>()));
         auto* p = head_.next;
-        for (; (p != std::addressof(head_)) && (first != last); ++first) {
+        for (; p != std::addressof(head_) && first != last; ++first) {
             node_t::get_value(p) = *first;
             p = p->next;
         }
@@ -666,8 +666,8 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
 
 template<typename Ty, typename Alloc>
 void list<Ty, Alloc>::splice_impl(const_iterator pos, list&& other) {
-    assert((std::addressof(other) != this) || (pos == end()));
-    if (!other.size_ || (std::addressof(other) == this)) { return; }
+    assert(std::addressof(other) != this || pos == end());
+    if (!other.size_ || std::addressof(other) == this) { return; }
     if (!is_alloc_always_equal<alloc_type>::value && !is_same_alloc(other)) {
         throw std::logic_error("allocators incompatible for splice");
     }
@@ -726,7 +726,7 @@ void list<Ty, Alloc>::splice_impl(const_iterator pos, list&& other, const_iterat
 template<typename Ty, typename Alloc>
 template<typename Comp>
 void list<Ty, Alloc>::merge_impl(list&& other, Comp comp) {
-    if (!other.size_ || (std::addressof(other) == this)) { return; }
+    if (!other.size_ || std::addressof(other) == this) { return; }
     if (!is_alloc_always_equal<alloc_type>::value && !is_same_alloc(other)) {
         throw std::logic_error("allocators incompatible for merge");
     }
@@ -748,8 +748,8 @@ template<typename Comp>
 void list<Ty, Alloc>::merge_impl(dllist_node_t* head_tgt, dllist_node_t* head_src, Comp comp) {
     auto* p_first = head_src->next;
     auto* p_last = p_first;
-    for (auto* p = head_tgt->next; (p != head_tgt) && (p_last != head_src); p = p->next) {
-        while ((p_last != head_src) && comp(node_t::get_value(p_last), node_t::get_value(p))) { p_last = p_last->next; }
+    for (auto* p = head_tgt->next; p != head_tgt && p_last != head_src; p = p->next) {
+        while (p_last != head_src && comp(node_t::get_value(p_last), node_t::get_value(p))) { p_last = p_last->next; }
         if (p_first != p_last) {
             auto* pre_last = dllist_remove(p_first, p_last);
             dllist_insert_before(p, p_first, pre_last);
@@ -784,7 +784,7 @@ void list<Ty, Alloc>::sort(Comp comp) {
             size_type bin;
 
             // merge into ever larger bins
-            for (bin = 0; (bin < maxbin) && !dllist_is_empty(std::addressof(bin_lists[bin])); ++bin) {
+            for (bin = 0; bin < maxbin && !dllist_is_empty(std::addressof(bin_lists[bin])); ++bin) {
                 merge_impl(std::addressof(tmp_list), std::addressof(bin_lists[bin]), comp);
             }
 
