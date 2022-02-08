@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cmath>
+#include <cstdio>
 
 using namespace util;
 
@@ -27,8 +28,8 @@ std::string util::from_wide_to_utf8(std::wstring_view s) {
 
 std::string_view util::trim_string(std::string_view s) {
     auto p1 = s.begin(), p2 = s.end();
-    while ((p1 < p2) && std::isblank(*p1)) { ++p1; }
-    while ((p1 < p2) && std::isblank(*(p2 - 1))) { --p2; }
+    while (p1 < p2 && std::isblank(*p1)) { ++p1; }
+    while (p1 < p2 && std::isblank(*(p2 - 1))) { --p2; }
     return s.substr(p1 - s.begin(), p2 - p1);
 }
 
@@ -79,7 +80,7 @@ std::pair<unsigned, unsigned> util::parse_flag_string(
     std::pair<unsigned, unsigned> flags(0, 0);
     separate_words(s, ' ', function_caller([&](std::string_view flag) {
                        bool add_flag = (flag[0] != '-');
-                       if ((flag[0] == '+') || (flag[0] == '-')) { flag = flag.substr(1); }
+                       if (flag[0] == '+' || flag[0] == '-') { flag = flag.substr(1); }
                        auto it = std::find_if(flag_tbl.begin(), flag_tbl.end(),
                                               [flag](decltype(*flag_tbl.begin()) el) { return el.first == flag; });
                        if (it == flag_tbl.end()) {
@@ -128,7 +129,7 @@ struct fp_format_traits;
 
 template<>
 struct fp_format_traits<double> {
-    enum : int { kTotalBits = 64, kBitsPerMantissa = 52 };
+    enum : unsigned { kTotalBits = 64, kBitsPerMantissa = 52 };
     enum : uint64_t {
         kSignBit = 1ull << (kTotalBits - 1),
         kMantissaMask = (1ull << kBitsPerMantissa) - 1,
@@ -141,7 +142,7 @@ struct fp_format_traits<double> {
 
 template<>
 struct fp_format_traits<float> {
-    enum : int { kTotalBits = 32, kBitsPerMantissa = 23 };
+    enum : unsigned { kTotalBits = 32, kBitsPerMantissa = 23 };
     enum : uint64_t {
         kSignBit = 1ull << (kTotalBits - 1),
         kMantissaMask = (1ull << kBitsPerMantissa) - 1,
@@ -152,11 +153,14 @@ struct fp_format_traits<float> {
     static float from_u64(const uint64_t& u64) { return *reinterpret_cast<const float*>(&u64); }
 };
 
+struct uint96_t {
+    uint64_t hi;
+    uint32_t lo;
+};
+
 struct uint128_t {
-    uint128_t() = default;
-    uint128_t(uint64_t in_hi, uint64_t in_lo) : hi(in_hi), lo(in_lo) {}
-    uint64_t hi = 0;
-    uint64_t lo = 0;
+    uint64_t hi;
+    uint64_t lo;
 };
 
 inline uint64_t lo32(uint64_t x) { return x & 0xffffffff; }
@@ -169,7 +173,7 @@ uint64_t make64(Ty hi, Ty lo) {
 }
 
 static struct ulog2_table_t {
-    std::array<int, 256> n_bit;
+    std::array<unsigned, 256> n_bit;
     ulog2_table_t() {
         for (uint32_t n = 0; n < n_bit.size(); ++n) {
             uint32_t u8 = n;
@@ -179,34 +183,31 @@ static struct ulog2_table_t {
     }
 } g_ulog2_tbl;
 
-inline int ulog2(uint32_t x) {
-    int bias = 0;
-    if (x >= (1 << 16)) { x >>= 16, bias += 16; }
-    if (x >= (1 << 8)) { x >>= 8, bias += 8; }
+inline unsigned ulog2(uint32_t x) {
+    unsigned bias = 0;
+    if (x >= 1u << 16) { x >>= 16, bias += 16; }
+    if (x >= 1u << 8) { x >>= 8, bias += 8; }
     return bias + g_ulog2_tbl.n_bit[x];
 }
 
-inline int ulog2(uint64_t x) {
-    if (x >= (1ull << 32)) { return 32 + ulog2(static_cast<uint32_t>(hi32(x))); }
+inline unsigned ulog2(uint64_t x) {
+    if (x >= 1ull << 32) { return 32 + ulog2(static_cast<uint32_t>(hi32(x))); }
     return ulog2(static_cast<uint32_t>(lo32(x)));
 }
 
-inline int ulog2(uint128_t x) { return (x.hi != 0) ? 64 + ulog2(x.hi) : ulog2(x.lo); }
+inline unsigned ulog2(uint128_t x) { return x.hi != 0 ? 64 + ulog2(x.hi) : ulog2(x.lo); }
 
-inline uint64_t shr_lo64(uint128_t x, int shift) {
-    if (shift < 64) { return (x.lo >> shift) | (x.hi << (64 - shift)); }
-    if (shift < 128) { return x.hi >> (shift - 64); }
-    return 0;
+inline uint128_t shl(uint128_t x, unsigned shift) {
+    return uint128_t{(x.hi << shift) | (x.lo >> (64 - shift)), x.lo << shift};
 }
 
-inline uint128_t mul64x32(uint64_t x, uint32_t y, uint32_t bias = 0) {
+inline uint128_t shr(uint128_t x, unsigned shift) {
+    return uint128_t{x.hi >> shift, (x.lo >> shift) | (x.hi << (64 - shift))};
+}
+
+inline uint96_t mul64x32(uint64_t x, uint32_t y, uint32_t bias = 0) {
     uint64_t lower = lo32(x) * y + bias;
-    uint64_t mid = hi32(x) * y + hi32(lower);
-    return uint128_t{hi32(mid), make64(mid, lo32(lower))};
-}
-
-inline uint64_t mul64x32_hi64(uint64_t x, uint32_t y, uint32_t bias = 0) {
-    return hi32(x) * y + hi32(lo32(x) * y + bias);
+    return uint96_t{hi32(x) * y + hi32(lower), static_cast<uint32_t>(lo32(lower))};
 }
 
 inline uint128_t mul64x64(uint64_t x, uint64_t y, uint64_t bias = 0) {
@@ -217,90 +218,83 @@ inline uint128_t mul64x64(uint64_t x, uint64_t y, uint64_t bias = 0) {
     return uint128_t{higher + hi32(mid), make64(lo32(mid), lo32(lower))};
 }
 
-inline uint64_t mul64x64_hi64(uint64_t x, uint64_t y, uint64_t bias = 0) {
-    uint64_t lower = lo32(x) * lo32(y) + lo32(bias), higher = hi32(x) * hi32(y);
-    uint64_t mid = lo32(x) * hi32(y) + hi32(bias), mid0 = mid;
-    mid += hi32(x) * lo32(y) + hi32(lower);
-    if (mid < mid0) { higher += 0x100000000; }
-    return higher + hi32(mid);
-}
-
 struct fp_m96_t {
-    fp_m96_t() = default;
-    fp_m96_t(uint64_t in_m, uint32_t in_m2, int in_exp) : m(in_m), m2(in_m2), exp(in_exp) {}
-    uint64_t m = 0;
-    uint32_t m2 = 0;
-    int exp = 0;
+    uint64_t m;
+    uint32_t m2;
+    int exp;
 };
 
-template<int MaxWords>
+template<unsigned MaxWords>
 struct large_int {
-    enum : int { kMaxWords = MaxWords };
-    int count = 0;
+    enum : unsigned { kMaxWords = MaxWords };
+    unsigned count = 0;
     std::array<uint64_t, kMaxWords> x;
     large_int() { x.fill(0); }
     explicit large_int(uint32_t val) : large_int() { count = 1, x[0] = val; }
 
     bool less(const large_int& rhv) const {
         if (count != rhv.count) { return count < rhv.count; };
-        for (int n = count; n > 0; --n) {
+        for (unsigned n = count; n > 0; --n) {
             if (x[n - 1] != rhv.x[n - 1]) { return x[n - 1] < rhv.x[n - 1]; }
         }
         return false;
     }
 
-    void subtract(const large_int& rhv) {
-        int n = 0;
+    large_int& subtract(const large_int& rhv) {
+        unsigned n = 0;
         uint64_t carry = 0;
-        assert(count >= rhv.count);
         for (; n < rhv.count; ++n) {
             uint64_t tmp = x[n] + carry;
-            carry = ((tmp > x[n]) || (tmp < rhv.x[n])) ? ~0ull : 0ull;
+            carry = tmp > x[n] || tmp < rhv.x[n] ? ~0ull : 0ull;
             x[n] = tmp - rhv.x[n];
         }
-        for (; (carry != 0) && (n < count); ++n) { carry = (x[n]-- == 0) ? ~0ull : 0ull; }
-        if (n == count) {  // trim zeroes
-            while ((count > 0) && (x[count - 1] == 0)) { --count; }
+        for (; carry != 0 && n < kMaxWords; ++n) { carry = x[n]-- == 0 ? ~0ull : 0ull; }
+        if (n > count) {
+            count = n;
+        } else {  // track zero words
+            while (count > 0 && x[count - 1] == 0) { --count; }
         }
+        return *this;
     }
 
-    void negate() {
-        int n = 0;
+    large_int& negate() {
+        unsigned n = 0;
         uint64_t carry = 0;
         for (; n < count; ++n) {
             x[n] = carry - x[n];
-            carry = ((carry != 0) || (x[n] != 0)) ? ~0ull : 0ull;
+            carry = carry != 0 || x[n] != 0 ? ~0ull : 0ull;
         }
-        if (carry != 0) {
-            for (; n < kMaxWords; ++n) { --x[n]; }
-            count = kMaxWords;
-        } else {  // trim zeroes
-            while ((count > 0) && (x[count - 1] == 0)) { --count; }
+        if (carry != 0 && n < kMaxWords) {
+            do { --x[n++]; } while (n < kMaxWords);
+        } else {  // track zero words
+            while (count > 0 && x[count - 1] == 0) { --count; }
         }
+        return *this;
     }
 
-    void multiply(uint32_t val) {
-        uint128_t mul;
-        for (int n = 0; n < count; ++n) {
-            mul = mul64x32(x[n], val, static_cast<uint32_t>(mul.hi));
-            x[n] = mul.lo;
+    large_int& multiply(uint32_t val) {
+        uint96_t mul{0, 0};
+        for (unsigned n = 0; n < count; ++n) {
+            mul = mul64x32(x[n], val, static_cast<uint32_t>(hi32(mul.hi)));
+            x[n] = make64<uint64_t>(mul.hi, mul.lo);
         }
-        if (mul.hi != 0) { x[count++] = mul.hi; }
+        if (hi32(mul.hi) != 0) { x[count++] = hi32(mul.hi); }
+        return *this;
     }
 
-    void shr1() {
-        for (int n = 1; n < count; ++n) { x[n - 1] = (x[n - 1] >> 1) | (x[n] << 63); }
+    large_int& shr1() {
+        for (unsigned n = 1; n < count; ++n) { x[n - 1] = (x[n - 1] >> 1) | (x[n] << 63); }
         if ((x[count - 1] >>= 1) == 0) { --count; }
+        return *this;
     }
 
-    bool invert(int word_limit = kMaxWords) {
-        if (count == 0) { return false; }
+    large_int& invert(unsigned word_limit = kMaxWords) {
         large_int a{*this}, div{*this};
         a.negate();
         div.shr1();
         div.x[kMaxWords - 1] |= 1ull << 63;
         count = kMaxWords;
-        for (int n = kMaxWords; n > kMaxWords - word_limit; --n) {
+        for (unsigned n = kMaxWords; n > kMaxWords - word_limit; --n) {
             uint64_t mask = 1ull << 63;
             x[n - 1] = 0;
             do {
@@ -309,42 +303,37 @@ struct large_int {
             } while (mask >>= 1);
             if (x[n - 1] == 0) { --count; }
         }
-        return true;
+        return *this;
     }
 
-    template<int MaxWords2>
-    int get_normalized(large_int<MaxWords2>& norm) const {
-        int shift = ulog2(x[count - 1]);
-        for (int n = 0; n < MaxWords2 - count; ++n) { norm.x[n] = 0; }
+    template<unsigned MaxWords2>
+    std::pair<large_int<MaxWords2>, int> get_normalized() const {
+        large_int<MaxWords2> norm;
+        unsigned shift = ulog2(x[count - 1]);
         if (count <= MaxWords2) {
             if (shift > 0) {
                 norm.x[MaxWords2 - count] = x[0] << (64 - shift);
-                for (int n = 1; n < count; ++n) {
+                for (unsigned n = 1; n < count; ++n) {
                     norm.x[MaxWords2 - count + n] = (x[n] << (64 - shift)) | (x[n - 1] >> shift);
                 }
             } else {
                 norm.x[MaxWords2 - count] = 0;
-                for (int n = 1; n < count; ++n) { norm.x[MaxWords2 - count + n] = x[n - 1]; }
+                for (unsigned n = 1; n < count; ++n) { norm.x[MaxWords2 - count + n] = x[n - 1]; }
+            }
+        } else if (shift > 0) {
+            for (unsigned n = count - MaxWords2; n < count; ++n) {
+                norm.x[MaxWords2 - count + n] = (x[n] << (64 - shift)) | (x[n - 1] >> shift);
             }
         } else {
-            if (shift > 0) {
-                for (int n = count - MaxWords2; n < count; ++n) {
-                    norm.x[MaxWords2 - count + n] = (x[n] << (64 - shift)) | (x[n - 1] >> shift);
-                }
-            } else {
-                for (int n = count - MaxWords2; n < count; ++n) { norm.x[MaxWords2 - count + n] = x[n - 1]; }
-            }
+            for (unsigned n = count - MaxWords2; n < count; ++n) { norm.x[MaxWords2 - count + n] = x[n - 1]; }
         }
         norm.count = MaxWords2;
-        while ((norm.count > 0) && (norm.x[norm.count - 1] == 0)) { --norm.count; }
-        return shift + 64 * (count - 1);
+        while (norm.count > 0 && norm.x[norm.count - 1] == 0) { --norm.count; }
+        return {norm, shift + 64 * (count - 1)};
     }
 
     fp_m96_t make_fp_m96(int exp) const {
-        fp_m96_t fp{x[kMaxWords - 1], static_cast<uint32_t>(hi32(x[kMaxWords - 2])) + 1, exp};
-        if (fp.m2 == 0) { ++fp.m; }
-        if (fp.m == 0) { ++fp.exp; }
-        return fp;
+        return fp_m96_t{x[kMaxWords - 1], static_cast<uint32_t>(hi32(x[kMaxWords - 2])), exp};
     }
 };
 
@@ -353,31 +342,31 @@ static struct pow_table_t {
     enum : uint64_t { kMaxMantissa10 = 1000000000000000000ull };
     std::array<fp_m96_t, 2 * kPow10Max + 1> coef10to2;
     std::array<int, 2 * kPow2Max + 1> exp_inv10;
-    std::array<uint64_t, kPrecLimit> decimal_mul;
+    std::array<uint64_t, kPrecLimit + 1> decimal_mul;
     pow_table_t() {
         // 10^N -> 2^M power conversion table
         large_int<24> lrg{10};
-        for (int n = 0; n < kPow10Max; ++n) {
-            large_int<4> norm;
-            int exp = lrg.get_normalized(norm);
+        coef10to2[kPow10Max] = fp_m96_t{0, 0, 0};
+        for (unsigned n = 0; n < kPow10Max; ++n) {
+            auto norm = lrg.get_normalized<4>();
             lrg.multiply(10);
-            coef10to2[kPow10Max + n + 1] = norm.make_fp_m96(exp);
-            if (norm.invert(2)) {
-                coef10to2[kPow10Max - n - 1] = norm.make_fp_m96(-exp - 1);
+            coef10to2[kPow10Max + n + 1] = norm.first.make_fp_m96(norm.second);
+            if (norm.first.count != 0) {
+                coef10to2[kPow10Max - n - 1] = norm.first.invert(2).make_fp_m96(-norm.second - 1);
             } else {
-                coef10to2[kPow10Max - n - 1] = fp_m96_t{0, 0, -exp};
+                coef10to2[kPow10Max - n - 1] = fp_m96_t{0, 0, -norm.second};
             }
         }
 
         // 2^N -> 10^M power conversion index table
-        for (int n = -kPow2Max; n <= kPow2Max; ++n) {
-            auto it = std::lower_bound(coef10to2.begin(), coef10to2.end(), -n,
+        for (int exp = -kPow2Max; exp <= kPow2Max; ++exp) {
+            auto it = std::lower_bound(coef10to2.begin(), coef10to2.end(), -exp,
                                        [](decltype(*coef10to2.begin()) el, int exp) { return el.exp < exp; });
-            exp_inv10[kPow2Max + n] = static_cast<int>(it - coef10to2.begin()) - kPow10Max;
+            exp_inv10[kPow2Max + exp] = static_cast<int>(it - coef10to2.begin()) - kPow10Max;
         }
 
-        // decimal multipliers 10^N, N = 1, 2, ...
-        uint64_t mul = 10ull;
+        // decimal multipliers 10^N, N = 0, 1, 2, ...
+        uint64_t mul = 1ull;
         for (uint32_t n = 0; n < decimal_mul.size(); ++n, mul *= 10) { decimal_mul[n] = mul; }
     }
 } g_pow_tbl;
@@ -398,7 +387,7 @@ static const char* starts_with(const char* p, const char* end, std::string_view 
 }
 
 inline const char* skip_spaces(const char* p, const char* end) {
-    while ((p < end) && std::isspace(*p)) { ++p; }
+    while (p < end && std::isspace(*p)) { ++p; }
     return p;
 }
 
@@ -406,16 +395,16 @@ template<typename Ty>
 char get_dig_and_div(Ty& v) {
     Ty t = v;
     v /= 10;
-    return '0' + static_cast<int>(t - 10 * v);
+    return '0' + static_cast<unsigned>(t - 10 * v);
 }
 
 // ---- from string to value
 
 template<typename Ty>
 const char* to_unsigned(const char* p, const char* end, Ty& val) {
-    if ((p == end) || !std::isdigit(*p)) { return p; }
+    if (p == end || !std::isdigit(*p)) { return p; }
     val = static_cast<Ty>(*p++ - '0');
-    while ((p < end) && std::isdigit(*p)) { val = 10 * val + static_cast<Ty>(*p++ - '0'); }
+    while (p < end && std::isdigit(*p)) { val = 10 * val + static_cast<Ty>(*p++ - '0'); }
     return p;
 }
 
@@ -437,8 +426,8 @@ const char* to_signed(const char* p, const char* end, Ty& val) {
 }
 
 static const char* accum_mantissa(const char* p, const char* end, uint64_t& m, int& exp) {
-    for (; (p < end) && std::isdigit(*p); ++p) {
-        if (m < (pow_table_t::kMaxMantissa10 / 10)) {  // decimal mantissa can hold up to 18 digits
+    for (; p < end && std::isdigit(*p); ++p) {
+        if (m < pow_table_t::kMaxMantissa10 / 10) {  // decimal mantissa can hold up to 18 digits
             m = 10 * m + static_cast<uint64_t>(*p - '0');
         } else {
             ++exp;
@@ -462,8 +451,8 @@ static const char* to_exp10_float(const char* p, const char* end, fp_exp10_forma
     } else if (std::isdigit(*p)) {  // integer part
         fp10.mantissa = static_cast<uint64_t>(*p++ - '0');
         p = accum_mantissa(p, end, fp10.mantissa, fp10.exp);
-        if ((p < end) && (*p == '.')) { ++p; }  // skip decimal point
-    } else if ((*p == '.') && ((p + 1) < end) && std::isdigit(*(p + 1))) {
+        if (p < end && *p == '.') { ++p; }  // skip decimal point
+    } else if (*p == '.' && p + 1 < end && std::isdigit(*(p + 1))) {
         fp10.mantissa = static_cast<uint64_t>(*(p + 1) - '0');  // tenth
         fp10.exp = -1;
         p += 2;
@@ -477,8 +466,8 @@ static const char* to_exp10_float(const char* p, const char* end, fp_exp10_forma
         return p0;
     }
     p1 = accum_mantissa(p, end, fp10.mantissa, fp10.exp);  // fractional part
-    fp10.exp -= static_cast<int>(p1 - p);
-    if ((p1 < end) && ((*p1 == 'e') || (*p1 == 'E'))) {  // optional exponent
+    fp10.exp -= static_cast<unsigned>(p1 - p);
+    if (p1 < end && (*p1 == 'e' || *p1 == 'E')) {  // optional exponent
         int exp_optional = 0;
         if ((p = to_signed(p1 + 1, end, exp_optional)) > p1 + 1) {
             p1 = p;
@@ -498,42 +487,60 @@ const char* to_float(const char* p, const char* end, Ty& val) {
     if (fp10.flags & (fp_exp10_format::kInf | fp_exp10_format::kNan)) {  // infinity or NaN
         exp = fp_format_traits<Ty>::kExpMax;
         if (fp10.flags & fp_exp10_format::kNan) { mantissa2 = fp_format_traits<Ty>::kMantissaMask; }
-    } else if ((fp10.mantissa == 0) || (fp10.exp < -pow_table_t::kPow10Max)) {  // zero
+    } else if (fp10.mantissa == 0 || fp10.exp < -pow_table_t::kPow10Max) {  // zero
     } else if (fp10.exp > pow_table_t::kPow10Max) {
         exp = fp_format_traits<Ty>::kExpMax;  // convert to infinity
     } else {
         // convert decimal mantissa to binary
         const auto& coef = g_pow_tbl.coef10to2[pow_table_t::kPow10Max + fp10.exp];
-        auto res128 = mul64x64(fp10.mantissa, coef.m);
+        auto res96 = mul64x32(fp10.mantissa, coef.m2);
+        auto res128 = mul64x64(fp10.mantissa, coef.m, res96.hi);
         res128.hi += fp10.mantissa;  // apply implicit 1 term of normalized coefficient
-        int shift = ulog2(res128.hi);
-        exp = fp_format_traits<Ty>::kExpBias + shift + coef.exp;
+        // extract mantissa bits
+        unsigned log = ulog2(res128.hi);
+        exp = fp_format_traits<Ty>::kExpBias + log + coef.exp;
         if (exp >= fp_format_traits<Ty>::kExpMax) {
             exp = fp_format_traits<Ty>::kExpMax;  // convert to infinity
+        } else if (exp >= -static_cast<int>(fp_format_traits<Ty>::kBitsPerMantissa)) {
+            unsigned left_shift = 64 - log;
+            unsigned right_shift = 64 - fp_format_traits<Ty>::kBitsPerMantissa;
+            // add denormalization shifts if 'exp <= 0'
+            if (exp < 0) {
+                right_shift -= 1 + exp, left_shift -= 2, exp = 0;
+            } else if (exp == 0) {
+                --left_shift;
+            }
+            // align mantissa with left 128-bit boundary
+            if (left_shift < 64) {
+                res128 = shl(res128, left_shift);
+                res128.lo |= make64<uint64_t>(res96.lo, 0) >> (64 - left_shift);
+            } else {
+                res128.hi = res128.lo;
+                res128.lo = make64<uint64_t>(res96.lo, 0);
+            }
+            // round unreliable bits
+            const uint64_t before_rounding = res128.hi;
+            const uint64_t half0 = 1ull << 31;
+            res128.lo += half0;
+            if (res128.lo < half0) { ++res128.hi; }
+            res128.lo &= ~((half0 << 1) - 1);
+            // do 'nearest even' rounding
+            const uint64_t half = 1ull << (right_shift - 1);
+            res128.hi += (res128.hi & (half << 1)) == 0 && res128.lo == 0 ? half - 1 : half;
+            if (res128.hi < before_rounding) { ++exp; }  // overflow while rounding, the value can become infinity
+            // shift mantissa to the right position
+            mantissa2 = res128.hi >> right_shift;
         } else {
-            // obtain +1 mantissa bits for rounding
-            mantissa2 = shr_lo64(res128, shift + 63 - fp_format_traits<Ty>::kBitsPerMantissa);
-            if (~mantissa2 & ((1ull << (fp_format_traits<Ty>::kBitsPerMantissa + 1)) - 1)) {
-                mantissa2 = (mantissa2 + 1) >> 1;  // round mantissa
-            } else {                               // overflow while rounding, the value can become infinity
-                ++exp, mantissa2 = 0;
-            }
-
-            if (exp <= 0) {  // denormalize value or the value will be converted to zero
-                if (exp > -static_cast<int>(fp_format_traits<Ty>::kBitsPerMantissa)) {  // denormalize
-                    mantissa2 = (mantissa2 | (1ull << fp_format_traits<Ty>::kBitsPerMantissa)) >> (1 - exp);
-                }
-                exp = 0;
-            }
+            exp = 0;  // zero
         }
     }
 
     // compose floating point value
-    val = fp_format_traits<Ty>::from_u64(((fp10.flags & fp_exp10_format::kNeg) ? fp_format_traits<Ty>::kSignBit : 0) |
-                                         (static_cast<uint64_t>(exp) << fp_format_traits<Ty>::kBitsPerMantissa) |
-                                         (mantissa2 & fp_format_traits<Ty>::kMantissaMask));
+    val = fp_format_traits<Ty>::from_u64(
+        ((fp10.flags & fp_exp10_format::kNeg) != 0 ? fp_format_traits<Ty>::kSignBit : 0) |
+        (static_cast<uint64_t>(exp) << fp_format_traits<Ty>::kBitsPerMantissa) | mantissa2);
     return p1;
-}
+}  // namespace scvt
 
 // ---- from value to string
 
@@ -542,7 +549,7 @@ char* from_unsigned(char* p, Ty val, scvt_base base) {
     switch (base) {
         case scvt_base::kBase8:
             do {
-                *--p = '0' + static_cast<int>(val & 0x7);
+                *--p = '0' + static_cast<unsigned>(val & 0x7);
                 val >>= 3;
             } while (val != 0);
             break;
@@ -562,7 +569,7 @@ char* from_unsigned(char* p, Ty val, scvt_base base) {
 template<typename Ty>
 char* from_signed(char* p, Ty val, scvt_base base) {
     bool neg = false;
-    if ((base == scvt_base::kBase10) && (val < 0)) {
+    if (base == scvt_base::kBase10 && val < 0) {
         val = -val;  // negative value
         neg = true;
     }
@@ -587,7 +594,7 @@ static char* from_exp10_float(char* p, const fp_exp10_format& fp10, scvt_fp fmt,
     if (fmt == scvt_fp::kGeneral) {
         trim_zeroes = true;
         prec = std::max(prec - 1, 0);
-        if ((fp10.exp >= -4) && (fp10.exp <= prec)) { fmt = scvt_fp::kFixed, prec -= fp10.exp; }
+        if (fp10.exp >= -4 && fp10.exp <= prec) { fmt = scvt_fp::kFixed, prec -= fp10.exp; }
     }
 
     uint64_t m = fp10.mantissa;
@@ -606,14 +613,14 @@ static char* from_exp10_float(char* p, const fp_exp10_format& fp10, scvt_fp fmt,
 
     if (fmt != scvt_fp::kFixed) {  // add exponent
         int exp10 = fp10.exp;
-        if (fp10.exp < 0) { exp10 = -exp10; }
+        if (exp10 < 0) { exp10 = -exp10; }
         if (exp10 >= 10) {
             do { *--p = get_dig_and_div(exp10); } while (exp10 != 0);
         } else {
             *--p = '0' + exp10;
             *--p = '0';
         }
-        *--p = (fp10.exp < 0) ? '-' : '+';
+        *--p = fp10.exp < 0 ? '-' : '+';
         *--p = 'e';
     }
 
@@ -629,7 +636,7 @@ static char* from_exp10_float(char* p, const fp_exp10_format& fp10, scvt_fp fmt,
         }
     } else if (n_zeroes < prec) {
         prec -= n_zeroes;
-        for (; n_zeroes; --n_zeroes) { *--p = '0'; }
+        for (; n_zeroes > 0; --n_zeroes) { *--p = '0'; }
         for (; prec > 0; --prec) { *--p = get_dig_and_div(m); }
     } else {
         n_zeroes -= prec;
@@ -638,7 +645,7 @@ static char* from_exp10_float(char* p, const fp_exp10_format& fp10, scvt_fp fmt,
 
     // integer part
     if (p < p0) { *--p = '.'; }
-    for (; n_zeroes; --n_zeroes) { *--p = '0'; }
+    for (; n_zeroes > 0; --n_zeroes) { *--p = '0'; }
     do { *--p = get_dig_and_div(m); } while (m != 0);
 
     if (fp10.flags & fp_exp10_format::kNeg) { *--p = '-'; }  // add negative sign
@@ -654,19 +661,21 @@ char* from_float(char* p, Ty val, scvt_fp fmt, int prec) {
     int exp = static_cast<int>((mantissa & fp_format_traits<Ty>::kExpMask) >> fp_format_traits<Ty>::kBitsPerMantissa) -
               fp_format_traits<Ty>::kExpBias;
     mantissa &= fp_format_traits<Ty>::kMantissaMask;
-    if ((fp_format_traits<Ty>::kExpBias + exp) == fp_format_traits<Ty>::kExpMax) {
+    if (fp_format_traits<Ty>::kExpBias + exp == fp_format_traits<Ty>::kExpMax) {
         if (mantissa == 0) {  // infinity
             fp10.flags |= fp_exp10_format::kInf;
         } else {  // NaN
             fp10.flags = fp_exp10_format::kNan;
         }
-    } else if ((exp > -fp_format_traits<Ty>::kExpBias) || (mantissa != 0)) {
+    } else if (exp > -fp_format_traits<Ty>::kExpBias || mantissa != 0) {
+        // place mantissa so it has only 1 left zero bit
         if (exp == -fp_format_traits<Ty>::kExpBias) {  // denormalized form
-            int shift = fp_format_traits<Ty>::kBitsPerMantissa - ulog2(mantissa);
-            mantissa <<= shift;
-            exp -= shift - 1;
+            unsigned log = ulog2(mantissa);
+            mantissa <<= 62 - log;
+            exp -= fp_format_traits<Ty>::kBitsPerMantissa - log - 1;
         } else {
-            mantissa |= 1ull << fp_format_traits<Ty>::kBitsPerMantissa;
+            mantissa <<= 62 - fp_format_traits<Ty>::kBitsPerMantissa;
+            mantissa |= 1ull << 62;
         }
 
         fp10.exp = -g_pow_tbl.exp_inv10[pow_table_t::kPow2Max + exp];  // inverted power of 10
@@ -674,42 +683,46 @@ char* from_float(char* p, Ty val, scvt_fp fmt, int prec) {
         int n_digs = 1 + prec;
         if (fmt == scvt_fp::kFixed) {  // fixed format
             n_digs += fp10.exp;
-        } else if ((fmt == scvt_fp::kGeneral) && (n_digs > 1)) {  // general format
+        } else if (fmt == scvt_fp::kGeneral && n_digs > 1) {  // general format
             --n_digs;
         }
 
-        if (n_digs > 0) {
+        if (n_digs >= 0) {
             n_digs = std::min<int>(n_digs, pow_table_t::kPrecLimit);
 
             // calculate decimal mantissa representation
             const auto& coef = g_pow_tbl.coef10to2[pow_table_t::kPow10Max - fp10.exp + n_digs - 1];
-            auto res128 = mul64x64(mantissa, coef.m, mul64x32_hi64(mantissa, coef.m2));
+            auto res128 = mul64x64(mantissa, coef.m, mul64x32(mantissa, coef.m2).hi);
             res128.hi += mantissa;  // apply implicit 1 term of normalized coefficient
             exp += coef.exp;        // sum exponents as well
 
-            // obtain +1 mantissa bits for rounding
-            fp10.mantissa = shr_lo64(res128, 63 + fp_format_traits<Ty>::kBitsPerMantissa - exp);
+            // round unreliable bits
+            const uint64_t half0 = 1ull << 31;
+            res128.lo += half0;
+            if (res128.lo < half0) { ++res128.hi; }
+            res128.lo &= ~((half0 << 1) - 1);
 
-            // round mantissa
-            ++fp10.mantissa;
-            if (fp10.mantissa >= (g_pow_tbl.decimal_mul[n_digs - 1] << 1)) {
+            // align fractional part with 64-bit boundary
+            unsigned shift = 62 - exp;
+            if (shift < 64) {
+                res128 = shr(res128, shift);
+            } else {
+                res128.lo = res128.hi >> (shift - 64);
+                res128.hi = 0;
+            }
+
+            // do 'nearest even' rounding
+            const uint64_t half = 1ull << 63;
+            uint64_t frac = (res128.hi & 1) == 0 ? res128.lo + half - 1 : res128.lo + half;
+            fp10.mantissa = frac < res128.lo ? res128.hi + 1 : res128.hi;
+            if (fp10.mantissa >= g_pow_tbl.decimal_mul[n_digs]) {  // one excess digit
                 ++fp10.exp;
-                if ((fmt != scvt_fp::kFixed) || (n_digs == pow_table_t::kPrecLimit)) {
-                    // formula for removing one digit: fp10.mantissa = (fp10.mantissa + 10) / 20
-                    // but we've just added 1 and will divide by 2 after that
-                    fp10.mantissa = (fp10.mantissa + 9) / 10;  // remove one digit
+                if (fmt != scvt_fp::kFixed || n_digs == pow_table_t::kPrecLimit) {
+                    // remove one excess digit, do 'nearest even' rounding
+                    fp10.mantissa = (((res128.hi / 10)) & 1) == 0 && res128.lo == 0 ? res128.hi + 4 : res128.hi + 5;
+                    fp10.mantissa /= 10;
                 }
             }
-            fp10.mantissa >>= 1;
-        } else if (n_digs == 0) {
-            // special case for fixed format when mantissa is almost hidden (unsignificant),
-            // but we can still get one digit
-            const auto& coef = g_pow_tbl.coef10to2[pow_table_t::kPow10Max - fp10.exp];
-            fp10.mantissa = mantissa + mul64x64_hi64(mantissa, coef.m, mul64x32_hi64(mantissa, coef.m2));
-            exp += coef.exp;
-            fp10.mantissa >>= fp_format_traits<Ty>::kBitsPerMantissa - exp - 1;
-            fp10.mantissa = (fp10.mantissa + 10) / 20;
-            if (fp10.mantissa >= 1) { ++fp10.exp; }
         }
     }
 
@@ -820,14 +833,14 @@ char* from_float(char* p, Ty val, scvt_fp fmt, int prec) {
         val = true;
     } else if ((p1 = scvt::starts_with(p, end, "false")) > p) {
         val = false;
-    } else if ((p < end) && std::isdigit(*p)) {
+    } else if (p < end && std::isdigit(*p)) {
         val = false;
         do {
             if (*p++ != '0') {
                 val = true;
                 break;
             }
-        } while ((p < end) && std::isdigit(*p));
+        } while (p < end && std::isdigit(*p));
         p1 = p;
     }
     if (ok) { *ok = p1 > p; }
@@ -850,8 +863,8 @@ std::string sformat::str() const {
             return result;
         } else if (std::isdigit(*p)) {
             size_t n = static_cast<size_t>(*p++ - '0');
-            while ((p < fmt_.end()) && std::isdigit(*p)) { n = 10 * n + static_cast<size_t>(*p++ - '0'); }
-            if ((n > 0) && (n <= args_.size())) { result.append(args_[n - 1]); }
+            while (p < fmt_.end() && std::isdigit(*p)) { n = 10 * n + static_cast<size_t>(*p++ - '0'); }
+            if (n > 0 && n <= args_.size()) { result.append(args_[n - 1]); }
             p0 = p;
         } else {
             p0 = p++;
