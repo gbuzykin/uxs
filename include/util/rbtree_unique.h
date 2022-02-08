@@ -246,7 +246,7 @@ void rbtree_unique<NodeTy, Alloc, Comp>::assign_impl(InputIt first, InputIt last
 template<typename NodeTy, typename Alloc, typename Comp>
 template<typename Comp2>
 void rbtree_unique<NodeTy, Alloc, Comp>::merge_impl(rbtree_base<NodeTy, Alloc, Comp2>&& other) {
-    if (!other.size_ || (std::addressof(other) == static_cast<alloc_type*>(this))) { return; }
+    if (!other.size_ || std::addressof(other) == static_cast<alloc_type*>(this)) { return; }
     if (!is_alloc_always_equal<alloc_type>::value && !this->is_same_alloc(other)) {
         throw std::logic_error("allocators incompatible for merge");
     }

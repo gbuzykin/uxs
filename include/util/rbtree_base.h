@@ -244,7 +244,7 @@ class rbtree_base : protected rbtree_compare<NodeTy, Alloc, Comp> {
 
     iterator find(const key_type& key) {
         auto* p = rbtree_lower_bound<node_t>(std::addressof(head_), key, this->get_compare());
-        if ((p == std::addressof(head_)) || this->get_compare()(key, node_t::get_key(node_t::get_value(p)))) {
+        if (p == std::addressof(head_) || this->get_compare()(key, node_t::get_key(node_t::get_value(p)))) {
             return end();
         }
         return iterator(p);
@@ -253,7 +253,7 @@ class rbtree_base : protected rbtree_compare<NodeTy, Alloc, Comp> {
     template<typename Key, typename Comp_ = key_compare, typename = std::void_t<typename Comp_::is_transparent>>
     iterator find(const Key& key) {
         auto* p = rbtree_lower_bound<node_t>(std::addressof(head_), key, this->get_compare());
-        if ((p == std::addressof(head_)) || this->get_compare()(key, node_t::get_key(node_t::get_value(p)))) {
+        if (p == std::addressof(head_) || this->get_compare()(key, node_t::get_key(node_t::get_value(p)))) {
             return end();
         }
         return iterator(p);
@@ -261,7 +261,7 @@ class rbtree_base : protected rbtree_compare<NodeTy, Alloc, Comp> {
 
     const_iterator find(const key_type& key) const {
         auto* p = rbtree_lower_bound<node_t>(std::addressof(head_), key, this->get_compare());
-        if ((p == std::addressof(head_)) || this->get_compare()(key, node_t::get_key(node_t::get_value(p)))) {
+        if (p == std::addressof(head_) || this->get_compare()(key, node_t::get_key(node_t::get_value(p)))) {
             return end();
         }
         return const_iterator(p);
@@ -270,7 +270,7 @@ class rbtree_base : protected rbtree_compare<NodeTy, Alloc, Comp> {
     template<typename Key, typename Comp_ = key_compare, typename = std::void_t<typename Comp_::is_transparent>>
     const_iterator find(const Key& key) const {
         auto* p = rbtree_lower_bound<node_t>(std::addressof(head_), key, this->get_compare());
-        if ((p == std::addressof(head_)) || this->get_compare()(key, node_t::get_key(node_t::get_value(p)))) {
+        if (p == std::addressof(head_) || this->get_compare()(key, node_t::get_key(node_t::get_value(p)))) {
             return end();
         }
         return const_iterator(p);
@@ -367,13 +367,13 @@ class rbtree_base : protected rbtree_compare<NodeTy, Alloc, Comp> {
 
     bool contains(const key_type& key) const {
         auto* p = rbtree_lower_bound<node_t>(std::addressof(head_), key, this->get_compare());
-        return (p != std::addressof(head_)) && !this->get_compare()(key, node_t::get_key(node_t::get_value(p)));
+        return p != std::addressof(head_) && !this->get_compare()(key, node_t::get_key(node_t::get_value(p)));
     }
 
     template<typename Key, typename Comp_ = key_compare, typename = std::void_t<typename Comp_::is_transparent>>
     bool contains(const Key& key) const {
         auto* p = rbtree_lower_bound<node_t>(std::addressof(head_), key, this->get_compare());
-        return (p != std::addressof(head_)) && !this->get_compare()(key, node_t::get_key(node_t::get_value(p)));
+        return p != std::addressof(head_) && !this->get_compare()(key, node_t::get_key(node_t::get_value(p)));
     }
 
     // - clear, swap, erase
@@ -419,7 +419,7 @@ class rbtree_base : protected rbtree_compare<NodeTy, Alloc, Comp> {
 
     node_type extract(const key_type& key) {
         auto* p = rbtree_lower_bound<node_t>(std::addressof(head_), key, this->get_compare());
-        if ((p == std::addressof(head_)) || this->get_compare()(key, node_t::get_key(node_t::get_value(p)))) {
+        if (p == std::addressof(head_) || this->get_compare()(key, node_t::get_key(node_t::get_value(p)))) {
             return node_type(*this);
         }
         --size_;
