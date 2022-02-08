@@ -270,17 +270,25 @@ bool binary_contains(const Range& r, const Key& k, KeyFn fn = KeyFn{}) {
 
 // ---- sorted container insert & remove
 
-template<typename Container, typename Key, typename KeyFn = key, typename... Args>
-auto binary_emplace_unique(Container& c, const Key& k, KeyFn fn = KeyFn{}, Args&&... args)
-    -> std::pair<decltype(std::end(c)), bool> {
+namespace detail {
+template<typename Container, typename Key, typename... Args, size_t... Indices, typename KeyFn>
+auto binary_emplace_unique(Container& c, const Key& k, std::tuple<Args...> args, std::index_sequence<Indices...>,
+                           KeyFn fn) -> std::pair<decltype(std::end(c)), bool> {
     auto result = util::binary_find(c, k, fn);
     if (result.second) { return std::make_pair(result.first, false); }
-    return std::make_pair(c.emplace(result.first, std::forward<Args>(args)...), true);
+    return std::make_pair(c.emplace(result.first, std::forward<Args>(std::get<Indices>(args))...), true);
+}
+}  // namespace detail
+
+template<typename Container, typename Key, typename... Args, typename KeyFn = key>
+auto binary_emplace_unique(Container& c, const Key& k, std::tuple<Args...> args = {}, KeyFn fn = KeyFn{})
+    -> std::pair<decltype(std::end(c)), bool> {
+    return detail::binary_emplace_unique(c, k, args, std::index_sequence_for<Args...>{}, fn);
 }
 
 template<typename Container, typename Val, typename KeyFn = key>
 auto binary_insert_unique(Container& c, Val&& v, KeyFn fn = KeyFn{}) -> std::pair<decltype(std::end(c)), bool> {
-    return util::binary_emplace_unique(c, fn(v), fn, std::forward<Val>(v));
+    return util::binary_emplace_unique(c, fn(v), std::forward_as_tuple(v), fn);
 }
 
 template<typename Container, typename Key, typename KeyFn = key>
@@ -292,14 +300,23 @@ auto binary_access_unique(Container& c, Key&& k, KeyFn fn = KeyFn{}) -> decltype
     return *result.first;
 }
 
-template<typename Container, typename Key, typename KeyFn = key, typename... Args>
-auto binary_emplace_new(Container& c, const Key& k, KeyFn fn = KeyFn{}, Args&&... args) -> decltype(std::end(c)) {
-    return c.emplace(util::lower_bound(c, k, fn), std::forward<Args>(args)...);
+namespace detail {
+template<typename Container, typename Key, typename... Args, size_t... Indices, typename KeyFn>
+auto binary_emplace_new(Container& c, const Key& k, std::tuple<Args...> args, std::index_sequence<Indices...>, KeyFn fn)
+    -> decltype(std::end(c)) {
+    return c.emplace(util::lower_bound(c, k, fn), std::forward<Args>(std::get<Indices>(args))...);
+}
+}  // namespace detail
+
+template<typename Container, typename Key, typename... Args, typename KeyFn = key>
+auto binary_emplace_new(Container& c, const Key& k, std::tuple<Args...> args = {}, KeyFn fn = KeyFn{})
+    -> decltype(std::end(c)) {
+    return detail::binary_emplace_new(c, k, args, std::index_sequence_for<Args...>{}, fn);
 }
 
 template<typename Container, typename Val, typename KeyFn = key>
 auto binary_insert_new(Container& c, Val&& v, KeyFn fn = KeyFn{}) -> decltype(std::end(c)) {
-    return util::binary_emplace_new(c, fn(v), fn, std::forward<Val>(v));
+    return util::binary_emplace_new(c, fn(v), std::forward_as_tuple(v), fn);
 }
 
 template<typename Container, typename Key, typename KeyFn = key>

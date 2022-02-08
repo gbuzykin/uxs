@@ -76,6 +76,14 @@ struct type_identity {
 };
 template<typename Ty, typename TestTy = void>
 using type_identity_t = typename type_identity<Ty, TestTy>::type;
+template<size_t... Indices>
+struct index_sequence {};
+template<size_t N, size_t... Next>
+struct make_index_sequence : make_index_sequence<N - 1U, N - 1U, Next...> {};
+template<size_t... Next>
+struct make_index_sequence<0U, Next...> {
+    using type = index_sequence<Next...>;
+};
 }  // namespace util
 
 #if __cplusplus < 201703L
@@ -110,6 +118,14 @@ using bool_constant = integral_constant<bool, B>;
 template<typename Ty>
 using is_nothrow_swappable = bool_constant<noexcept(swap(declval<Ty&>(), declval<Ty&>()))>;
 #    endif  // !defined(_MSC_VER)
+#    if __cplusplus < 201402L
+template<size_t... Indices>
+using index_sequence = util::index_sequence<Indices...>;
+template<size_t N>
+using make_index_sequence = typename util::make_index_sequence<N>::type;
+template<typename... Ts>
+using index_sequence_for = make_index_sequence<sizeof...(Ts)>;
+#    endif  // __cplusplus
 }  // namespace std
 #endif  // __cplusplus < 201703L
 

@@ -67,7 +67,7 @@ class span {
         return begin_[0];
     }
     reference back() const {
-        assert(size > 0);
+        assert(size_ > 0);
         return *(begin_ + size_ - 1);
     }
     pointer data() const { return begin_; }
