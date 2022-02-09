@@ -56,13 +56,13 @@ class intrusive_list {
     bool empty() const { return size_ == 0; }
     size_type size() const { return size_; }
 
-    iterator begin() { return iterator(head_.next); }
-    const_iterator begin() const { return const_iterator(head_.next); }
-    const_iterator cbegin() const { return const_iterator(head_.next); }
+    iterator begin() { return iterator::from_base(head_.next); }
+    const_iterator begin() const { return const_iterator::from_base(head_.next); }
+    const_iterator cbegin() const { return const_iterator::from_base(head_.next); }
 
-    iterator end() { return iterator(std::addressof(head_)); }
-    const_iterator end() const { return const_iterator(std::addressof(head_)); }
-    const_iterator cend() const { return const_iterator(std::addressof(head_)); }
+    iterator end() { return iterator::from_base(std::addressof(head_)); }
+    const_iterator end() const { return const_iterator::from_base(std::addressof(head_)); }
+    const_iterator cend() const { return const_iterator::from_base(std::addressof(head_)); }
 
     reverse_iterator rbegin() { return reverse_iterator(end()); }
     const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
@@ -106,19 +106,22 @@ class intrusive_list {
         auto* item = &((*ptr).*PtrToMember);
         item->ptr = std::move(ptr);
         intrusive_list_base_hook_t::set_head(item, &head_);
-        dllist_insert_before<dllist_node_t>(pos.node(&head_), item);
+        auto* after = pos.base().node();
+        iterator_assert(intrusive_list_base_hook_t::get_head(after) == &head_);
+        dllist_insert_before<dllist_node_t>(after, item);
         ++size_;
-        return iterator(item);
+        return iterator::from_base(item);
     }
 
     iterator erase(const_iterator pos) {
-        auto* item = pos.node(&head_);
+        auto* item = pos.base().node();
+        iterator_assert(intrusive_list_base_hook_t::get_head(item) == &head_);
         assert(item != &head_);
         --size_;
         auto* next = dllist_remove(item);
         intrusive_list_base_hook_t::set_head(item, nullptr);
         static_cast<hook_t*>(item)->ptr = nullptr;
-        return iterator(next);
+        return iterator::from_base(next);
     }
 
     reference push_front(typename hook_t::internal_pointer_t ptr) { return *insert(begin(), std::move(ptr)); }
@@ -127,7 +130,8 @@ class intrusive_list {
     void pop_back() { erase(std::prev(end())); }
 
     typename hook_t::internal_pointer_t extract(const_iterator pos) {
-        auto* item = pos.node(&head_);
+        auto* item = pos.node();
+        iterator_assert(intrusive_list_base_hook_t::get_head(item) == &head_);
         assert(item != &head_);
         --size_;
         dllist_remove(item);
@@ -138,8 +142,8 @@ class intrusive_list {
     typename hook_t::internal_pointer_t extract_front() { return extract(begin()); }
     typename hook_t::internal_pointer_t extract_back() { return extract(std::prev(end())); }
 
-    const_iterator to_iterator(const_pointer ptr) const { return const_iterator(&((*ptr).*PtrToMember)); }
-    iterator to_iterator(pointer ptr) { return iterator(&((*ptr).*PtrToMember)); }
+    const_iterator to_iterator(const_pointer ptr) const { return const_iterator::from_base(&((*ptr).*PtrToMember)); }
+    iterator to_iterator(pointer ptr) { return iterator::from_base(&((*ptr).*PtrToMember)); }
 
  private:
     size_t size_ = 0;
