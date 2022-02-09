@@ -130,34 +130,44 @@ class normal_iterator {
         return normal_iterator(base);
     }
 
-    normal_iterator& operator+=(difference_type j) NOEXCEPT {
+    template<typename BaseIter_ = BaseIter>
+    util::type_identity_t<normal_iterator&, decltype(std::declval<BaseIter_>().decrement())> operator--() NOEXCEPT {
+        base_.decrement();
+        return *this;
+    }
+
+    template<typename BaseIter_ = BaseIter>
+    util::type_identity_t<normal_iterator, decltype(std::declval<BaseIter_>().decrement())> operator--(int) NOEXCEPT {
+        BaseIter base = base_;
+        base_.decrement();
+        return normal_iterator(base);
+    }
+
+    template<typename BaseIter_ = BaseIter>
+    auto operator+=(difference_type j) NOEXCEPT
+        -> util::type_identity_t<normal_iterator&, decltype(std::declval<BaseIter_>().advance(j))> {
         base_.advance(j);
         return *this;
     }
 
-    normal_iterator operator+(difference_type j) const NOEXCEPT {
+    template<typename BaseIter_ = BaseIter>
+    auto operator+(difference_type j) const NOEXCEPT
+        -> util::type_identity_t<normal_iterator, decltype(std::declval<BaseIter_>().advance(j))> {
         BaseIter base = base_;
         base.advance(j);
         return normal_iterator(base);
     }
 
-    normal_iterator& operator--() NOEXCEPT {
-        base_.decrement();
-        return *this;
-    }
-
-    normal_iterator operator--(int) NOEXCEPT {
-        BaseIter base = base_;
-        base_.decrement();
-        return normal_iterator(base);
-    }
-
-    normal_iterator& operator-=(difference_type j) NOEXCEPT {
+    template<typename BaseIter_ = BaseIter>
+    auto operator-=(difference_type j) NOEXCEPT
+        -> util::type_identity_t<normal_iterator&, decltype(std::declval<BaseIter_>().advance(j))> {
         base_.advance(-j);
         return *this;
     }
 
-    normal_iterator operator-(difference_type j) const NOEXCEPT {
+    template<typename BaseIter_ = BaseIter>
+    auto operator-(difference_type j) const NOEXCEPT
+        -> util::type_identity_t<normal_iterator, decltype(std::declval<BaseIter_>().advance(j))> {
         BaseIter base = base_;
         base.advance(-j);
         return normal_iterator(base);
@@ -165,7 +175,12 @@ class normal_iterator {
 
     reference operator*() const NOEXCEPT { return base_.dereference(); }
     pointer operator->() const NOEXCEPT { return std::addressof(**this); }
-    reference operator[](difference_type j) const NOEXCEPT { return *(*this + j); }
+
+    template<typename BaseIter_ = BaseIter>
+    auto operator[](difference_type j) const NOEXCEPT
+        -> util::type_identity_t<reference, decltype(std::declval<BaseIter_>().advance(j))> {
+        return *(*this + j);
+    }
 
     const BaseIter& base() const NOEXCEPT { return base_; }
 
@@ -174,68 +189,78 @@ class normal_iterator {
 };
 
 template<typename BaseIterL, typename BaseIterR, typename Container>
-bool operator==(const normal_iterator<BaseIterL, Container>& lhs,
-                const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT {
+auto operator==(const normal_iterator<BaseIterL, Container>& lhs,
+                const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT
+    -> decltype(lhs.base().is_equal_to(rhs.base())) {
     return lhs.base().is_equal_to(rhs.base());
 }
 template<typename BaseIter, typename Container>
-bool operator==(const normal_iterator<BaseIter, Container>& lhs,
-                const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT {
+auto operator==(const normal_iterator<BaseIter, Container>& lhs,
+                const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT
+    -> decltype(lhs.base().is_equal_to(rhs.base())) {
     return lhs.base().is_equal_to(rhs.base());
 }
 
 template<typename BaseIterL, typename BaseIterR, typename Container>
-bool operator!=(const normal_iterator<BaseIterL, Container>& lhs,
-                const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT {
+auto operator!=(const normal_iterator<BaseIterL, Container>& lhs,
+                const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT
+    -> decltype(!lhs.base().is_equal_to(rhs.base())) {
     return !lhs.base().is_equal_to(rhs.base());
 }
 template<typename BaseIter, typename Container>
-bool operator!=(const normal_iterator<BaseIter, Container>& lhs,
-                const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT {
+auto operator!=(const normal_iterator<BaseIter, Container>& lhs,
+                const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT
+    -> decltype(!lhs.base().is_equal_to(rhs.base())) {
     return !lhs.base().is_equal_to(rhs.base());
 }
 
 template<typename BaseIterL, typename BaseIterR, typename Container>
-bool operator<(const normal_iterator<BaseIterL, Container>& lhs,
-               const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT {
+auto operator<(const normal_iterator<BaseIterL, Container>& lhs,
+               const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT
+    -> decltype(lhs.base().is_less_than(rhs.base())) {
     return lhs.base().is_less_than(rhs.base());
 }
 template<typename BaseIter, typename Container>
-bool operator<(const normal_iterator<BaseIter, Container>& lhs,
-               const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT {
+auto operator<(const normal_iterator<BaseIter, Container>& lhs, const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT
+    -> decltype(lhs.base().is_less_than(rhs.base())) {
     return lhs.base().is_less_than(rhs.base());
 }
 
 template<typename BaseIterL, typename BaseIterR, typename Container>
-bool operator<=(const normal_iterator<BaseIterL, Container>& lhs,
-                const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT {
+auto operator<=(const normal_iterator<BaseIterL, Container>& lhs,
+                const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT
+    -> decltype(!rhs.base().is_less_than(lhs.base())) {
     return !rhs.base().is_less_than(lhs.base());
 }
 template<typename BaseIter, typename Container>
-bool operator<=(const normal_iterator<BaseIter, Container>& lhs,
-                const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT {
+auto operator<=(const normal_iterator<BaseIter, Container>& lhs,
+                const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT
+    -> decltype(!rhs.base().is_less_than(lhs.base())) {
     return !rhs.base().is_less_than(lhs.base());
 }
 
 template<typename BaseIterL, typename BaseIterR, typename Container>
-bool operator>(const normal_iterator<BaseIterL, Container>& lhs,
-               const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT {
+auto operator>(const normal_iterator<BaseIterL, Container>& lhs,
+               const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT
+    -> decltype(rhs.base().is_less_than(lhs.base())) {
     return rhs.base().is_less_than(lhs.base());
 }
 template<typename BaseIter, typename Container>
-bool operator>(const normal_iterator<BaseIter, Container>& lhs,
-               const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT {
+auto operator>(const normal_iterator<BaseIter, Container>& lhs, const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT
+    -> decltype(rhs.base().is_less_than(lhs.base())) {
     return rhs.base().is_less_than(lhs.base());
 }
 
 template<typename BaseIterL, typename BaseIterR, typename Container>
-bool operator>=(const normal_iterator<BaseIterL, Container>& lhs,
-                const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT {
+auto operator>=(const normal_iterator<BaseIterL, Container>& lhs,
+                const normal_iterator<BaseIterR, Container>& rhs) NOEXCEPT
+    -> decltype(!lhs.base().is_less_than(rhs.base())) {
     return !lhs.base().is_less_than(rhs.base());
 }
 template<typename BaseIter, typename Container>
-bool operator>=(const normal_iterator<BaseIter, Container>& lhs,
-                const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT {
+auto operator>=(const normal_iterator<BaseIter, Container>& lhs,
+                const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT
+    -> decltype(!lhs.base().is_less_than(rhs.base())) {
     return !lhs.base().is_less_than(rhs.base());
 }
 
@@ -246,14 +271,16 @@ auto operator-(const normal_iterator<BaseIterL, Container>& lhs,
     return rhs.base().distance_to(lhs.base());
 }
 template<typename BaseIter, typename Container>
-typename normal_iterator<BaseIter, Container>::difference_type operator-(
-    const normal_iterator<BaseIter, Container>& lhs, const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT {
+auto operator-(const normal_iterator<BaseIter, Container>& lhs,
+               const normal_iterator<BaseIter, Container>& rhs) NOEXCEPT  //
+    -> decltype(rhs.base().distance_to(lhs.base())) {
     return rhs.base().distance_to(lhs.base());
 }
 
 template<typename BaseIter, typename Container>
-normal_iterator<BaseIter, Container> operator+(typename normal_iterator<BaseIter, Container>::difference_type j,
-                                               const normal_iterator<BaseIter, Container>& it) NOEXCEPT {
+auto operator+(typename normal_iterator<BaseIter, Container>::difference_type j,
+               const normal_iterator<BaseIter, Container>& it) NOEXCEPT
+    -> util::type_identity_t<normal_iterator<BaseIter, Container>, decltype(std::declval<BaseIter>().advance(j))> {
     BaseIter base = it.base();
     base.advance(j);
     return normal_iterator<BaseIter, Container>(base);
