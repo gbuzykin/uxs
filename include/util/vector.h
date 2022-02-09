@@ -203,7 +203,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
                           std::is_assignable<Ty&, decltype(*first)>());
     }
 
-    void clear() NOEXCEPT { helpers::truncate(*this, v_.begin, v_.end); }
+    void clear() NOEXCEPT { helpers::truncate(*this, v_.begin, v_.end, std::is_trivially_destructible<value_type>()); }
 
     void reserve(size_type reserve_sz) {
         if (reserve_sz <= capacity()) { return; }
@@ -234,7 +234,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
                 helpers::append_default(*this, v_.end, v_.end + count);
             }
         } else {
-            helpers::truncate(*this, v_.begin + sz, v_.end);
+            helpers::truncate(*this, v_.begin + sz, v_.end, std::is_trivially_destructible<value_type>());
         }
     }
 
@@ -250,7 +250,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
                 helpers::append_copy(*this, v_.end, v_.end + count, const_value(val));
             }
         } else {
-            helpers::truncate(*this, v_.begin + sz, v_.end);
+            helpers::truncate(*this, v_.begin + sz, v_.end, std::is_trivially_destructible<value_type>());
         }
     }
 
@@ -366,9 +366,9 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         if (v_.begin != v_.boundary) { tidy(v_); }
         v_.nullify();
     }
-    void tidy(const vector_ptrs_t& v) {
+    void tidy(vector_ptrs_t& v) {
         assert(v.begin != v.boundary);
-        for (auto p = v.begin; p != v.end; ++p) { alloc_traits::destroy(*this, std::addressof(*p)); }
+        helpers::truncate(*this, v.begin, v.end, std::is_trivially_destructible<Ty>());
         alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
     }
 
@@ -481,7 +481,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         try {
             helpers::append_default(*this, end, end + count);
         } catch (...) {
-            for (auto p = v.begin + size(); p != end; ++p) { alloc_traits::destroy(*this, std::addressof(*p)); }
+            helpers::truncate(*this, v.begin + size(), end, std::is_trivially_destructible<Ty>());
             alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
             throw;
         }
@@ -516,7 +516,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         try {
             helpers::append_copy(*this, end, end + count, const_value(val));
         } catch (...) {
-            for (auto p = v.begin + size(); p != end; ++p) { alloc_traits::destroy(*this, std::addressof(*p)); }
+            helpers::truncate(*this, v.begin + size(), end, std::is_trivially_destructible<Ty>());
             alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
             throw;
         }
@@ -620,7 +620,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         } else {
             auto end_new = v_.begin + sz;
             for (auto p = v_.begin; p != end_new; ++src) { *p++ = *src; }
-            helpers::truncate(*this, end_new, v_.end);
+            helpers::truncate(*this, end_new, v_.end, std::is_trivially_destructible<Ty>());
         }
     }
 
@@ -629,7 +629,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         if (sz > capacity()) {
             assign_relocate(sz, src, std::is_nothrow_constructible<Ty, decltype(*src)>());
         } else {
-            helpers::truncate(*this, v_.begin, v_.end);
+            helpers::truncate(*this, v_.begin, v_.end, std::is_trivially_destructible<Ty>());
             helpers::append_copy(*this, v_.end, v_.end + sz, src);
         }
     }
@@ -666,7 +666,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         auto end_new = v_.begin;
         for (; end_new != v_.end && first != last; ++first) { *end_new++ = *first; }
         if (end_new != v_.end) {
-            helpers::truncate(*this, end_new, v_.end);
+            helpers::truncate(*this, end_new, v_.end, std::is_trivially_destructible<Ty>());
         } else {
             for (; first != last; ++first) { emplace_back(*first); }
         }
@@ -675,7 +675,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
     template<typename InputIt>
     void assign_from_range(InputIt first, InputIt last, std::false_type /* random access iterator */,
                            std::false_type /* assignable */) {
-        helpers::truncate(*this, v_.begin, v_.end);
+        helpers::truncate(*this, v_.begin, v_.end, std::is_trivially_destructible<Ty>());
         for (; first != last; ++first) { emplace_back(*first); }
     }
 
@@ -696,7 +696,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
             return insert_relocate(p, count, const_value(val), std::is_nothrow_move_constructible<Ty>(),
                                    std::is_nothrow_copy_constructible<Ty>());
         } else if (count) {
-            typename std::aligned_storage<sizeof(value_type), std::alignment_of<value_type>::value>::type buf;
+            typename std::aligned_storage<sizeof(Ty), std::alignment_of<Ty>::value>::type buf;
             auto* val_copy = reinterpret_cast<value_type*>(std::addressof(buf));
             alloc_traits::construct(*this, val_copy, val);
             try {
@@ -731,7 +731,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         try {
             helpers::append_copy(*this, mid, mid + count, src);
         } catch (...) {
-            for (auto p = v.begin + n; p != mid; ++p) { alloc_traits::destroy(*this, std::addressof(*p)); }
+            helpers::truncate(*this, v.begin + n, mid, std::is_trivially_destructible<Ty>());
             alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
             throw;
         }
@@ -836,25 +836,37 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
             alloc_traits::destroy(alloc, std::addressof(*(--end)));
         }
 
-        static void truncate(alloc_type& alloc, pointer end_new, pointer& end) {
+        static void truncate(std::allocator<Ty>& alloc, pointer end_new, pointer& end,
+                             std::true_type /* trivially destructible */) {
+            end = end_new;
+        }
+
+        template<typename Alloc_ = alloc_type>
+        static void truncate(std::enable_if_t<!std::is_same<Alloc_, std::allocator<Ty>>::value, alloc_type>& alloc,
+                             pointer end_new, pointer& end, std::true_type /* trivially destructible */) {
+            helpers::truncate(alloc, end_new, end, std::false_type());
+        }
+
+        static void truncate(alloc_type& alloc, pointer end_new, pointer& end,
+                             std::false_type /* trivially destructible */) {
             for (auto p = end_new; p != end; ++p) { alloc_traits::destroy(alloc, std::addressof(*p)); }
             end = end_new;
         }
 
         static void emplace(alloc_type& alloc, pointer pos, pointer& end, value_type&& val) {
             assert(pos != end);
-            append(alloc, end, std::move(*(end - 1)));
+            helpers::append(alloc, end, std::move(*(end - 1)));
             for (auto p = end - 2; pos != p; --p) { *p = std::move(*(p - 1)); }
             *pos = std::move(val);
         }
 
         template<typename... Args>
         static void emplace(alloc_type& alloc, pointer pos, pointer& end, Args&&... args) {
-            typename std::aligned_storage<sizeof(value_type), std::alignment_of<value_type>::value>::type buf;
+            typename std::aligned_storage<sizeof(Ty), std::alignment_of<Ty>::value>::type buf;
             auto* val = reinterpret_cast<value_type*>(std::addressof(buf));
             alloc_traits::construct(alloc, val, std::forward<Args>(args)...);
             try {
-                emplace(alloc, pos, end, std::move(*val));
+                helpers::emplace(alloc, pos, end, std::move(*val));
             } catch (...) {
                 alloc_traits::destroy(alloc, val);
                 throw;
@@ -869,13 +881,13 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
             size_type tail = static_cast<size_type>(end - pos);
             if (count > tail) {
                 auto p = end;
-                append_copy(alloc, end, end + count - tail,
-                            src + static_cast<typename std::iterator_traits<RandIt>::difference_type>(tail));
-                append_relocate(alloc, end, p - tail, p);
+                helpers::append_copy(alloc, end, end + count - tail,
+                                     src + static_cast<typename std::iterator_traits<RandIt>::difference_type>(tail));
+                helpers::append_relocate(alloc, end, p - tail, p);
                 for (p = pos; p != pos + tail; ++src) { *p++ = *src; };
             } else {
                 auto p = end - count;
-                append_relocate(alloc, end, end - count, end);
+                helpers::append_relocate(alloc, end, end - count, end);
                 for (; pos != p; --p) { *(p + count - 1) = std::move(*(p - 1)); }
                 for (; p != pos + count; ++src) { *p++ = *src; };
             }
@@ -883,14 +895,14 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
 
         static void erase(alloc_type& alloc, pointer p, pointer& end) {
             for (; p != end - 1; ++p) { *p = std::move(*(p + 1)); }
-            truncate(alloc, end);
+            helpers::truncate(alloc, end);
         }
 
         static void erase(alloc_type& alloc, pointer p, pointer end_new, pointer& end) {
             assert(end_new != end);
             size_type count = static_cast<size_type>(end - end_new);
             for (; p != end_new; ++p) { *p = std::move(*(p + count)); }
-            truncate(alloc, end_new, end);
+            helpers::truncate(alloc, end_new, end, std::is_trivially_destructible<Ty>());
         }
     };
 };
