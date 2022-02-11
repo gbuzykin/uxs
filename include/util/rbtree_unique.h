@@ -76,7 +76,10 @@ class rbtree_unique : public rbtree_base<NodeTy, Alloc, Comp> {
         try {
             auto result = rbtree_find_insert_unique_pos<node_t>(
                 std::addressof(this->head_), node_t::get_key(node_t::get_value(node)), this->get_compare());
-            if (result.second == 0) { return std::make_pair(iterator::from_base(result.first), false); }
+            if (result.second == 0) {
+                super::helpers::delete_node(*this, node);
+                return std::make_pair(iterator::from_base(result.first), false);
+            }
             node_t::set_head(node, std::addressof(this->head_));
             ++this->size_;
             rbtree_insert(std::addressof(this->head_), node, result.first, result.second < 0);
@@ -96,7 +99,10 @@ class rbtree_unique : public rbtree_base<NodeTy, Alloc, Comp> {
             auto result = rbtree_find_insert_unique_pos<node_t>(std::addressof(this->head_), this->to_ptr(hint),
                                                                 node_t::get_key(node_t::get_value(node)),
                                                                 this->get_compare());
-            if (result.second == 0) { return iterator::from_base(result.first); }
+            if (result.second == 0) {
+                super::helpers::delete_node(*this, node);
+                return iterator::from_base(result.first);
+            }
             node_t::set_head(node, std::addressof(this->head_));
             ++this->size_;
             rbtree_insert(std::addressof(this->head_), node, result.first, result.second < 0);
