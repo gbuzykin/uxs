@@ -47,8 +47,7 @@ class UTIL_EXPORT pool_base {
     explicit pool_base(uint32_t partition_size) : desc_(allocate_dummy_pool(partition_size)) {}
 
     pool_base(const pool_base& other) NOEXCEPT : desc_(other.desc_) {
-        assert(desc_);
-        ++desc_->root_pool->ref_count;
+        if (desc_) { ++desc_->root_pool->ref_count; }
     }
     pool_base& operator=(const pool_base& other) NOEXCEPT {
         if (&other != this) { reset(other.desc_); }
@@ -79,9 +78,8 @@ class UTIL_EXPORT pool_base {
     static size_t dec_use_count(dllist_node_t* node) { return --header(node)->use_count; }
 
     void reset(pool_desc_t* desc) {
-        assert(desc_);
-        if (desc) { ++desc->ref_count; }
-        if (!--desc_->ref_count) { tidy(); }
+        if (desc) { ++desc->root_pool->ref_count; }
+        if (desc_ && !--desc_->root_pool->ref_count) { tidy(desc_); }
         desc_ = desc;
     }
 
@@ -98,7 +96,7 @@ class UTIL_EXPORT pool_base {
         if (dec_use_count(node) == 0) { desc_->deallocate_partition(desc_, header(node)); }
     }
 
-    void tidy();
+    static void tidy(pool_desc_t* desc);
     static pool_desc_t* find_pool(pool_desc_t* desc, uint32_t size_and_alignment);
     static pool_desc_t* allocate_new_pool();
     static pool_desc_t* allocate_dummy_pool(uint32_t partition_size);

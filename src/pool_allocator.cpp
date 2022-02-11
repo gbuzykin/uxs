@@ -5,14 +5,14 @@ using namespace util;
 /*static*/ pool_base::global_pool_list_item_t* pool_base::global_pool_list_ = nullptr;
 /*static*/ pool_base pool_base::global_pool_;
 
-void pool_base::tidy() {
-    auto* desc = desc_;
+/*static*/ void pool_base::tidy(pool_desc_t* desc) {
+    auto* desc0 = desc;
     do {
         auto* next = desc->next_pool;
         if (desc->size_and_alignment) { desc->tidy_pool(desc); }
         alloc_type().deallocate(desc, 1);
         desc = next;
-    } while (desc != desc_);
+    } while (desc != desc0);
 }
 
 /*static*/ pool_base::pool_desc_t* pool_base::find_pool(pool_desc_t* desc, uint32_t size_and_alignment) {
