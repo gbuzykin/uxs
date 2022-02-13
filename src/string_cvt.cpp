@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cmath>
 
 using namespace util;
 
@@ -256,10 +255,8 @@ static struct pow_table_t {
 } g_pow_tbl;
 
 struct fp_exp10_format {
-    enum { kNeg = 1, kInf = 2, kNan = 4 };
-    char flags = 0;
-    int exp = 0;
     uint64_t mantissa = 0;
+    int exp = 0;
 };
 
 static const char* starts_with(const char* p, const char* end, std::string_view s) {
@@ -287,28 +284,21 @@ char get_dig_and_div(Ty& v) {
 // ---- from string to value
 
 template<typename Ty>
-const char* to_unsigned(const char* p, const char* end, Ty& val) {
-    if (p == end || !std::isdigit(static_cast<unsigned char>(*p))) { return p; }
-    val = static_cast<Ty>(*p++ - '0');
-    while (p < end && std::isdigit(static_cast<unsigned char>(*p))) { val = 10 * val + static_cast<Ty>(*p++ - '0'); }
-    return p;
-}
-
-template<typename Ty>
-const char* to_signed(const char* p, const char* end, Ty& val) {
-    const char *p0 = p, *p1 = p;
+const char* to_integer(const char* p, const char* end, Ty& val) {
+    const char* p0 = p;
     bool neg = false;
     if (p == end) {
         return p0;
     } else if (*p == '+') {
         ++p;  // skip positive sign
     } else if (*p == '-') {
-        neg = true;  // negative sign
-        ++p;
+        ++p, neg = true;  // negative sign
     }
-    if ((p1 = to_unsigned(p, end, val)) == p) { return p0; }
+    if (p == end || !std::isdigit(static_cast<unsigned char>(*p))) { return p0; }
+    val = static_cast<Ty>(*p++ - '0');
+    while (p < end && std::isdigit(static_cast<unsigned char>(*p))) { val = 10 * val + static_cast<Ty>(*p++ - '0'); }
     if (neg) { val = -val; }  // apply sign
-    return p1;
+    return p;
 }
 
 static const char* accum_mantissa(const char* p, const char* end, uint64_t& m, int& exp) {
@@ -322,172 +312,196 @@ static const char* accum_mantissa(const char* p, const char* end, uint64_t& m, i
     return p;
 }
 
-static const char* to_exp10_float(const char* p, const char* end, fp_exp10_format& fp10) {
-    const char *p0 = p, *p1 = p;
+static const char* to_fp_exp10(const char* p, const char* end, fp_exp10_format& fp10) {
     if (p == end) {
-        return p0;
-    } else if (*p == '+') {
-        ++p;  // skip positive sign
-    } else if (*p == '-') {
-        fp10.flags |= fp_exp10_format::kNeg;  // negative sign
-        ++p;
-    }
-    if (p == end) {
-        return p0;
+        return p;
     } else if (std::isdigit(static_cast<unsigned char>(*p))) {  // integer part
         fp10.mantissa = static_cast<uint64_t>(*p++ - '0');
         p = accum_mantissa(p, end, fp10.mantissa, fp10.exp);
         if (p < end && *p == '.') { ++p; }  // skip decimal point
     } else if (*p == '.' && p + 1 < end && std::isdigit(static_cast<unsigned char>(*(p + 1)))) {
         fp10.mantissa = static_cast<uint64_t>(*(p + 1) - '0');  // tenth
-        fp10.exp = -1;
-        p += 2;
-    } else if ((p1 = starts_with(p, end, "inf")) > p) {
-        fp10.flags |= fp_exp10_format::kInf;  // infinity
-        return p1;
-    } else if ((p1 = starts_with(p, end, "nan")) > p) {
-        fp10.flags = fp_exp10_format::kNan;  // NaN
-        return p1;
+        fp10.exp = -1, p += 2;
     } else {
-        return p0;
+        return p;
     }
-    p1 = accum_mantissa(p, end, fp10.mantissa, fp10.exp);  // fractional part
+    const char* p1 = accum_mantissa(p, end, fp10.mantissa, fp10.exp);  // fractional part
     fp10.exp -= static_cast<unsigned>(p1 - p);
     if (p1 < end && (*p1 == 'e' || *p1 == 'E')) {  // optional exponent
         int exp_optional = 0;
-        if ((p = to_signed(p1 + 1, end, exp_optional)) > p1 + 1) {
-            p1 = p;
-            fp10.exp += exp_optional;
-        }
+        if ((p = to_integer(p1 + 1, end, exp_optional)) > p1 + 1) { fp10.exp += exp_optional, p1 = p; }
     }
     return p1;
 }
 
 template<typename Ty>
 const char* to_float(const char* p, const char* end, Ty& val) {
+    enum class fp_spec_t { kFinite = 0, kInf, kNaN } special = fp_spec_t::kFinite;
     fp_exp10_format fp10;
-    const char* p1 = to_exp10_float(p, end, fp10);
-    if (p1 == p) { return p; }
-    uint64_t mantissa2 = 0;
+    const char* p0 = p;
+    bool neg = false;
+
+    if (p == end) {
+        return p0;
+    } else if (*p == '+') {
+        ++p;  // skip positive sign
+    } else if (*p == '-') {
+        ++p, neg = true;  // negative sign
+    }
+
     int exp = 0;
-    if (fp10.flags & (fp_exp10_format::kInf | fp_exp10_format::kNan)) {  // infinity or NaN
-        exp = fp_format_traits<Ty>::kExpMax;
-        if (fp10.flags & fp_exp10_format::kNan) { mantissa2 = fp_format_traits<Ty>::kMantissaMask; }
-    } else if (fp10.mantissa == 0 || fp10.exp < -pow_table_t::kPow10Max) {  // zero
-    } else if (fp10.exp > pow_table_t::kPow10Max) {
-        exp = fp_format_traits<Ty>::kExpMax;  // convert to infinity
-    } else {
-        // convert decimal mantissa to binary
-        const auto& coef = g_pow_tbl.coef10to2[pow_table_t::kPow10Max + fp10.exp];
-        auto res96 = mul64x32(fp10.mantissa, coef.m2);
-        auto res128 = mul64x64(fp10.mantissa, coef.m, res96.hi);
-        res128.hi += fp10.mantissa;  // apply implicit 1 term of normalized coefficient
-        // extract mantissa bits
-        unsigned log = ulog2(res128.hi);
-        exp = fp_format_traits<Ty>::kExpBias + log + coef.exp;
-        if (exp >= fp_format_traits<Ty>::kExpMax) {
+    uint64_t mantissa2 = 0;
+    const char* p1 = to_fp_exp10(p, end, fp10);
+    if (p1 > p) {
+        if (fp10.mantissa == 0 || fp10.exp < -pow_table_t::kPow10Max) {  // zero
+        } else if (fp10.exp > pow_table_t::kPow10Max) {
             exp = fp_format_traits<Ty>::kExpMax;  // convert to infinity
-        } else if (exp >= -static_cast<int>(fp_format_traits<Ty>::kBitsPerMantissa)) {
-            unsigned left_shift = 64 - log;
-            unsigned right_shift = 64 - fp_format_traits<Ty>::kBitsPerMantissa;
-            // add denormalization shifts if 'exp <= 0'
-            if (exp < 0) {
-                right_shift -= 1 + exp, left_shift -= 2, exp = 0;
-            } else if (exp == 0) {
-                --left_shift;
-            }
-            // align mantissa with left 128-bit boundary
-            if (left_shift < 64) {
-                res128 = shl(res128, left_shift);
-                res128.lo |= make64<uint64_t>(res96.lo, 0) >> (64 - left_shift);
-            } else {
-                res128.hi = res128.lo;
-                res128.lo = make64<uint64_t>(res96.lo, 0);
-            }
-            // round unreliable bits
-            const uint64_t before_rounding = res128.hi;
-            const uint64_t half0 = 1ull << 31;
-            res128.lo += half0;
-            if (res128.lo < half0) { ++res128.hi; }
-            res128.lo &= ~((half0 << 1) - 1);
-            // do 'nearest even' rounding
-            const uint64_t half = 1ull << (right_shift - 1);
-            res128.hi += (res128.hi & (half << 1)) == 0 && res128.lo == 0 ? half - 1 : half;
-            if (res128.hi < before_rounding) { ++exp; }  // overflow while rounding, the value can become infinity
-            // shift mantissa to the right position
-            mantissa2 = res128.hi >> right_shift;
         } else {
-            exp = 0;  // zero
+            // convert decimal mantissa to binary
+            const auto& coef = g_pow_tbl.coef10to2[pow_table_t::kPow10Max + fp10.exp];
+            auto res96 = mul64x32(fp10.mantissa, coef.m2);
+            auto res128 = mul64x64(fp10.mantissa, coef.m, res96.hi);
+            res128.hi += fp10.mantissa;  // apply implicit 1 term of normalized coefficient
+            // extract mantissa bits
+            unsigned log = ulog2(res128.hi);
+            exp = fp_format_traits<Ty>::kExpBias + log + coef.exp;
+            if (exp >= fp_format_traits<Ty>::kExpMax) {
+                exp = fp_format_traits<Ty>::kExpMax;  // convert to infinity
+            } else if (exp >= -static_cast<int>(fp_format_traits<Ty>::kBitsPerMantissa)) {
+                unsigned left_shift = 64 - log;
+                unsigned right_shift = 64 - fp_format_traits<Ty>::kBitsPerMantissa;
+                // add denormalization shifts if 'exp <= 0'
+                if (exp < 0) {
+                    right_shift -= 1 + exp, left_shift -= 2, exp = 0;
+                } else if (exp == 0) {
+                    --left_shift;
+                }
+                // align mantissa with left 128-bit boundary
+                if (left_shift < 64) {
+                    res128 = shl(res128, left_shift);
+                    res128.lo |= make64<uint64_t>(res96.lo, 0) >> (64 - left_shift);
+                } else {
+                    res128.hi = res128.lo;
+                    res128.lo = make64<uint64_t>(res96.lo, 0);
+                }
+                // round unreliable bits
+                const uint64_t before_rounding = res128.hi;
+                const uint64_t half0 = 1ull << 31;
+                res128.lo += half0;
+                if (res128.lo < half0) { ++res128.hi; }
+                res128.lo &= ~((half0 << 1) - 1);
+                // do 'nearest even' rounding
+                const uint64_t half = 1ull << (right_shift - 1);
+                res128.hi += (res128.hi & (half << 1)) == 0 && res128.lo == 0 ? half - 1 : half;
+                if (res128.hi < before_rounding) { ++exp; }  // overflow while rounding, the value can become infinity
+                // shift mantissa to the right position
+                mantissa2 = res128.hi >> right_shift;
+            } else {
+                exp = 0;  // zero
+            }
         }
+    } else if ((p1 = starts_with(p, end, "inf")) > p) {  // infinity
+        exp = fp_format_traits<Ty>::kExpMax;
+    } else if ((p1 = starts_with(p, end, "nan")) > p) {  // NaN
+        exp = fp_format_traits<Ty>::kExpMax;
+        mantissa2 = fp_format_traits<Ty>::kMantissaMask;
+    } else {
+        return p0;
     }
 
     // compose floating point value
-    val = fp_format_traits<Ty>::from_u64(
-        ((fp10.flags & fp_exp10_format::kNeg) != 0 ? fp_format_traits<Ty>::kSignBit : 0) |
-        (static_cast<uint64_t>(exp) << fp_format_traits<Ty>::kBitsPerMantissa) | mantissa2);
+    val = fp_format_traits<Ty>::from_u64((neg ? fp_format_traits<Ty>::kSignBit : 0) |
+                                         (static_cast<uint64_t>(exp) << fp_format_traits<Ty>::kBitsPerMantissa) |
+                                         mantissa2);
     return p1;
 }  // namespace scvt
 
 // ---- from value to string
 
 template<typename Ty>
-char* from_unsigned(char* p, Ty val, scvt_base base) {
-    switch (base) {
-        case scvt_base::kBase8:
+char* fmt_unsigned(char* p, Ty val, fmt_flags flags, int width) {
+    bool add_hex_prefix = false;
+    char* end = p;
+    switch (flags & fmt_flags::kBaseField) {
+        case fmt_flags::kBin: {
+            if ((flags & fmt_flags::kShowBase) == fmt_flags::kShowBase) {
+                *--p = (flags & fmt_flags::kUpperCase) == fmt_flags::kUpperCase ? 'B' : 'b';
+            }
+            do {
+                *--p = '0' + static_cast<unsigned>(val & 0x1);
+                val >>= 1;
+            } while (val != 0);
+        } break;
+        case fmt_flags::kOct: {
             do {
                 *--p = '0' + static_cast<unsigned>(val & 0x7);
                 val >>= 3;
             } while (val != 0);
-            break;
-        case scvt_base::kBase10:  //
-            do { *--p = get_dig_and_div(val); } while (val != 0);
-            break;
-        case scvt_base::kBase16:
+            if ((flags & fmt_flags::kShowBase) == fmt_flags::kShowBase) { *--p = '0'; }
+        } break;
+        case fmt_flags::kHex: {
+            const char* digs = "0123456789abcdef";
+            if ((flags & fmt_flags::kUpperCase) == fmt_flags::kUpperCase) { digs = "0123456789ABCDEF"; }
             do {
-                *--p = "0123456789abcdef"[val & 0xf];
+                *--p = digs[val & 0xf];
                 val >>= 4;
             } while (val != 0);
-            break;
+            add_hex_prefix = (flags & fmt_flags::kShowBase) == fmt_flags::kShowBase;
+        } break;
+        default: {
+            do { *--p = get_dig_and_div(val); } while (val != 0);
+        } break;
+    }
+
+    if ((flags & fmt_flags::kLeadingZeroes) == fmt_flags::kLeadingZeroes) {
+        int len = static_cast<int>(end - p);
+        if (add_hex_prefix) { width -= 2; }
+        while (len < width) { *--p = '0', ++len; }
+    }
+
+    if (add_hex_prefix) {
+        p -= 2;
+        p[0] = '0', p[1] = (flags & fmt_flags::kUpperCase) == fmt_flags::kUpperCase ? 'X' : 'x';
     }
     return p;
 }
 
 template<typename Ty>
-char* from_signed(char* p, Ty val, scvt_base base) {
-    bool neg = false;
-    if (base == scvt_base::kBase10 && val < 0) {
-        val = -val;  // negative value
-        neg = true;
+char* fmt_signed(char* p, Ty val, fmt_flags flags, int width) {
+    bool neg = false, show_sign = false;
+    if ((flags & fmt_flags::kBaseField) == fmt_flags::kDec) {
+        if (val < 0) {
+            neg = true, show_sign = true, --width, val = -val;  // negative value
+        } else if ((flags & fmt_flags::kSignField) != fmt_flags::kSignNeg) {
+            show_sign = true, --width;
+        }
     }
-    do { *--p = get_dig_and_div(val); } while (val != 0);
-    if (neg) { *--p = '-'; }  // add negative sign
+
+    char* end = p;
+    p = fmt_unsigned(p, static_cast<typename std::make_unsigned<Ty>::type>(val), flags, width);
+
+    if (neg) {  // negative sign
+        *--p = '-';
+    } else if (show_sign) {
+        *--p = (flags & fmt_flags::kSignField) == fmt_flags::kSignPos ? '+' : ' ';
+    }
     return p;
 }
 
-static char* from_exp10_float(char* p, const fp_exp10_format& fp10, scvt_fp fmt, int prec) {
-    if (fp10.flags & fp_exp10_format::kInf) {
-        p -= 3;
-        p[0] = 'i', p[1] = 'n', p[2] = 'f';
-        if (fp10.flags & fp_exp10_format::kNeg) { *--p = '-'; }  // add negative sign
-        return p;
-    } else if (fp10.flags & fp_exp10_format::kNan) {
-        p -= 3;
-        p[0] = 'n', p[1] = 'a', p[2] = 'n';
-        return p;
-    }
-
+static char* fmt_fp_exp10(char* p, const fp_exp10_format& fp10, fmt_flags flags, int prec) {
     bool trim_zeroes = false;
-    if (fmt == scvt_fp::kGeneral) {
+    fmt_flags fp_fmt = flags & fmt_flags::kFloatField;
+    if (fp_fmt == fmt_flags::kGeneral) {
         trim_zeroes = true;
         prec = std::max(prec - 1, 0);
-        if (fp10.exp >= -4 && fp10.exp <= prec) { fmt = scvt_fp::kFixed, prec -= fp10.exp; }
+        if (fp10.exp >= -4 && fp10.exp <= prec) { fp_fmt = fmt_flags::kFixed, prec -= fp10.exp; }
     }
 
     uint64_t m = fp10.mantissa;
     int n_zeroes = prec;
     if (m != 0) {
         int n_digs = 1 + prec;
-        if (fmt == scvt_fp::kFixed) { n_digs += fp10.exp; }
+        if (fp_fmt == fmt_flags::kFixed) { n_digs += fp10.exp; }
         // count trailing zeroes
         n_zeroes = std::max(n_digs - pow_table_t::kPrecLimit, 0);
         for (;;) {
@@ -497,7 +511,7 @@ static char* from_exp10_float(char* p, const fp_exp10_format& fp10, scvt_fp fmt,
         }
     }
 
-    if (fmt != scvt_fp::kFixed) {  // add exponent
+    if (fp_fmt != fmt_flags::kFixed) {  // add exponent
         int exp10 = fp10.exp;
         if (exp10 < 0) { exp10 = -exp10; }
         if (exp10 >= 10) {
@@ -507,7 +521,7 @@ static char* from_exp10_float(char* p, const fp_exp10_format& fp10, scvt_fp fmt,
             *--p = '0';
         }
         *--p = fp10.exp < 0 ? '-' : '+';
-        *--p = 'e';
+        *--p = (flags & fmt_flags::kUpperCase) == fmt_flags::kUpperCase ? 'E' : 'e';
     }
 
     // fractional part
@@ -530,205 +544,405 @@ static char* from_exp10_float(char* p, const fp_exp10_format& fp10, scvt_fp fmt,
     }
 
     // integer part
-    if (p < p0) { *--p = '.'; }
+    if (p < p0 || (flags & fmt_flags::kShowPoint) == fmt_flags::kShowPoint) { *--p = '.'; }
     for (; n_zeroes > 0; --n_zeroes) { *--p = '0'; }
     do { *--p = get_dig_and_div(m); } while (m != 0);
-
-    if (fp10.flags & fp_exp10_format::kNeg) { *--p = '-'; }  // add negative sign
     return p;
 }
 
 template<typename Ty>
-char* from_float(char* p, Ty val, scvt_fp fmt, int prec) {
+char* fmt_float(char* p, Ty val, fmt_flags flags, int prec, int width) {
     fp_exp10_format fp10;
-    if (prec < 0) { prec = 6; }
+    bool neg = false;
+
     uint64_t mantissa = fp_format_traits<Ty>::to_u64(val);
-    if (mantissa & fp_format_traits<Ty>::kSignBit) { fp10.flags |= fp_exp10_format::kNeg; }
+    if (mantissa & fp_format_traits<Ty>::kSignBit) { neg = true; }
     int exp = static_cast<int>((mantissa & fp_format_traits<Ty>::kExpMask) >> fp_format_traits<Ty>::kBitsPerMantissa) -
               fp_format_traits<Ty>::kExpBias;
     mantissa &= fp_format_traits<Ty>::kMantissaMask;
+
     if (fp_format_traits<Ty>::kExpBias + exp == fp_format_traits<Ty>::kExpMax) {
-        if (mantissa == 0) {  // infinity
-            fp10.flags |= fp_exp10_format::kInf;
-        } else {  // NaN
-            fp10.flags = fp_exp10_format::kNan;
-        }
-    } else if (exp > -fp_format_traits<Ty>::kExpBias || mantissa != 0) {
-        // place mantissa so it has only 1 left zero bit
-        if (exp == -fp_format_traits<Ty>::kExpBias) {  // denormalized form
-            unsigned log = ulog2(mantissa);
-            mantissa <<= 62 - log;
-            exp -= fp_format_traits<Ty>::kBitsPerMantissa - log - 1;
+        p -= 3;
+        if ((flags & fmt_flags::kUpperCase) == fmt_flags::kUpperCase) {
+            if (mantissa == 0) {  // infinity
+                p[0] = 'I', p[1] = 'N', p[2] = 'F';
+            } else {  // NaN
+                p[0] = 'N', p[1] = 'A', p[2] = 'N';
+            }
         } else {
-            mantissa <<= 62 - fp_format_traits<Ty>::kBitsPerMantissa;
-            mantissa |= 1ull << 62;
+            if (mantissa == 0) {  // infinity
+                p[0] = 'i', p[1] = 'n', p[2] = 'f';
+            } else {  // NaN
+                p[0] = 'n', p[1] = 'a', p[2] = 'n';
+            }
         }
+    } else {
+        fmt_flags fp_fmt = flags & fmt_flags::kFloatField;
+        if (prec < 0) { prec = 6; }
 
-        fp10.exp = -g_pow_tbl.exp_inv10[pow_table_t::kPow2Max + exp];  // inverted power of 10
-
-        int n_digs = 1 + prec;
-        if (fmt == scvt_fp::kFixed) {  // fixed format
-            n_digs += fp10.exp;
-        } else if (fmt == scvt_fp::kGeneral && n_digs > 1) {  // general format
-            --n_digs;
-        }
-
-        if (n_digs >= 0) {
-            n_digs = std::min<int>(n_digs, pow_table_t::kPrecLimit);
-
-            // calculate decimal mantissa representation
-            const auto& coef = g_pow_tbl.coef10to2[pow_table_t::kPow10Max - fp10.exp + n_digs - 1];
-            auto res128 = mul64x64(mantissa, coef.m, mul64x32(mantissa, coef.m2).hi);
-            res128.hi += mantissa;  // apply implicit 1 term of normalized coefficient
-            exp += coef.exp;        // sum exponents as well
-
-            // round unreliable bits
-            const uint64_t half0 = 1ull << 31;
-            res128.lo += half0;
-            if (res128.lo < half0) { ++res128.hi; }
-            res128.lo &= ~((half0 << 1) - 1);
-
-            // align fractional part with 64-bit boundary
-            unsigned shift = 62 - exp;
-            if (shift < 64) {
-                res128 = shr(res128, shift);
+        if (exp > -fp_format_traits<Ty>::kExpBias || mantissa != 0) {
+            // place mantissa so it has only 1 left zero bit
+            if (exp == -fp_format_traits<Ty>::kExpBias) {  // denormalized form
+                unsigned log = ulog2(mantissa);
+                mantissa <<= 62 - log;
+                exp -= fp_format_traits<Ty>::kBitsPerMantissa - log - 1;
             } else {
-                res128.lo = res128.hi >> (shift - 64);
-                res128.hi = 0;
+                mantissa <<= 62 - fp_format_traits<Ty>::kBitsPerMantissa;
+                mantissa |= 1ull << 62;
             }
 
-            // do 'nearest even' rounding
-            const uint64_t half = 1ull << 63;
-            uint64_t frac = (res128.hi & 1) == 0 ? res128.lo + half - 1 : res128.lo + half;
-            fp10.mantissa = frac < res128.lo ? res128.hi + 1 : res128.hi;
-            if (fp10.mantissa >= g_pow_tbl.decimal_mul[n_digs]) {  // one excess digit
-                ++fp10.exp;
-                if (fmt != scvt_fp::kFixed || n_digs == pow_table_t::kPrecLimit) {
-                    // remove one excess digit, do 'nearest even' rounding
-                    fp10.mantissa = (((res128.hi / 10)) & 1) == 0 && res128.lo == 0 ? res128.hi + 4 : res128.hi + 5;
-                    fp10.mantissa /= 10;
+            fp10.exp = -g_pow_tbl.exp_inv10[pow_table_t::kPow2Max + exp];  // inverted power of 10
+
+            int n_digs = 1 + prec;
+            if (fp_fmt == fmt_flags::kFixed) {  // fixed format
+                n_digs += fp10.exp;
+            } else if (fp_fmt == fmt_flags::kGeneral && n_digs > 1) {  // general format
+                --n_digs;
+            }
+
+            if (n_digs >= 0) {
+                n_digs = std::min<int>(n_digs, pow_table_t::kPrecLimit);
+
+                // calculate decimal mantissa representation
+                const auto& coef = g_pow_tbl.coef10to2[pow_table_t::kPow10Max - fp10.exp + n_digs - 1];
+                auto res128 = mul64x64(mantissa, coef.m, mul64x32(mantissa, coef.m2).hi);
+                res128.hi += mantissa;  // apply implicit 1 term of normalized coefficient
+                exp += coef.exp;        // sum exponents as well
+
+                // round unreliable bits
+                const uint64_t half0 = 1ull << 31;
+                res128.lo += half0;
+                if (res128.lo < half0) { ++res128.hi; }
+                res128.lo &= ~((half0 << 1) - 1);
+
+                // align fractional part with 64-bit boundary
+                unsigned shift = 62 - exp;
+                if (shift < 64) {
+                    res128 = shr(res128, shift);
+                } else {
+                    res128.lo = res128.hi >> (shift - 64);
+                    res128.hi = 0;
+                }
+
+                // do 'nearest even' rounding
+                const uint64_t half = 1ull << 63;
+                uint64_t frac = (res128.hi & 1) == 0 ? res128.lo + half - 1 : res128.lo + half;
+                fp10.mantissa = frac < res128.lo ? res128.hi + 1 : res128.hi;
+                if (fp10.mantissa >= g_pow_tbl.decimal_mul[n_digs]) {  // one excess digit
+                    ++fp10.exp;
+                    if (fp_fmt != fmt_flags::kFixed || n_digs == pow_table_t::kPrecLimit) {
+                        // remove one excess digit, do 'nearest even' rounding
+                        fp10.mantissa = (((res128.hi / 10)) & 1) == 0 && res128.lo == 0 ? res128.hi + 4 : res128.hi + 5;
+                        fp10.mantissa /= 10;
+                    }
                 }
             }
         }
+
+        char* end = p;
+        p = fmt_fp_exp10(p, fp10, flags, prec);
+
+        if ((flags & fmt_flags::kLeadingZeroes) == fmt_flags::kLeadingZeroes) {
+            int len = static_cast<int>(end - p);
+            if (neg || (flags & fmt_flags::kSignField) != fmt_flags::kSignNeg) { --width; }
+            while (len < width) { *--p = '0', ++len; }
+        }
     }
 
-    return from_exp10_float(p, fp10, fmt, prec);
+    if (neg) {  // negative sign
+        *--p = '-';
+    } else if ((flags & fmt_flags::kSignField) != fmt_flags::kSignNeg) {
+        *--p = (flags & fmt_flags::kSignField) == fmt_flags::kSignPos ? '+' : ' ';
+    }
+    return p;
+}
+
+template<typename Ty>
+std::string append_signed(std::string&& prefix, Ty val, const fmt_state& fmt) {
+    std::array<char, 512> buf;
+    char* last = buf.data() + buf.size();
+    char* p = scvt::fmt_signed(last, val, fmt.flags, std::min<int>(fmt.width, buf.size()));
+    return std::move(prefix.append(p, last));
+}
+
+template<typename Ty>
+std::string append_unsigned(std::string&& prefix, Ty val, const fmt_state& fmt) {
+    std::array<char, 512> buf;
+    char* last = buf.data() + buf.size();
+    char* p = scvt::fmt_unsigned(last, val, fmt.flags, std::min<int>(fmt.width, buf.size()));
+    return std::move(prefix.append(p, last));
+}
+
+template<typename Ty>
+std::string append_float(std::string&& prefix, Ty val, const fmt_state& fmt) {
+    std::array<char, 512> buf;
+    char* last = buf.data() + buf.size();
+    char* p = scvt::fmt_float(last, val, fmt.flags, std::min<int>(fmt.prec, 32), std::min<int>(fmt.width, buf.size()));
+    return std::move(prefix.append(p, last));
+}
+
+template<typename Ty>
+char* signed_to(char* dst, Ty val, const fmt_state& fmt) {
+    std::array<char, 512> buf;
+    char* last = buf.data() + buf.size();
+    char* p = scvt::fmt_signed(last, val, fmt.flags, std::min<int>(fmt.width, buf.size()));
+    return std::copy(p, last, dst);
+}
+
+template<typename Ty>
+char* unsigned_to(char* dst, Ty val, const fmt_state& fmt) {
+    std::array<char, 512> buf;
+    char* last = buf.data() + buf.size();
+    char* p = scvt::fmt_unsigned(last, val, fmt.flags, std::min<int>(fmt.width, buf.size()));
+    return std::copy(p, last, dst);
+}
+
+template<typename Ty>
+char* float_to(char* dst, Ty val, const fmt_state& fmt) {
+    std::array<char, 512> buf;
+    char* last = buf.data() + buf.size();
+    char* p = scvt::fmt_float(last, val, fmt.flags, std::min<int>(fmt.prec, 32), std::min<int>(fmt.width, buf.size()));
+    return std::copy(p, last, dst);
+}
+
+template<typename Ty>
+char* signed_to_n(char* dst, size_t n, Ty val, const fmt_state& fmt) {
+    std::array<char, 512> buf;
+    char* last = buf.data() + buf.size();
+    char* p = scvt::fmt_signed(last, val, fmt.flags, std::min<int>(fmt.width, buf.size()));
+    return std::copy_n(p, std::min<size_t>(last - p, n), dst);
+}
+
+template<typename Ty>
+char* unsigned_to_n(char* dst, size_t n, Ty val, const fmt_state& fmt) {
+    std::array<char, 512> buf;
+    char* last = buf.data() + buf.size();
+    char* p = scvt::fmt_unsigned(last, val, fmt.flags, std::min<int>(fmt.width, buf.size()));
+    return std::copy_n(p, std::min<size_t>(last - p, n), dst);
+}
+
+template<typename Ty>
+char* float_to_n(char* dst, size_t n, Ty val, const fmt_state& fmt) {
+    std::array<char, 512> buf;
+    char* last = buf.data() + buf.size();
+    char* p = scvt::fmt_float(last, val, fmt.flags, std::min<int>(fmt.prec, 32), std::min<int>(fmt.width, buf.size()));
+    return std::copy_n(p, std::min<size_t>(last - p, n), dst);
 }
 
 }  // namespace scvt
 
-/*static*/ const char* string_converter<int16_t>::from_string(std::string_view s, int16_t& val, bool* ok) {
-    const char *end = s.data() + s.size(), *p = scvt::skip_spaces(s.data(), end);
-    const char* p1 = scvt::to_signed(p, end, val);
-    if (ok) { *ok = p1 > p; }
-    return p1;
+/*static*/ const char* string_converter<char>::from_string(const char* first, const char* last, char& val) {
+    const char* p = scvt::skip_spaces(first, last);
+    if (p == last) { return first; }
+    val = *p;
+    return p + 1;
+}
+/*static*/ std::string string_converter<char>::to_string(std::string&& prefix, char val, const fmt_state& fmt) {
+    return std::move(prefix += val);
+}
+/*static*/ char* string_converter<char>::to_string_to(char* dst, char val, const fmt_state& fmt) {
+    *dst = val;
+    return dst + 1;
+}
+/*static*/ char* string_converter<char>::to_string_to_n(char* dst, size_t n, char val, const fmt_state& fmt) {
+    if (n == 0) { return dst; }
+    *dst = val;
+    return dst + 1;
 }
 
-/*static*/ std::string string_converter<int16_t>::to_string(int16_t val, scvt_base base) {
-    std::array<char, 32> s;
-    return std::string(scvt::from_signed(s.data() + s.size(), val, base), s.data() + s.size());
+/*static*/ const char* string_converter<int8_t>::from_string(const char* first, const char* last, int8_t& val) {
+    const char* p = scvt::skip_spaces(first, last);
+    last = scvt::to_integer(p, last, val);
+    return last > p ? last : first;
+}
+/*static*/ std::string string_converter<int8_t>::to_string(std::string&& prefix, int8_t val, const fmt_state& fmt) {
+    return scvt::append_signed(std::move(prefix), val, fmt);
+}
+/*static*/ char* string_converter<int8_t>::to_string_to(char* dst, int8_t val, const fmt_state& fmt) {
+    return scvt::signed_to(dst, val, fmt);
+}
+/*static*/ char* string_converter<int8_t>::to_string_to_n(char* dst, size_t n, int8_t val, const fmt_state& fmt) {
+    return scvt::signed_to_n(dst, n, val, fmt);
 }
 
-/*static*/ const char* string_converter<int32_t>::from_string(std::string_view s, int32_t& val, bool* ok) {
-    const char *end = s.data() + s.size(), *p = scvt::skip_spaces(s.data(), end);
-    const char* p1 = scvt::to_signed(p, end, val);
-    if (ok) { *ok = p1 > p; }
-    return p1;
+/*static*/ const char* string_converter<int16_t>::from_string(const char* first, const char* last, int16_t& val) {
+    const char* p = scvt::skip_spaces(first, last);
+    last = scvt::to_integer(p, last, val);
+    return last > p ? last : first;
+}
+/*static*/ std::string string_converter<int16_t>::to_string(std::string&& prefix, int16_t val, const fmt_state& fmt) {
+    return scvt::append_signed(std::move(prefix), val, fmt);
+}
+/*static*/ char* string_converter<int16_t>::to_string_to(char* dst, int16_t val, const fmt_state& fmt) {
+    return scvt::signed_to(dst, val, fmt);
+}
+/*static*/ char* string_converter<int16_t>::to_string_to_n(char* dst, size_t n, int16_t val, const fmt_state& fmt) {
+    return scvt::signed_to_n(dst, n, val, fmt);
 }
 
-/*static*/ std::string string_converter<int32_t>::to_string(int32_t val, scvt_base base) {
-    std::array<char, 32> s;
-    return std::string(scvt::from_signed(s.data() + s.size(), val, base), s.data() + s.size());
+/*static*/ const char* string_converter<int32_t>::from_string(const char* first, const char* last, int32_t& val) {
+    const char* p = scvt::skip_spaces(first, last);
+    last = scvt::to_integer(p, last, val);
+    return last > p ? last : first;
+}
+/*static*/ std::string string_converter<int32_t>::to_string(std::string&& prefix, int32_t val, const fmt_state& fmt) {
+    return scvt::append_signed(std::move(prefix), val, fmt);
+}
+/*static*/ char* string_converter<int32_t>::to_string_to(char* dst, int32_t val, const fmt_state& fmt) {
+    return scvt::signed_to(dst, val, fmt);
+}
+/*static*/ char* string_converter<int32_t>::to_string_to_n(char* dst, size_t n, int32_t val, const fmt_state& fmt) {
+    return scvt::signed_to_n(dst, n, val, fmt);
 }
 
-/*static*/ const char* string_converter<int64_t>::from_string(std::string_view s, int64_t& val, bool* ok) {
-    const char *end = s.data() + s.size(), *p = scvt::skip_spaces(s.data(), end);
-    const char* p1 = scvt::to_signed(p, end, val);
-    if (ok) { *ok = p1 > p; }
-    return p1;
+/*static*/ const char* string_converter<int64_t>::from_string(const char* first, const char* last, int64_t& val) {
+    const char* p = scvt::skip_spaces(first, last);
+    last = scvt::to_integer(p, last, val);
+    return last > p ? last : first;
+}
+/*static*/ std::string string_converter<int64_t>::to_string(std::string&& prefix, int64_t val, const fmt_state& fmt) {
+    return scvt::append_signed(std::move(prefix), val, fmt);
+}
+/*static*/ char* string_converter<int64_t>::to_string_to(char* dst, int64_t val, const fmt_state& fmt) {
+    return scvt::signed_to(dst, val, fmt);
+}
+/*static*/ char* string_converter<int64_t>::to_string_to_n(char* dst, size_t n, int64_t val, const fmt_state& fmt) {
+    return scvt::signed_to_n(dst, n, val, fmt);
 }
 
-/*static*/ std::string string_converter<int64_t>::to_string(int64_t val, scvt_base base) {
-    std::array<char, 32> s;
-    return std::string(scvt::from_signed(s.data() + s.size(), val, base), s.data() + s.size());
+/*static*/ const char* string_converter<uint8_t>::from_string(const char* first, const char* last, uint8_t& val) {
+    const char* p = scvt::skip_spaces(first, last);
+    last = scvt::to_integer(p, last, val);
+    return last > p ? last : first;
+}
+/*static*/ std::string string_converter<uint8_t>::to_string(std::string&& prefix, uint8_t val, const fmt_state& fmt) {
+    return scvt::append_unsigned(std::move(prefix), val, fmt);
+}
+/*static*/ char* string_converter<uint8_t>::to_string_to(char* dst, uint8_t val, const fmt_state& fmt) {
+    return scvt::unsigned_to(dst, val, fmt);
+}
+/*static*/ char* string_converter<uint8_t>::to_string_to_n(char* dst, size_t n, uint8_t val, const fmt_state& fmt) {
+    return scvt::unsigned_to_n(dst, n, val, fmt);
 }
 
-/*static*/ const char* string_converter<uint16_t>::from_string(std::string_view s, uint16_t& val, bool* ok) {
-    const char *end = s.data() + s.size(), *p = scvt::skip_spaces(s.data(), end);
-    const char* p1 = scvt::to_unsigned(p, end, val);
-    if (ok) { *ok = p1 > p; }
-    return p1;
+/*static*/ const char* string_converter<uint16_t>::from_string(const char* first, const char* last, uint16_t& val) {
+    const char* p = scvt::skip_spaces(first, last);
+    last = scvt::to_integer(p, last, val);
+    return last > p ? last : first;
+}
+/*static*/ std::string string_converter<uint16_t>::to_string(std::string&& prefix, uint16_t val, const fmt_state& fmt) {
+    return scvt::append_unsigned(std::move(prefix), val, fmt);
+}
+/*static*/ char* string_converter<uint16_t>::to_string_to(char* dst, uint16_t val, const fmt_state& fmt) {
+    return scvt::unsigned_to(dst, val, fmt);
+}
+/*static*/ char* string_converter<uint16_t>::to_string_to_n(char* dst, size_t n, uint16_t val, const fmt_state& fmt) {
+    return scvt::unsigned_to_n(dst, n, val, fmt);
 }
 
-/*static*/ std::string string_converter<uint16_t>::to_string(uint16_t val, scvt_base base) {
-    std::array<char, 32> s;
-    return std::string(scvt::from_unsigned(s.data() + s.size(), val, base), s.data() + s.size());
+/*static*/ const char* string_converter<uint32_t>::from_string(const char* first, const char* last, uint32_t& val) {
+    const char* p = scvt::skip_spaces(first, last);
+    last = scvt::to_integer(p, last, val);
+    return last > p ? last : first;
+}
+/*static*/ std::string string_converter<uint32_t>::to_string(std::string&& prefix, uint32_t val, const fmt_state& fmt) {
+    return scvt::append_unsigned(std::move(prefix), val, fmt);
+}
+/*static*/ char* string_converter<uint32_t>::to_string_to(char* dst, uint32_t val, const fmt_state& fmt) {
+    return scvt::unsigned_to(dst, val, fmt);
+}
+/*static*/ char* string_converter<uint32_t>::to_string_to_n(char* dst, size_t n, uint32_t val, const fmt_state& fmt) {
+    return scvt::unsigned_to_n(dst, n, val, fmt);
 }
 
-/*static*/ const char* string_converter<uint32_t>::from_string(std::string_view s, uint32_t& val, bool* ok) {
-    const char *end = s.data() + s.size(), *p = scvt::skip_spaces(s.data(), end);
-    const char* p1 = scvt::to_unsigned(p, end, val);
-    if (ok) { *ok = p1 > p; }
-    return p1;
+/*static*/ const char* string_converter<uint64_t>::from_string(const char* first, const char* last, uint64_t& val) {
+    const char* p = scvt::skip_spaces(first, last);
+    last = scvt::to_integer(p, last, val);
+    return last > p ? last : first;
+}
+/*static*/ std::string string_converter<uint64_t>::to_string(std::string&& prefix, uint64_t val, const fmt_state& fmt) {
+    return scvt::append_unsigned(std::move(prefix), val, fmt);
+}
+/*static*/ char* string_converter<uint64_t>::to_string_to(char* dst, uint64_t val, const fmt_state& fmt) {
+    return scvt::unsigned_to(dst, val, fmt);
+}
+/*static*/ char* string_converter<uint64_t>::to_string_to_n(char* dst, size_t n, uint64_t val, const fmt_state& fmt) {
+    return scvt::unsigned_to_n(dst, n, val, fmt);
 }
 
-/*static*/ std::string string_converter<uint32_t>::to_string(uint32_t val, scvt_base base) {
-    std::array<char, 32> s;
-    return std::string(scvt::from_unsigned(s.data() + s.size(), val, base), s.data() + s.size());
+/*static*/ const char* string_converter<float>::from_string(const char* first, const char* last, float& val) {
+    const char* p = scvt::skip_spaces(first, last);
+    last = scvt::to_float(p, last, val);
+    return last > p ? last : first;
+}
+/*static*/ std::string string_converter<float>::to_string(std::string&& prefix, float val, const fmt_state& fmt) {
+    return scvt::append_float(std::move(prefix), val, fmt);
+}
+/*static*/ char* string_converter<float>::to_string_to(char* dst, float val, const fmt_state& fmt) {
+    return scvt::float_to(dst, val, fmt);
+}
+/*static*/ char* string_converter<float>::to_string_to_n(char* dst, size_t n, float val, const fmt_state& fmt) {
+    return scvt::float_to_n(dst, n, val, fmt);
 }
 
-/*static*/ const char* string_converter<uint64_t>::from_string(std::string_view s, uint64_t& val, bool* ok) {
-    const char *end = s.data() + s.size(), *p = scvt::skip_spaces(s.data(), end);
-    const char* p1 = scvt::to_unsigned(p, end, val);
-    if (ok) { *ok = p1 > p; }
-    return p1;
+/*static*/ const char* string_converter<double>::from_string(const char* first, const char* last, double& val) {
+    const char* p = scvt::skip_spaces(first, last);
+    last = scvt::to_float(p, last, val);
+    return last > p ? last : first;
+}
+/*static*/ std::string string_converter<double>::to_string(std::string&& prefix, double val, const fmt_state& fmt) {
+    return scvt::append_float(std::move(prefix), val, fmt);
+}
+/*static*/ char* string_converter<double>::to_string_to(char* dst, double val, const fmt_state& fmt) {
+    return scvt::float_to(dst, val, fmt);
+}
+/*static*/ char* string_converter<double>::to_string_to_n(char* dst, size_t n, double val, const fmt_state& fmt) {
+    return scvt::float_to_n(dst, n, val, fmt);
 }
 
-/*static*/ std::string string_converter<uint64_t>::to_string(uint64_t val, scvt_base base) {
-    std::array<char, 32> s;
-    return std::string(scvt::from_unsigned(s.data() + s.size(), val, base), s.data() + s.size());
-}
-
-/*static*/ const char* string_converter<float>::from_string(std::string_view s, float& val, bool* ok) {
-    const char *end = s.data() + s.size(), *p = scvt::skip_spaces(s.data(), end);
-    const char* p1 = scvt::to_float(p, end, val);
-    if (ok) { *ok = p1 > p; }
-    return p1;
-}
-
-/*static*/ std::string string_converter<float>::to_string(float val, scvt_fp fmt, int prec) {
-    std::array<char, 128> s;
-    return std::string(scvt::from_float(s.data() + s.size(), val, fmt, prec), s.data() + s.size());
-}
-
-/*static*/ const char* string_converter<double>::from_string(std::string_view s, double& val, bool* ok) {
-    const char *end = s.data() + s.size(), *p = scvt::skip_spaces(s.data(), end);
-    const char* p1 = scvt::to_float(p, end, val);
-    if (ok) { *ok = p1 > p; }
-    return p1;
-}
-
-/*static*/ std::string string_converter<double>::to_string(double val, scvt_fp fmt, int prec) {
-    std::array<char, 512> s;
-    return std::string(scvt::from_float(s.data() + s.size(), val, fmt, prec), s.data() + s.size());
-}
-
-/*static*/ const char* string_converter<bool>::from_string(std::string_view s, bool& val, bool* ok) {
-    const char *end = s.data() + s.size(), *p = scvt::skip_spaces(s.data(), end), *p1 = p;
-    if ((p1 = scvt::starts_with(p, end, "true")) > p) {
+/*static*/ const char* string_converter<bool>::from_string(const char* first, const char* last, bool& val) {
+    const char *p = scvt::skip_spaces(first, last), *p0 = p;
+    if ((p = scvt::starts_with(p, last, "true")) > p0) {
         val = true;
-    } else if ((p1 = scvt::starts_with(p, end, "false")) > p) {
+    } else if ((p = scvt::starts_with(p, last, "false")) > p0) {
         val = false;
-    } else if (p < end && std::isdigit(static_cast<unsigned char>(*p))) {
+    } else if (p < last && std::isdigit(static_cast<unsigned char>(*p))) {
         val = false;
         do {
-            if (*p++ != '0') {
-                val = true;
-                break;
-            }
-        } while (p < end && std::isdigit(static_cast<unsigned char>(*p)));
-        p1 = p;
+            if (*p++ != '0') { val = true; }
+        } while (p < last && std::isdigit(static_cast<unsigned char>(*p)));
+    } else {
+        return first;
     }
-    if (ok) { *ok = p1 > p; }
-    return p1;
+    return p;
+}
+
+/*static*/ std::string string_converter<bool>::to_string(std::string&& prefix, bool val, const fmt_state& fmt) {
+    std::string_view sval;
+    if ((fmt.flags & fmt_flags::kUpperCase) == fmt_flags::kUpperCase) {
+        sval = val ? "TRUE" : "FALSE";
+    } else {
+        sval = val ? "true" : "false";
+    }
+    return std::move(prefix.append(sval.begin(), sval.end()));
+}
+
+/*static*/ char* string_converter<bool>::to_string_to(char* dst, bool val, const fmt_state& fmt) {
+    std::string_view sval;
+    if ((fmt.flags & fmt_flags::kUpperCase) == fmt_flags::kUpperCase) {
+        sval = val ? "TRUE" : "FALSE";
+    } else {
+        sval = val ? "true" : "false";
+    }
+    return std::copy(sval.begin(), sval.end(), dst);
+}
+
+/*static*/ char* string_converter<bool>::to_string_to_n(char* dst, size_t n, bool val, const fmt_state& fmt) {
+    std::string_view sval;
+    if ((fmt.flags & fmt_flags::kUpperCase) == fmt_flags::kUpperCase) {
+        sval = val ? "TRUE" : "FALSE";
+    } else {
+        sval = val ? "true" : "false";
+    }
+    return std::copy_n(sval.begin(), std::min<size_t>(sval.size(), n), dst);
 }

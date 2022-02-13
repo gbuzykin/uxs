@@ -66,7 +66,7 @@ class UTIL_EXPORT sformat {
     std::string arg_cvt(std::string s) { return std::move(s); }
     std::string arg_cvt(const char* s) { return std::string(s); }
     std::string arg_cvt(const sformat& fmt) { return fmt.str(); }
-    std::string arg_cvt(void* p) { return arg_cvt(reinterpret_cast<uintptr_t>(p), scvt_base::kBase16); }
+    std::string arg_cvt(void* p) { return arg_cvt(reinterpret_cast<uintptr_t>(p), fmt_flags::kHex); }
 
     template<typename Ty, typename = std::void_t<typename string_converter<Ty>::is_string_converter>, typename... Args>
     std::string arg_cvt(const Ty& v, Args&&... args) {
