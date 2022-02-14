@@ -662,6 +662,9 @@ std::string append_signed(std::string&& prefix, Ty val, const fmt_state& fmt) {
     std::array<char, 512> buf;
     char* last = buf.data() + buf.size();
     char* p = scvt::fmt_signed(last, val, fmt.flags, std::min<int>(fmt.width, buf.size()));
+    if (static_cast<int>(last - p) < fmt.width) {
+        return detail::append_adjusted_string(std::move(prefix), std::string_view(p, last - p), fmt);
+    }
     return std::move(prefix.append(p, last));
 }
 
@@ -670,6 +673,9 @@ std::string append_unsigned(std::string&& prefix, Ty val, const fmt_state& fmt) 
     std::array<char, 512> buf;
     char* last = buf.data() + buf.size();
     char* p = scvt::fmt_unsigned(last, val, fmt.flags, std::min<int>(fmt.width, buf.size()));
+    if (static_cast<int>(last - p) < fmt.width) {
+        return detail::append_adjusted_string(std::move(prefix), std::string_view(p, last - p), fmt);
+    }
     return std::move(prefix.append(p, last));
 }
 
@@ -678,6 +684,9 @@ std::string append_float(std::string&& prefix, Ty val, const fmt_state& fmt) {
     std::array<char, 512> buf;
     char* last = buf.data() + buf.size();
     char* p = scvt::fmt_float(last, val, fmt.flags, std::min<int>(fmt.prec, 32), std::min<int>(fmt.width, buf.size()));
+    if (static_cast<int>(last - p) < fmt.width) {
+        return detail::append_adjusted_string(std::move(prefix), std::string_view(p, last - p), fmt);
+    }
     return std::move(prefix.append(p, last));
 }
 
@@ -686,6 +695,9 @@ char* signed_to(char* dst, Ty val, const fmt_state& fmt) {
     std::array<char, 512> buf;
     char* last = buf.data() + buf.size();
     char* p = scvt::fmt_signed(last, val, fmt.flags, std::min<int>(fmt.width, buf.size()));
+    if (static_cast<int>(last - p) < fmt.width) {
+        return detail::adjusted_string_to(dst, std::string_view(p, last - p), fmt);
+    }
     return std::copy(p, last, dst);
 }
 
@@ -694,6 +706,9 @@ char* unsigned_to(char* dst, Ty val, const fmt_state& fmt) {
     std::array<char, 512> buf;
     char* last = buf.data() + buf.size();
     char* p = scvt::fmt_unsigned(last, val, fmt.flags, std::min<int>(fmt.width, buf.size()));
+    if (static_cast<int>(last - p) < fmt.width) {
+        return detail::adjusted_string_to(dst, std::string_view(p, last - p), fmt);
+    }
     return std::copy(p, last, dst);
 }
 
@@ -702,6 +717,9 @@ char* float_to(char* dst, Ty val, const fmt_state& fmt) {
     std::array<char, 512> buf;
     char* last = buf.data() + buf.size();
     char* p = scvt::fmt_float(last, val, fmt.flags, std::min<int>(fmt.prec, 32), std::min<int>(fmt.width, buf.size()));
+    if (static_cast<int>(last - p) < fmt.width) {
+        return detail::adjusted_string_to(dst, std::string_view(p, last - p), fmt);
+    }
     return std::copy(p, last, dst);
 }
 
@@ -710,6 +728,9 @@ char* signed_to_n(char* dst, size_t n, Ty val, const fmt_state& fmt) {
     std::array<char, 512> buf;
     char* last = buf.data() + buf.size();
     char* p = scvt::fmt_signed(last, val, fmt.flags, std::min<int>(fmt.width, buf.size()));
+    if (static_cast<int>(last - p) < fmt.width) {
+        return detail::adjusted_string_to_n(dst, n, std::string_view(p, last - p), fmt);
+    }
     return std::copy_n(p, std::min<size_t>(last - p, n), dst);
 }
 
@@ -718,6 +739,9 @@ char* unsigned_to_n(char* dst, size_t n, Ty val, const fmt_state& fmt) {
     std::array<char, 512> buf;
     char* last = buf.data() + buf.size();
     char* p = scvt::fmt_unsigned(last, val, fmt.flags, std::min<int>(fmt.width, buf.size()));
+    if (static_cast<int>(last - p) < fmt.width) {
+        return detail::adjusted_string_to_n(dst, n, std::string_view(p, last - p), fmt);
+    }
     return std::copy_n(p, std::min<size_t>(last - p, n), dst);
 }
 
@@ -726,10 +750,80 @@ char* float_to_n(char* dst, size_t n, Ty val, const fmt_state& fmt) {
     std::array<char, 512> buf;
     char* last = buf.data() + buf.size();
     char* p = scvt::fmt_float(last, val, fmt.flags, std::min<int>(fmt.prec, 32), std::min<int>(fmt.width, buf.size()));
+    if (static_cast<int>(last - p) < fmt.width) {
+        return detail::adjusted_string_to_n(dst, n, std::string_view(p, last - p), fmt);
+    }
     return std::copy_n(p, std::min<size_t>(last - p, n), dst);
 }
 
 }  // namespace scvt
+
+std::string detail::append_adjusted_string(std::string&& prefix, std::string_view sval, const fmt_state& fmt) {
+    assert(sval.size() < static_cast<size_t>(fmt.width));
+    switch (fmt.flags & fmt_flags::kAdjustField) {
+        case fmt_flags::kRight: {
+            prefix.append(static_cast<size_t>(fmt.width) - sval.size(), fmt.fill);
+            prefix.append(sval);
+        } break;
+        case fmt_flags::kInternal: {
+            size_t right = static_cast<size_t>(fmt.width) - sval.size(), left = right >> 1;
+            right -= left;
+            prefix.append(left, fmt.fill);
+            prefix.append(sval);
+            prefix.append(right, fmt.fill);
+        } break;
+        default: {
+            prefix.append(sval);
+            prefix.append(static_cast<size_t>(fmt.width) - sval.size(), fmt.fill);
+        } break;
+    }
+    return std::move(prefix);
+}
+
+char* detail::adjusted_string_to(char* dst, std::string_view sval, const fmt_state& fmt) {
+    assert(sval.size() < static_cast<size_t>(fmt.width));
+    switch (fmt.flags & fmt_flags::kAdjustField) {
+        case fmt_flags::kRight: {
+            dst = std::fill_n(dst, static_cast<size_t>(fmt.width) - sval.size(), fmt.fill);
+            dst = std::copy(sval.begin(), sval.end(), dst);
+        } break;
+        case fmt_flags::kInternal: {
+            size_t right = static_cast<size_t>(fmt.width) - sval.size(), left = right >> 1;
+            right -= left;
+            dst = std::fill_n(dst, left, fmt.fill);
+            dst = std::copy(sval.begin(), sval.end(), dst);
+            dst = std::fill_n(dst, right, fmt.fill);
+        } break;
+        default: {
+            dst = std::copy(sval.begin(), sval.end(), dst);
+            dst = std::fill_n(dst, static_cast<size_t>(fmt.width) - sval.size(), fmt.fill);
+        } break;
+    }
+    return dst;
+}
+
+char* detail::adjusted_string_to_n(char* dst, size_t n, std::string_view sval, const fmt_state& fmt) {
+    assert(sval.size() < static_cast<size_t>(fmt.width));
+    char* last = dst + n;
+    switch (fmt.flags & fmt_flags::kAdjustField) {
+        case fmt_flags::kRight: {
+            dst = std::fill_n(dst, std::min<size_t>(static_cast<size_t>(fmt.width) - sval.size(), n), fmt.fill);
+            dst = std::copy_n(sval.begin(), std::min<size_t>(sval.size(), last - dst), dst);
+        } break;
+        case fmt_flags::kInternal: {
+            size_t right = static_cast<size_t>(fmt.width) - sval.size(), left = right >> 1;
+            right -= left;
+            dst = std::fill_n(dst, std::min<size_t>(left, n), fmt.fill);
+            dst = std::copy_n(sval.begin(), std::min<size_t>(sval.size(), last - dst), dst);
+            dst = std::fill_n(dst, std::min<size_t>(right, last - dst), fmt.fill);
+        } break;
+        default: {
+            dst = std::copy_n(sval.begin(), std::min<size_t>(sval.size(), n), dst);
+            dst = std::fill_n(dst, std::min<size_t>(static_cast<size_t>(fmt.width) - sval.size(), last - dst), fmt.fill);
+        } break;
+    }
+    return dst;
+}
 
 /*static*/ const char* string_converter<char>::from_string(const char* first, const char* last, char& val) {
     const char* p = scvt::skip_spaces(first, last);
@@ -738,13 +832,16 @@ char* float_to_n(char* dst, size_t n, Ty val, const fmt_state& fmt) {
     return p + 1;
 }
 /*static*/ std::string string_converter<char>::to_string(std::string&& prefix, char val, const fmt_state& fmt) {
+    if (fmt.width > 1) { return detail::append_adjusted_string(std::move(prefix), std::string_view(&val, 1), fmt); }
     return std::move(prefix += val);
 }
 /*static*/ char* string_converter<char>::to_string_to(char* dst, char val, const fmt_state& fmt) {
+    if (fmt.width > 1) { return detail::adjusted_string_to(dst, std::string_view(&val, 1), fmt); }
     *dst = val;
     return dst + 1;
 }
 /*static*/ char* string_converter<char>::to_string_to_n(char* dst, size_t n, char val, const fmt_state& fmt) {
+    if (fmt.width > 1) { return detail::adjusted_string_to_n(dst, n, std::string_view(&val, 1), fmt); }
     if (n == 0) { return dst; }
     *dst = val;
     return dst + 1;
@@ -924,6 +1021,9 @@ char* float_to_n(char* dst, size_t n, Ty val, const fmt_state& fmt) {
     } else {
         sval = val ? "true" : "false";
     }
+    if (static_cast<int>(sval.size()) < fmt.width) {
+        return detail::append_adjusted_string(std::move(prefix), sval, fmt);
+    }
     return std::move(prefix.append(sval.begin(), sval.end()));
 }
 
@@ -934,6 +1034,7 @@ char* float_to_n(char* dst, size_t n, Ty val, const fmt_state& fmt) {
     } else {
         sval = val ? "true" : "false";
     }
+    if (static_cast<int>(sval.size()) < fmt.width) { return detail::adjusted_string_to(dst, sval, fmt); }
     return std::copy(sval.begin(), sval.end(), dst);
 }
 
@@ -944,5 +1045,6 @@ char* float_to_n(char* dst, size_t n, Ty val, const fmt_state& fmt) {
     } else {
         sval = val ? "true" : "false";
     }
+    if (static_cast<int>(sval.size()) < fmt.width) { return detail::adjusted_string_to_n(dst, n, sval, fmt); }
     return std::copy_n(sval.begin(), std::min<size_t>(sval.size(), n), dst);
 }

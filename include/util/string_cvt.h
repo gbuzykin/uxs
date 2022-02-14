@@ -91,6 +91,12 @@ struct fmt_state {
     char fill = ' ';
 };
 
+namespace detail {
+UTIL_EXPORT std::string append_adjusted_string(std::string&& prefix, std::string_view sval, const fmt_state& fmt);
+UTIL_EXPORT char* adjusted_string_to(char* dst, std::string_view sval, const fmt_state& fmt);
+UTIL_EXPORT char* adjusted_string_to_n(char* dst, size_t n, std::string_view sval, const fmt_state& fmt);
+}  // namespace detail
+
 template<typename Ty>
 struct string_converter;
 
