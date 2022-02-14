@@ -119,19 +119,19 @@ std::string replace_strings(std::string_view s, Finder finder, std::string_view 
     return result;
 }
 
-template<typename Range, typename InputFn = nofunc>
-std::string join_strings(const Range& r, std::string_view sep, InputFn fn = InputFn{}) {
-    if (std::begin(r) == std::end(r)) { return {}; }
-    std::string s;
-    for (auto it = std::begin(r);;) {
-        s += fn(*it);
-        if (++it != std::end(r)) {
-            s += sep;
-        } else {
-            break;
+template<typename Range, typename SepTy, typename JoinFn = plus>
+std::string join_strings(const Range& r, SepTy sep, std::string prefix, JoinFn fn = JoinFn{}) {
+    if (std::begin(r) != std::end(r)) {
+        for (auto it = std::begin(r);;) {
+            prefix = fn(std::move(prefix), *it);
+            if (++it != std::end(r)) {
+                prefix += sep;
+            } else {
+                break;
+            }
         }
     }
-    return s;
+    return std::move(prefix);
 }
 
 template<split_flags flags = split_flags::kNoFlags, typename Finder, typename OutputFn,  //
@@ -237,28 +237,28 @@ auto separate_words(std::string_view s, char sep, OutputFn fn = OutputFn{})
 }
 
 template<typename Range, typename InputFn = nofunc>
-std::string pack_strings(const Range& r, char sep, InputFn fn = InputFn{}) {
-    if (std::begin(r) == std::end(r)) { return {}; }
-    std::string s;
-    for (auto it = std::begin(r);;) {
-        const auto& el = fn(*it);
-        auto p = std::begin(el), p0 = p;
-        for (; p != std::end(el); ++p) {
-            if (*p == '\\' || *p == sep) {
-                s.append(p0, p);
-                s += '\\';
-                p0 = p;
+std::string pack_strings(const Range& r, char sep, std::string prefix, InputFn fn = InputFn{}) {
+    if (std::begin(r) != std::end(r)) {
+        for (auto it = std::begin(r);;) {
+            auto el = fn(*it);
+            auto p = std::begin(el), p0 = p;
+            for (; p != std::end(el); ++p) {
+                if (*p == '\\' || *p == sep) {
+                    prefix.append(p0, p);
+                    prefix += '\\';
+                    p0 = p;
+                }
+            }
+            prefix.append(p0, p);
+            if (++it != std::end(r)) {
+                prefix += sep;
+            } else {
+                if (std::begin(el) == std::end(el)) { prefix += sep; }
+                break;
             }
         }
-        s.append(p0, p);
-        if (++it != std::end(r)) {
-            s += sep;
-        } else {
-            if (std::begin(el) == std::end(el)) { s += sep; }
-            break;
-        }
     }
-    return s;
+    return std::move(prefix);
 }
 
 template<typename OutputFn, typename OutputIt>
