@@ -3,6 +3,7 @@
 #include "string_view.h"
 #include "utility.h"
 
+#include <algorithm>
 #include <cctype>
 
 namespace util {
@@ -77,6 +78,7 @@ inline fmt_flags operator|(fmt_flags lhs, fmt_flags rhs) {
     return static_cast<fmt_flags>(static_cast<unsigned>(lhs) | static_cast<unsigned>(rhs));
 }
 inline fmt_flags operator~(fmt_flags flags) { return static_cast<fmt_flags>(~static_cast<unsigned>(flags)); }
+inline bool operator!(fmt_flags flags) { return static_cast<unsigned>(flags) == 0; }
 inline fmt_flags& operator&=(fmt_flags& lhs, fmt_flags rhs) { return lhs = lhs & rhs; }
 inline fmt_flags& operator|=(fmt_flags& lhs, fmt_flags rhs) { return lhs = lhs | rhs; }
 
@@ -84,18 +86,12 @@ struct fmt_state {
     CONSTEXPR fmt_state() = default;
     CONSTEXPR fmt_state(fmt_flags fl) : flags(fl) {}
     CONSTEXPR fmt_state(fmt_flags fl, int p) : flags(fl), prec(p) {}
-    CONSTEXPR fmt_state(fmt_flags fl, int p, int w, char ch) : flags(fl), prec(p), width(w), fill(ch) {}
+    CONSTEXPR fmt_state(fmt_flags fl, int p, unsigned w, char ch) : flags(fl), prec(p), width(w), fill(ch) {}
     fmt_flags flags = fmt_flags::kDec;
     int prec = -1;
-    int width = 0;
+    unsigned width = 0;
     char fill = ' ';
 };
-
-namespace detail {
-UTIL_EXPORT std::string append_adjusted_string(std::string&& prefix, std::string_view sval, const fmt_state& fmt);
-UTIL_EXPORT char* adjusted_string_to(char* dst, std::string_view sval, const fmt_state& fmt);
-UTIL_EXPORT char* adjusted_string_to_n(char* dst, size_t n, std::string_view sval, const fmt_state& fmt);
-}  // namespace detail
 
 template<typename Ty>
 struct string_converter;
@@ -235,5 +231,98 @@ template<typename Ty>
 char* to_string_fmt_to_n(char* dst, size_t n, const Ty& val, const fmt_state& fmt) {
     return string_converter<Ty>::to_string_to_n(dst, n, val, fmt);
 }
+
+class string_appender {
+ public:
+    explicit string_appender(std::string& str) : str_(str) {}
+    std::string get() { return std::move(str_); }
+    template<typename InputIt,
+             typename = std::enable_if_t<std::is_base_of<
+                 std::input_iterator_tag, typename std::iterator_traits<InputIt>::iterator_category>::value>>
+    void operator()(InputIt first, InputIt last) {
+        str_.append(first, last);
+    }
+    void operator()(char ch, size_t count) { str_.append(count, ch); }
+    void operator()(char ch) { str_ += ch; }
+    template<typename Ty, typename = std::void_t<typename string_converter<Ty>::is_string_converter>>
+    void format(const Ty& arg, const fmt_state& fmt) {
+        str_ = to_string_fmt(std::move(str_), arg, fmt);
+    }
+
+ private:
+    std::string& str_;
+};
+
+class char_buf_appender {
+ public:
+    explicit char_buf_appender(char* dst) : dst_(dst) {}
+    char* get() { return dst_; }
+    template<typename InputIt,
+             typename = std::enable_if_t<std::is_base_of<
+                 std::input_iterator_tag, typename std::iterator_traits<InputIt>::iterator_category>::value>>
+    void operator()(InputIt first, InputIt last) {
+        dst_ = std::copy(first, last, dst_);
+    }
+    void operator()(char ch, size_t count) { dst_ = std::fill_n(dst_, count, ch); }
+    void operator()(char ch) { *dst_++ = ch; }
+    template<typename Ty, typename = std::void_t<typename string_converter<Ty>::is_string_converter>>
+    void format(const Ty& arg, const fmt_state& fmt) {
+        dst_ = to_string_fmt_to(dst_, arg, fmt);
+    }
+
+ private:
+    char* dst_;
+};
+
+class char_n_buf_appender {
+ public:
+    char_n_buf_appender(char* dst, size_t n) : dst_(dst), last_(dst + n) {}
+    char* get() { return dst_; }
+    template<typename InputIt,
+             typename = std::enable_if_t<std::is_base_of<
+                 std::random_access_iterator_tag, typename std::iterator_traits<InputIt>::iterator_category>::value>>
+    void operator()(InputIt first, InputIt last) {
+        dst_ = std::copy_n(first, std::min<size_t>(last - first, last_ - dst_), dst_);
+    }
+    void operator()(char ch, size_t count) { dst_ = std::fill_n(dst_, std::min<size_t>(count, last_ - dst_), ch); }
+    void operator()(char ch) {
+        if (dst_ != last_) { *dst_++ = ch; }
+    }
+    template<typename Ty, typename = std::void_t<typename string_converter<Ty>::is_string_converter>>
+    void format(const Ty& arg, const fmt_state& fmt) {
+        dst_ = to_string_fmt_to_n(dst_, last_ - dst_, arg, fmt);
+    }
+
+ private:
+    char* dst_;
+    char* last_;
+};
+
+namespace detail {
+template<typename InputIt, typename Appender,
+         typename = std::enable_if_t<std::is_base_of<std::random_access_iterator_tag,
+                                                     typename std::iterator_traits<InputIt>::iterator_category>::value>>
+Appender fmt_adjusted(InputIt first, InputIt last, const fmt_state& fmt, Appender appender) {
+    size_t len = static_cast<size_t>(last - first);
+    switch (fmt.flags & fmt_flags::kAdjustField) {
+        case fmt_flags::kLeft: {
+            appender(first, last);
+            appender(fmt.fill, fmt.width - len);
+        } break;
+        case fmt_flags::kInternal: {
+            size_t right = static_cast<size_t>(fmt.width) - len, left = right >> 1;
+            right -= left;
+            appender(fmt.fill, left);
+            appender(first, last);
+            appender(fmt.fill, right);
+        } break;
+        default: {
+            appender(fmt.fill, fmt.width - len);
+            appender(first, last);
+        } break;
+    }
+    return appender;
+}
+}  // namespace detail
 
 }  // namespace util

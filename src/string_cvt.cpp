@@ -1,6 +1,5 @@
 #include "util/string_cvt.h"
 
-#include <algorithm>
 #include <array>
 
 using namespace util;
@@ -13,12 +12,11 @@ struct fp_format_traits;
 template<>
 struct fp_format_traits<double> {
     enum : unsigned { kTotalBits = 64, kBitsPerMantissa = 52 };
-    enum : uint64_t {
-        kSignBit = 1ull << (kTotalBits - 1),
-        kMantissaMask = (1ull << kBitsPerMantissa) - 1,
-        kExpMask = ~kMantissaMask & ~kSignBit
-    };
-    enum : int { kExpMax = kExpMask >> kBitsPerMantissa, kExpBias = kExpMax >> 1 };
+    static const uint64_t kSignBit = 1ull << (kTotalBits - 1);
+    static const uint64_t kMantissaMask = (1ull << kBitsPerMantissa) - 1;
+    static const uint64_t kExpMask = ~kMantissaMask & ~kSignBit;
+    static const int kExpMax = kExpMask >> kBitsPerMantissa;
+    static const int kExpBias = kExpMax >> 1;
     static uint64_t to_u64(const double& f) { return *reinterpret_cast<const uint64_t*>(&f); }
     static double from_u64(const uint64_t& u64) { return *reinterpret_cast<const double*>(&u64); }
 };
@@ -26,12 +24,11 @@ struct fp_format_traits<double> {
 template<>
 struct fp_format_traits<float> {
     enum : unsigned { kTotalBits = 32, kBitsPerMantissa = 23 };
-    enum : uint64_t {
-        kSignBit = 1ull << (kTotalBits - 1),
-        kMantissaMask = (1ull << kBitsPerMantissa) - 1,
-        kExpMask = ~kMantissaMask & ~kSignBit & ((1ull << kTotalBits) - 1)
-    };
-    enum : int { kExpMax = kExpMask >> kBitsPerMantissa, kExpBias = kExpMax >> 1 };
+    static const uint64_t kSignBit = 1ull << (kTotalBits - 1);
+    static const uint64_t kMantissaMask = (1ull << kBitsPerMantissa) - 1;
+    static const uint64_t kExpMask = ~kMantissaMask & ~kSignBit & ((1ull << kTotalBits) - 1);
+    static const int kExpMax = kExpMask >> kBitsPerMantissa;
+    static const int kExpBias = kExpMax >> 1;
     static uint64_t to_u64(const float& f) { return *reinterpret_cast<const uint32_t*>(&f); }
     static float from_u64(const uint64_t& u64) { return *reinterpret_cast<const float*>(&u64); }
 };
@@ -225,7 +222,7 @@ static struct pow_table_t {
     enum : uint64_t { kMaxMantissa10 = 1000000000000000000ull };
     std::array<fp_m96_t, 2 * kPow10Max + 1> coef10to2;
     std::array<int, 2 * kPow2Max + 1> exp_inv10;
-    std::array<uint64_t, kPrecLimit + 1> decimal_mul;
+    std::array<uint64_t, 20> decimal_mul;
     pow_table_t() {
         // 10^N -> 2^M power conversion table
         large_int<24> lrg{10};
@@ -418,74 +415,138 @@ const char* to_float(const char* p, const char* end, Ty& val) {
 
 // ---- from value to string
 
-template<typename Ty>
-char* fmt_unsigned(char* p, Ty val, fmt_flags flags, int width) {
-    bool add_hex_prefix = false;
-    char* end = p;
-    switch (flags & fmt_flags::kBaseField) {
-        case fmt_flags::kBin: {
-            if ((flags & fmt_flags::kShowBase) == fmt_flags::kShowBase) {
-                *--p = (flags & fmt_flags::kUpperCase) == fmt_flags::kUpperCase ? 'B' : 'b';
-            }
-            do {
-                *--p = '0' + static_cast<unsigned>(val & 0x1);
-                val >>= 1;
-            } while (val != 0);
-        } break;
-        case fmt_flags::kOct: {
-            do {
-                *--p = '0' + static_cast<unsigned>(val & 0x7);
-                val >>= 3;
-            } while (val != 0);
-            if ((flags & fmt_flags::kShowBase) == fmt_flags::kShowBase) { *--p = '0'; }
-        } break;
-        case fmt_flags::kHex: {
-            const char* digs = "0123456789abcdef";
-            if ((flags & fmt_flags::kUpperCase) == fmt_flags::kUpperCase) { digs = "0123456789ABCDEF"; }
-            do {
-                *--p = digs[val & 0xf];
-                val >>= 4;
-            } while (val != 0);
-            add_hex_prefix = (flags & fmt_flags::kShowBase) == fmt_flags::kShowBase;
-        } break;
-        default: {
-            do { *--p = get_dig_and_div(val); } while (val != 0);
-        } break;
+template<typename Ty, typename Appender, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
+Appender fmt_bin(Ty val, const fmt_state& fmt, Appender appender) {
+    std::array<char, 65> buf;
+    char *last = buf.data() + buf.size(), *p = last;
+    if (!!(fmt.flags & fmt_flags::kShowBase)) { *--p = !(fmt.flags & fmt_flags::kUpperCase) ? 'b' : 'B'; }
+    do {
+        *--p = '0' + static_cast<unsigned>(val & 0x1);
+        val >>= 1;
+    } while (val != 0);
+    unsigned len = static_cast<unsigned>(last - p);
+    if (fmt.width > len) {
+        if (!(fmt.flags & fmt_flags::kLeadingZeroes)) { return detail::fmt_adjusted(p, last, fmt, appender); }
+        appender('0', fmt.width - len);
     }
-
-    if ((flags & fmt_flags::kLeadingZeroes) == fmt_flags::kLeadingZeroes) {
-        int len = static_cast<int>(end - p);
-        if (add_hex_prefix) { width -= 2; }
-        while (len < width) { *--p = '0', ++len; }
-    }
-
-    if (add_hex_prefix) {
-        p -= 2;
-        p[0] = '0', p[1] = (flags & fmt_flags::kUpperCase) == fmt_flags::kUpperCase ? 'X' : 'x';
-    }
-    return p;
+    appender(p, last);
+    return appender;
 }
 
-template<typename Ty>
-char* fmt_signed(char* p, Ty val, fmt_flags flags, int width) {
-    bool neg = false, show_sign = false;
-    if ((flags & fmt_flags::kBaseField) == fmt_flags::kDec) {
-        if (val < 0) {
-            neg = true, show_sign = true, --width, val = -val;  // negative value
-        } else if ((flags & fmt_flags::kSignField) != fmt_flags::kSignNeg) {
-            show_sign = true, --width;
+template<typename Ty, typename Appender, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
+Appender fmt_oct(Ty val, const fmt_state& fmt, Appender appender) {
+    std::array<char, 23> buf;
+    char *last = buf.data() + buf.size(), *p = last;
+    do {
+        *--p = '0' + static_cast<unsigned>(val & 0x7);
+        val >>= 3;
+    } while (val != 0);
+    if (!!(fmt.flags & fmt_flags::kShowBase)) { *--p = '0'; }
+    unsigned len = static_cast<unsigned>(last - p);
+    if (fmt.width > len) {
+        if (!(fmt.flags & fmt_flags::kLeadingZeroes)) { return detail::fmt_adjusted(p, last, fmt, appender); }
+        appender('0', fmt.width - len);
+    }
+    appender(p, last);
+    return appender;
+}
+
+template<typename Ty, typename Appender, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
+Appender fmt_hex(Ty val, const fmt_state& fmt, Appender appender) {
+    std::array<char, 18> buf;
+    char *last = buf.data() + buf.size(), *p = last;
+    const char* digs = !(fmt.flags & fmt_flags::kUpperCase) ? "0123456789abcdef" : "0123456789ABCDEF";
+    do {
+        *--p = digs[val & 0xf];
+        val >>= 4;
+    } while (val != 0);
+    unsigned len = static_cast<unsigned>(last - p);
+    if (!!(fmt.flags & fmt_flags::kShowBase)) {
+        len += 2;
+        if (fmt.width > len && !!(fmt.flags & fmt_flags::kLeadingZeroes)) {
+            appender('0');
+            appender(!(fmt.flags & fmt_flags::kUpperCase) ? 'x' : 'X');
+            appender('0', fmt.width - len);
+        } else {
+            p -= 2;
+            p[0] = '0', p[1] = !(fmt.flags & fmt_flags::kUpperCase) ? 'x' : 'X';
+            if (fmt.width > len) { return detail::fmt_adjusted(p, last, fmt, appender); }
         }
+    } else if (fmt.width > len) {
+        if (!(fmt.flags & fmt_flags::kLeadingZeroes)) { return detail::fmt_adjusted(p, last, fmt, appender); }
+        appender('0', fmt.width - len);
+    }
+    appender(p, last);
+    return appender;
+}
+
+template<typename Ty, typename Appender, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
+Appender fmt_dec_unsigned(Ty val, const fmt_state& fmt, Appender appender) {
+    std::array<char, 20> buf;
+    char *last = buf.data() + buf.size(), *p = last;
+    do { *--p = get_dig_and_div(val); } while (val != 0);
+    unsigned len = static_cast<unsigned>(last - p);
+    if (fmt.width > len) {
+        if (!(fmt.flags & fmt_flags::kLeadingZeroes)) { return detail::fmt_adjusted(p, last, fmt, appender); }
+        appender('0', fmt.width - len);
+    }
+    appender(p, last);
+    return appender;
+}
+
+template<typename Ty, typename Appender, typename = std::enable_if_t<std::is_signed<Ty>::value>>
+Appender fmt_dec_signed(Ty val, const fmt_state& fmt, Appender appender) {
+    char sign = '+', show_sign = 0;
+    if (val < 0) {
+        sign = '-', show_sign = 1, val = -val;  // negative value
+    } else if ((fmt.flags & fmt_flags::kSignField) == fmt_flags::kSignPos) {
+        show_sign = 1;
+    } else if ((fmt.flags & fmt_flags::kSignField) == fmt_flags::kSignAlign) {
+        show_sign = 1, sign = ' ';
     }
 
-    char* end = p;
-    p = fmt_unsigned(p, static_cast<typename std::make_unsigned<Ty>::type>(val), flags, width);
-
-    if (neg) {  // negative sign
-        *--p = '-';
-    } else if (show_sign) {
-        *--p = (flags & fmt_flags::kSignField) == fmt_flags::kSignPos ? '+' : ' ';
+    std::array<char, 21> buf;
+    char *last = buf.data() + buf.size(), *p = last;
+    auto uval = static_cast<typename std::make_unsigned<Ty>::type>(val);
+    do { *--p = get_dig_and_div(uval); } while (uval != 0);
+    unsigned len = static_cast<unsigned>(last - p) + show_sign;
+    if (fmt.width > len && !!(fmt.flags & fmt_flags::kLeadingZeroes)) {
+        if (show_sign) { appender(sign); }
+        appender('0', fmt.width - len);
+    } else {
+        if (show_sign) { *--p = sign; }
+        if (fmt.width > len) { return detail::fmt_adjusted(p, last, fmt, appender); }
     }
-    return p;
+    appender(p, last);
+    return appender;
+}
+
+template<typename Ty, typename Appender, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
+Appender fmt_unsigned(Ty val, const fmt_state& fmt, Appender appender) {
+    switch (fmt.flags & fmt_flags::kBaseField) {
+        case fmt_flags::kBin: return fmt_bin(val, fmt, appender); break;
+        case fmt_flags::kOct: return fmt_oct(val, fmt, appender); break;
+        case fmt_flags::kHex: return fmt_hex(val, fmt, appender); break;
+        default: return fmt_dec_unsigned(val, fmt, appender); break;
+    }
+    return appender;
+}
+
+template<typename Ty, typename Appender, typename = std::enable_if_t<std::is_signed<Ty>::value>>
+Appender fmt_signed(Ty val, const fmt_state& fmt, Appender appender) {
+    switch (fmt.flags & fmt_flags::kBaseField) {
+        case fmt_flags::kBin: {
+            return fmt_bin(static_cast<typename std::make_unsigned<Ty>::type>(val), fmt, appender);
+        } break;
+        case fmt_flags::kOct: {
+            return fmt_oct(static_cast<typename std::make_unsigned<Ty>::type>(val), fmt, appender);
+        } break;
+        case fmt_flags::kHex: {
+            return fmt_hex(static_cast<typename std::make_unsigned<Ty>::type>(val), fmt, appender);
+        } break;
+        default: return fmt_dec_signed(val, fmt, appender); break;
+    }
+    return appender;
 }
 
 static char* fmt_fp_exp10(char* p, const fp_exp10_format& fp10, fmt_flags flags, int prec) {
@@ -521,7 +582,7 @@ static char* fmt_fp_exp10(char* p, const fp_exp10_format& fp10, fmt_flags flags,
             *--p = '0';
         }
         *--p = fp10.exp < 0 ? '-' : '+';
-        *--p = (flags & fmt_flags::kUpperCase) == fmt_flags::kUpperCase ? 'E' : 'e';
+        *--p = !(flags & fmt_flags::kUpperCase) ? 'e' : 'E';
     }
 
     // fractional part
@@ -544,40 +605,50 @@ static char* fmt_fp_exp10(char* p, const fp_exp10_format& fp10, fmt_flags flags,
     }
 
     // integer part
-    if (p < p0 || (flags & fmt_flags::kShowPoint) == fmt_flags::kShowPoint) { *--p = '.'; }
+    if (p < p0 || !!(flags & fmt_flags::kShowPoint)) { *--p = '.'; }
     for (; n_zeroes > 0; --n_zeroes) { *--p = '0'; }
     do { *--p = get_dig_and_div(m); } while (m != 0);
     return p;
 }
 
-template<typename Ty>
-char* fmt_float(char* p, Ty val, fmt_flags flags, int prec, int width) {
-    fp_exp10_format fp10;
-    bool neg = false;
+template<typename Ty, typename Appender>
+Appender fmt_float(Ty val, const fmt_state& fmt, Appender appender) {
+    std::array<char, 512> buf;
+    char *last = buf.data() + buf.size(), *p = last;
 
     uint64_t mantissa = fp_format_traits<Ty>::to_u64(val);
-    if (mantissa & fp_format_traits<Ty>::kSignBit) { neg = true; }
+    char sign = '+', show_sign = 0;
+    if (mantissa & fp_format_traits<Ty>::kSignBit) {
+        sign = '-', show_sign = 1;  // negative value
+    } else if ((fmt.flags & fmt_flags::kSignField) == fmt_flags::kSignPos) {
+        show_sign = 1;
+    } else if ((fmt.flags & fmt_flags::kSignField) == fmt_flags::kSignAlign) {
+        show_sign = 1, sign = ' ';
+    }
+
     int exp = static_cast<int>((mantissa & fp_format_traits<Ty>::kExpMask) >> fp_format_traits<Ty>::kBitsPerMantissa) -
               fp_format_traits<Ty>::kExpBias;
     mantissa &= fp_format_traits<Ty>::kMantissaMask;
 
     if (fp_format_traits<Ty>::kExpBias + exp == fp_format_traits<Ty>::kExpMax) {
         p -= 3;
-        if ((flags & fmt_flags::kUpperCase) == fmt_flags::kUpperCase) {
-            if (mantissa == 0) {  // infinity
-                p[0] = 'I', p[1] = 'N', p[2] = 'F';
-            } else {  // NaN
-                p[0] = 'N', p[1] = 'A', p[2] = 'N';
-            }
-        } else {
+        if (!(fmt.flags & fmt_flags::kUpperCase)) {
             if (mantissa == 0) {  // infinity
                 p[0] = 'i', p[1] = 'n', p[2] = 'f';
             } else {  // NaN
                 p[0] = 'n', p[1] = 'a', p[2] = 'n';
             }
+        } else {
+            if (mantissa == 0) {  // infinity
+                p[0] = 'I', p[1] = 'N', p[2] = 'F';
+            } else {  // NaN
+                p[0] = 'N', p[1] = 'A', p[2] = 'N';
+            }
         }
     } else {
-        fmt_flags fp_fmt = flags & fmt_flags::kFloatField;
+        fp_exp10_format fp10;
+        fmt_flags fp_fmt = fmt.flags & fmt_flags::kFloatField;
+        int prec = fmt.prec;
         if (prec < 0) { prec = 6; }
 
         if (exp > -fp_format_traits<Ty>::kExpBias || mantissa != 0) {
@@ -639,212 +710,45 @@ char* fmt_float(char* p, Ty val, fmt_flags flags, int prec, int width) {
             }
         }
 
-        char* end = p;
-        p = fmt_fp_exp10(p, fp10, flags, prec);
+        p = fmt_fp_exp10(p, fp10, fmt.flags, prec);
 
-        if ((flags & fmt_flags::kLeadingZeroes) == fmt_flags::kLeadingZeroes) {
-            int len = static_cast<int>(end - p);
-            if (neg || (flags & fmt_flags::kSignField) != fmt_flags::kSignNeg) { --width; }
-            while (len < width) { *--p = '0', ++len; }
+        unsigned len = static_cast<unsigned>(last - p) + show_sign;
+        if (fmt.width > len && !!(fmt.flags & fmt_flags::kLeadingZeroes)) {
+            if (show_sign) { appender(sign); }
+            appender('0', fmt.width - len);
+            appender(p, last);
+            return appender;
         }
     }
 
-    if (neg) {  // negative sign
-        *--p = '-';
-    } else if ((flags & fmt_flags::kSignField) != fmt_flags::kSignNeg) {
-        *--p = (flags & fmt_flags::kSignField) == fmt_flags::kSignPos ? '+' : ' ';
-    }
-    return p;
-}
-
-template<typename Ty>
-std::string append_signed(std::string&& prefix, Ty val, const fmt_state& fmt) {
-    std::array<char, 512> buf;
-    char* last = buf.data() + buf.size();
-    char* p = scvt::fmt_signed(last, val, fmt.flags, std::min<int>(fmt.width, buf.size()));
-    if (static_cast<int>(last - p) < fmt.width) {
-        return detail::append_adjusted_string(std::move(prefix), std::string_view(p, last - p), fmt);
-    }
-    return std::move(prefix.append(p, last));
-}
-
-template<typename Ty>
-std::string append_unsigned(std::string&& prefix, Ty val, const fmt_state& fmt) {
-    std::array<char, 512> buf;
-    char* last = buf.data() + buf.size();
-    char* p = scvt::fmt_unsigned(last, val, fmt.flags, std::min<int>(fmt.width, buf.size()));
-    if (static_cast<int>(last - p) < fmt.width) {
-        return detail::append_adjusted_string(std::move(prefix), std::string_view(p, last - p), fmt);
-    }
-    return std::move(prefix.append(p, last));
-}
-
-template<typename Ty>
-std::string append_float(std::string&& prefix, Ty val, const fmt_state& fmt) {
-    std::array<char, 512> buf;
-    char* last = buf.data() + buf.size();
-    char* p = scvt::fmt_float(last, val, fmt.flags, std::min<int>(fmt.prec, 32), std::min<int>(fmt.width, buf.size()));
-    if (static_cast<int>(last - p) < fmt.width) {
-        return detail::append_adjusted_string(std::move(prefix), std::string_view(p, last - p), fmt);
-    }
-    return std::move(prefix.append(p, last));
-}
-
-template<typename Ty>
-char* signed_to(char* dst, Ty val, const fmt_state& fmt) {
-    std::array<char, 512> buf;
-    char* last = buf.data() + buf.size();
-    char* p = scvt::fmt_signed(last, val, fmt.flags, std::min<int>(fmt.width, buf.size()));
-    if (static_cast<int>(last - p) < fmt.width) {
-        return detail::adjusted_string_to(dst, std::string_view(p, last - p), fmt);
-    }
-    return std::copy(p, last, dst);
-}
-
-template<typename Ty>
-char* unsigned_to(char* dst, Ty val, const fmt_state& fmt) {
-    std::array<char, 512> buf;
-    char* last = buf.data() + buf.size();
-    char* p = scvt::fmt_unsigned(last, val, fmt.flags, std::min<int>(fmt.width, buf.size()));
-    if (static_cast<int>(last - p) < fmt.width) {
-        return detail::adjusted_string_to(dst, std::string_view(p, last - p), fmt);
-    }
-    return std::copy(p, last, dst);
-}
-
-template<typename Ty>
-char* float_to(char* dst, Ty val, const fmt_state& fmt) {
-    std::array<char, 512> buf;
-    char* last = buf.data() + buf.size();
-    char* p = scvt::fmt_float(last, val, fmt.flags, std::min<int>(fmt.prec, 32), std::min<int>(fmt.width, buf.size()));
-    if (static_cast<int>(last - p) < fmt.width) {
-        return detail::adjusted_string_to(dst, std::string_view(p, last - p), fmt);
-    }
-    return std::copy(p, last, dst);
-}
-
-template<typename Ty>
-char* signed_to_n(char* dst, size_t n, Ty val, const fmt_state& fmt) {
-    std::array<char, 512> buf;
-    char* last = buf.data() + buf.size();
-    char* p = scvt::fmt_signed(last, val, fmt.flags, std::min<int>(fmt.width, buf.size()));
-    if (static_cast<int>(last - p) < fmt.width) {
-        return detail::adjusted_string_to_n(dst, n, std::string_view(p, last - p), fmt);
-    }
-    return std::copy_n(p, std::min<size_t>(last - p, n), dst);
-}
-
-template<typename Ty>
-char* unsigned_to_n(char* dst, size_t n, Ty val, const fmt_state& fmt) {
-    std::array<char, 512> buf;
-    char* last = buf.data() + buf.size();
-    char* p = scvt::fmt_unsigned(last, val, fmt.flags, std::min<int>(fmt.width, buf.size()));
-    if (static_cast<int>(last - p) < fmt.width) {
-        return detail::adjusted_string_to_n(dst, n, std::string_view(p, last - p), fmt);
-    }
-    return std::copy_n(p, std::min<size_t>(last - p, n), dst);
-}
-
-template<typename Ty>
-char* float_to_n(char* dst, size_t n, Ty val, const fmt_state& fmt) {
-    std::array<char, 512> buf;
-    char* last = buf.data() + buf.size();
-    char* p = scvt::fmt_float(last, val, fmt.flags, std::min<int>(fmt.prec, 32), std::min<int>(fmt.width, buf.size()));
-    if (static_cast<int>(last - p) < fmt.width) {
-        return detail::adjusted_string_to_n(dst, n, std::string_view(p, last - p), fmt);
-    }
-    return std::copy_n(p, std::min<size_t>(last - p, n), dst);
+    if (show_sign) { *--p = sign; }
+    if (fmt.width > static_cast<unsigned>(last - p)) { return detail::fmt_adjusted(p, last, fmt, appender); }
+    appender(p, last);
+    return appender;
 }
 
 }  // namespace scvt
-
-std::string detail::append_adjusted_string(std::string&& prefix, std::string_view sval, const fmt_state& fmt) {
-    assert(sval.size() < static_cast<size_t>(fmt.width));
-    switch (fmt.flags & fmt_flags::kAdjustField) {
-        case fmt_flags::kRight: {
-            prefix.append(static_cast<size_t>(fmt.width) - sval.size(), fmt.fill);
-            prefix.append(sval);
-        } break;
-        case fmt_flags::kInternal: {
-            size_t right = static_cast<size_t>(fmt.width) - sval.size(), left = right >> 1;
-            right -= left;
-            prefix.append(left, fmt.fill);
-            prefix.append(sval);
-            prefix.append(right, fmt.fill);
-        } break;
-        default: {
-            prefix.append(sval);
-            prefix.append(static_cast<size_t>(fmt.width) - sval.size(), fmt.fill);
-        } break;
-    }
-    return std::move(prefix);
-}
-
-char* detail::adjusted_string_to(char* dst, std::string_view sval, const fmt_state& fmt) {
-    assert(sval.size() < static_cast<size_t>(fmt.width));
-    switch (fmt.flags & fmt_flags::kAdjustField) {
-        case fmt_flags::kRight: {
-            dst = std::fill_n(dst, static_cast<size_t>(fmt.width) - sval.size(), fmt.fill);
-            dst = std::copy(sval.begin(), sval.end(), dst);
-        } break;
-        case fmt_flags::kInternal: {
-            size_t right = static_cast<size_t>(fmt.width) - sval.size(), left = right >> 1;
-            right -= left;
-            dst = std::fill_n(dst, left, fmt.fill);
-            dst = std::copy(sval.begin(), sval.end(), dst);
-            dst = std::fill_n(dst, right, fmt.fill);
-        } break;
-        default: {
-            dst = std::copy(sval.begin(), sval.end(), dst);
-            dst = std::fill_n(dst, static_cast<size_t>(fmt.width) - sval.size(), fmt.fill);
-        } break;
-    }
-    return dst;
-}
-
-char* detail::adjusted_string_to_n(char* dst, size_t n, std::string_view sval, const fmt_state& fmt) {
-    assert(sval.size() < static_cast<size_t>(fmt.width));
-    char* last = dst + n;
-    switch (fmt.flags & fmt_flags::kAdjustField) {
-        case fmt_flags::kRight: {
-            dst = std::fill_n(dst, std::min<size_t>(static_cast<size_t>(fmt.width) - sval.size(), n), fmt.fill);
-            dst = std::copy_n(sval.begin(), std::min<size_t>(sval.size(), last - dst), dst);
-        } break;
-        case fmt_flags::kInternal: {
-            size_t right = static_cast<size_t>(fmt.width) - sval.size(), left = right >> 1;
-            right -= left;
-            dst = std::fill_n(dst, std::min<size_t>(left, n), fmt.fill);
-            dst = std::copy_n(sval.begin(), std::min<size_t>(sval.size(), last - dst), dst);
-            dst = std::fill_n(dst, std::min<size_t>(right, last - dst), fmt.fill);
-        } break;
-        default: {
-            dst = std::copy_n(sval.begin(), std::min<size_t>(sval.size(), n), dst);
-            dst = std::fill_n(dst, std::min<size_t>(static_cast<size_t>(fmt.width) - sval.size(), last - dst), fmt.fill);
-        } break;
-    }
-    return dst;
-}
 
 /*static*/ const char* string_converter<char>::from_string(const char* first, const char* last, char& val) {
     const char* p = scvt::skip_spaces(first, last);
     if (p == last) { return first; }
     val = *p;
-    return p + 1;
+    return ++p;
 }
 /*static*/ std::string string_converter<char>::to_string(std::string&& prefix, char val, const fmt_state& fmt) {
-    if (fmt.width > 1) { return detail::append_adjusted_string(std::move(prefix), std::string_view(&val, 1), fmt); }
+    if (fmt.width > 1) { return detail::fmt_adjusted(&val, &val + 1, fmt, string_appender(prefix)).get(); }
     return std::move(prefix += val);
 }
 /*static*/ char* string_converter<char>::to_string_to(char* dst, char val, const fmt_state& fmt) {
-    if (fmt.width > 1) { return detail::adjusted_string_to(dst, std::string_view(&val, 1), fmt); }
+    if (fmt.width > 1) { return detail::fmt_adjusted(&val, &val + 1, fmt, char_buf_appender(dst)).get(); }
     *dst = val;
-    return dst + 1;
+    return ++dst;
 }
 /*static*/ char* string_converter<char>::to_string_to_n(char* dst, size_t n, char val, const fmt_state& fmt) {
-    if (fmt.width > 1) { return detail::adjusted_string_to_n(dst, n, std::string_view(&val, 1), fmt); }
+    if (fmt.width > 1) { return detail::fmt_adjusted(&val, &val + 1, fmt, char_n_buf_appender(dst, n)).get(); }
     if (n == 0) { return dst; }
     *dst = val;
-    return dst + 1;
+    return ++dst;
 }
 
 /*static*/ const char* string_converter<int8_t>::from_string(const char* first, const char* last, int8_t& val) {
@@ -853,13 +757,13 @@ char* detail::adjusted_string_to_n(char* dst, size_t n, std::string_view sval, c
     return last > p ? last : first;
 }
 /*static*/ std::string string_converter<int8_t>::to_string(std::string&& prefix, int8_t val, const fmt_state& fmt) {
-    return scvt::append_signed(std::move(prefix), val, fmt);
+    return scvt::fmt_signed(val, fmt, string_appender(prefix)).get();
 }
 /*static*/ char* string_converter<int8_t>::to_string_to(char* dst, int8_t val, const fmt_state& fmt) {
-    return scvt::signed_to(dst, val, fmt);
+    return scvt::fmt_signed(val, fmt, char_buf_appender(dst)).get();
 }
 /*static*/ char* string_converter<int8_t>::to_string_to_n(char* dst, size_t n, int8_t val, const fmt_state& fmt) {
-    return scvt::signed_to_n(dst, n, val, fmt);
+    return scvt::fmt_signed(val, fmt, char_n_buf_appender(dst, n)).get();
 }
 
 /*static*/ const char* string_converter<int16_t>::from_string(const char* first, const char* last, int16_t& val) {
@@ -868,13 +772,13 @@ char* detail::adjusted_string_to_n(char* dst, size_t n, std::string_view sval, c
     return last > p ? last : first;
 }
 /*static*/ std::string string_converter<int16_t>::to_string(std::string&& prefix, int16_t val, const fmt_state& fmt) {
-    return scvt::append_signed(std::move(prefix), val, fmt);
+    return scvt::fmt_signed(val, fmt, string_appender(prefix)).get();
 }
 /*static*/ char* string_converter<int16_t>::to_string_to(char* dst, int16_t val, const fmt_state& fmt) {
-    return scvt::signed_to(dst, val, fmt);
+    return scvt::fmt_signed(val, fmt, char_buf_appender(dst)).get();
 }
 /*static*/ char* string_converter<int16_t>::to_string_to_n(char* dst, size_t n, int16_t val, const fmt_state& fmt) {
-    return scvt::signed_to_n(dst, n, val, fmt);
+    return scvt::fmt_signed(val, fmt, char_n_buf_appender(dst, n)).get();
 }
 
 /*static*/ const char* string_converter<int32_t>::from_string(const char* first, const char* last, int32_t& val) {
@@ -883,13 +787,13 @@ char* detail::adjusted_string_to_n(char* dst, size_t n, std::string_view sval, c
     return last > p ? last : first;
 }
 /*static*/ std::string string_converter<int32_t>::to_string(std::string&& prefix, int32_t val, const fmt_state& fmt) {
-    return scvt::append_signed(std::move(prefix), val, fmt);
+    return scvt::fmt_signed(val, fmt, string_appender(prefix)).get();
 }
 /*static*/ char* string_converter<int32_t>::to_string_to(char* dst, int32_t val, const fmt_state& fmt) {
-    return scvt::signed_to(dst, val, fmt);
+    return scvt::fmt_signed(val, fmt, char_buf_appender(dst)).get();
 }
 /*static*/ char* string_converter<int32_t>::to_string_to_n(char* dst, size_t n, int32_t val, const fmt_state& fmt) {
-    return scvt::signed_to_n(dst, n, val, fmt);
+    return scvt::fmt_signed(val, fmt, char_n_buf_appender(dst, n)).get();
 }
 
 /*static*/ const char* string_converter<int64_t>::from_string(const char* first, const char* last, int64_t& val) {
@@ -898,13 +802,13 @@ char* detail::adjusted_string_to_n(char* dst, size_t n, std::string_view sval, c
     return last > p ? last : first;
 }
 /*static*/ std::string string_converter<int64_t>::to_string(std::string&& prefix, int64_t val, const fmt_state& fmt) {
-    return scvt::append_signed(std::move(prefix), val, fmt);
+    return scvt::fmt_signed(val, fmt, string_appender(prefix)).get();
 }
 /*static*/ char* string_converter<int64_t>::to_string_to(char* dst, int64_t val, const fmt_state& fmt) {
-    return scvt::signed_to(dst, val, fmt);
+    return scvt::fmt_signed(val, fmt, char_buf_appender(dst)).get();
 }
 /*static*/ char* string_converter<int64_t>::to_string_to_n(char* dst, size_t n, int64_t val, const fmt_state& fmt) {
-    return scvt::signed_to_n(dst, n, val, fmt);
+    return scvt::fmt_signed(val, fmt, char_n_buf_appender(dst, n)).get();
 }
 
 /*static*/ const char* string_converter<uint8_t>::from_string(const char* first, const char* last, uint8_t& val) {
@@ -913,13 +817,13 @@ char* detail::adjusted_string_to_n(char* dst, size_t n, std::string_view sval, c
     return last > p ? last : first;
 }
 /*static*/ std::string string_converter<uint8_t>::to_string(std::string&& prefix, uint8_t val, const fmt_state& fmt) {
-    return scvt::append_unsigned(std::move(prefix), val, fmt);
+    return scvt::fmt_unsigned(val, fmt, string_appender(prefix)).get();
 }
 /*static*/ char* string_converter<uint8_t>::to_string_to(char* dst, uint8_t val, const fmt_state& fmt) {
-    return scvt::unsigned_to(dst, val, fmt);
+    return scvt::fmt_unsigned(val, fmt, char_buf_appender(dst)).get();
 }
 /*static*/ char* string_converter<uint8_t>::to_string_to_n(char* dst, size_t n, uint8_t val, const fmt_state& fmt) {
-    return scvt::unsigned_to_n(dst, n, val, fmt);
+    return scvt::fmt_unsigned(val, fmt, char_n_buf_appender(dst, n)).get();
 }
 
 /*static*/ const char* string_converter<uint16_t>::from_string(const char* first, const char* last, uint16_t& val) {
@@ -928,13 +832,13 @@ char* detail::adjusted_string_to_n(char* dst, size_t n, std::string_view sval, c
     return last > p ? last : first;
 }
 /*static*/ std::string string_converter<uint16_t>::to_string(std::string&& prefix, uint16_t val, const fmt_state& fmt) {
-    return scvt::append_unsigned(std::move(prefix), val, fmt);
+    return scvt::fmt_unsigned(val, fmt, string_appender(prefix)).get();
 }
 /*static*/ char* string_converter<uint16_t>::to_string_to(char* dst, uint16_t val, const fmt_state& fmt) {
-    return scvt::unsigned_to(dst, val, fmt);
+    return scvt::fmt_unsigned(val, fmt, char_buf_appender(dst)).get();
 }
 /*static*/ char* string_converter<uint16_t>::to_string_to_n(char* dst, size_t n, uint16_t val, const fmt_state& fmt) {
-    return scvt::unsigned_to_n(dst, n, val, fmt);
+    return scvt::fmt_unsigned(val, fmt, char_n_buf_appender(dst, n)).get();
 }
 
 /*static*/ const char* string_converter<uint32_t>::from_string(const char* first, const char* last, uint32_t& val) {
@@ -943,13 +847,13 @@ char* detail::adjusted_string_to_n(char* dst, size_t n, std::string_view sval, c
     return last > p ? last : first;
 }
 /*static*/ std::string string_converter<uint32_t>::to_string(std::string&& prefix, uint32_t val, const fmt_state& fmt) {
-    return scvt::append_unsigned(std::move(prefix), val, fmt);
+    return scvt::fmt_unsigned(val, fmt, string_appender(prefix)).get();
 }
 /*static*/ char* string_converter<uint32_t>::to_string_to(char* dst, uint32_t val, const fmt_state& fmt) {
-    return scvt::unsigned_to(dst, val, fmt);
+    return scvt::fmt_unsigned(val, fmt, char_buf_appender(dst)).get();
 }
 /*static*/ char* string_converter<uint32_t>::to_string_to_n(char* dst, size_t n, uint32_t val, const fmt_state& fmt) {
-    return scvt::unsigned_to_n(dst, n, val, fmt);
+    return scvt::fmt_unsigned(val, fmt, char_n_buf_appender(dst, n)).get();
 }
 
 /*static*/ const char* string_converter<uint64_t>::from_string(const char* first, const char* last, uint64_t& val) {
@@ -958,13 +862,13 @@ char* detail::adjusted_string_to_n(char* dst, size_t n, std::string_view sval, c
     return last > p ? last : first;
 }
 /*static*/ std::string string_converter<uint64_t>::to_string(std::string&& prefix, uint64_t val, const fmt_state& fmt) {
-    return scvt::append_unsigned(std::move(prefix), val, fmt);
+    return scvt::fmt_unsigned(val, fmt, string_appender(prefix)).get();
 }
 /*static*/ char* string_converter<uint64_t>::to_string_to(char* dst, uint64_t val, const fmt_state& fmt) {
-    return scvt::unsigned_to(dst, val, fmt);
+    return scvt::fmt_unsigned(val, fmt, char_buf_appender(dst)).get();
 }
 /*static*/ char* string_converter<uint64_t>::to_string_to_n(char* dst, size_t n, uint64_t val, const fmt_state& fmt) {
-    return scvt::unsigned_to_n(dst, n, val, fmt);
+    return scvt::fmt_unsigned(val, fmt, char_n_buf_appender(dst, n)).get();
 }
 
 /*static*/ const char* string_converter<float>::from_string(const char* first, const char* last, float& val) {
@@ -973,13 +877,13 @@ char* detail::adjusted_string_to_n(char* dst, size_t n, std::string_view sval, c
     return last > p ? last : first;
 }
 /*static*/ std::string string_converter<float>::to_string(std::string&& prefix, float val, const fmt_state& fmt) {
-    return scvt::append_float(std::move(prefix), val, fmt);
+    return scvt::fmt_float(val, fmt, string_appender(prefix)).get();
 }
 /*static*/ char* string_converter<float>::to_string_to(char* dst, float val, const fmt_state& fmt) {
-    return scvt::float_to(dst, val, fmt);
+    return scvt::fmt_float(val, fmt, char_buf_appender(dst)).get();
 }
 /*static*/ char* string_converter<float>::to_string_to_n(char* dst, size_t n, float val, const fmt_state& fmt) {
-    return scvt::float_to_n(dst, n, val, fmt);
+    return scvt::fmt_float(val, fmt, char_n_buf_appender(dst, n)).get();
 }
 
 /*static*/ const char* string_converter<double>::from_string(const char* first, const char* last, double& val) {
@@ -988,13 +892,13 @@ char* detail::adjusted_string_to_n(char* dst, size_t n, std::string_view sval, c
     return last > p ? last : first;
 }
 /*static*/ std::string string_converter<double>::to_string(std::string&& prefix, double val, const fmt_state& fmt) {
-    return scvt::append_float(std::move(prefix), val, fmt);
+    return scvt::fmt_float(val, fmt, string_appender(prefix)).get();
 }
 /*static*/ char* string_converter<double>::to_string_to(char* dst, double val, const fmt_state& fmt) {
-    return scvt::float_to(dst, val, fmt);
+    return scvt::fmt_float(val, fmt, char_buf_appender(dst)).get();
 }
 /*static*/ char* string_converter<double>::to_string_to_n(char* dst, size_t n, double val, const fmt_state& fmt) {
-    return scvt::float_to_n(dst, n, val, fmt);
+    return scvt::fmt_float(val, fmt, char_n_buf_appender(dst, n)).get();
 }
 
 /*static*/ const char* string_converter<bool>::from_string(const char* first, const char* last, bool& val) {
@@ -1015,36 +919,25 @@ char* detail::adjusted_string_to_n(char* dst, size_t n, std::string_view sval, c
 }
 
 /*static*/ std::string string_converter<bool>::to_string(std::string&& prefix, bool val, const fmt_state& fmt) {
-    std::string_view sval;
-    if ((fmt.flags & fmt_flags::kUpperCase) == fmt_flags::kUpperCase) {
-        sval = val ? "TRUE" : "FALSE";
-    } else {
-        sval = val ? "true" : "false";
-    }
-    if (static_cast<int>(sval.size()) < fmt.width) {
-        return detail::append_adjusted_string(std::move(prefix), sval, fmt);
+    std::string_view sval = !(fmt.flags & fmt_flags::kUpperCase) ? (val ? "true" : "false") : (val ? "TRUE" : "FALSE");
+    if (sval.size() < fmt.width) {
+        return detail::fmt_adjusted(sval.begin(), sval.end(), fmt, string_appender(prefix)).get();
     }
     return std::move(prefix.append(sval.begin(), sval.end()));
 }
 
 /*static*/ char* string_converter<bool>::to_string_to(char* dst, bool val, const fmt_state& fmt) {
-    std::string_view sval;
-    if ((fmt.flags & fmt_flags::kUpperCase) == fmt_flags::kUpperCase) {
-        sval = val ? "TRUE" : "FALSE";
-    } else {
-        sval = val ? "true" : "false";
+    std::string_view sval = !(fmt.flags & fmt_flags::kUpperCase) ? (val ? "true" : "false") : (val ? "TRUE" : "FALSE");
+    if (sval.size() < fmt.width) {
+        return detail::fmt_adjusted(sval.begin(), sval.end(), fmt, char_buf_appender(dst)).get();
     }
-    if (static_cast<int>(sval.size()) < fmt.width) { return detail::adjusted_string_to(dst, sval, fmt); }
     return std::copy(sval.begin(), sval.end(), dst);
 }
 
 /*static*/ char* string_converter<bool>::to_string_to_n(char* dst, size_t n, bool val, const fmt_state& fmt) {
-    std::string_view sval;
-    if ((fmt.flags & fmt_flags::kUpperCase) == fmt_flags::kUpperCase) {
-        sval = val ? "TRUE" : "FALSE";
-    } else {
-        sval = val ? "true" : "false";
+    std::string_view sval = !(fmt.flags & fmt_flags::kUpperCase) ? (val ? "true" : "false") : (val ? "TRUE" : "FALSE");
+    if (sval.size() < fmt.width) {
+        return detail::fmt_adjusted(sval.begin(), sval.end(), fmt, char_n_buf_appender(dst, n)).get();
     }
-    if (static_cast<int>(sval.size()) < fmt.width) { return detail::adjusted_string_to_n(dst, n, sval, fmt); }
     return std::copy_n(sval.begin(), std::min<size_t>(sval.size(), n), dst);
 }
