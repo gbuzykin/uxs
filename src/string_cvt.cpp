@@ -7,10 +7,10 @@ using namespace util;
 namespace scvt {
 
 template<typename Ty>
-struct fp_format_traits;
+struct fp_traits;
 
 template<>
-struct fp_format_traits<double> {
+struct fp_traits<double> {
     enum : unsigned { kTotalBits = 64, kBitsPerMantissa = 52 };
     static const uint64_t kSignBit = 1ull << (kTotalBits - 1);
     static const uint64_t kMantissaMask = (1ull << kBitsPerMantissa) - 1;
@@ -22,7 +22,7 @@ struct fp_format_traits<double> {
 };
 
 template<>
-struct fp_format_traits<float> {
+struct fp_traits<float> {
     enum : unsigned { kTotalBits = 32, kBitsPerMantissa = 23 };
     static const uint64_t kSignBit = 1ull << (kTotalBits - 1);
     static const uint64_t kMantissaMask = (1ull << kBitsPerMantissa) - 1;
@@ -52,16 +52,22 @@ uint64_t make64(Ty hi, Ty lo) {
     return (static_cast<uint64_t>(hi) << 32) | static_cast<uint64_t>(lo);
 }
 
-static struct ulog2_table_t {
+struct ulog2_table_t {
     std::array<unsigned, 256> n_bit;
-    ulog2_table_t() {
+    CONSTEXPR ulog2_table_t() : n_bit() {
         for (uint32_t n = 0; n < n_bit.size(); ++n) {
             uint32_t u8 = n;
             n_bit[n] = 0;
             while (u8 >>= 1) { ++n_bit[n]; }
         }
     }
-} g_ulog2_tbl;
+};
+
+#if __cplusplus < 201703L
+static const ulog2_table_t g_ulog2_tbl;
+#else   // __cplusplus < 201703L
+constexpr ulog2_table_t g_ulog2_tbl{};
+#endif  // __cplusplus < 201703L
 
 inline unsigned ulog2(uint32_t x) {
     unsigned bias = 0;
@@ -217,11 +223,11 @@ struct large_int {
     }
 };
 
-static struct pow_table_t {
-    enum : int { kPow10Max = 400, kPow2Max = 1100, kPrecLimit = 18 };
-    enum : uint64_t { kMaxMantissa10 = 1000000000000000000ull };
+struct pow_table_t {
+    enum : int { kPow10Max = 400, kPow2Max = 1100, kPrecLimit = 19 };
+    enum : uint64_t { kMaxMantissa10 = 10000000000000000000ull };
     std::array<fp_m96_t, 2 * kPow10Max + 1> coef10to2;
-    std::array<int, 2 * kPow2Max + 1> exp_inv10;
+    std::array<int, 2 * kPow2Max + 1> exp2to10;
     std::array<uint64_t, 20> decimal_mul;
     pow_table_t() {
         // 10^N -> 2^M power conversion table
@@ -242,14 +248,16 @@ static struct pow_table_t {
         for (int exp = -kPow2Max; exp <= kPow2Max; ++exp) {
             auto it = std::lower_bound(coef10to2.begin(), coef10to2.end(), -exp,
                                        [](decltype(*coef10to2.begin()) el, int exp) { return el.exp < exp; });
-            exp_inv10[kPow2Max + exp] = static_cast<int>(it - coef10to2.begin()) - kPow10Max;
+            exp2to10[kPow2Max + exp] = kPow10Max - static_cast<int>(it - coef10to2.begin());
         }
 
         // decimal multipliers 10^N, N = 0, 1, 2, ...
         uint64_t mul = 1ull;
         for (uint32_t n = 0; n < decimal_mul.size(); ++n, mul *= 10) { decimal_mul[n] = mul; }
     }
-} g_pow_tbl;
+};
+
+static const pow_table_t g_pow_tbl;
 
 struct fp_exp10_format {
     uint64_t mantissa = 0;
@@ -300,7 +308,7 @@ const char* to_integer(const char* p, const char* end, Ty& val) {
 
 static const char* accum_mantissa(const char* p, const char* end, uint64_t& m, int& exp) {
     for (; p < end && std::isdigit(static_cast<unsigned char>(*p)); ++p) {
-        if (m < pow_table_t::kMaxMantissa10 / 10) {  // decimal mantissa can hold up to 18 digits
+        if (m < pow_table_t::kMaxMantissa10 / 10) {  // decimal mantissa can hold up to 19 digits
             m = 10 * m + static_cast<uint64_t>(*p - '0');
         } else {
             ++exp;
@@ -350,66 +358,111 @@ const char* to_float(const char* p, const char* end, Ty& val) {
     uint64_t mantissa2 = 0;
     const char* p1 = to_fp_exp10(p, end, fp10);
     if (p1 > p) {
-        if (fp10.mantissa == 0 || fp10.exp < -pow_table_t::kPow10Max) {  // zero
-        } else if (fp10.exp > pow_table_t::kPow10Max) {
-            exp = fp_format_traits<Ty>::kExpMax;  // convert to infinity
+        if (fp10.mantissa == 0 || fp10.exp < -pow_table_t::kPow10Max) {  // perfect zero
+        } else if (fp10.exp > pow_table_t::kPow10Max) {                  // infinity
+            exp = fp_traits<Ty>::kExpMax;
         } else {
-            // convert decimal mantissa to binary
+            // Convert decimal mantissa to binary :
+            // Note: coefficients in `coef10to2` are normalized and belong [1, 2) range
+            // Note: multiplication of 64-bit mantissa by 96-bit coefficient gives 128+32-bit result:
+            // `res128.hi` (higher 64-bit), `res128.lo` (middle 64-bit), and `res96.lo` (lower 32-bit)
             const auto& coef = g_pow_tbl.coef10to2[pow_table_t::kPow10Max + fp10.exp];
-            auto res96 = mul64x32(fp10.mantissa, coef.m2);
-            auto res128 = mul64x64(fp10.mantissa, coef.m, res96.hi);
-            res128.hi += fp10.mantissa;  // apply implicit 1 term of normalized coefficient
-            // extract mantissa bits
-            unsigned log = ulog2(res128.hi);
-            exp = fp_format_traits<Ty>::kExpBias + log + coef.exp;
-            if (exp >= fp_format_traits<Ty>::kExpMax) {
-                exp = fp_format_traits<Ty>::kExpMax;  // convert to infinity
-            } else if (exp >= -static_cast<int>(fp_format_traits<Ty>::kBitsPerMantissa)) {
-                unsigned left_shift = 64 - log;
-                unsigned right_shift = 64 - fp_format_traits<Ty>::kBitsPerMantissa;
-                // add denormalization shifts if 'exp <= 0'
-                if (exp < 0) {
-                    right_shift -= 1 + exp, left_shift -= 2, exp = 0;
-                } else if (exp == 0) {
-                    --left_shift;
-                }
-                // align mantissa with left 128-bit boundary
-                if (left_shift < 64) {
-                    res128 = shl(res128, left_shift);
-                    res128.lo |= make64<uint64_t>(res96.lo, 0) >> (64 - left_shift);
-                } else {
-                    res128.hi = res128.lo;
-                    res128.lo = make64<uint64_t>(res96.lo, 0);
-                }
-                // round unreliable bits
-                const uint64_t before_rounding = res128.hi;
-                const uint64_t half0 = 1ull << 31;
-                res128.lo += half0;
-                if (res128.lo < half0) { ++res128.hi; }
-                res128.lo &= ~((half0 << 1) - 1);
-                // do 'nearest even' rounding
-                const uint64_t half = 1ull << (right_shift - 1);
-                res128.hi += (res128.hi & (half << 1)) == 0 && res128.lo == 0 ? half - 1 : half;
-                if (res128.hi < before_rounding) { ++exp; }  // overflow while rounding, the value can become infinity
-                // shift mantissa to the right position
-                mantissa2 = res128.hi >> right_shift;
+            uint128_t res128{0, 0};
+            uint32_t lower = 0;
+            if (hi32(fp10.mantissa) != 0) {
+                auto res96 = mul64x32(fp10.mantissa, coef.m2);
+                lower = res96.lo;
+                res128 = mul64x64(coef.m, fp10.mantissa, res96.hi);
             } else {
-                exp = 0;  // zero
+                res128.lo = fp10.mantissa * coef.m2;
+                auto res96 = mul64x32(coef.m, static_cast<uint32_t>(fp10.mantissa),
+                                      static_cast<uint32_t>(hi32(res128.lo)));
+                lower = static_cast<uint32_t>(lo32(res128.lo));
+                res128.hi = hi32(res96.hi), res128.lo = make64(lo32(res96.hi), static_cast<uint64_t>(res96.lo));
+            }
+            res128.hi += fp10.mantissa;  // apply implicit 1 term of normalized coefficient
+
+            // Obtain binary exponent :
+            // Note: res128.hi != 0
+            // Note: overflow is possible while summing `res128.hi += fp10.mantissa`, it's normal: log = 64
+            const unsigned log = res128.hi < fp10.mantissa ? 64 : ulog2(res128.hi);  // most significant `1` position
+            exp = fp_traits<Ty>::kExpBias + log + coef.exp;                          // `exp` is biased binary exponent
+            if (exp >= fp_traits<Ty>::kExpMax) {
+                exp = fp_traits<Ty>::kExpMax;  // infinity
+            } else if (exp <= -static_cast<int>(fp_traits<Ty>::kBitsPerMantissa)) {
+                // corner cases: perfect zero or the smallest possible floating point number
+                if (exp == -static_cast<int>(fp_traits<Ty>::kBitsPerMantissa)) { mantissa2 = 1ull; }
+                exp = 0;
+            } else {
+                // General case: obtain rounded binary mantissa bits
+
+                // As far as we are going to round, it's convenient to align binary
+                // mantissa with left 128-bit boundary of `res128`
+
+                // Move mantissa to the left position so the most significant `1` is hidden
+                if (log == 0) {
+                    res128.hi = res128.lo;
+                    res128.lo = make64<uint64_t>(lower, 0);
+                } else if (log < 64) {
+                    res128 = shl(res128, 64 - log);
+                    res128.lo |= make64<uint64_t>(lower, 0) >> log;
+                }
+
+                // When `exp <= 0` mantissa will be denormalized further, so store the real mantissa length
+                const unsigned n_bits = exp > 0 ? fp_traits<Ty>::kBitsPerMantissa :
+                                                  fp_traits<Ty>::kBitsPerMantissa + exp - 1;
+
+                // Do banker's or `nearest even` rounding :
+                // It seems that perfect rounding is not possible, because theoretical binary mantissa
+                // representation can be of infinite length. But we use some heuristic to detect exact halves.
+                // If we take long enough range of bits after the point where we need to break series then
+                // analyzing this bits we can make the decision in which direction to round.
+                // The following bits: x x x x x x 1 0 0 0 0 0 0 0 0 0 . . . . . . we consider as exact half
+                //                     x x x x x x 0 1 1 1 1 1 1 1 1 1 . . . . . . and this is exact half too
+                //                    | needed    | to be rounded     | unknown   |
+                // In our case we need `n_bits` left bits in `res128.hi`, all other bits are rounded and dropped.
+                // To decide in which direction to round we use reliable bits after `n_bits`. Totally 96 bits are
+                // reliable, because `coef10to2` has 96-bit precision. So, we use only `res128.hi` and higher 32-bit
+                // part of `res128.lo`.
+
+                // Drop unreliable bits and resolve the case of periodical `1`
+                // Note: we do not need to reset lower 32-bit part of `res128.lo`, because it is ignored further
+                const uint64_t before_rounding = res128.hi;
+                const uint64_t lsb = res128.lo & (1ull << 32);
+                res128.lo += lsb;
+                if (res128.lo < lsb) { ++res128.hi; }  // handle lower part overflow
+
+                // Do banker's rounding
+                const uint64_t half = 1ull << (63 - n_bits);
+                res128.hi += hi32(res128.lo) == 0 && (res128.hi & (half << 1)) == 0 ? half - 1 : half;
+                if (res128.hi < before_rounding) {  // overflow while rounding
+                    // Note: the value can become normalized if `exp == 0`
+                    // or infinity if `exp == fp_traits<Ty>::kExpMax - 1`
+                    // Note: in case of overflow mantissa will be `0`
+                    ++exp;
+                }
+
+                // shift mantissa to the right position
+                mantissa2 = res128.hi >> (64 - fp_traits<Ty>::kBitsPerMantissa);
+                if (exp <= 0) {  // denormalize
+                    mantissa2 |= 1ull << fp_traits<Ty>::kBitsPerMantissa;
+                    mantissa2 >>= 1 - exp;
+                    exp = 0;
+                }
             }
         }
     } else if ((p1 = starts_with(p, end, "inf")) > p) {  // infinity
-        exp = fp_format_traits<Ty>::kExpMax;
+        exp = fp_traits<Ty>::kExpMax;
     } else if ((p1 = starts_with(p, end, "nan")) > p) {  // NaN
-        exp = fp_format_traits<Ty>::kExpMax;
-        mantissa2 = fp_format_traits<Ty>::kMantissaMask;
+        exp = fp_traits<Ty>::kExpMax;
+        mantissa2 = fp_traits<Ty>::kMantissaMask;
     } else {
         return p0;
     }
 
-    // compose floating point value
-    val = fp_format_traits<Ty>::from_u64((neg ? fp_format_traits<Ty>::kSignBit : 0) |
-                                         (static_cast<uint64_t>(exp) << fp_format_traits<Ty>::kBitsPerMantissa) |
-                                         mantissa2);
+    // Compose floating point value
+    val = fp_traits<Ty>::from_u64((neg ? fp_traits<Ty>::kSignBit : 0) |
+                                  (static_cast<uint64_t>(exp) << fp_traits<Ty>::kBitsPerMantissa) | mantissa2);
     return p1;
 }  // namespace scvt
 
@@ -572,7 +625,8 @@ static char* fmt_fp_exp10(char* p, const fp_exp10_format& fp10, fmt_flags flags,
         }
     }
 
-    if (fp_fmt != fmt_flags::kFixed) {  // add exponent
+    if (fp_fmt != fmt_flags::kFixed) {
+        // add exponent
         int exp10 = fp10.exp;
         if (exp10 < 0) { exp10 = -exp10; }
         if (exp10 >= 10) {
@@ -583,6 +637,19 @@ static char* fmt_fp_exp10(char* p, const fp_exp10_format& fp10, fmt_flags flags,
         }
         *--p = fp10.exp < 0 ? '-' : '+';
         *--p = !(flags & fmt_flags::kUpperCase) ? 'e' : 'E';
+
+        // fractional part
+        char* p0 = p;
+        prec -= n_zeroes;
+        if (!trim_zeroes) {
+            for (; n_zeroes > 0; --n_zeroes) { *--p = '0'; }
+        }
+        for (; prec > 0; --prec) { *--p = get_dig_and_div(m); }
+
+        // integer part
+        if (p < p0 || !!(flags & fmt_flags::kShowPoint)) { *--p = '.'; }
+        *--p = '0' + m;
+        return p;
     }
 
     // fractional part
@@ -616,9 +683,9 @@ Appender fmt_float(Ty val, const fmt_state& fmt, Appender appender) {
     std::array<char, 512> buf;
     char *last = buf.data() + buf.size(), *p = last;
 
-    uint64_t mantissa = fp_format_traits<Ty>::to_u64(val);
+    uint64_t mantissa = fp_traits<Ty>::to_u64(val);
     char sign = '+', show_sign = 0;
-    if (mantissa & fp_format_traits<Ty>::kSignBit) {
+    if (mantissa & fp_traits<Ty>::kSignBit) {
         sign = '-', show_sign = 1;  // negative value
     } else if ((fmt.flags & fmt_flags::kSignField) == fmt_flags::kSignPos) {
         show_sign = 1;
@@ -626,11 +693,12 @@ Appender fmt_float(Ty val, const fmt_state& fmt, Appender appender) {
         show_sign = 1, sign = ' ';
     }
 
-    int exp = static_cast<int>((mantissa & fp_format_traits<Ty>::kExpMask) >> fp_format_traits<Ty>::kBitsPerMantissa) -
-              fp_format_traits<Ty>::kExpBias;
-    mantissa &= fp_format_traits<Ty>::kMantissaMask;
+    // Binary exponent and mantissa
+    int exp = static_cast<int>((mantissa & fp_traits<Ty>::kExpMask) >> fp_traits<Ty>::kBitsPerMantissa) -
+              fp_traits<Ty>::kExpBias;
+    mantissa &= fp_traits<Ty>::kMantissaMask;
 
-    if (fp_format_traits<Ty>::kExpBias + exp == fp_format_traits<Ty>::kExpMax) {
+    if (fp_traits<Ty>::kExpBias + exp == fp_traits<Ty>::kExpMax) {
         p -= 3;
         if (!(fmt.flags & fmt_flags::kUpperCase)) {
             if (mantissa == 0) {  // infinity
@@ -647,34 +715,42 @@ Appender fmt_float(Ty val, const fmt_state& fmt, Appender appender) {
         }
     } else {
         fp_exp10_format fp10;
-        fmt_flags fp_fmt = fmt.flags & fmt_flags::kFloatField;
         int prec = fmt.prec;
         if (prec < 0) { prec = 6; }
 
-        if (exp > -fp_format_traits<Ty>::kExpBias || mantissa != 0) {
-            // place mantissa so it has only 1 left zero bit
-            if (exp == -fp_format_traits<Ty>::kExpBias) {  // denormalized form
-                unsigned log = ulog2(mantissa);
+        if (exp > -fp_traits<Ty>::kExpBias || mantissa != 0) {
+            // Shift mantissa so it has only one left `0` bit to prevent overflow in future
+            if (exp == -fp_traits<Ty>::kExpBias) {  // handle denormalized form
+                const unsigned log = ulog2(mantissa);
                 mantissa <<= 62 - log;
-                exp -= fp_format_traits<Ty>::kBitsPerMantissa - log - 1;
+                exp -= fp_traits<Ty>::kBitsPerMantissa - log - 1;
             } else {
-                mantissa <<= 62 - fp_format_traits<Ty>::kBitsPerMantissa;
+                mantissa <<= 62 - fp_traits<Ty>::kBitsPerMantissa;
                 mantissa |= 1ull << 62;
             }
 
-            fp10.exp = -g_pow_tbl.exp_inv10[pow_table_t::kPow2Max + exp];  // inverted power of 10
+            // Obtain decimal power
+            fp10.exp = g_pow_tbl.exp2to10[pow_table_t::kPow2Max + exp];
 
-            int n_digs = 1 + prec;
-            if (fp_fmt == fmt_flags::kFixed) {  // fixed format
-                n_digs += fp10.exp;
-            } else if (fp_fmt == fmt_flags::kGeneral && n_digs > 1) {  // general format
-                --n_digs;
+            // Evaluate desired decimal mantissa length (its integer part)
+            // Note: integer part of decimal mantissa is the digits to output,
+            // fractional part of decimal mantissa is to be rounded and dropped
+            int n_digs = 1 + prec;  // total digit count for scientific format
+            const fmt_flags fp_fmt = fmt.flags & fmt_flags::kFloatField;
+            if (fp_fmt == fmt_flags::kFixed) {
+                n_digs += fp10.exp;  // for fixed format
+            } else if (fp_fmt == fmt_flags::kGeneral && n_digs > 1) {
+                --n_digs;  // for general format
             }
 
             if (n_digs >= 0) {
                 n_digs = std::min<int>(n_digs, pow_table_t::kPrecLimit);
 
-                // calculate decimal mantissa representation
+                // Calculate decimal mantissa representation :
+                // Note: coefficients in `coef10to2` are normalized and belong [1, 2) range
+                // Note: multiplication of 64-bit mantissa by 96-bit coefficient gives 128+96-bit result
+                // To get the desired count of digits we move up the `coef10to2` table, it's equivalent to
+                // multiplying the result by a certain power of 10
                 const auto& coef = g_pow_tbl.coef10to2[pow_table_t::kPow10Max - fp10.exp + n_digs - 1];
                 auto res128 = mul64x64(mantissa, coef.m, mul64x32(mantissa, coef.m2).hi);
                 res128.hi += mantissa;  // apply implicit 1 term of normalized coefficient
@@ -686,31 +762,45 @@ Appender fmt_float(Ty val, const fmt_state& fmt, Appender appender) {
                 if (res128.lo < half0) { ++res128.hi; }
                 res128.lo &= ~((half0 << 1) - 1);
 
+                bool high = false;
                 // align fractional part with 64-bit boundary
-                unsigned shift = 62 - exp;
-                if (shift < 64) {
-                    res128 = shr(res128, shift);
-                } else {
-                    res128.lo = res128.hi >> (shift - 64);
-                    res128.hi = 0;
+                if (exp > 62) {
+                    high = res128.hi & (1ull << 63);
+                    res128 = shl(res128, 1);
+                } else if (exp < 62) {
+                    unsigned shift = 62 - exp;
+                    if (shift < 64) {
+                        res128 = shr(res128, shift);
+                    } else {
+                        res128.lo = res128.hi >> (shift - 64);
+                        res128.hi = 0;
+                    }
                 }
 
-                // do 'nearest even' rounding
-                const uint64_t half = 1ull << 63;
-                uint64_t frac = (res128.hi & 1) == 0 ? res128.lo + half - 1 : res128.lo + half;
-                fp10.mantissa = frac < res128.lo ? res128.hi + 1 : res128.hi;
-                if (fp10.mantissa >= g_pow_tbl.decimal_mul[n_digs]) {  // one excess digit
+                if (high) {
                     ++fp10.exp;
-                    if (fp_fmt != fmt_flags::kFixed || n_digs == pow_table_t::kPrecLimit) {
-                        // remove one excess digit, do 'nearest even' rounding
-                        fp10.mantissa = (((res128.hi / 10)) & 1) == 0 && res128.lo == 0 ? res128.hi + 4 : res128.hi + 5;
-                        fp10.mantissa /= 10;
+                    fp10.mantissa = ((1 + ((res128.hi + 6) / 10)) & 1) == 0 && res128.lo == 0 ? res128.hi + 4 :
+                                                                                                res128.hi + 5;
+                    fp10.mantissa = 1844674407370955161 + (fp10.mantissa + 6) / 10;
+                } else {
+                    // do 'nearest even' rounding
+                    const uint64_t half = 1ull << 63;
+                    const uint64_t frac = (res128.hi & 1) == 0 ? res128.lo + half - 1 : res128.lo + half;
+                    fp10.mantissa = frac < res128.lo ? res128.hi + 1 : res128.hi;
+                    if (fp10.mantissa >= g_pow_tbl.decimal_mul[n_digs]) {  // one excess digit
+                        ++fp10.exp;
+                        if (fp_fmt != fmt_flags::kFixed || n_digs == pow_table_t::kPrecLimit) {
+                            // remove one excess digit, do 'nearest even' rounding
+                            fp10.mantissa = ((res128.hi / 10) & 1) == 0 && res128.lo == 0 ? res128.hi + 4 :
+                                                                                            res128.hi + 5;
+                            fp10.mantissa /= 10;
+                        }
                     }
                 }
             }
         }
 
-        p = fmt_fp_exp10(p, fp10, fmt.flags, prec);
+        p = fmt_fp_exp10(last, fp10, fmt.flags, prec);
 
         unsigned len = static_cast<unsigned>(last - p) + show_sign;
         if (fmt.width > len && !!(fmt.flags & fmt_flags::kLeadingZeroes)) {
