@@ -719,14 +719,14 @@ Appender fmt_float(Ty val, const fmt_state& fmt, Appender appender) {
         if (prec < 0) { prec = 6; }
 
         if (exp > -fp_traits<Ty>::kExpBias || mantissa != 0) {
-            // Shift mantissa so it has only one left `0` bit to prevent overflow in future
+            // Shift binary mantissa so the MSB bit is `1`
             if (exp == -fp_traits<Ty>::kExpBias) {  // handle denormalized form
                 const unsigned log = ulog2(mantissa);
-                mantissa <<= 62 - log;
+                mantissa <<= 63 - log;
                 exp -= fp_traits<Ty>::kBitsPerMantissa - log - 1;
             } else {
-                mantissa <<= 62 - fp_traits<Ty>::kBitsPerMantissa;
-                mantissa |= 1ull << 62;
+                mantissa <<= 63 - fp_traits<Ty>::kBitsPerMantissa;
+                mantissa |= 1ull << 63;
             }
 
             // Obtain decimal power
@@ -756,44 +756,87 @@ Appender fmt_float(Ty val, const fmt_state& fmt, Appender appender) {
                 res128.hi += mantissa;  // apply implicit 1 term of normalized coefficient
                 exp += coef.exp;        // sum exponents as well
 
-                // round unreliable bits
-                const uint64_t half0 = 1ull << 31;
-                res128.lo += half0;
-                if (res128.lo < half0) { ++res128.hi; }
-                res128.lo &= ~((half0 << 1) - 1);
+                // Do banker's or `nearest even` rounding :
+                // It seems that perfect rounding is not possible, because theoretical decimal mantissa
+                // representation can be of infinite length. But we use some heuristic to detect exact halves.
+                // If we take long enough range of bits after the point where we need to break series then
+                // analyzing this bits we can make the decision in which direction to round.
+                // The following bits: x x x x x x 1 0 0 0 0 0 0 0 0 0 . . . . . . we concider as exact half
+                //                     x x x x x x 0 1 1 1 1 1 1 1 1 1 . . . . . . and this is exact half too
+                //                    | needed    | to be truncated   | unknown   |
+                // In our case we need known count of left bits `res128.hi`, which represent integer part of
+                // decimal mantissa, all other bits are rounded and dropped. To decide in which direction to round
+                // we use reliable bits after decimal mantissa. Totally 96 bits are reliable, because `coef10to2`
+                // has 96-bit precision. So, we use only `res128.hi` and higher 32-bit part of `res128.lo`.
 
-                bool high = false;
-                // align fractional part with 64-bit boundary
-                if (exp > 62) {
-                    high = res128.hi & (1ull << 63);
-                    res128 = shl(res128, 1);
-                } else if (exp < 62) {
-                    unsigned shift = 62 - exp;
-                    if (shift < 64) {
-                        res128 = shr(res128, shift);
-                    } else {
-                        res128.lo = res128.hi >> (shift - 64);
-                        res128.hi = 0;
-                    }
-                }
+                // Drop unreliable bits and resolve the case of periodical `1`
+                const uint64_t lsb = res128.lo & (1ull << 32);
+                res128.lo += lsb;
+                if (res128.lo < lsb) { ++res128.hi; }  // handle lower part overflow
+                res128.lo &= ~((1ull << 32) - 1);      // zero lower 32-bit part of `res128.lo`
 
-                if (high) {
+                // Overflow is possible while summing `res128.hi += mantissa` or rounding - store this
+                // overflowed bit. We must take it into account in further calculations
+                const uint64_t higher_bit = res128.hi < mantissa ? 1ull : 0ull;
+
+                // Store the shift needed to align integer part of decimal mantissa with 64-bit boundary
+                const unsigned shift = 63 - exp;
+
+                // Note: resulting decimal mantissa has the form `C * 10^n_digs`, where `C` belongs [1, 20) range.
+                // So, if `C >= 10` we get decimal mantissa with one excess digit. We should detect these cases
+                // and divide decimal mantissa by 10 for scientific format
+
+                if (shift == 0 && higher_bit) {
+                    // Special case: decimal mantissa has 65 significant bits. We have one excess digit for sure.
+                    // Moreover we can't handle more than 64 bits while outputting the number.
                     ++fp10.exp;
-                    fp10.mantissa = ((1 + ((res128.hi + 6) / 10)) & 1) == 0 && res128.lo == 0 ? res128.hi + 4 :
-                                                                                                res128.hi + 5;
-                    fp10.mantissa = 1844674407370955161 + (fp10.mantissa + 6) / 10;
+                    // Here we are going to divide 65-bit value by 10. We know the division result for 10^64 summand,
+                    // so we just use it. We need to drop one lower digit, so we detect even count of tens.
+                    const uint64_t div64 = 1844674407370955161, mod64 = 6;
+                    fp10.mantissa = div64 + (fp10.mantissa + mod64) / 10;
+                    uint64_t mod = res128.hi - 10 * fp10.mantissa + 5;
+                    if (res128.lo == 0 && (fp10.mantissa & 1) == 0) { --mod; }
+                    if (mod >= 10) { ++fp10.mantissa; }
                 } else {
-                    // do 'nearest even' rounding
-                    const uint64_t half = 1ull << 63;
-                    const uint64_t frac = (res128.hi & 1) == 0 ? res128.lo + half - 1 : res128.lo + half;
-                    fp10.mantissa = frac < res128.lo ? res128.hi + 1 : res128.hi;
-                    if (fp10.mantissa >= g_pow_tbl.decimal_mul[n_digs]) {  // one excess digit
-                        ++fp10.exp;
-                        if (fp_fmt != fmt_flags::kFixed || n_digs == pow_table_t::kPrecLimit) {
-                            // remove one excess digit, do 'nearest even' rounding
-                            fp10.mantissa = ((res128.hi / 10) & 1) == 0 && res128.lo == 0 ? res128.hi + 4 :
-                                                                                            res128.hi + 5;
-                            fp10.mantissa /= 10;
+                    // Align fractional part of with 64-bit boundary
+                    uint64_t lower = 0;  // we will store lower shifted bits here
+                    if (shift > 0) {
+                        if (shift < 64) {
+                            lower = res128.lo << (64 - shift);
+                            res128 = shr(res128, shift);
+                            res128.hi |= higher_bit << (64 - shift);
+                        } else if (shift > 64) {
+                            lower = res128.hi << (128 - shift);
+                            res128.lo = (res128.hi >> (shift - 64)) | (higher_bit << (64 - shift));
+                            res128.hi = higher_bit >> (shift - 64);
+                        } else {
+                            lower = res128.lo;
+                            res128.lo = res128.hi;
+                            res128.hi = higher_bit;
+                        }
+                    }
+
+                    if (res128.hi >= g_pow_tbl.decimal_mul[n_digs] &&
+                        (fp_fmt != fmt_flags::kFixed || n_digs == pow_table_t::kPrecLimit)) {
+                        ++fp10.exp;  // one excess digit
+                        // Remove one excess digit for scientific format, do 'nearest even' rounding
+                        fp10.mantissa = res128.hi / 10;
+                        uint64_t mod = res128.hi - 10 * fp10.mantissa + 5;
+                        if (res128.lo == 0 && lower == 0 && (fp10.mantissa & 1) == 0) { --mod; }
+                        if (mod >= 10) { ++fp10.mantissa; }
+                    } else {  // desired digit count
+                        // Do 'nearest even' rounding
+                        const uint64_t half = 1ull << 63;
+                        const uint64_t frac = lower == 0 && (res128.hi & 1) == 0 ? res128.lo + half - 1 :
+                                                                                   res128.lo + half;
+                        fp10.mantissa = frac < res128.lo ? res128.hi + 1 : res128.hi;
+                        if (fp10.mantissa >= g_pow_tbl.decimal_mul[n_digs]) {
+                            ++fp10.exp;  // one excess digit
+                            if (fp_fmt != fmt_flags::kFixed || n_digs == pow_table_t::kPrecLimit) {
+                                // Remove one excess digit for scientific format
+                                // Note: `fp10.mantissa` is exact power of 10 in this case
+                                fp10.mantissa /= 10;
+                            }
                         }
                     }
                 }
