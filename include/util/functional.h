@@ -161,21 +161,21 @@ class function_call_iterator : private func_ptr_holder<Func> {
  public:
     using iterator_category = std::output_iterator_tag;
     using value_type = void;
-    using difference_type = void;
+    using difference_type = std::ptrdiff_t;
     using reference = void;
     using pointer = void;
 
     explicit function_call_iterator(const Func& fn) : func_ptr_holder<Func>(fn) {}
 
     template<typename Ty>
-    function_call_iterator& operator=(const Ty& v) {
-        this->get_func()(v);
+    function_call_iterator& operator=(Ty&& v) {
+        this->get_func()(std::forward<Ty>(v));
         return *this;
     }
 
     function_call_iterator& operator*() { return *this; }
     function_call_iterator& operator++() { return *this; }
-    function_call_iterator& operator++(int) { return *this; }
+    function_call_iterator operator++(int) { return *this; }
 };
 
 template<typename Func>
@@ -186,6 +186,89 @@ function_call_iterator<Func> function_caller(const Func& func) {
 #ifdef USE_CHECKED_ITERATORS
 template<typename Func>
 struct std::_Is_checked_helper<function_call_iterator<Func>> : std::true_type {};
+#endif  // USE_CHECKED_ITERATORS
+
+template<typename BaseIt, typename = void>
+class limited_output_iterator {
+ public:
+    using iterator_type = BaseIt;
+    using iterator_category = std::output_iterator_tag;
+    using value_type = void;
+    using difference_type = std::ptrdiff_t;
+    using reference = void;
+    using pointer = void;
+
+    limited_output_iterator() = default;
+    limited_output_iterator(BaseIt base, difference_type limit) : base_(base), limit_(limit) {}
+
+    template<typename Ty>
+    limited_output_iterator& operator=(Ty&& v) {
+        if (limit_) { *base_ = std::forward<Ty>(v); }
+        return *this;
+    }
+
+    limited_output_iterator& operator*() { return *this; }
+    limited_output_iterator& operator++() {
+        ++base_, --limit_;
+        return *this;
+    }
+    limited_output_iterator operator++(int) {
+        limited_output_iterator it = *this;
+        ++*this;
+        return it;
+    }
+
+    iterator_type base() const { return base_; }
+
+ private:
+    iterator_type base_;
+    difference_type limit_;
+};
+
+template<typename BaseIt>
+class limited_output_iterator<BaseIt, std::enable_if_t<is_random_access_iterator<BaseIt>::value>> {
+ public:
+    using iterator_type = BaseIt;
+    using iterator_category = std::output_iterator_tag;
+    using value_type = void;
+    using difference_type = std::ptrdiff_t;
+    using reference = void;
+    using pointer = void;
+
+    limited_output_iterator() = default;
+    limited_output_iterator(iterator_type base, difference_type limit) : first_(base), last_(base + limit) {}
+
+    template<typename Ty>
+    limited_output_iterator& operator=(Ty&& v) {
+        if (first_ != last_) { *first_ = std::forward<Ty>(v); }
+        return *this;
+    }
+
+    limited_output_iterator& operator*() { return *this; }
+    limited_output_iterator& operator++() {
+        ++first_;
+        return *this;
+    }
+    limited_output_iterator operator++(int) {
+        limited_output_iterator it = *this;
+        ++*this;
+        return it;
+    }
+
+    iterator_type base() const { return first_; }
+
+ private:
+    iterator_type first_, last_;
+};
+
+template<typename BaseIt>
+limited_output_iterator<BaseIt> limit_output_iterator(const BaseIt& base, std::ptrdiff_t limit) {
+    return limited_output_iterator<BaseIt>(base, limit);
+}
+
+#ifdef USE_CHECKED_ITERATORS
+template<typename BaseIt>
+struct std::_Is_checked_helper<limited_output_iterator<BaseIt>> : std::true_type {};
 #endif  // USE_CHECKED_ITERATORS
 
 }  // namespace util

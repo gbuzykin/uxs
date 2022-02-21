@@ -93,4 +93,13 @@ struct nofunc {
     }
 };
 
+struct plus {
+    template<typename TyL, typename TyR>
+    std::decay_t<TyL> operator()(TyL&& lhs, const TyR& rhs) const {
+        std::decay_t<TyL> result(std::move(lhs));
+        result += rhs;
+        return result;
+    }
+};
+
 }  // namespace util
