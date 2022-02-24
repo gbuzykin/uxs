@@ -793,7 +793,7 @@ Appender fmt_float(Ty val, const fmt_state& fmt, Appender appender) {
                     // Here we are going to divide 65-bit value by 10. We know the division result for 10^64 summand,
                     // so we just use it. We need to drop one lower digit, so we detect even count of tens.
                     const uint64_t div64 = 1844674407370955161, mod64 = 6;
-                    fp10.mantissa = div64 + (fp10.mantissa + mod64) / 10;
+                    fp10.mantissa = div64 + (res128.hi + mod64) / 10;
                     uint64_t mod = res128.hi - 10 * fp10.mantissa + 5;
                     if (res128.lo == 0 && (fp10.mantissa & 1) == 0) { --mod; }
                     if (mod >= 10) { ++fp10.mantissa; }
