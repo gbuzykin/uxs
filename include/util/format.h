@@ -88,12 +88,35 @@ inline const char* parse_fmt_type(const char* p, fmt_state& fmt) {
         case 'X': fmt.flags |= fmt_flags::kHex | fmt_flags::kUpperCase; return p;
         case 'p': return p;
         case 'P': fmt.flags |= fmt_flags::kUpperCase; return p;
-        case 'f': fmt.flags |= fmt_flags::kFixed; return p;
-        case 'F': fmt.flags |= fmt_flags::kFixed | fmt_flags::kUpperCase; return p;
-        case 'e': fmt.flags |= fmt_flags::kScientific; return p;
-        case 'E': fmt.flags |= fmt_flags::kScientific | fmt_flags::kUpperCase; return p;
-        case 'g': return p;
-        case 'G': fmt.flags |= fmt_flags::kUpperCase; return p;
+        case 'f': {
+            fmt.flags |= fmt_flags::kFixed;
+            if (fmt.prec < 0) { fmt.prec = 6; }
+            return p;
+        } break;
+        case 'F': {
+            fmt.flags |= fmt_flags::kFixed | fmt_flags::kUpperCase;
+            if (fmt.prec < 0) { fmt.prec = 6; }
+            return p;
+        } break;
+        case 'e': {
+            fmt.flags |= fmt_flags::kScientific;
+            if (fmt.prec < 0) { fmt.prec = 6; }
+            return p;
+        } break;
+        case 'E': {
+            fmt.flags |= fmt_flags::kScientific | fmt_flags::kUpperCase;
+            if (fmt.prec < 0) { fmt.prec = 6; }
+            return p;
+        } break;
+        case 'g': {
+            if (fmt.prec < 0) { fmt.prec = 6; }
+            return p;
+        } break;
+        case 'G': {
+            fmt.flags |= fmt_flags::kUpperCase;
+            if (fmt.prec < 0) { fmt.prec = 6; }
+            return p;
+        } break;
         default: break;
     }
     return p - 1;

@@ -259,6 +259,10 @@ struct pow_table_t {
 
 static const pow_table_t g_pow_tbl;
 
+static const int g_default_prec[] = {2,  2,  2,  3,  3,  3,  4,  4,  4,  5,  5,  5,  5,  6,  6,  6,  7,  7,
+                                     7,  8,  8,  8,  8,  9,  9,  9,  10, 10, 10, 11, 11, 11, 11, 12, 12, 12,
+                                     13, 13, 13, 14, 14, 14, 14, 15, 15, 15, 16, 16, 16, 17, 17, 17, 17};
+
 struct fp_exp10_format {
     uint64_t mantissa = 0;
     int exp = 0;
@@ -602,67 +606,39 @@ Appender fmt_signed(Ty val, const fmt_state& fmt, Appender appender) {
     return appender;
 }
 
-static char* fmt_fp_exp10(char* p, const fp_exp10_format& fp10, fmt_flags flags, int prec) {
-    bool trim_zeroes = false;
-    fmt_flags fp_fmt = flags & fmt_flags::kFloatField;
-    if (fp_fmt == fmt_flags::kGeneral) {
-        trim_zeroes = true;
-        prec = std::max(prec - 1, 0);
-        if (fp10.exp >= -4 && fp10.exp <= prec) { fp_fmt = fmt_flags::kFixed, prec -= fp10.exp; }
+static char* fmt_fp_exp10(char* p, const fp_exp10_format& fp10, fmt_flags flags, int n_zeroes, int prec) {
+    // add exponent
+    int exp10 = fp10.exp;
+    if (exp10 < 0) { exp10 = -exp10; }
+    if (exp10 >= 10) {
+        do { *--p = get_dig_and_div(exp10); } while (exp10 != 0);
+    } else {
+        *--p = '0' + exp10;
+        *--p = '0';
     }
+    *--p = fp10.exp < 0 ? '-' : '+';
+    *--p = !(flags & fmt_flags::kUpperCase) ? 'e' : 'E';
 
     uint64_t m = fp10.mantissa;
-    int n_zeroes = prec;
-    if (m != 0) {
-        int n_digs = 1 + prec;
-        if (fp_fmt == fmt_flags::kFixed) { n_digs += fp10.exp; }
-        // count trailing zeroes
-        n_zeroes = std::max(n_digs - pow_table_t::kPrecLimit, 0);
-        for (;;) {
-            uint64_t t = m / 10;
-            if (m > 10 * t) { break; }
-            ++n_zeroes, m = t;
-        }
-    }
-
-    if (fp_fmt != fmt_flags::kFixed) {
-        // add exponent
-        int exp10 = fp10.exp;
-        if (exp10 < 0) { exp10 = -exp10; }
-        if (exp10 >= 10) {
-            do { *--p = get_dig_and_div(exp10); } while (exp10 != 0);
-        } else {
-            *--p = '0' + exp10;
-            *--p = '0';
-        }
-        *--p = fp10.exp < 0 ? '-' : '+';
-        *--p = !(flags & fmt_flags::kUpperCase) ? 'e' : 'E';
-
-        // fractional part
-        char* p0 = p;
-        prec -= n_zeroes;
-        if (!trim_zeroes) {
-            for (; n_zeroes > 0; --n_zeroes) { *--p = '0'; }
-        }
-        for (; prec > 0; --prec) { *--p = get_dig_and_div(m); }
-
-        // integer part
-        if (p < p0 || !!(flags & fmt_flags::kShowPoint)) { *--p = '.'; }
-        *--p = '0' + m;
-        return p;
-    }
 
     // fractional part
     char* p0 = p;
-    if (trim_zeroes) {
-        if (n_zeroes < prec) {
-            prec -= n_zeroes;
-            n_zeroes = 0;
-            for (; prec > 0; --prec) { *--p = get_dig_and_div(m); }
-        } else {
-            n_zeroes -= prec;
-        }
-    } else if (n_zeroes < prec) {
+    prec -= n_zeroes;
+    for (; n_zeroes > 0; --n_zeroes) { *--p = '0'; }
+    for (; prec > 0; --prec) { *--p = get_dig_and_div(m); }
+
+    // integer part
+    if (p < p0 || !!(flags & fmt_flags::kShowPoint)) { *--p = '.'; }
+    *--p = '0' + m;
+    return p;
+}
+
+static char* fmt_fp_exp10_fixed(char* p, const fp_exp10_format& fp10, fmt_flags flags, int n_zeroes, int prec) {
+    uint64_t m = fp10.mantissa;
+
+    // fractional part
+    char* p0 = p;
+    if (n_zeroes < prec) {
         prec -= n_zeroes;
         for (; n_zeroes > 0; --n_zeroes) { *--p = '0'; }
         for (; prec > 0; --prec) { *--p = get_dig_and_div(m); }
@@ -715,33 +691,32 @@ Appender fmt_float(Ty val, const fmt_state& fmt, Appender appender) {
         }
     } else {
         fp_exp10_format fp10;
+        fmt_flags fp_fmt = fmt.flags & fmt_flags::kFloatField;
         int prec = fmt.prec;
-        if (prec < 0) { prec = 6; }
 
-        if (exp > -fp_traits<Ty>::kExpBias || mantissa != 0) {
-            // Shift binary mantissa so the MSB bit is `1`
-            if (exp == -fp_traits<Ty>::kExpBias) {  // handle denormalized form
-                const unsigned log = ulog2(mantissa);
-                mantissa <<= 63 - log;
-                exp -= fp_traits<Ty>::kBitsPerMantissa - log - 1;
-            } else {
-                mantissa <<= 63 - fp_traits<Ty>::kBitsPerMantissa;
-                mantissa |= 1ull << 63;
-            }
+        // Shift binary mantissa so the MSB bit is `1`
+        unsigned log = fp_traits<Ty>::kBitsPerMantissa;
+        if (exp == -fp_traits<Ty>::kExpBias) {  // handle denormalized form
+            log = ulog2(mantissa);
+            mantissa <<= 63 - log;
+            exp -= fp_traits<Ty>::kBitsPerMantissa - log - 1;
+        } else {
+            mantissa <<= 63 - fp_traits<Ty>::kBitsPerMantissa;
+            mantissa |= 1ull << 63;
+        }
 
+        if (prec < 0) { prec = g_default_prec[log]; }
+
+        if (mantissa != 0) {
             // Obtain decimal power
             fp10.exp = g_pow_tbl.exp2to10[pow_table_t::kPow2Max + exp];
 
             // Evaluate desired decimal mantissa length (its integer part)
             // Note: integer part of decimal mantissa is the digits to output,
             // fractional part of decimal mantissa is to be rounded and dropped
-            int n_digs = 1 + prec;  // total digit count for scientific format
-            const fmt_flags fp_fmt = fmt.flags & fmt_flags::kFloatField;
-            if (fp_fmt == fmt_flags::kFixed) {
-                n_digs += fp10.exp;  // for fixed format
-            } else if (fp_fmt == fmt_flags::kGeneral && n_digs > 1) {
-                --n_digs;  // for general format
-            }
+            if (fp_fmt == fmt_flags::kDefault) { prec = std::max(prec - 1, 0); }
+            int n_digs = 1 + prec;                                    // desired digit count for scientific format
+            if (fp_fmt == fmt_flags::kFixed) { n_digs += fp10.exp; }  // for fixed format
 
             if (n_digs >= 0) {
                 n_digs = std::min<int>(n_digs, pow_table_t::kPrecLimit);
@@ -754,7 +729,6 @@ Appender fmt_float(Ty val, const fmt_state& fmt, Appender appender) {
                 const auto& coef = g_pow_tbl.coef10to2[pow_table_t::kPow10Max - fp10.exp + n_digs - 1];
                 auto res128 = mul64x64(mantissa, coef.m, mul64x32(mantissa, coef.m2).hi);
                 res128.hi += mantissa;  // apply implicit 1 term of normalized coefficient
-                exp += coef.exp;        // sum exponents as well
 
                 // Do banker's or `nearest even` rounding :
                 // It seems that perfect rounding is not possible, because theoretical decimal mantissa
@@ -780,7 +754,7 @@ Appender fmt_float(Ty val, const fmt_state& fmt, Appender appender) {
                 const uint64_t higher_bit = res128.hi < mantissa ? 1ull : 0ull;
 
                 // Store the shift needed to align integer part of decimal mantissa with 64-bit boundary
-                const unsigned shift = 63 - exp;
+                const unsigned shift = 63 - exp - coef.exp;  // sum coefficient exponent as well
 
                 // Note: resulting decimal mantissa has the form `C * 10^n_digs`, where `C` belongs [1, 20) range.
                 // So, if `C >= 10` we get decimal mantissa with one excess digit. We should detect these cases
@@ -824,7 +798,7 @@ Appender fmt_float(Ty val, const fmt_state& fmt, Appender appender) {
                         uint64_t mod = res128.hi - 10 * fp10.mantissa + 5;
                         if (res128.lo == 0 && lower == 0 && (fp10.mantissa & 1) == 0) { --mod; }
                         if (mod >= 10) { ++fp10.mantissa; }
-                    } else {  // desired digit count
+                    } else {
                         // Do 'nearest even' rounding
                         const uint64_t half = 1ull << 63;
                         const uint64_t frac = lower == 0 && (res128.hi & 1) == 0 ? res128.lo + half - 1 :
@@ -843,7 +817,37 @@ Appender fmt_float(Ty val, const fmt_state& fmt, Appender appender) {
             }
         }
 
-        p = fmt_fp_exp10(last, fp10, fmt.flags, prec);
+        int n_digs = 1 + prec;
+        if (fp_fmt == fmt_flags::kFixed) { n_digs += fp10.exp; }
+        int n_zeroes = std::max<int>(n_digs - pow_table_t::kPrecLimit, 0);  // trailing zero count
+
+        if (fp_fmt == fmt_flags::kDefault) {
+            // Select format for number representation
+            if (fp10.exp >= -4 && fp10.exp <= prec) {
+                fp_fmt = fmt_flags::kFixed;
+                prec -= fp10.exp;
+            }
+
+            // Trim trailing zeroes
+            if (n_zeroes < prec) {
+                prec -= n_zeroes;
+                n_zeroes = 0;
+                while (prec > 0) {
+                    uint64_t t = fp10.mantissa / 10;
+                    if (fp10.mantissa > 10 * t) { break; }
+                    --prec, fp10.mantissa = t;
+                }
+            } else {
+                n_zeroes -= prec;
+                prec = 0;
+            }
+        }
+
+        if (fp_fmt == fmt_flags::kFixed) {
+            p = fmt_fp_exp10_fixed(last, fp10, fmt.flags, n_zeroes, prec);
+        } else {
+            p = fmt_fp_exp10(last, fp10, fmt.flags, n_zeroes, prec);
+        }
 
         unsigned len = static_cast<unsigned>(last - p) + show_sign;
         if (fmt.width > len && !!(fmt.flags & fmt_flags::kLeadingZeroes)) {

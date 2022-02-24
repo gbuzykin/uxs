@@ -48,16 +48,16 @@ void to_hex(unsigned val, OutputIt out, int digs, OutputFn fn = OutputFn{}) {
 }
 
 enum class fmt_flags : unsigned {
-    kDec = 0,
+    kDefault = 0,
+    kDec = kDefault,
     kBin = 1,
     kOct = 2,
     kHex = 3,
     kBaseField = 3,
-    kGeneral = 0,
     kFixed = 4,
     kScientific = 8,
     kFloatField = 12,
-    kRight = 0,
+    kRight = kDefault,
     kLeft = 0x10,
     kInternal = 0x20,
     kAdjustField = 0x30,
@@ -65,7 +65,7 @@ enum class fmt_flags : unsigned {
     kUpperCase = 0x80,
     kShowBase = 0x100,
     kShowPoint = 0x200,
-    kSignNeg = 0,
+    kSignNeg = kDefault,
     kSignPos = 0x400,
     kSignAlign = 0x800,
     kSignField = 0xC00,
