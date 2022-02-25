@@ -2,8 +2,6 @@
 
 #include "string_cvt.h"
 
-#include <vector>
-
 namespace util {
 
 struct setw {
@@ -122,49 +120,49 @@ inline const char* parse_fmt_type(const char* p, fmt_state& fmt) {
     return p - 1;
 }
 
-template<typename Appender>
+template<typename StrTy>
 class fmt_context {
  public:
     template<typename... Args>
     fmt_context(std::string_view fmt, Args&&... args)
-        : first_(fmt.data()), last_(fmt.data() + fmt.size()), appender_(std::forward<Args>(args)...) {}
-    Appender& get_appender() { return appender_; }
+        : first_(fmt.data()), last_(fmt.data() + fmt.size()), str_(std::forward<Args>(args)...) {}
+    StrTy& get_str() { return str_; }
     void set_width(unsigned width) { arg_fmt_.width = width; }
     void set_prec(int prec) { arg_fmt_.prec = prec; }
     bool parse();
 
     void append(std::string_view s) {
         if (s.size() < arg_fmt_.width) {
-            detail::fmt_adjusted(s.begin(), s.end(), arg_fmt_, appender_);
+            detail::fmt_adjusted(str_, arg_fmt_, s.begin(), s.end());
         } else {
-            appender_(s.begin(), s.end());
+            str_.append(s.begin(), s.end());
         }
     }
     void append(const char* cstr) { append(std::string_view(cstr)); }
     void append(void* p) {
         arg_fmt_.flags &= ~fmt_flags::kBaseField;
         arg_fmt_.flags |= fmt_flags::kHex | fmt_flags::kShowBase;
-        appender_.format(reinterpret_cast<uintptr_t>(p), arg_fmt_);
+        append(reinterpret_cast<uintptr_t>(p));
     }
     template<typename Ty, typename = std::void_t<typename string_converter<Ty>::is_string_converter>>
     void append(const Ty& arg) {
-        appender_.format(arg, arg_fmt_);
+        string_converter<Ty>::to_string(str_, arg, arg_fmt_);
     }
 
  private:
     const char* first_;
     const char* last_;
     fmt_state arg_fmt_;
-    Appender appender_;
+    StrTy str_;
 };
 
-template<typename Appender>
-bool fmt_context<Appender>::parse() {
+template<typename StrTy>
+bool fmt_context<StrTy>::parse() {
     const char* p = first_;
     arg_fmt_ = fmt_state();
     while (first_ != last_) {
         if (*first_ == '{' || *first_ == '}') {
-            appender_(p, first_);
+            str_.append(p, first_);
             p = ++first_;
             if (first_ == last_) { break; }
             int balance = 1;
@@ -191,7 +189,7 @@ bool fmt_context<Appender>::parse() {
         }
         ++first_;
     }
-    appender_(p, first_);
+    str_.append(p, first_);
     return false;
 }
 
@@ -221,24 +219,30 @@ void format(Context& ctx, setprec p, Ts&&... other) {
 template<typename... Ts>
 std::string format(std::string_view fmt, Ts&&... args) {
     std::string result;
-    result.reserve(256);
-    detail::fmt_context<string_appender> ctx(fmt, result);
+    detail::fmt_context<std::string&> ctx(fmt, result);
     if (ctx.parse()) { detail::format(ctx, std::forward<Ts>(args)...); }
     return result;
+}
+
+template<typename StrTy, typename... Ts>
+StrTy& format_append(StrTy& s, std::string_view fmt, Ts&&... args) {
+    detail::fmt_context<StrTy&> ctx(fmt, s);
+    if (ctx.parse()) { detail::format(ctx, std::forward<Ts>(args)...); }
+    return s;
 }
 
 template<typename... Ts>
 char* format_to(char* dst, std::string_view fmt, Ts&&... args) {
     detail::fmt_context<char_buf_appender> ctx(fmt, dst);
     if (ctx.parse()) { detail::format(ctx, std::forward<Ts>(args)...); }
-    return ctx.get_appender().get();
+    return ctx.get_str().get_ptr();
 }
 
 template<typename... Ts>
 char* format_to_n(char* dst, size_t n, std::string_view fmt, Ts&&... args) {
     detail::fmt_context<char_n_buf_appender> ctx(fmt, dst, n);
     if (ctx.parse()) { detail::format(ctx, std::forward<Ts>(args)...); }
-    return ctx.get_appender().get();
+    return ctx.get_str().get_ptr();
 }
 
 }  // namespace util
