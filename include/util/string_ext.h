@@ -119,19 +119,24 @@ std::string replace_strings(std::string_view s, Finder finder, std::string_view 
     return result;
 }
 
-template<typename Range, typename SepTy, typename JoinFn = plus>
-std::string join_strings(const Range& r, SepTy sep, std::string prefix, JoinFn fn = JoinFn{}) {
+template<typename Range, typename SepTy, typename StrTy, typename JoinFn = grow>
+StrTy& join_strings_append(StrTy& s, const Range& r, SepTy sep, JoinFn fn = JoinFn{}) {
     if (std::begin(r) != std::end(r)) {
         for (auto it = std::begin(r);;) {
-            prefix = fn(std::move(prefix), *it);
+            fn(s, *it);
             if (++it != std::end(r)) {
-                prefix += sep;
+                s += sep;
             } else {
                 break;
             }
         }
     }
-    return std::move(prefix);
+    return s;
+}
+
+template<typename Range, typename SepTy, typename JoinFn = grow>
+std::string join_strings(const Range& r, SepTy sep, std::string prefix, JoinFn fn = JoinFn{}) {
+    return std::move(join_strings_append(prefix, r, sep, fn));
 }
 
 template<split_flags flags = split_flags::kNoFlags, typename Finder, typename OutputFn,  //
@@ -236,29 +241,34 @@ auto separate_words(std::string_view s, char sep, OutputFn fn = OutputFn{})
     return result;
 }
 
-template<typename Range, typename InputFn = nofunc>
-std::string pack_strings(const Range& r, char sep, std::string prefix, InputFn fn = InputFn{}) {
+template<typename Range, typename StrTy, typename InputFn = nofunc>
+StrTy& pack_strings_append(StrTy& s, const Range& r, char sep, InputFn fn = InputFn{}) {
     if (std::begin(r) != std::end(r)) {
         for (auto it = std::begin(r);;) {
             auto el = fn(*it);
             auto p = std::begin(el), p0 = p;
             for (; p != std::end(el); ++p) {
                 if (*p == '\\' || *p == sep) {
-                    prefix.append(p0, p);
-                    prefix += '\\';
+                    s.append(p0, p);
+                    s += '\\';
                     p0 = p;
                 }
             }
-            prefix.append(p0, p);
+            s.append(p0, p);
             if (++it != std::end(r)) {
-                prefix += sep;
+                s += sep;
             } else {
-                if (std::begin(el) == std::end(el)) { prefix += sep; }
+                if (std::begin(el) == std::end(el)) { s += sep; }
                 break;
             }
         }
     }
-    return std::move(prefix);
+    return s;
+}
+
+template<typename Range, typename InputFn = nofunc>
+std::string pack_strings(const Range& r, char sep, std::string prefix, InputFn fn = InputFn{}) {
+    return std::move(pack_strings_append(prefix, r, sep, fn));
 }
 
 template<typename OutputFn, typename OutputIt>

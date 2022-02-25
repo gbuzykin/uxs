@@ -93,12 +93,10 @@ struct nofunc {
     }
 };
 
-struct plus {
+struct grow {
     template<typename TyL, typename TyR>
-    std::decay_t<TyL> operator()(TyL&& lhs, const TyR& rhs) const {
-        std::decay_t<TyL> result(std::move(lhs));
-        result += rhs;
-        return result;
+    TyL& operator()(TyL& lhs, const TyR& rhs) const {
+        return lhs += rhs;
     }
 };
 
