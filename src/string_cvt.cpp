@@ -267,7 +267,8 @@ struct pow_table_t {
     enum : uint64_t { kMaxMantissa10 = 10000000000000000000ull };
     std::array<fp_m96_t, 2 * kPow10Max + 1> coef10to2;
     std::array<int, 2 * kPow2Max + 1> exp2to10;
-    std::array<uint64_t, 20> decimal_mul;
+    std::array<uint64_t, 20> ten_pows;
+    std::array<uint64_t, 190> decimal_mul;
     pow_table_t() {
         // 10^N -> 2^M power conversion table
         large_int<24> lrg{10};
@@ -290,9 +291,16 @@ struct pow_table_t {
             exp2to10[kPow2Max + exp] = kPow10Max - static_cast<int>(it - coef10to2.begin());
         }
 
-        // decimal multipliers 10^N, N = 0, 1, 2, ...
+        // powers of ten 10^N, N = 0, 1, 2, ...
         uint64_t mul = 1ull;
-        for (uint32_t n = 0; n < decimal_mul.size(); ++n, mul *= 10) { decimal_mul[n] = mul; }
+        for (uint32_t n = 0; n < ten_pows.size(); ++n, mul *= 10) { ten_pows[n] = mul; }
+
+        // deciman multipliers
+        mul = 1ull;
+        for (uint32_t n = 0; n < decimal_mul.size(); n += 10, mul *= 10) {
+            decimal_mul[n] = mul;
+            for (uint32_t k = 1; k < 10; ++k) { decimal_mul[n + k] = mul * k; }
+        }
     }
 };
 
@@ -784,6 +792,7 @@ StrTy& fmt_float(StrTy& s, Ty val, const fmt_state& fmt) {
     fp_exp10_format fp10;
     fmt_flags fp_fmt = fmt.flags & fmt_flags::kFloatField;
     int prec = fmt.prec;
+    bool optimal = false;
 
     // Shift binary mantissa so the MSB bit is `1`
     unsigned log = fp_traits<Ty>::kBitsPerMantissa;
@@ -796,7 +805,10 @@ StrTy& fmt_float(StrTy& s, Ty val, const fmt_state& fmt) {
         mantissa |= 1ull << 63;
     }
 
-    if (prec < 0) { prec = g_default_prec[log]; }
+    if (prec < 0) {
+        prec = g_default_prec[log];
+        optimal = fp_fmt == fmt_flags::kDefault;
+    }
 
     if (mantissa != 0) {
         // Obtain decimal power
@@ -847,54 +859,57 @@ StrTy& fmt_float(StrTy& s, Ty val, const fmt_state& fmt) {
 
             // Store the shift needed to align integer part of decimal mantissa with 64-bit boundary
             const unsigned shift = 63 - exp - coef.exp;  // sum coefficient exponent as well
-
             // Note: resulting decimal mantissa has the form `C * 10^n_digs`, where `C` belongs [1, 20) range.
             // So, if `C >= 10` we get decimal mantissa with one excess digit. We should detect these cases
             // and divide decimal mantissa by 10 for scientific format
 
-            if (shift == 0 && higher_bit) {
-                // Special case: decimal mantissa has 65 significant bits. We have one excess digit for sure.
-                // Moreover we can't handle more than 64 bits while outputting the number.
+            int64_t err = 0;
+            unsigned err_shift = 0;
+            const uint64_t* err_mul = g_pow_tbl.decimal_mul.data();
+            if (shift == 0 && higher_bit != 0) {
+                assert(n_digs == pow_table_t::kPrecLimit);
+                // Decimal mantissa contains one excess digit, which doesn't fit 64 bits.
+                // We can't handle more than 64 bits while outputting the number, so remove it.
+                // Note: if `higher_bit == 1` decimal mantissa has 65 significant bits
                 ++fp10.exp;
-                // Here we are going to divide 65-bit value by 10. We know the division result for 10^64 summand,
-                // so we just use it. We need to drop one lower digit, so we detect even count of tens.
+                // Divide 65-bit value by 10.
+                // We know the division result for 10^64 summand, so we just use it.
                 const uint64_t div64 = 1844674407370955161, mod64 = 6;
                 fp10.mantissa = div64 + (res128.hi + mod64) / 10;
-                uint64_t mod = res128.hi - 10 * fp10.mantissa + 5;
-                if (res128.lo == 0 && (fp10.mantissa & 1) == 0) { --mod; }
-                if (mod >= 10) { ++fp10.mantissa; }
+                int64_t mod = res128.hi - 10 * fp10.mantissa;
+                if (mod > 5 || (mod == 5 && (res128.lo != 0 || (fp10.mantissa & 1) != 0))) { ++fp10.mantissa; }
             } else {
-                // Align fractional part of with 64-bit boundary
-                uint64_t lower = 0;  // we will store lower shifted bits here
-                if (shift > 0) {
-                    if (shift < 64) {
-                        lower = res128.lo << (64 - shift);
-                        res128 = shr(res128, shift);
-                        res128.hi |= higher_bit << (64 - shift);
-                    } else if (shift > 64) {
-                        lower = res128.hi << (128 - shift);
-                        res128.lo = (res128.hi >> (shift - 64)) | (higher_bit << (64 - shift));
-                        res128.hi = higher_bit >> (shift - 64);
-                    } else {
-                        lower = res128.lo;
-                        res128.lo = res128.hi;
-                        res128.hi = higher_bit;
-                    }
+                // Align fractional part of with 64-bit boundary, calculate initial error
+                if (shift >= 46) {
+                    res128.lo = (res128.lo >> 32) | (res128.hi << 32);
+                    res128.hi = (res128.hi >> 32) | (higher_bit << 32);
+                    err_shift = shift - 32;
+                    err = res128.hi & ((1ull << err_shift) - 1);
+                    res128.hi >>= err_shift, log += 32;
+                } else {
+                    err_shift = shift + 4;
+                    err = ((res128.hi << 4) | (res128.lo >> 60)) & ((1ull << err_shift) - 1);
+                    res128.hi = (res128.hi >> shift) | (higher_bit << (64 - shift));
+                    res128.lo <<= 4, log -= 4;
                 }
 
-                if (fp_fmt != fmt_flags::kFixed && res128.hi >= g_pow_tbl.decimal_mul[n_digs]) {
+                if (fp_fmt != fmt_flags::kFixed && res128.hi >= g_pow_tbl.ten_pows[n_digs]) {
                     ++fp10.exp;  // one excess digit
                     // Remove one excess digit for scientific format, do 'nearest even' rounding
                     fp10.mantissa = res128.hi / 10;
-                    uint64_t mod = res128.hi - 10 * fp10.mantissa + 5;
-                    if (res128.lo == 0 && lower == 0 && (fp10.mantissa & 1) == 0) { --mod; }
-                    if (mod >= 10) { ++fp10.mantissa; }
+                    int64_t mod = res128.hi - 10 * fp10.mantissa;
+                    if (mod > 5 || (mod == 5 && (err != 0 || res128.lo != 0 || (fp10.mantissa & 1) != 0))) {
+                        ++fp10.mantissa, mod -= 10;
+                    }
+                    err += mod << err_shift, err_mul += 10;
                 } else {
                     // Do 'nearest even' rounding
-                    const uint64_t half = 1ull << 63;
-                    const uint64_t frac = lower == 0 && (res128.hi & 1) == 0 ? res128.lo + half - 1 : res128.lo + half;
-                    fp10.mantissa = frac < res128.lo ? res128.hi + 1 : res128.hi;
-                    if (fp10.mantissa >= g_pow_tbl.decimal_mul[n_digs]) {
+                    const int64_t half = 1ull << (err_shift - 1);
+                    fp10.mantissa = res128.hi;
+                    if (err > half || (err == half && (res128.lo != 0 || (res128.hi & 1) != 0))) {
+                        ++fp10.mantissa, err -= half << 1;
+                    }
+                    if (fp10.mantissa >= g_pow_tbl.ten_pows[n_digs]) {
                         ++fp10.exp;  // one excess digit
                         if (fp_fmt != fmt_flags::kFixed) {
                             // Remove one excess digit for scientific format
@@ -905,18 +920,70 @@ StrTy& fmt_float(StrTy& s, Ty val, const fmt_state& fmt) {
                 }
             }
 
-            if (fp_fmt == fmt_flags::kDefault && fp10.mantissa != 0) {
-                const int prec0 = prec;
-                prec = n_digs - 1;
-                // Trim trailing zeroes
-                while (true) {
-                    uint64_t t = fp10.mantissa / 10;
-                    if (fp10.mantissa > 10 * t) { break; }
-                    --prec, fp10.mantissa = t;
-                }
-                // Select format for number representation
-                if (fp10.exp >= -4 && fp10.exp <= prec0) {
-                    fp_fmt = fmt_flags::kFixed, prec = std::max(prec - fp10.exp, 0);
+            if (fp10.mantissa != 0) {
+                if (optimal) {
+                    // Evaluate acceptable error range to pass roundtrip test
+                    uint64_t delta_minus = (coef.m.hi >> (log + 1)) + (1ull << (63 - log));
+                    uint64_t delta_plus = delta_minus;
+                    if (exp > -fp_traits<Ty>::kExpBias + 1 && mantissa == 1ull << 63) {
+                        delta_plus = (delta_plus >> 1) + (delta_plus & 1);
+                    }
+                    err <<= 1, ++err_shift;
+                    if (res128.lo >= 0x80000000) { ++err; }
+
+                    // Trim trailing unsignificant digits
+                    const int64_t max_err_mul = delta_minus << 1;
+                    while (true) {
+                        uint64_t t = fp10.mantissa / 10;
+                        int64_t mod = fp10.mantissa - 10 * t;
+                        if (mod > 0) {
+                            err += err_mul[mod] << err_shift;
+                            err_mul += 10;
+                            int64_t err2 = (err_mul[0] << err_shift) - err;
+                            assert(err >= 0 && err2 >= 0);
+                            // If both round directions are acceptable, use banker's rounding
+                            if (static_cast<uint64_t>(err) < delta_plus) {
+                                if (static_cast<uint64_t>(err2) < delta_minus &&
+                                    (err > err2 || (err == err2 && (t & 1) != 0))) {
+                                    ++t, err = -err2;
+                                }
+                            } else if (static_cast<uint64_t>(err2) < delta_minus) {
+                                ++t, err = -err2;
+                            } else {
+                                break;
+                            }
+                        } else {
+                            err_mul += 10;
+                        }
+                        --prec, fp10.mantissa = t;
+                        if ((err_mul[0] << err_shift) >= max_err_mul) {
+                            // Trim trailing zeroes and break
+                            while (true) {
+                                uint64_t t = fp10.mantissa / 10;
+                                if (fp10.mantissa > 10 * t) { break; }
+                                --prec, fp10.mantissa = t;
+                            }
+                            break;
+                        }
+                    }
+                    if (prec < 0) { ++fp10.exp, prec = 0; }
+                    // Select format for number representation
+                    if (fp10.exp >= -4 && fp10.exp <= prec + 4) {
+                        fp_fmt = fmt_flags::kFixed, prec = std::max(prec - fp10.exp, 0);
+                    }
+                } else if (fp_fmt == fmt_flags::kDefault) {
+                    const int prec0 = prec;
+                    prec = n_digs - 1;
+                    // Trim trailing zeroes
+                    while (true) {
+                        uint64_t t = fp10.mantissa / 10;
+                        if (fp10.mantissa > 10 * t) { break; }
+                        --prec, fp10.mantissa = t;
+                    }
+                    // Select format for number representation
+                    if (fp10.exp >= -4 && fp10.exp <= prec0) {
+                        fp_fmt = fmt_flags::kFixed, prec = std::max(prec - fp10.exp, 0);
+                    }
                 }
             }
         }
