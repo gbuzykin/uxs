@@ -18,12 +18,12 @@ namespace detail {
 
 inline const char* parse_fmt_adjustment(const char* p, fmt_state& fmt) {
     switch (*p) {
-        case '<': fmt.flags |= fmt_flags::kRight; return p + 1;
+        case '<': fmt.flags |= fmt_flags::kLeft; return p + 1;
         case '^': fmt.flags |= fmt_flags::kInternal; return p + 1;
         case '>': return p + 1;
         default: {
             switch (*(p + 1)) {
-                case '<': fmt.fill = *p, fmt.flags |= fmt_flags::kRight; return p + 2;
+                case '<': fmt.fill = *p, fmt.flags |= fmt_flags::kLeft; return p + 2;
                 case '^': fmt.fill = *p, fmt.flags |= fmt_flags::kInternal; return p + 2;
                 case '>': fmt.fill = *p; return p + 2;
                 default: break;
