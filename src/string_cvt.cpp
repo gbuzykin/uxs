@@ -2,6 +2,14 @@
 
 #include <array>
 
+#if defined(_MSC_VER)
+#    include <intrin.h>
+#elif defined(__GNUC__) && defined(__x86_64__)
+namespace gcc_ints {
+__extension__ typedef unsigned __int128 uint128;
+}  // namespace gcc_ints
+#endif  // defined(_MSC_VER)
+
 using namespace util;
 
 namespace scvt {
@@ -92,16 +100,36 @@ inline uint128_t shr(uint128_t x, unsigned shift) {
 }
 
 inline uint96_t mul64x32(uint64_t x, uint32_t y, uint32_t bias = 0) {
+#if defined(_MSC_VER) && defined(_M_AMD64)
+    uint128_t result;
+    result.lo = _umul128(x, y, &result.hi) + bias;
+    if (result.lo < bias) { ++result.hi; }
+    return uint96_t{make64(lo32(result.hi), hi32(result.lo)), static_cast<uint32_t>(lo32(result.lo))};
+#elif defined(__GNUC__) && defined(__x86_64__)
+    gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x) * static_cast<gcc_ints::uint128>(y) + bias;
+    return uint96_t{static_cast<uint64_t>(p >> 32), static_cast<uint32_t>(p)};
+#else
     uint64_t lower = lo32(x) * y + bias;
     return uint96_t{hi32(x) * y + hi32(lower), static_cast<uint32_t>(lo32(lower))};
+#endif
 }
 
 inline uint128_t mul64x64(uint64_t x, uint64_t y, uint64_t bias = 0) {
+#if defined(_MSC_VER) && defined(_M_AMD64)
+    uint128_t result;
+    result.lo = _umul128(x, y, &result.hi) + bias;
+    if (result.lo < bias) { ++result.hi; }
+    return result;
+#elif defined(__GNUC__) && defined(__x86_64__)
+    gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x) * static_cast<gcc_ints::uint128>(y) + bias;
+    return uint128_t{static_cast<uint64_t>(p >> 64), static_cast<uint64_t>(p)};
+#else
     uint64_t lower = lo32(x) * lo32(y) + lo32(bias), higher = hi32(x) * hi32(y);
     uint64_t mid = lo32(x) * hi32(y) + hi32(bias), mid0 = mid;
     mid += hi32(x) * lo32(y) + hi32(lower);
     if (mid < mid0) { higher += 0x100000000; }
     return uint128_t{higher + hi32(mid), make64(lo32(mid), lo32(lower))};
+#endif
 }
 
 inline uint128_t mul96x64_hi128(uint96_t x, uint64_t y) {
