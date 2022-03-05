@@ -47,8 +47,8 @@ inline uint64_t lo32(uint64_t x) { return x & 0xffffffff; }
 
 inline uint64_t hi32(uint64_t x) { return x >> 32; }
 
-template<typename Ty>
-uint64_t make64(Ty hi, Ty lo) {
+template<typename TyH, typename TyL>
+uint64_t make64(TyH hi, TyL lo) {
     return (static_cast<uint64_t>(hi) << 32) | static_cast<uint64_t>(lo);
 }
 
@@ -104,9 +104,16 @@ inline uint128_t mul64x64(uint64_t x, uint64_t y, uint64_t bias = 0) {
     return uint128_t{higher + hi32(mid), make64(lo32(mid), lo32(lower))};
 }
 
+inline uint128_t mul96x64_hi128(uint96_t x, uint64_t y) {
+    if (lo32(y) != 0) { return mul64x64(x.hi, y, mul64x32(y, x.lo).hi); }
+    y >>= 32;
+    uint64_t lower = y * x.lo;
+    uint96_t res96 = mul64x32(x.hi, static_cast<uint32_t>(y), static_cast<uint32_t>(hi32(lower)));
+    return uint128_t{res96.hi, make64(res96.lo, lo32(lower))};
+}
+
 struct fp_m96_t {
-    uint64_t m;
-    uint32_t m2;
+    uint96_t m;
     int exp;
 };
 
@@ -162,7 +169,7 @@ struct large_int {
         uint96_t mul{0, 0};
         for (unsigned n = 0; n < count; ++n) {
             mul = mul64x32(x[n], val, static_cast<uint32_t>(hi32(mul.hi)));
-            x[n] = make64<uint64_t>(mul.hi, mul.lo);
+            x[n] = make64(mul.hi, mul.lo);
         }
         if (hi32(mul.hi) != 0) { x[count++] = hi32(mul.hi); }
         return *this;
@@ -219,7 +226,11 @@ struct large_int {
     }
 
     fp_m96_t make_fp_m96(int exp) const {
-        return fp_m96_t{x[kMaxWords - 1], static_cast<uint32_t>(hi32(x[kMaxWords - 2])), exp};
+        uint128_t v{x[kMaxWords - 1], x[kMaxWords - 2]};
+        const uint64_t half = 0x80000000;
+        v.lo += half;
+        if (v.lo < half) { ++v.hi; }
+        return fp_m96_t{v.hi, static_cast<uint32_t>(hi32(v.lo)), exp};
     }
 };
 
@@ -380,31 +391,25 @@ const char* to_float(const char* p, const char* end, Ty& val) {
         } else if (fp10.exp > pow_table_t::kPow10Max) {                  // infinity
             exp = fp_traits<Ty>::kExpMax;
         } else {
+            unsigned log = 1 + ulog2(fp10.mantissa);
+            fp10.mantissa <<= 64 - log;
+
             // Convert decimal mantissa to binary :
             // Note: coefficients in `coef10to2` are normalized and belong [1, 2) range
-            // Note: multiplication of 64-bit mantissa by 96-bit coefficient gives 128+32-bit result:
-            // `res128.hi` (higher 64-bit), `res128.lo` (middle 64-bit), and `res96.lo` (lower 32-bit)
+            // Note: multiplication of 64-bit mantissa by 96-bit coefficient gives 128+32-bit result
+            // but we drop the lowest 32 bits
             const auto& coef = g_pow_tbl.coef10to2[pow_table_t::kPow10Max + fp10.exp];
-            uint128_t res128{0, 0};
-            uint32_t lower = 0;
-            if (hi32(fp10.mantissa) != 0) {
-                auto res96 = mul64x32(fp10.mantissa, coef.m2);
-                lower = res96.lo;
-                res128 = mul64x64(coef.m, fp10.mantissa, res96.hi);
-            } else {
-                res128.lo = fp10.mantissa * coef.m2;
-                auto res96 = mul64x32(coef.m, static_cast<uint32_t>(fp10.mantissa),
-                                      static_cast<uint32_t>(hi32(res128.lo)));
-                lower = static_cast<uint32_t>(lo32(res128.lo));
-                res128.hi = hi32(res96.hi), res128.lo = make64(lo32(res96.hi), static_cast<uint64_t>(res96.lo));
-            }
+            uint128_t res128 = mul96x64_hi128(coef.m, fp10.mantissa);
             res128.hi += fp10.mantissa;  // apply implicit 1 term of normalized coefficient
+            // Note: overflow is possible while summing `res128.hi += fp10.mantissa`
+            // Move binary mantissa to the left position so the most significant `1` is hidden
+            if (res128.hi >= fp10.mantissa) {
+                res128.hi = (res128.hi << 1) | (res128.lo >> 63);
+                res128.lo <<= 1, --log;
+            }
 
-            // Obtain binary exponent :
-            // Note: res128.hi != 0
-            // Note: overflow is possible while summing `res128.hi += fp10.mantissa`, it's normal: log = 64
-            const unsigned log = res128.hi < fp10.mantissa ? 64 : ulog2(res128.hi);  // most significant `1` position
-            exp = fp_traits<Ty>::kExpBias + log + coef.exp;                          // `exp` is biased binary exponent
+            // Obtain binary exponent
+            exp = fp_traits<Ty>::kExpBias + log + coef.exp;
             if (exp >= fp_traits<Ty>::kExpMax) {
                 exp = fp_traits<Ty>::kExpMax;  // infinity
             } else if (exp <= -static_cast<int>(fp_traits<Ty>::kBitsPerMantissa)) {
@@ -413,18 +418,6 @@ const char* to_float(const char* p, const char* end, Ty& val) {
                 exp = 0;
             } else {
                 // General case: obtain rounded binary mantissa bits
-
-                // As far as we are going to round, it's convenient to align binary
-                // mantissa with left 128-bit boundary of `res128`
-
-                // Move mantissa to the left position so the most significant `1` is hidden
-                if (log == 0) {
-                    res128.hi = res128.lo;
-                    res128.lo = make64<uint64_t>(lower, 0);
-                } else if (log < 64) {
-                    res128 = shl(res128, 64 - log);
-                    res128.lo |= make64<uint64_t>(lower, 0) >> log;
-                }
 
                 // When `exp <= 0` mantissa will be denormalized further, so store the real mantissa length
                 const unsigned n_bits = exp > 0 ? fp_traits<Ty>::kBitsPerMantissa :
@@ -445,10 +438,9 @@ const char* to_float(const char* p, const char* end, Ty& val) {
 
                 // Drop unreliable bits and resolve the case of periodical `1`
                 // Note: we do not need to reset lower 32-bit part of `res128.lo`, because it is ignored further
-                const uint64_t before_rounding = res128.hi;
-                const uint64_t lsb = res128.lo & (1ull << 32);
-                res128.lo += lsb;
-                if (res128.lo < lsb) { ++res128.hi; }  // handle lower part overflow
+                const uint64_t before_rounding = res128.hi, lsb_half = 0x80000000;
+                res128.lo += lsb_half;
+                if (res128.lo < lsb_half) { ++res128.hi; }  // handle lower part overflow
 
                 // Do banker's rounding
                 const uint64_t half = 1ull << (63 - n_bits);
@@ -799,7 +791,7 @@ StrTy& fmt_float(StrTy& s, Ty val, const fmt_state& fmt) {
             // To get the desired count of digits we move up the `coef10to2` table, it's equivalent to
             // multiplying the result by a certain power of 10
             const auto& coef = g_pow_tbl.coef10to2[pow_table_t::kPow10Max - fp10.exp + n_digs - 1];
-            auto res128 = mul64x64(mantissa, coef.m, mul64x32(mantissa, coef.m2).hi);
+            uint128_t res128 = mul96x64_hi128(coef.m, mantissa);
             res128.hi += mantissa;  // apply implicit 1 term of normalized coefficient
 
             // Do banker's or `nearest even` rounding :
@@ -816,10 +808,10 @@ StrTy& fmt_float(StrTy& s, Ty val, const fmt_state& fmt) {
             // has 96-bit precision. So, we use only `res128.hi` and higher 32-bit part of `res128.lo`.
 
             // Drop unreliable bits and resolve the case of periodical `1`
-            const uint64_t lsb = res128.lo & (1ull << 32);
-            res128.lo += lsb;
-            if (res128.lo < lsb) { ++res128.hi; }  // handle lower part overflow
-            res128.lo &= ~((1ull << 32) - 1);      // zero lower 32-bit part of `res128.lo`
+            const uint64_t lsb_half = 0x80000000;
+            res128.lo += lsb_half;
+            if (res128.lo < lsb_half) { ++res128.hi; }  // handle lower part overflow
+            res128.lo &= ~((1ull << 32) - 1);           // zero lower 32-bit part of `res128.lo`
 
             // Overflow is possible while summing `res128.hi += mantissa` or rounding - store this
             // overflowed bit. We must take it into account in further calculations
