@@ -334,7 +334,7 @@ class global_pool_allocator {
     using propagate_on_container_swap = std::true_type;
     using is_always_equal = std::true_type;
 
-    global_pool_allocator() NOEXCEPT = default;
+    global_pool_allocator() NOEXCEPT {}
     ~global_pool_allocator() = default;
 
     template<typename Ty2>
@@ -369,7 +369,7 @@ class global_pool_allocator<void> {
     using propagate_on_container_swap = std::true_type;
     using is_always_equal = std::true_type;
 
-    global_pool_allocator() NOEXCEPT = default;
+    global_pool_allocator() NOEXCEPT {}
     ~global_pool_allocator() = default;
 
     template<typename Ty2>

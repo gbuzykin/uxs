@@ -367,7 +367,7 @@ const char* to_integer(const char* p, const char* end, Ty& val) {
     if (p == end || !std::isdigit(static_cast<unsigned char>(*p))) { return p0; }
     val = static_cast<Ty>(*p++ - '0');
     while (p < end && std::isdigit(static_cast<unsigned char>(*p))) { val = 10 * val + static_cast<Ty>(*p++ - '0'); }
-    if (neg) { val = -val; }  // apply sign
+    if (neg) { val = ~val + 1; }  // apply sign
     return p;
 }
 
@@ -932,7 +932,7 @@ StrTy& fmt_float(StrTy& s, Ty val, const fmt_state& fmt) {
                     if (res128.lo >= 0x80000000) { ++err; }
 
                     // Trim trailing unsignificant digits
-                    const int64_t max_err_mul = delta_minus << 1;
+                    const uint64_t max_err_mul = delta_minus << 1;
                     while (true) {
                         uint64_t t = fp10.mantissa / 10;
                         int64_t mod = fp10.mantissa - 10 * t;
@@ -995,7 +995,7 @@ StrTy& fmt_float(StrTy& s, Ty val, const fmt_state& fmt) {
     }
 
     if (fmt.width > 0) {
-        int len = show_sign;
+        unsigned len = show_sign;
         if (fp_fmt == fmt_flags::kFixed) {
             len += fmt_fp_exp10_fixed_len(fp10, fmt.flags, prec);
         } else {

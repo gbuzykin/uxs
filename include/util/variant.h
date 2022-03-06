@@ -43,7 +43,7 @@ class UTIL_EXPORT variant {
     enum : unsigned { kMaxTypeId = 32 };
     enum : size_t { kStorageSize = sizeof(storage_t) };
 
-    variant() NOEXCEPT = default;
+    variant() NOEXCEPT {}
     explicit variant(id_t type) : vtable_(get_vtable(type)) {
         if (vtable_) { vtable_->construct_default(&data_); }
     }

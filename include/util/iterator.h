@@ -108,13 +108,12 @@ class normal_iterator {
     // Note: iterator can be copied if the underlying iterator can be converted to the type of
     // current underlying iterator
     template<typename BaseIter2>
-    normal_iterator(
-        const normal_iterator<BaseIter2, std::enable_if_t<std::is_convertible<BaseIter2, BaseIter>::value, Container>>&
-            it) NOEXCEPT : base_(it.base()) {}
+    normal_iterator(const normal_iterator<BaseIter2, Container>& it,
+                    std::enable_if_t<std::is_convertible<BaseIter2, BaseIter>::value>* = nullptr) NOEXCEPT
+        : base_(it.base()) {}
     template<typename BaseIter2>
-    normal_iterator& operator=(
-        const normal_iterator<BaseIter2, std::enable_if_t<std::is_convertible<BaseIter2, BaseIter>::value, Container>>&
-            it) NOEXCEPT {
+    std::enable_if_t<std::is_convertible<BaseIter2, BaseIter>::value, normal_iterator&> operator=(
+        const normal_iterator<BaseIter2, Container>& it) NOEXCEPT {
         base_ = it.base();
         return *this;
     }
@@ -130,14 +129,12 @@ class normal_iterator {
         return normal_iterator(base);
     }
 
-    template<typename BaseIter_ = BaseIter>
-    util::type_identity_t<normal_iterator&, decltype(std::declval<BaseIter_>().decrement())> operator--() NOEXCEPT {
+    normal_iterator& operator--() NOEXCEPT {
         base_.decrement();
         return *this;
     }
 
-    template<typename BaseIter_ = BaseIter>
-    util::type_identity_t<normal_iterator, decltype(std::declval<BaseIter_>().decrement())> operator--(int) NOEXCEPT {
+    normal_iterator operator--(int) NOEXCEPT {
         BaseIter base = base_;
         base_.decrement();
         return normal_iterator(base);
