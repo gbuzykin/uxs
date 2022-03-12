@@ -67,8 +67,43 @@ std::pair<const char*, bool> fmt_parse(const char* p, const char* last, StrTy& s
 
 template<typename StrTy>
 StrTy& fmt_append_string(std::string_view val, StrTy& s, fmt_state& fmt) {
-    if (val.size() < fmt.width) { return detail::fmt_adjusted(val.begin(), val.end(), s, fmt); }
-    return s.append(val.begin(), val.end());
+    const char *first = val.data(), *last = first + val.size();
+    size_t len = 0;
+    unsigned count = 0;
+    if (fmt.prec >= 0) {
+        unsigned prec = fmt.prec;
+        const char* p = first;
+        while (prec > 0 && last - p > count) {
+            p += count;
+            count = get_utf8_byte_count(*p), --prec;
+        }
+        if (prec == 0 && last - p > count) { last = p + count; }
+        if (fmt.width == 0) { return s.append(first, last); }
+        len = static_cast<unsigned>(fmt.prec) - prec;
+    } else if (fmt.width > 0) {
+        const char* p = first;
+        while (last - p > count) {
+            p += count;
+            count = get_utf8_byte_count(*p), ++len;
+        }
+    }
+
+    if (len >= fmt.width) { return s.append(first, last); }
+
+    switch (fmt.flags & fmt_flags::kAdjustField) {
+        case fmt_flags::kLeft: {
+            s.append(first, last).append(fmt.width - static_cast<unsigned>(len), fmt.fill);
+        } break;
+        case fmt_flags::kInternal: {
+            unsigned right = fmt.width - static_cast<unsigned>(len), left = right >> 1;
+            right -= left;
+            s.append(left, fmt.fill).append(first, last).append(right, fmt.fill);
+        } break;
+        default: {
+            s.append(fmt.width - static_cast<unsigned>(len), fmt.fill).append(first, last);
+        } break;
+    }
+    return s;
 }
 
 template<typename Ty, typename StrTy, typename = void>
