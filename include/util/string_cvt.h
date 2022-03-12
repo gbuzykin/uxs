@@ -69,7 +69,7 @@ enum class fmt_flags : unsigned {
     kSignNeg = kDefault,
     kSignPos = 0x400,
     kSignAlign = 0x800,
-    kSignField = 0xC00,
+    kSignField = 0xc00,
 };
 
 inline fmt_flags operator&(fmt_flags lhs, fmt_flags rhs) {
@@ -163,14 +163,14 @@ namespace detail {
 template<typename InputIt, typename StrTy,
          typename = std::enable_if_t<std::is_base_of<std::random_access_iterator_tag,
                                                      typename std::iterator_traits<InputIt>::iterator_category>::value>>
-StrTy& fmt_adjusted(StrTy& s, const fmt_state& fmt, InputIt first, InputIt last) {
-    size_t len = static_cast<size_t>(last - first);
+StrTy& fmt_adjusted(InputIt first, InputIt last, StrTy& s, const fmt_state& fmt) {
+    unsigned len = static_cast<unsigned>(last - first);
     switch (fmt.flags & fmt_flags::kAdjustField) {
         case fmt_flags::kLeft: {
             s.append(first, last).append(fmt.width - len, fmt.fill);
         } break;
         case fmt_flags::kInternal: {
-            size_t right = static_cast<size_t>(fmt.width) - len, left = right >> 1;
+            unsigned right = fmt.width - len, left = right >> 1;
             right -= left;
             s.append(left, fmt.fill).append(first, last).append(right, fmt.fill);
         } break;
@@ -191,106 +191,47 @@ struct string_converter_base {
     static Ty default_value() { return {}; }
 };
 
+#define SCVT_DECLARE_STANDARD_STRING_CONVERTERS(ty) \
+    template<> \
+    struct UTIL_EXPORT string_converter<ty> : string_converter_base<ty> { \
+        static const char* from_string(const char* first, const char* last, ty& val); \
+        static std::string& to_string(ty val, std::string& s, const fmt_state& fmt); \
+        static char_buf_appender& to_string(ty val, char_buf_appender& s, const fmt_state& fmt); \
+        static char_n_buf_appender& to_string(ty val, char_n_buf_appender& s, const fmt_state& fmt); \
+    };
+
+SCVT_DECLARE_STANDARD_STRING_CONVERTERS(int8_t)
+SCVT_DECLARE_STANDARD_STRING_CONVERTERS(int16_t)
+SCVT_DECLARE_STANDARD_STRING_CONVERTERS(int32_t)
+SCVT_DECLARE_STANDARD_STRING_CONVERTERS(int64_t)
+SCVT_DECLARE_STANDARD_STRING_CONVERTERS(uint8_t)
+SCVT_DECLARE_STANDARD_STRING_CONVERTERS(uint16_t)
+SCVT_DECLARE_STANDARD_STRING_CONVERTERS(uint32_t)
+SCVT_DECLARE_STANDARD_STRING_CONVERTERS(uint64_t)
+SCVT_DECLARE_STANDARD_STRING_CONVERTERS(float)
+SCVT_DECLARE_STANDARD_STRING_CONVERTERS(double)
+#undef SCVT_DECLARE_STANDARD_STRING_CONVERTERS
+
 template<>
 struct UTIL_EXPORT string_converter<char> : string_converter_base<char> {
     static const char* from_string(const char* first, const char* last, char& val);
     template<typename StrTy>
-    static StrTy& to_string(StrTy& s, char val, const fmt_state& fmt) {
-        if (fmt.width > 1) { return detail::fmt_adjusted(s, fmt, &val, &val + 1); }
+    static StrTy& to_string(char val, StrTy& s, const fmt_state& fmt) {
+        if (fmt.width > 1) { return detail::fmt_adjusted(&val, &val + 1, s, fmt); }
         s += val;
         return s;
     }
 };
 
 template<>
-struct UTIL_EXPORT string_converter<int8_t> : string_converter_base<int8_t> {
-    static const char* from_string(const char* first, const char* last, int8_t& val);
-    static std::string& to_string(std::string& s, int8_t val, const fmt_state& fmt);
-    static char_buf_appender& to_string(char_buf_appender& s, int8_t val, const fmt_state& fmt);
-    static char_n_buf_appender& to_string(char_n_buf_appender& s, int8_t val, const fmt_state& fmt);
-};
-
-template<>
-struct UTIL_EXPORT string_converter<int16_t> : string_converter_base<int16_t> {
-    static const char* from_string(const char* first, const char* last, int16_t& val);
-    static std::string& to_string(std::string& s, int16_t val, const fmt_state& fmt);
-    static char_buf_appender& to_string(char_buf_appender& s, int16_t val, const fmt_state& fmt);
-    static char_n_buf_appender& to_string(char_n_buf_appender& s, int16_t val, const fmt_state& fmt);
-};
-
-template<>
-struct UTIL_EXPORT string_converter<int32_t> : string_converter_base<int32_t> {
-    static const char* from_string(const char* first, const char* last, int32_t& val);
-    static std::string& to_string(std::string& s, int32_t val, const fmt_state& fmt);
-    static char_buf_appender& to_string(char_buf_appender& s, int32_t val, const fmt_state& fmt);
-    static char_n_buf_appender& to_string(char_n_buf_appender& s, int32_t val, const fmt_state& fmt);
-};
-
-template<>
-struct UTIL_EXPORT string_converter<int64_t> : string_converter_base<int64_t> {
-    static const char* from_string(const char* first, const char* last, int64_t& val);
-    static std::string& to_string(std::string& s, int64_t val, const fmt_state& fmt);
-    static char_buf_appender& to_string(char_buf_appender& s, int64_t val, const fmt_state& fmt);
-    static char_n_buf_appender& to_string(char_n_buf_appender& s, int64_t val, const fmt_state& fmt);
-};
-
-template<>
-struct UTIL_EXPORT string_converter<uint8_t> : string_converter_base<uint8_t> {
-    static const char* from_string(const char* first, const char* last, uint8_t& val);
-    static std::string& to_string(std::string& s, uint8_t val, const fmt_state& fmt);
-    static char_buf_appender& to_string(char_buf_appender& s, uint8_t val, const fmt_state& fmt);
-    static char_n_buf_appender& to_string(char_n_buf_appender& s, uint8_t val, const fmt_state& fmt);
-};
-
-template<>
-struct UTIL_EXPORT string_converter<uint16_t> : string_converter_base<uint16_t> {
-    static const char* from_string(const char* first, const char* last, uint16_t& val);
-    static std::string& to_string(std::string& s, uint16_t val, const fmt_state& fmt);
-    static char_buf_appender& to_string(char_buf_appender& s, uint16_t val, const fmt_state& fmt);
-    static char_n_buf_appender& to_string(char_n_buf_appender& s, uint16_t val, const fmt_state& fmt);
-};
-
-template<>
-struct UTIL_EXPORT string_converter<uint32_t> : string_converter_base<uint32_t> {
-    static const char* from_string(const char* first, const char* last, uint32_t& val);
-    static std::string& to_string(std::string& s, uint32_t val, const fmt_state& fmt);
-    static char_buf_appender& to_string(char_buf_appender& s, uint32_t val, const fmt_state& fmt);
-    static char_n_buf_appender& to_string(char_n_buf_appender& s, uint32_t val, const fmt_state& fmt);
-};
-
-template<>
-struct UTIL_EXPORT string_converter<uint64_t> : string_converter_base<uint64_t> {
-    static const char* from_string(const char* first, const char* last, uint64_t& val);
-    static std::string& to_string(std::string& s, uint64_t val, const fmt_state& fmt);
-    static char_buf_appender& to_string(char_buf_appender& s, uint64_t val, const fmt_state& fmt);
-    static char_n_buf_appender& to_string(char_n_buf_appender& s, uint64_t val, const fmt_state& fmt);
-};
-
-template<>
-struct UTIL_EXPORT string_converter<float> : string_converter_base<float> {
-    static const char* from_string(const char* first, const char* last, float& val);
-    static std::string& to_string(std::string& s, float val, const fmt_state& fmt);
-    static char_buf_appender& to_string(char_buf_appender& s, float val, const fmt_state& fmt);
-    static char_n_buf_appender& to_string(char_n_buf_appender& s, float val, const fmt_state& fmt);
-};
-
-template<>
-struct UTIL_EXPORT string_converter<double> : string_converter_base<double> {
-    static const char* from_string(const char* first, const char* last, double& val);
-    static std::string& to_string(std::string& s, double val, const fmt_state& fmt);
-    static char_buf_appender& to_string(char_buf_appender& s, double val, const fmt_state& fmt);
-    static char_n_buf_appender& to_string(char_n_buf_appender& s, double val, const fmt_state& fmt);
-};
-
-template<>
 struct UTIL_EXPORT string_converter<bool> : string_converter_base<bool> {
     static const char* from_string(const char* first, const char* last, bool& val);
     template<typename StrTy>
-    static StrTy& to_string(StrTy& s, bool val, const fmt_state& fmt) {
+    static StrTy& to_string(bool val, StrTy& s, const fmt_state& fmt) {
         std::string_view sval = !(fmt.flags & fmt_flags::kUpperCase) ?
                                     (val ? std::string_view("true", 4) : std::string_view("false", 5)) :
                                     (val ? std::string_view("TRUE", 4) : std::string_view("FALSE", 5));
-        if (sval.size() < fmt.width) { return detail::fmt_adjusted(s, fmt, sval.begin(), sval.end()); }
+        if (sval.size() < fmt.width) { return detail::fmt_adjusted(sval.begin(), sval.end(), s, fmt); }
         return s.append(sval.begin(), sval.end());
     }
 };
@@ -310,27 +251,27 @@ Ty from_string(std::string_view s) {
 }
 
 template<typename Ty, typename StrTy>
-StrTy& to_string_append(StrTy& s, const Ty& val, const fmt_state& fmt) {
-    return string_converter<Ty>::to_string(s, val, fmt);
+StrTy& to_string_append(const Ty& val, StrTy& s, const fmt_state& fmt) {
+    return string_converter<Ty>::to_string(val, s, fmt);
 }
 
 template<typename Ty, typename... Args>
 std::string to_string(const Ty& val, Args&&... args) {
     std::string result;
-    to_string_append(result, val, fmt_state(std::forward<Args>(args)...));
+    to_string_append(val, result, fmt_state(std::forward<Args>(args)...));
     return result;
 }
 
 template<typename Ty, typename... Args>
 char* to_string_to(char* buf, const Ty& val, Args&&... args) {
     char_buf_appender appender(buf);
-    return to_string_append(appender, val, fmt_state(std::forward<Args>(args)...)).get_ptr();
+    return to_string_append(val, appender, fmt_state(std::forward<Args>(args)...)).get_ptr();
 }
 
 template<typename Ty, typename... Args>
 char* to_string_to_n(char* buf, size_t n, const Ty& val, Args&&... args) {
     char_n_buf_appender appender(buf, n);
-    return to_string_append(appender, val, fmt_state(std::forward<Args>(args)...)).get_ptr();
+    return to_string_append(val, appender, fmt_state(std::forward<Args>(args)...)).get_ptr();
 }
 
 }  // namespace util

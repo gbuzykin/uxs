@@ -133,20 +133,21 @@ class fmt_context {
 
     void append(std::string_view s) {
         if (s.size() < arg_fmt_.width) {
-            detail::fmt_adjusted(str_, arg_fmt_, s.begin(), s.end());
+            detail::fmt_adjusted(s.begin(), s.end(), str_, arg_fmt_);
         } else {
             str_.append(s.begin(), s.end());
         }
     }
     void append(const char* cstr) { append(std::string_view(cstr)); }
-    void append(void* p) {
+    template<typename Ty>
+    void append(Ty* p) {
         arg_fmt_.flags &= ~fmt_flags::kBaseField;
         arg_fmt_.flags |= fmt_flags::kHex | fmt_flags::kShowBase;
         append(reinterpret_cast<uintptr_t>(p));
     }
     template<typename Ty, typename = std::void_t<typename string_converter<Ty>::is_string_converter>>
     void append(const Ty& arg) {
-        string_converter<Ty>::to_string(str_, arg, arg_fmt_);
+        string_converter<Ty>::to_string(arg, str_, arg_fmt_);
     }
 
  private:
