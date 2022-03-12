@@ -1,249 +1,242 @@
 #pragma once
 
+#include "span.h"
 #include "string_cvt.h"
+#include "utf_cvt.h"
+
+#include <array>
+#include <stdexcept>
 
 namespace util {
 
-struct setw {
-    unsigned width;
-    explicit setw(unsigned w) : width(w) {}
-};
-
-struct setprec {
-    int prec;
-    explicit setprec(int p) : prec(p) {}
-};
-
 namespace detail {
 
-inline const char* parse_fmt_adjustment(const char* p, fmt_state& fmt) {
-    switch (*p) {
-        case '<': fmt.flags |= fmt_flags::kLeft; return p + 1;
-        case '^': fmt.flags |= fmt_flags::kInternal; return p + 1;
-        case '>': return p + 1;
-        default: {
-            switch (*(p + 1)) {
-                case '<': fmt.fill = *p, fmt.flags |= fmt_flags::kLeft; return p + 2;
-                case '^': fmt.fill = *p, fmt.flags |= fmt_flags::kInternal; return p + 2;
-                case '>': fmt.fill = *p; return p + 2;
-                default: break;
+enum class fmt_parse_flags : unsigned {
+    kDefault = 0,
+    kDynamicWidth = 1,
+    kDynamicPrec = 2,
+    kArgNumSpecified = 0x10,
+    kWidthArgNumSpecified = 0x20,
+    kPrecArgNumSpecified = 0x40,
+};
+
+inline fmt_parse_flags operator&(fmt_parse_flags lhs, fmt_parse_flags rhs) {
+    return static_cast<fmt_parse_flags>(static_cast<unsigned>(lhs) & static_cast<unsigned>(rhs));
+}
+inline fmt_parse_flags operator|(fmt_parse_flags lhs, fmt_parse_flags rhs) {
+    return static_cast<fmt_parse_flags>(static_cast<unsigned>(lhs) | static_cast<unsigned>(rhs));
+}
+inline bool operator!(fmt_parse_flags flags) { return static_cast<unsigned>(flags) == 0; }
+inline fmt_parse_flags& operator|=(fmt_parse_flags& lhs, fmt_parse_flags rhs) { return lhs = lhs | rhs; }
+
+struct fmt_arg_specs {
+    fmt_state fmt;
+    fmt_parse_flags flags = fmt_parse_flags::kDefault;
+    size_t n_arg = 0;
+    size_t n_width_arg = 0;
+    size_t n_prec_arg = 0;
+};
+
+UTIL_EXPORT void fmt_parse_arg_spec(const char* p, fmt_arg_specs& specs);
+
+template<typename StrTy>
+std::pair<const char*, bool> fmt_parse(const char* p, const char* last, StrTy& s, fmt_arg_specs& specs) {
+    const char* p0 = p;
+    do {
+        if (*p == '{' || *p == '}') {
+            s.append(p0, p);
+            p0 = ++p;
+            if (p == last) { break; }
+            int balance = 1;
+            if (*(p - 1) == '{' && *p != '{') {
+                do {
+                    if (*p == '}' && --balance == 0) {
+                        fmt_parse_arg_spec(p0, specs);
+                        return {++p, true};
+                    } else if (*p == '{') {
+                        ++balance;
+                    }
+                } while (++p != last);
+                return {p, false};
             }
-        } break;
-    }
-    return p;
-}
-
-inline const char* parse_fmt_sign(const char* p, fmt_state& fmt) {
-    switch (*p) {
-        case '+': fmt.flags |= fmt_flags::kSignPos; return p + 1;
-        case ' ': fmt.flags |= fmt_flags::kSignAlign; return p + 1;
-        case '-': return p + 1;
-        default: break;
-    }
-    return p;
-}
-
-inline const char* parse_fmt_alternate(const char* p, fmt_state& fmt) {
-    if (*p == '#') {
-        fmt.flags |= fmt_flags::kShowPoint | fmt_flags::kShowBase;
-        return p + 1;
-    }
-    return p;
-}
-
-inline const char* parse_fmt_leading_zeroes(const char* p, fmt_state& fmt) {
-    if (*p == '0') {
-        fmt.flags |= fmt_flags::kLeadingZeroes;
-        return p + 1;
-    }
-    return p;
-}
-
-inline const char* parse_fmt_width(const char* p, fmt_state& fmt) {
-    while (std::isdigit(static_cast<unsigned char>(*p))) {
-        fmt.width = 10 * fmt.width + static_cast<unsigned>(*p++ - '0');
-    }
-    return p;
-}
-
-inline const char* parse_fmt_precision(const char* p, fmt_state& fmt) {
-    if (*p != '.') { return p; }
-    if (!std::isdigit(static_cast<unsigned char>(*++p))) { return p - 1; }
-    fmt.prec = static_cast<int>(*p++ - '0');
-    while (std::isdigit(static_cast<unsigned char>(*p))) { fmt.prec = 10 * fmt.prec + static_cast<int>(*p++ - '0'); }
-    return p;
-}
-
-inline const char* parse_fmt_type(const char* p, fmt_state& fmt) {
-    switch (*p++) {
-        case 's': return p;
-        case 'c': return p;
-        case 'b': fmt.flags |= fmt_flags::kBin; return p;
-        case 'B': fmt.flags |= fmt_flags::kBin | fmt_flags::kUpperCase; return p;
-        case 'o': fmt.flags |= fmt_flags::kOct; return p;
-        case 'd': return p;
-        case 'x': fmt.flags |= fmt_flags::kHex; return p;
-        case 'X': fmt.flags |= fmt_flags::kHex | fmt_flags::kUpperCase; return p;
-        case 'p': return p;
-        case 'P': fmt.flags |= fmt_flags::kUpperCase; return p;
-        case 'f': {
-            fmt.flags |= fmt_flags::kFixed;
-            if (fmt.prec < 0) { fmt.prec = 6; }
-            return p;
-        } break;
-        case 'F': {
-            fmt.flags |= fmt_flags::kFixed | fmt_flags::kUpperCase;
-            if (fmt.prec < 0) { fmt.prec = 6; }
-            return p;
-        } break;
-        case 'e': {
-            fmt.flags |= fmt_flags::kScientific;
-            if (fmt.prec < 0) { fmt.prec = 6; }
-            return p;
-        } break;
-        case 'E': {
-            fmt.flags |= fmt_flags::kScientific | fmt_flags::kUpperCase;
-            if (fmt.prec < 0) { fmt.prec = 6; }
-            return p;
-        } break;
-        case 'g': {
-            if (fmt.prec < 0) { fmt.prec = 6; }
-            return p;
-        } break;
-        case 'G': {
-            fmt.flags |= fmt_flags::kUpperCase;
-            if (fmt.prec < 0) { fmt.prec = 6; }
-            return p;
-        } break;
-        default: break;
-    }
-    return p - 1;
+        }
+    } while (++p != last);
+    s.append(p0, p);
+    return {p, false};
 }
 
 template<typename StrTy>
-class fmt_context {
- public:
-    template<typename... Args>
-    fmt_context(std::string_view fmt, Args&&... args)
-        : first_(fmt.data()), last_(fmt.data() + fmt.size()), str_(std::forward<Args>(args)...) {}
-    StrTy& get_str() { return str_; }
-    void set_width(unsigned width) { arg_fmt_.width = width; }
-    void set_prec(int prec) { arg_fmt_.prec = prec; }
-    bool parse();
+StrTy& fmt_append_string(std::string_view val, StrTy& s, fmt_state& fmt) {
+    if (val.size() < fmt.width) { return detail::fmt_adjusted(val.begin(), val.end(), s, fmt); }
+    return s.append(val.begin(), val.end());
+}
 
-    void append(std::string_view s) {
-        if (s.size() < arg_fmt_.width) {
-            detail::fmt_adjusted(s.begin(), s.end(), str_, arg_fmt_);
-        } else {
-            str_.append(s.begin(), s.end());
-        }
-    }
-    void append(const char* cstr) { append(std::string_view(cstr)); }
-    template<typename Ty>
-    void append(Ty* p) {
-        arg_fmt_.flags &= ~fmt_flags::kBaseField;
-        arg_fmt_.flags |= fmt_flags::kHex | fmt_flags::kShowBase;
-        append(reinterpret_cast<uintptr_t>(p));
-    }
-    template<typename Ty, typename = std::void_t<typename string_converter<Ty>::is_string_converter>>
-    void append(const Ty& arg) {
-        string_converter<Ty>::to_string(arg, str_, arg_fmt_);
-    }
+template<typename Ty, typename StrTy, typename = void>
+struct fmt_arg_appender;
 
- private:
-    const char* first_;
-    const char* last_;
-    fmt_state arg_fmt_;
-    StrTy str_;
+template<typename Ty, typename StrTy>
+struct fmt_arg_appender<Ty, StrTy, std::void_t<typename string_converter<Ty>::is_string_converter>> {
+    static StrTy& append(const void* val, StrTy& s, fmt_state& fmt) {
+        return string_converter<Ty>::to_string(*reinterpret_cast<const Ty*>(val), s, fmt);
+    }
+};
+
+template<typename Ty, typename StrTy>
+struct fmt_arg_appender<Ty*, StrTy, void> {
+    static StrTy& append(const void* val, StrTy& s, fmt_state& fmt) {
+        fmt.flags &= ~fmt_flags::kBaseField;
+        fmt.flags |= fmt_flags::kHex | fmt_flags::kShowBase;
+        return string_converter<uintptr_t>::to_string(reinterpret_cast<uintptr_t>(val), s, fmt);
+    }
 };
 
 template<typename StrTy>
-bool fmt_context<StrTy>::parse() {
-    const char* p = first_;
-    arg_fmt_ = fmt_state();
-    while (first_ != last_) {
-        if (*first_ == '{' || *first_ == '}') {
-            str_.append(p, first_);
-            p = ++first_;
-            if (first_ == last_) { break; }
-            int balance = 1;
-            if (*(first_ - 1) == '{' && *first_ != '{') {
-                do {
-                    if (*first_ == '}' && --balance == 0) {
-                        if (*p++ == ':') {
-                            p = parse_fmt_adjustment(p, arg_fmt_);
-                            p = parse_fmt_sign(p, arg_fmt_);
-                            p = parse_fmt_alternate(p, arg_fmt_);
-                            p = parse_fmt_leading_zeroes(p, arg_fmt_);
-                            p = parse_fmt_width(p, arg_fmt_);
-                            p = parse_fmt_precision(p, arg_fmt_);
-                            p = parse_fmt_type(p, arg_fmt_);
-                        }
-                        ++first_;
-                        return true;
-                    } else if (*first_ == '{') {
-                        ++balance;
-                    }
-                } while (++first_ != last_);
-                return false;
-            }
-        }
-        ++first_;
+struct fmt_arg_appender<char*, StrTy, void> {
+    static StrTy& append(const void* val, StrTy& s, fmt_state& fmt) {
+        return fmt_append_string(std::string_view(static_cast<const char*>(val)), s, fmt);
     }
-    str_.append(p, first_);
-    return false;
+};
+
+template<typename StrTy>
+struct fmt_arg_appender<std::string_view, StrTy, void> {
+    static StrTy& append(const void* val, StrTy& s, fmt_state& fmt) {
+        return fmt_append_string(*reinterpret_cast<const std::string_view*>(val), s, fmt);
+    }
+};
+
+template<typename StrTy>
+struct fmt_arg_appender<StrTy, char*, void> {
+    static StrTy& append(StrTy& s, const void* val, fmt_state& fmt) {
+        return fmt_append_string(s, std::string_view(static_cast<const char*>(val)), fmt);
+    }
+};
+
+template<typename StrTy>
+struct fmt_arg_appender<std::string, StrTy, void> {
+    static StrTy& append(const void* val, StrTy& s, fmt_state& fmt) {
+        return fmt_append_string(*reinterpret_cast<const std::string*>(val), s, fmt);
+    }
+};
+
+template<typename Ty>
+const void* get_fmt_arg_ptr(const Ty& arg) {
+    return reinterpret_cast<const void*>(&arg);
 }
 
-template<typename Context>
-void format(Context& ctx) {}
-
-template<typename Context, typename Ty, typename... Ts>
-void format(Context& ctx, const Ty& arg, Ts&&... other) {
-    ctx.append(arg);
-    if (ctx.parse()) { detail::format(ctx, std::forward<Ts>(other)...); }
+template<typename Ty>
+const void* get_fmt_arg_ptr(Ty* arg) {
+    return arg;
 }
 
-template<typename Context, typename... Ts>
-void format(Context& ctx, setw w, Ts&&... other) {
-    ctx.set_width(w.width);
-    detail::format(ctx, std::forward<Ts>(other)...);
+template<typename StrTy>
+using fmt_arg_list_item = std::pair<const void*, StrTy& (*)(const void*, StrTy&, fmt_state&)>;
+
+template<typename Ty, typename = void>
+struct fmt_arg_type {
+    using type = Ty;
+};
+
+template<typename Ty>
+struct fmt_arg_type<Ty, std::enable_if_t<std::is_array<Ty>::value>> {
+    using type = typename std::add_pointer<std::remove_cv_t<typename std::remove_extent<Ty>::type>>::type;
+};
+
+template<typename Ty>
+struct fmt_arg_type<Ty*, void> {
+    using type = typename std::add_pointer<std::remove_cv_t<Ty>>::type;
+};
+
+template<typename StrTy, typename... Ts>
+auto make_fmt_args(const Ts&... args) NOEXCEPT -> std::array<fmt_arg_list_item<StrTy>, sizeof...(Ts)> {
+    return {{{get_fmt_arg_ptr(args), fmt_arg_appender<typename fmt_arg_type<Ts>::type, StrTy>::append}...}};
 }
 
-template<typename Context, typename... Ts>
-void format(Context& ctx, setprec p, Ts&&... other) {
-    ctx.set_prec(p.prec);
-    detail::format(ctx, std::forward<Ts>(other)...);
+template<typename StrTy>
+unsigned get_fmt_arg_integer_value(const fmt_arg_list_item<StrTy>& arg, const char* msg_not_integer,
+                                   const char* msg_negative) {
+#define FMT_ARG_INTEGER_VALUE_CASE(ty) \
+    if (arg.second == fmt_arg_appender<ty, StrTy>::append) { \
+        ty val = *reinterpret_cast<const ty*>(arg.first); \
+        if (val < 0) { throw std::runtime_error(msg_negative); } \
+        return static_cast<unsigned>(val); \
+    }
+#define FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(ty) \
+    if (arg.second == fmt_arg_appender<ty, StrTy>::append) { \
+        return static_cast<unsigned>(*reinterpret_cast<const ty*>(arg.first)); \
+    }
+    FMT_ARG_INTEGER_VALUE_CASE(int32_t)
+    FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(uint32_t)
+    FMT_ARG_INTEGER_VALUE_CASE(int8_t)
+    FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(uint8_t)
+    FMT_ARG_INTEGER_VALUE_CASE(int16_t)
+    FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(uint16_t)
+    FMT_ARG_INTEGER_VALUE_CASE(int64_t)
+    FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(uint64_t)
+#undef FMT_ARG_INTEGER_VALUE_CASE
+#undef FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE
+    throw std::runtime_error(msg_not_integer);
 }
 
 }  // namespace detail
 
-template<typename... Ts>
-std::string format(std::string_view fmt, Ts&&... args) {
-    std::string result;
-    detail::fmt_context<std::string&> ctx(fmt, result);
-    if (ctx.parse()) { detail::format(ctx, std::forward<Ts>(args)...); }
-    return result;
-}
+template<typename StrTy>
+StrTy& format_append_v(std::string_view fmt, StrTy& s, span<const detail::fmt_arg_list_item<StrTy>> args) {
+    size_t n = 0;
+    auto check_arg_idx = [&args](size_t idx) {
+        if (idx >= args.size()) { throw std::out_of_range("out of format argument list"); }
+    };
+    detail::fmt_arg_specs specs;
+    const char *first = fmt.data(), *last = fmt.data() + fmt.size();
+    while (first != last) {
+        bool put_arg = false;
+        std::tie(first, put_arg) = detail::fmt_parse(first, last, s, specs);
+        if (put_arg) {
+            // obtain argument number
+            if (!(specs.flags & detail::fmt_parse_flags::kArgNumSpecified)) { specs.n_arg = n++; }
+            check_arg_idx(specs.n_arg);
 
-template<typename StrTy, typename... Ts>
-StrTy& format_append(StrTy& s, std::string_view fmt, Ts&&... args) {
-    detail::fmt_context<StrTy&> ctx(fmt, s);
-    if (ctx.parse()) { detail::format(ctx, std::forward<Ts>(args)...); }
+            if (!!(specs.flags & detail::fmt_parse_flags::kDynamicWidth)) {
+                // obtain argument number for width
+                if (!(specs.flags & detail::fmt_parse_flags::kWidthArgNumSpecified)) { specs.n_width_arg = n++; }
+                check_arg_idx(specs.n_width_arg);
+                specs.fmt.width = detail::get_fmt_arg_integer_value(
+                    args[specs.n_width_arg], "agrument width is not integer", "agrument width is negative");
+            }
+            if (!!(specs.flags & detail::fmt_parse_flags::kDynamicPrec)) {
+                // obtain argument number for precision
+                if (!(specs.flags & detail::fmt_parse_flags::kPrecArgNumSpecified)) { specs.n_prec_arg = n++; }
+                check_arg_idx(specs.n_prec_arg);
+                specs.fmt.prec = detail::get_fmt_arg_integer_value(
+                    args[specs.n_prec_arg], "agrument precision is not integer", "agrument precision is negative");
+            }
+            args[specs.n_arg].second(args[specs.n_arg].first, s, specs.fmt);
+        }
+    }
     return s;
 }
 
-template<typename... Ts>
-char* format_to(char* dst, std::string_view fmt, Ts&&... args) {
-    detail::fmt_context<char_buf_appender> ctx(fmt, dst);
-    if (ctx.parse()) { detail::format(ctx, std::forward<Ts>(args)...); }
-    return ctx.get_str().get_ptr();
+template<typename StrTy, typename... Ts>
+StrTy& format_append(std::string_view fmt, StrTy& s, const Ts&... args) {
+    return format_append_v<StrTy>(fmt, s, detail::make_fmt_args<StrTy>(args...));
 }
 
 template<typename... Ts>
-char* format_to_n(char* dst, size_t n, std::string_view fmt, Ts&&... args) {
-    detail::fmt_context<char_n_buf_appender> ctx(fmt, dst, n);
-    if (ctx.parse()) { detail::format(ctx, std::forward<Ts>(args)...); }
-    return ctx.get_str().get_ptr();
+std::string format(std::string_view fmt, const Ts&... args) {
+    std::string result;
+    format_append(fmt, result, args...);
+    return result;
+}
+
+template<typename... Ts>
+char* format_to(char* dst, std::string_view fmt, const Ts&... args) {
+    char_buf_appender appender(dst);
+    return format_append(fmt, appender, args...).get_ptr();
+}
+
+template<typename... Ts>
+char* format_to_n(char* dst, size_t n, std::string_view fmt, const Ts&... args) {
+    char_n_buf_appender appender(dst, n);
+    return format_append(fmt, appender, args...).get_ptr();
 }
 
 }  // namespace util
