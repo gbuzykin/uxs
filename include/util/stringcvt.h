@@ -97,18 +97,7 @@ class char_buf_appender {
         dst_ = std::fill_n(dst_, count, ch);
         return *this;
     }
-    char_buf_appender& operator+=(char ch) {
-        *dst_++ = ch;
-        return *this;
-    }
-    char_buf_appender& operator+=(const char* cstr) {
-        dst_ = std::copy_n(cstr, std::strlen(cstr), dst_);
-        return *this;
-    }
-    char_buf_appender& operator+=(std::string_view s) {
-        dst_ = std::copy_n(s.data(), s.size(), dst_);
-        return *this;
-    }
+    void push_back(char ch) { *dst_++ = ch; }
 
  private:
     char* dst_;
@@ -129,17 +118,8 @@ class char_n_buf_appender {
         dst_ = std::fill_n(dst_, std::min<size_t>(count, last_ - dst_), ch);
         return *this;
     }
-    char_n_buf_appender& operator+=(char ch) {
+    void push_back(char ch) {
         if (dst_ != last_) { *dst_++ = ch; }
-        return *this;
-    }
-    char_n_buf_appender& operator+=(const char* cstr) {
-        dst_ = std::copy_n(cstr, std::min<size_t>(std::strlen(cstr), last_ - dst_), dst_);
-        return *this;
-    }
-    char_n_buf_appender& operator+=(std::string_view s) {
-        dst_ = std::copy_n(s.data(), std::min<size_t>(s.size(), last_ - dst_), dst_);
-        return *this;
     }
 
  private:
@@ -206,7 +186,7 @@ struct UTIL_EXPORT string_converter<char> : string_converter_base<char> {
     template<typename StrTy>
     static StrTy& to_string(char val, StrTy& s, const fmt_state& fmt) {
         if (fmt.width > 1) { return detail::fmt_adjusted(&val, &val + 1, s, fmt); }
-        s += val;
+        s.push_back(val);
         return s;
     }
 };
