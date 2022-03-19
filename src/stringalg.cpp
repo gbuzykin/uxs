@@ -8,9 +8,11 @@ std::wstring util::from_utf8_to_wide(std::string_view s) {
     uint32_t code;
     std::wstring result;
     result.reserve(s.size());
-    for (auto p = s.begin(), p1 = p; (p1 = from_utf8(p, s.end(), &code)) > p; p = p1) {
-        to_utf16(code, std::back_inserter(result));
-    }
+#if defined(WCHAR_MAX) && WCHAR_MAX > 0xffff
+    for (auto p = s.begin(); from_utf8(p, s.end(), p, code) != 0;) { result.push_back(static_cast<wchar_t>(code)); }
+#else   // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
+    for (auto p = s.begin(); from_utf8(p, s.end(), p, code) != 0;) { to_utf16(code, std::back_inserter(result)); }
+#endif  // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
     return result;
 }
 
@@ -18,9 +20,11 @@ std::string util::from_wide_to_utf8(std::wstring_view s) {
     uint32_t code;
     std::string result;
     result.reserve(s.size());
-    for (auto p = s.begin(), p1 = p; (p1 = from_utf16(p, s.end(), &code)) > p; p = p1) {
-        to_utf8(code, std::back_inserter(result));
-    }
+#if defined(WCHAR_MAX) && WCHAR_MAX > 0xffff
+    for (auto p = s.begin(); p != s.end(); ++p) { to_utf8(static_cast<uint32_t>(*p), std::back_inserter(result)); }
+#else   // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
+    for (auto p = s.begin(); from_utf16(p, s.end(), p, code) != 0;) { to_utf8(code, std::back_inserter(result)); }
+#endif  // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
     return result;
 }
 
