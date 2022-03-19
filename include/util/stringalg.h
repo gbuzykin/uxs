@@ -1,10 +1,11 @@
 #pragma once
 
+#include "chars.h"
 #include "functional.h"
 #include "string_view.h"
 #include "utf.h"
 
-#include <cctype>
+#include <algorithm>
 #include <vector>
 
 namespace util {
@@ -28,7 +29,7 @@ struct string_finder<char> {
     using iterator = std::string_view::const_iterator;
     explicit string_finder(char in_ch) : ch(in_ch) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
-        for (; begin < end; ++begin) {
+        for (; begin != end; ++begin) {
             if (*begin == '\\') {
                 if (++begin == end) { break; }
             } else if (*begin == ch) {
@@ -46,8 +47,8 @@ struct reversed_string_finder<char> {
     using iterator = std::string_view::const_iterator;
     explicit reversed_string_finder(char in_ch) : ch(in_ch) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
-        while (begin < end) {
-            if (begin < --end && *(end - 1) == '\\') {
+        while (begin != end) {
+            if (begin != --end && *(end - 1) == '\\') {
             } else if (*end == ch) {
                 return std::make_pair(end, end + 1);
             }
@@ -64,7 +65,7 @@ struct string_finder<std::string_view> {
     explicit string_finder(std::string_view in_s) : s(in_s) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         if (static_cast<size_t>(end - begin) < s.size()) { return std::make_pair(end, end); }
-        for (iterator last = end - s.size(); begin <= last; ++begin) {
+        for (iterator last = end - s.size() + 1; begin != last; ++begin) {
             if (std::equal(begin, begin + s.size(), s.begin())) { return std::make_pair(begin, begin + s.size()); }
         }
         return std::make_pair(end, end);
@@ -79,7 +80,7 @@ struct reversed_string_finder<std::string_view> {
     explicit reversed_string_finder(std::string_view in_s) : s(in_s) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         if (static_cast<size_t>(end - begin) < s.size()) { return std::make_pair(begin, begin); }
-        for (iterator last = begin + s.size(); last <= end; --end) {
+        for (iterator last = begin + s.size() - 1; last != end; --end) {
             if (std::equal(end - s.size(), end, s.begin())) { return std::make_pair(end - s.size(), end); }
         }
         return std::make_pair(begin, begin);
@@ -110,7 +111,7 @@ template<typename Finder, typename = std::void_t<typename Finder::is_finder>>
 std::string replace_strings(std::string_view s, Finder finder, std::string_view with) {
     std::string result;
     result.reserve(s.size());
-    for (auto p = s.begin(); p < s.end();) {
+    for (auto p = s.begin(); p != s.end();) {
         auto sub = finder(p, s.end());
         result.append(p, sub.first);
         if (sub.first != sub.second) { result += with; }
@@ -147,7 +148,7 @@ size_t split_string(std::string_view s, Finder finder, OutputFn fn, OutputIt out
     size_t count = 0;
     for (auto p = s.begin();;) {
         auto sub = finder(p, s.end());
-        if (!(flags & split_flags::kSkipEmpty) || p < sub.first) {
+        if (!(flags & split_flags::kSkipEmpty) || p != sub.first) {
             *out++ = fn(s.substr(p - s.begin(), sub.first - p));
             if (++count == max_count) { break; }
         }
@@ -173,7 +174,7 @@ type_identity_t<std::string_view, typename Finder::is_finder> string_section(  /
     auto p = s.begin(), from = s.end();
     for (;;) {
         auto sub = finder(p, s.end());
-        if (!(flags & split_flags::kSkipEmpty) || p < sub.first) {
+        if (!(flags & split_flags::kSkipEmpty) || p != sub.first) {
             if (count == start) { from = p; }
             if (count++ == fin) { return s.substr(from - s.begin(), sub.first - from); }
         }
@@ -191,7 +192,7 @@ type_identity_t<std::string_view, typename Finder::is_reversed_finder> string_se
     auto p = s.end(), to = s.begin();
     for (;;) {
         auto sub = finder(s.begin(), p);
-        if (!(flags & split_flags::kSkipEmpty) || sub.second < p) {
+        if (!(flags & split_flags::kSkipEmpty) || sub.second != p) {
             if (count == fin) { to = p; }
             if (count++ == start) { return s.substr(sub.second - s.begin(), to - sub.second); }
         }
@@ -208,7 +209,7 @@ size_t separate_words(std::string_view s, char sep, OutputFn fn, OutputIt out,
     size_t count = 0;
     enum class state_t : char { kStart = 0, kSepFound, kSkipSep } state = state_t::kStart;
     for (auto p = s.begin();; ++p) {
-        while (p < s.end() && std::isspace(static_cast<unsigned char>(*p))) { ++p; }  // skip spaces
+        while (p != s.end() && is_space(*p)) { ++p; }  // skip spaces
         auto p0 = p;
         if (p == s.end()) {
             if (state != state_t::kSepFound) { break; }
@@ -217,14 +218,14 @@ size_t separate_words(std::string_view s, char sep, OutputFn fn, OutputIt out,
             do {  // find separator or blank
                 if (*p == '\\') {
                     if (++p == s.end()) { break; }
-                } else if (std::isspace(static_cast<unsigned char>(*p))) {
+                } else if (is_space(*p)) {
                     state = state_t::kSkipSep;
                     break;
                 } else if (*p == sep) {
                     state = state_t::kSepFound;
                     break;
                 }
-            } while (++p < s.end());
+            } while (++p != s.end());
             if (p == p0 && prev_state == state_t::kSkipSep) { continue; }
         }
         *out++ = fn(s.substr(p0 - s.begin(), p - p0));
@@ -279,7 +280,7 @@ size_t unpack_strings(std::string_view s, char sep, OutputFn fn, OutputIt out,
     for (auto p = s.begin();; ++p) {
         std::string result;
         auto p0 = p;  // append chars till separator
-        for (; p < s.end(); ++p) {
+        for (; p != s.end(); ++p) {
             if (*p == '\\') {
                 result.append(p0, p);
                 p0 = p + 1;
@@ -289,7 +290,7 @@ size_t unpack_strings(std::string_view s, char sep, OutputFn fn, OutputIt out,
             }
         }
         result.append(p0, p);
-        if (p < s.end() || !result.empty()) {
+        if (p != s.end() || !result.empty()) {
             *out++ = fn(std::move(result));
             if (++count == max_count) { break; }
         }
