@@ -47,18 +47,18 @@ inline const char* fmt_parse_leading_zeroes(const char* p, fmt_state& fmt) {
 
 template<typename Ty>
 const char* fmt_parse_num(const char* p, Ty& num) {
-    while (std::isdigit(static_cast<unsigned char>(*p))) { num = 10 * num + static_cast<Ty>(*p++ - '0'); }
+    while (is_digit(*p)) { num = 10 * num + static_cast<Ty>(*p++ - '0'); }
     return p;
 }
 
 inline const char* fmt_parse_width(const char* p, detail::fmt_arg_specs& specs) {
-    if (std::isdigit(static_cast<unsigned char>(*p))) {
+    if (is_digit(*p)) {
         specs.fmt.width = static_cast<unsigned>(*p++ - '0');
         p = fmt_parse_num<unsigned>(p, specs.fmt.width);
     } else if (*p == '{') {
         specs.flags |= detail::fmt_parse_flags::kDynamicWidth;
         if (*++p == '}') { return p + 1; }
-        if (std::isdigit(static_cast<unsigned char>(*p))) {
+        if (is_digit(*p)) {
             specs.flags |= detail::fmt_parse_flags::kWidthArgNumSpecified;
             specs.n_width_arg = static_cast<size_t>(*p++ - '0');
             p = fmt_parse_num(p, specs.n_width_arg);
@@ -70,13 +70,13 @@ inline const char* fmt_parse_width(const char* p, detail::fmt_arg_specs& specs) 
 
 inline const char* fmt_parse_precision(const char* p, detail::fmt_arg_specs& specs) {
     if (*p != '.') { return p; }
-    if (std::isdigit(static_cast<unsigned char>(*++p))) {
+    if (is_digit(*++p)) {
         specs.fmt.prec = static_cast<int>(*p++ - '0');
         p = fmt_parse_num<int>(p, specs.fmt.prec);
     } else if (*p == '{') {
         specs.flags |= detail::fmt_parse_flags::kDynamicPrec;
         if (*++p == '}') { return p + 1; }
-        if (std::isdigit(static_cast<unsigned char>(*p))) {
+        if (is_digit(*p)) {
             specs.flags |= detail::fmt_parse_flags::kPrecArgNumSpecified;
             specs.n_prec_arg = static_cast<size_t>(*p++ - '0');
             p = fmt_parse_num(p, specs.n_prec_arg);
@@ -136,7 +136,7 @@ void util::detail::fmt_parse_arg_spec(const char* p, detail::fmt_arg_specs& spec
     specs.fmt = fmt_state();
     specs.flags = fmt_parse_flags::kDefault;
     if (*p == '}') { return; }
-    if (std::isdigit(static_cast<unsigned char>(*p))) {
+    if (is_digit(*p)) {
         specs.flags |= fmt_parse_flags::kArgNumSpecified;
         specs.n_arg = static_cast<size_t>(*p++ - '0');
         p = fmt_parse_num<size_t>(p, specs.n_arg);
