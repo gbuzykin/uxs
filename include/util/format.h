@@ -1,6 +1,6 @@
 #pragma once
 
-#include "span.h"
+#include "io/iobuf.h"
 #include "stringcvt.h"
 
 #include <array>
@@ -145,6 +145,46 @@ template<typename... Ts>
 wchar_t* format_to_n(wchar_t* dst, size_t n, std::wstring_view fmt, const Ts&... args) {
     wlimbuf_appender appender(dst, n);
     return format_append(fmt, appender, args...).curr();
+}
+
+template<typename... Ts>
+iobuf& fprint(iobuf& buf, std::string_view fmt, const Ts&... args) {
+    util::dynbuf_appender appender;
+    format_append(fmt, appender, args...);
+    return buf.write(as_span(appender.data(), appender.size()));
+}
+
+template<typename... Ts>
+wiobuf& fprint(wiobuf& buf, std::wstring_view fmt, const Ts&... args) {
+    util::wdynbuf_appender appender;
+    format_append(fmt, appender, args...);
+    return buf.write(as_span(appender.data(), appender.size()));
+}
+
+template<typename... Ts>
+iobuf& fprintln(iobuf& buf, std::string_view fmt, const Ts&... args) {
+    util::dynbuf_appender appender;
+    format_append(fmt, appender, args...);
+    appender.push_back('\n');
+    return buf.write(as_span(appender.data(), appender.size())).flush();
+}
+
+template<typename... Ts>
+wiobuf& fprintln(wiobuf& buf, std::wstring_view fmt, const Ts&... args) {
+    util::wdynbuf_appender appender;
+    format_append(fmt, appender, args...);
+    appender.push_back('\n');
+    return buf.write(as_span(appender.data(), appender.size())).flush();
+}
+
+template<typename... Ts>
+iobuf& print(std::string_view fmt, const Ts&... args) {
+    return fprint(stdbuf::out, fmt, args...);
+}
+
+template<typename... Ts>
+iobuf& println(std::string_view fmt, const Ts&... args) {
+    return fprintln(stdbuf::out, fmt, args...);
 }
 
 }  // namespace util

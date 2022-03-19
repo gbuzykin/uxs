@@ -21,15 +21,17 @@ class span {
     using const_pointer = const Ty*;
     using reference = Ty&;
     using const_reference = const Ty&;
-    using iterator = util::array_iterator<span, true>;
+    using iterator = util::array_iterator<span, false>;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using size_type = size_t;
     using difference_type = std::ptrdiff_t;
 
     span() NOEXCEPT {}
-    template<typename Ty2, typename = std::enable_if_t<std::is_same<std::remove_cv_t<Ty2>, value_type>::value>>
+    template<typename Ty2, typename = std::enable_if_t<std::is_convertible<Ty2*, Ty*>::value>>
     span(Ty2* v, size_type count) NOEXCEPT : begin_(v), size_(count) {}
-    template<typename Range, typename = std::enable_if_t<is_contiguous_range<Range, value_type>::value>>
+    template<typename Ty2, size_t N, typename = std::enable_if_t<std::is_convertible<Ty2*, Ty*>::value>>
+    explicit span(Ty2 (&v)[N]) NOEXCEPT : begin_(v), size_(N) {}
+    template<typename Range, typename = std::enable_if_t<is_contiguous_range<std::remove_reference_t<Range>, Ty>::value>>
     span(Range&& r) NOEXCEPT : begin_(r.data()), size_(r.size()) {}
 
     ~span() = default;
@@ -76,9 +78,19 @@ class span {
     size_t size_ = 0;
 };
 
+template<typename Ty>
+span<Ty> as_span(Ty* v, typename span<Ty>::size_type count) NOEXCEPT {
+    return span<Ty>(v, count);
+}
+
+template<typename Ty, size_t N>
+span<Ty> as_span(Ty (&v)[N]) NOEXCEPT {
+    return span<Ty>(v, N);
+}
+
 template<typename Range>
-span<typename Range::value_type> as_span(Range&& r) NOEXCEPT {
-    return span<typename Range::value_type>(r);
+auto as_span(Range&& r) NOEXCEPT -> span<std::remove_pointer_t<decltype(r.data() + r.size())>> {
+    return span<std::remove_pointer_t<decltype(r.data())>>(r.data(), r.size());
 }
 
 }  // namespace util

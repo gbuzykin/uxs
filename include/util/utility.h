@@ -49,6 +49,8 @@ using decay_t = typename decay<Ty>::type;
 template<typename Ty>
 using remove_reference_t = typename remove_reference<Ty>::type;
 template<typename Ty>
+using remove_pointer_t = typename remove_pointer<Ty>::type;
+template<typename Ty>
 using remove_const_t = typename remove_const<Ty>::type;
 template<typename Ty>
 using remove_cv_t = typename remove_cv<Ty>::type;
@@ -97,10 +99,10 @@ namespace detail {
 template<typename Range, typename Ty>
 struct is_contiguous_range {
     template<typename Range_>
-    static auto test(Range_* r) -> std::is_same<std::decay_t<decltype(*(r->data() + r->size()))>, Ty>;
+    static auto test(Range_* r) -> std::is_convertible<decltype(r->data() + r->size()), Ty*>;
     template<typename Range_>
     static std::false_type test(...);
-    using type = decltype(test<std::remove_reference_t<Range>>(nullptr));
+    using type = decltype(test<Range>(nullptr));
 };
 }  // namespace detail
 
