@@ -19,15 +19,7 @@ enum class fmt_parse_flags : unsigned {
     kWidthArgNumSpecified = 0x20,
     kPrecArgNumSpecified = 0x40,
 };
-
-inline fmt_parse_flags operator&(fmt_parse_flags lhs, fmt_parse_flags rhs) {
-    return static_cast<fmt_parse_flags>(static_cast<unsigned>(lhs) & static_cast<unsigned>(rhs));
-}
-inline fmt_parse_flags operator|(fmt_parse_flags lhs, fmt_parse_flags rhs) {
-    return static_cast<fmt_parse_flags>(static_cast<unsigned>(lhs) | static_cast<unsigned>(rhs));
-}
-inline bool operator!(fmt_parse_flags flags) { return static_cast<unsigned>(flags) == 0; }
-inline fmt_parse_flags& operator|=(fmt_parse_flags& lhs, fmt_parse_flags rhs) { return lhs = lhs | rhs; }
+UTIL_IMPLEMENT_BITWISE_OPS_FOR_ENUM(fmt_parse_flags, unsigned);
 
 struct fmt_arg_specs {
     fmt_state fmt;

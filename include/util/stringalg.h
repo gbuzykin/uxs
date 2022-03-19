@@ -11,10 +11,7 @@
 namespace util {
 
 enum class split_flags : unsigned { kNoFlags = 0, kSkipEmpty = 1 };
-
-inline bool operator&(split_flags flags, split_flags mask) {
-    return (static_cast<unsigned>(flags) & static_cast<unsigned>(mask)) != 0;
-}
+UTIL_IMPLEMENT_BITWISE_OPS_FOR_ENUM(split_flags, unsigned);
 
 namespace detail {
 template<typename Ty>
