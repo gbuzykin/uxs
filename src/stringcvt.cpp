@@ -3,9 +3,7 @@
 #include <array>
 #include <limits>
 
-#if defined(_MSC_VER)
-#    include <intrin.h>
-#elif defined(__GNUC__) && defined(__x86_64__)
+#if defined(__GNUC__) && defined(__x86_64__)
 namespace gcc_ints {
 __extension__ typedef unsigned __int128 uint128;
 }  // namespace gcc_ints
@@ -60,13 +58,7 @@ uint64_t make64(TyH hi, TyL lo) {
     return (static_cast<uint64_t>(hi) << 32) | static_cast<uint64_t>(lo);
 }
 
-#if defined(_MSC_VER) && defined(_M_AMD64)
-inline unsigned ulog2(uint64_t x) {
-    unsigned long index;
-    _BitScanReverse64(&index, x);
-    return static_cast<unsigned>(index);
-}
-#elif defined(__GNUC__)
+#if defined(__GNUC__) && defined(__x86_64__)
 inline unsigned ulog2(uint64_t x) { return 63 - __builtin_clzll(x); }
 #else
 struct ulog2_table_t {
@@ -97,12 +89,7 @@ inline unsigned ulog2(uint64_t x) {
 #endif
 
 inline uint96_t mul64x32(uint64_t x, uint32_t y, uint32_t bias) {
-#if defined(_MSC_VER) && defined(_M_AMD64)
-    uint128_t result;
-    result.lo = _umul128(x, y, &result.hi) + bias;
-    if (result.lo < bias) { ++result.hi; }
-    return uint96_t{make64(lo32(result.hi), hi32(result.lo)), static_cast<uint32_t>(lo32(result.lo))};
-#elif defined(__GNUC__) && defined(__x86_64__)
+#if defined(__GNUC__) && defined(__x86_64__)
     gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x) * static_cast<gcc_ints::uint128>(y) + bias;
     return uint96_t{static_cast<uint64_t>(p >> 32), static_cast<uint32_t>(p)};
 #else
@@ -112,11 +99,7 @@ inline uint96_t mul64x32(uint64_t x, uint32_t y, uint32_t bias) {
 }
 
 inline uint64_t mul64x32_hi64(uint64_t x, uint32_t y) {
-#if defined(_MSC_VER) && defined(_M_AMD64)
-    uint128_t result;
-    result.lo = _umul128(x, y, &result.hi);
-    return make64(lo32(result.hi), hi32(result.lo));
-#elif defined(__GNUC__) && defined(__x86_64__)
+#if defined(__GNUC__) && defined(__x86_64__)
     gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x) * static_cast<gcc_ints::uint128>(y);
     return static_cast<uint64_t>(p >> 32);
 #else
@@ -126,11 +109,7 @@ inline uint64_t mul64x32_hi64(uint64_t x, uint32_t y) {
 }
 
 inline uint128_t mul64x64(uint64_t x, uint64_t y) {
-#if defined(_MSC_VER) && defined(_M_AMD64)
-    uint128_t result;
-    result.lo = _umul128(x, y, &result.hi);
-    return result;
-#elif defined(__GNUC__) && defined(__x86_64__)
+#if defined(__GNUC__) && defined(__x86_64__)
     gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x) * static_cast<gcc_ints::uint128>(y);
     return uint128_t{static_cast<uint64_t>(p >> 64), static_cast<uint64_t>(p)};
 #else
@@ -143,12 +122,7 @@ inline uint128_t mul64x64(uint64_t x, uint64_t y) {
 }
 
 inline uint128_t mul64x64(uint64_t x, uint64_t y, uint64_t bias) {
-#if defined(_MSC_VER) && defined(_M_AMD64)
-    uint128_t result;
-    result.lo = _umul128(x, y, &result.hi) + bias;
-    if (result.lo < bias) { ++result.hi; }
-    return result;
-#elif defined(__GNUC__) && defined(__x86_64__)
+#if defined(__GNUC__) && defined(__x86_64__)
     gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x) * static_cast<gcc_ints::uint128>(y) + bias;
     return uint128_t{static_cast<uint64_t>(p >> 64), static_cast<uint64_t>(p)};
 #else
@@ -354,15 +328,14 @@ struct fp_exp10_format {
 static const char* starts_with(const char* p, const char* end, const char* s, size_t len) {
     if (static_cast<size_t>(end - p) < len) { return p; }
     for (const char *p1 = p, *p2 = s; p1 < end; ++p1, ++p2) {
-        char ch1 = std::tolower(static_cast<unsigned char>(*p1));
-        char ch2 = std::tolower(static_cast<unsigned char>(*p2));
+        char ch1 = to_lower(*p1), ch2 = to_lower(*p2);
         if (ch1 != ch2) { return p; }
     }
     return p + len;
 }
 
 inline const char* skip_spaces(const char* p, const char* end) {
-    while (p < end && std::isspace(static_cast<unsigned char>(*p))) { ++p; }
+    while (p < end && is_space(static_cast<unsigned char>(*p))) { ++p; }
     return p;
 }
 
@@ -391,15 +364,15 @@ const char* to_integer(const char* p, const char* end, Ty& val) {
     } else if (*p == '-') {
         ++p, neg = true;  // negative sign
     }
-    if (p == end || !std::isdigit(static_cast<unsigned char>(*p))) { return p0; }
+    if (p == end || !is_digit(*p)) { return p0; }
     val = static_cast<Ty>(*p++ - '0');
-    while (p < end && std::isdigit(static_cast<unsigned char>(*p))) { val = 10 * val + static_cast<Ty>(*p++ - '0'); }
+    while (p < end && is_digit(*p)) { val = 10 * val + static_cast<Ty>(*p++ - '0'); }
     if (neg) { val = ~val + 1; }  // apply sign
     return p;
 }
 
 static const char* accum_mantissa(const char* p, const char* end, uint64_t& m, int& exp) {
-    for (; p < end && std::isdigit(static_cast<unsigned char>(*p)); ++p) {
+    for (; p < end && is_digit(*p); ++p) {
         if (m < pow_table_t::kMaxMantissa10 / 10) {  // decimal mantissa can hold up to 19 digits
             m = 10 * m + static_cast<uint64_t>(*p - '0');
         } else {
@@ -412,11 +385,11 @@ static const char* accum_mantissa(const char* p, const char* end, uint64_t& m, i
 static const char* to_fp_exp10(const char* p, const char* end, fp_exp10_format& fp10) {
     if (p == end) {
         return p;
-    } else if (std::isdigit(static_cast<unsigned char>(*p))) {  // integer part
+    } else if (is_digit(*p)) {  // integer part
         fp10.mantissa = static_cast<uint64_t>(*p++ - '0');
         p = accum_mantissa(p, end, fp10.mantissa, fp10.exp);
         if (p < end && *p == '.') { ++p; }  // skip decimal point
-    } else if (*p == '.' && p + 1 < end && std::isdigit(static_cast<unsigned char>(*(p + 1)))) {
+    } else if (*p == '.' && p + 1 < end && is_digit(*(p + 1))) {
         fp10.mantissa = static_cast<uint64_t>(*(p + 1) - '0');  // tenth
         fp10.exp = -1, p += 2;
     } else {
@@ -1117,11 +1090,11 @@ SCVT_IMPLEMENT_STANDARD_STRING_CONVERTERS(double, to_float, fmt_float)
         val = true;
     } else if ((p = scvt::starts_with(p, last, "false", 5)) > p0) {
         val = false;
-    } else if (p < last && std::isdigit(static_cast<unsigned char>(*p))) {
+    } else if (p < last && is_digit(*p)) {
         val = false;
         do {
             if (*p++ != '0') { val = true; }
-        } while (p < last && std::isdigit(static_cast<unsigned char>(*p)));
+        } while (p < last && is_digit(*p));
     } else {
         return first;
     }

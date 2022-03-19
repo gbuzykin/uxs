@@ -1,25 +1,12 @@
 #pragma once
 
+#include "chars.h"
 #include "string_view.h"
 #include "utility.h"
 
 #include <algorithm>
-#include <cctype>
-#include <cstring>
 
 namespace util {
-
-template<unsigned base>
-CONSTEXPR int dig(char ch) {
-    return static_cast<int>(ch - '0');
-}
-
-template<>
-CONSTEXPR int dig<16>(char ch) {
-    if (ch >= 'a' && ch <= 'f') { return static_cast<int>(ch - 'a') + 10; }
-    if (ch >= 'A' && ch <= 'F') { return static_cast<int>(ch - 'A') + 10; }
-    return static_cast<int>(ch - '0');
-}
 
 template<typename InputIt, typename InputFn = nofunc>
 unsigned from_hex(InputIt in, int digs, InputFn fn = InputFn{}, bool* ok = nullptr) {
@@ -28,8 +15,9 @@ unsigned from_hex(InputIt in, int digs, InputFn fn = InputFn{}, bool* ok = nullp
         char ch = fn(*in++);
         val <<= 4;
         --digs;
-        if (std::isxdigit(static_cast<unsigned char>(ch))) {
-            val |= dig<16>(ch);
+        int dig_v = xdigit_v(ch);
+        if (dig_v >= 0) {
+            val |= dig_v;
         } else {
             if (ok) { *ok = false; }
             return val;
@@ -231,8 +219,8 @@ struct UTIL_EXPORT string_converter<bool> : string_converter_base<bool> {
         std::string_view sval = !(fmt.flags & fmt_flags::kUpperCase) ?
                                     (val ? std::string_view("true", 4) : std::string_view("false", 5)) :
                                     (val ? std::string_view("TRUE", 4) : std::string_view("FALSE", 5));
-        if (sval.size() < fmt.width) { return detail::fmt_adjusted(sval.begin(), sval.end(), s, fmt); }
-        return s.append(sval.begin(), sval.end());
+        if (sval.size() < fmt.width) { return detail::fmt_adjusted(sval.data(), sval.data() + sval.size(), s, fmt); }
+        return s.append(sval.data(), sval.data() + sval.size());
     }
 };
 
