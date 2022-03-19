@@ -604,7 +604,7 @@ StrTy& fmt_dec_signed(Ty val, StrTy& s, const fmt_state& fmt) {
     if (p == last) { *--p = '0'; }
     unsigned len = static_cast<unsigned>(last - p) + show_sign;
     if (fmt.width > len && !!(fmt.flags & fmt_flags::kLeadingZeroes)) {
-        if (show_sign) { s += sign; }
+        if (show_sign) { s.push_back(sign); }
         s.append(fmt.width - len, '0');
     } else {
         if (show_sign) { *--p = sign; }
@@ -674,8 +674,8 @@ StrTy& fmt_fp_exp10(const fp_exp10_format& fp10, StrTy& s, fmt_flags flags, int 
     }
 
     // integer part
-    s += p != p_exp ? *p++ : '0';
-    if (prec > 0 || !!(flags & fmt_flags::kShowPoint)) { s += '.'; }
+    s.push_back(p != p_exp ? *p++ : '0');
+    if (prec > 0 || !!(flags & fmt_flags::kShowPoint)) { s.push_back('.'); }
 
     // fractional part + exponent
     int n_digs = static_cast<int>(p_exp - p);
@@ -695,25 +695,25 @@ StrTy& fmt_fp_exp10_fixed(const fp_exp10_format& fp10, StrTy& s, fmt_flags flags
         int n_digs = static_cast<int>(last - p);
         if (n_digs <= k) {
             s.append(p, last).append(k - n_digs, '0');
-            if (prec > 0 || !!(flags & fmt_flags::kShowPoint)) { s += '.'; }
+            if (prec > 0 || !!(flags & fmt_flags::kShowPoint)) { s.push_back('.'); }
             return s.append(prec, '0');
         }
 
         s.append(p, p + k);
         if (prec > 0) {
-            s += '.';
+            s.push_back('.');
             return s.append(p + k, last).append(prec + k - n_digs, '0');
         }
-        if (!!(flags & fmt_flags::kShowPoint)) { s += '.'; }
+        if (!!(flags & fmt_flags::kShowPoint)) { s.push_back('.'); }
         return s;
     }
 
-    s += '0';
+    s.push_back('0');
     if (prec > 0) {
-        s += '.';
+        s.push_back('.');
         return s.append(-k, '0').append(p, last);
     }
-    if (!!(flags & fmt_flags::kShowPoint)) { s += '.'; }
+    if (!!(flags & fmt_flags::kShowPoint)) { s.push_back('.'); }
     return s;
 }
 
@@ -1025,7 +1025,7 @@ not_zero_result:
                     default: left = fmt.width - len; break;
                 }
                 s.append(left, fmt.fill);
-                if (show_sign) { s += sign; }
+                if (show_sign) { s.push_back(sign); }
                 if (fp_fmt == fmt_flags::kFixed) {
                     fmt_fp_exp10_fixed(fp10, s, fmt.flags, prec);
                 } else {
@@ -1034,13 +1034,13 @@ not_zero_result:
                 s.append(right, fmt.fill);
                 return s;
             }
-            if (show_sign) { s += sign; }
+            if (show_sign) { s.push_back(sign); }
             s.append(fmt.width - len, '0');
         } else if (show_sign) {
-            s += sign;
+            s.push_back(sign);
         }
     } else if (show_sign) {
-        s += sign;
+        s.push_back(sign);
     }
 
     if (fp_fmt == fmt_flags::kFixed) { return fmt_fp_exp10_fixed(fp10, s, fmt.flags, prec); }
