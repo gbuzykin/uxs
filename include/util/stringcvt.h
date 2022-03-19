@@ -59,17 +59,7 @@ enum class fmt_flags : unsigned {
     kSignAlign = 0x800,
     kSignField = 0xc00,
 };
-
-inline fmt_flags operator&(fmt_flags lhs, fmt_flags rhs) {
-    return static_cast<fmt_flags>(static_cast<unsigned>(lhs) & static_cast<unsigned>(rhs));
-}
-inline fmt_flags operator|(fmt_flags lhs, fmt_flags rhs) {
-    return static_cast<fmt_flags>(static_cast<unsigned>(lhs) | static_cast<unsigned>(rhs));
-}
-inline fmt_flags operator~(fmt_flags flags) { return static_cast<fmt_flags>(~static_cast<unsigned>(flags)); }
-inline bool operator!(fmt_flags flags) { return static_cast<unsigned>(flags) == 0; }
-inline fmt_flags& operator&=(fmt_flags& lhs, fmt_flags rhs) { return lhs = lhs & rhs; }
-inline fmt_flags& operator|=(fmt_flags& lhs, fmt_flags rhs) { return lhs = lhs | rhs; }
+UTIL_IMPLEMENT_BITWISE_OPS_FOR_ENUM(fmt_flags, unsigned);
 
 struct fmt_state {
     CONSTEXPR fmt_state() = default;
