@@ -167,13 +167,13 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
     size_type size() const NOEXCEPT { return size_; }
     size_type max_size() const NOEXCEPT { return alloc_traits::max_size(*this); }
 
-    iterator begin() NOEXCEPT { return iterator::from_base(head_.next); }
-    const_iterator begin() const NOEXCEPT { return const_iterator::from_base(head_.next); }
-    const_iterator cbegin() const NOEXCEPT { return const_iterator::from_base(head_.next); }
+    iterator begin() NOEXCEPT { return iterator(head_.next); }
+    const_iterator begin() const NOEXCEPT { return const_iterator(head_.next); }
+    const_iterator cbegin() const NOEXCEPT { return const_iterator(head_.next); }
 
-    iterator end() NOEXCEPT { return iterator::from_base(std::addressof(head_)); }
-    const_iterator end() const NOEXCEPT { return const_iterator::from_base(std::addressof(head_)); }
-    const_iterator cend() const NOEXCEPT { return const_iterator::from_base(std::addressof(head_)); }
+    iterator end() NOEXCEPT { return iterator(std::addressof(head_)); }
+    const_iterator end() const NOEXCEPT { return const_iterator(std::addressof(head_)); }
+    const_iterator cend() const NOEXCEPT { return const_iterator(std::addressof(head_)); }
 
     reverse_iterator rbegin() NOEXCEPT { return reverse_iterator(end()); }
     const_reverse_iterator rbegin() const NOEXCEPT { return const_reverse_iterator(end()); }
@@ -233,16 +233,16 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
     }
 
     iterator insert(const_iterator pos, size_type count, const value_type& val) {
-        return iterator::from_base(insert_const(to_ptr(pos), count, val));
+        return iterator(insert_const(to_ptr(pos), count, val));
     }
 
     iterator insert(const_iterator pos, std::initializer_list<value_type> l) {
-        return iterator::from_base(insert_impl(to_ptr(pos), l.begin(), l.end()));
+        return iterator(insert_impl(to_ptr(pos), l.begin(), l.end()));
     }
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     iterator insert(const_iterator pos, InputIt first, InputIt last) {
-        return iterator::from_base(insert_impl(to_ptr(pos), first, last));
+        return iterator(insert_impl(to_ptr(pos), first, last));
     }
 
     iterator insert(const_iterator pos, const value_type& val) { return emplace(pos, val); }
@@ -251,7 +251,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
     iterator emplace(const_iterator pos, Args&&... args) {
         auto* node = new_node(std::forward<Args>(args)...);
         dllist_insert_before(to_ptr(pos), node);
-        return iterator::from_base(node);
+        return iterator(node);
     }
 
     void push_front(const value_type& val) { emplace_front(val); }
@@ -294,14 +294,14 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
         --size_;
         auto* next = dllist_remove(p);
         helpers::delete_node(*this, p);
-        return iterator::from_base(next);
+        return iterator(next);
     }
 
     iterator erase(const_iterator first, const_iterator last) {
         auto* p_first = to_ptr(first);
         auto* p_last = to_ptr(last);
         if (p_first != p_last) { erase_impl(p_first, p_last); }
-        return iterator::from_base(p_last);
+        return iterator(p_last);
     }
 
     size_type remove(const value_type& val) {
@@ -396,7 +396,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
     bool is_same_alloc(const alloc_type& alloc) { return static_cast<alloc_type&>(*this) == alloc; }
 
     dllist_node_t* to_ptr(const_iterator it) const {
-        auto* node = it.base().node();
+        auto* node = it.node();
         iterator_assert(node_t::get_head(node) == std::addressof(head_));
         return node;
     }
