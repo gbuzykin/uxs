@@ -199,7 +199,7 @@ class limited_output_iterator {
     using reference = void;
     using pointer = void;
 
-    limited_output_iterator() = default;
+    limited_output_iterator() : base_(), limit_(0) {}
     limited_output_iterator(BaseIt base, difference_type limit) : base_(base), limit_(limit) {}
 
     template<typename Ty>
@@ -236,7 +236,7 @@ class limited_output_iterator<BaseIt, std::enable_if_t<is_random_access_iterator
     using reference = void;
     using pointer = void;
 
-    limited_output_iterator() = default;
+    limited_output_iterator() : first_(), last_() {}
     limited_output_iterator(iterator_type base, difference_type limit) : first_(base), last_(base + limit) {}
 
     template<typename Ty>
