@@ -11,7 +11,7 @@
 #    define iterator_assert(cond) ((void)0)
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && _MSC_VER < 1920
 #    define USE_CHECKED_ITERATORS
 #endif  // defined(_MSC_VER)
 
@@ -428,5 +428,10 @@ template<typename Val>
 const_value_iterator<Val> const_value(const Val& v) NOEXCEPT {
     return const_value_iterator<Val>(v);
 }
+
+#ifdef USE_CHECKED_ITERATORS
+template<typename Val>
+struct std::_Is_checked_helper<const_value_iterator<Val>> : std::true_type {};
+#endif  // USE_CHECKED_ITERATORS
 
 }  // namespace util
