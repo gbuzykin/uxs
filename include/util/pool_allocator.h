@@ -303,21 +303,12 @@ class pool_allocator<void> {
     pool pool_;
 };
 
-template<typename Ty1, typename Ty2>
-bool operator==(const pool_allocator<Ty1>& lhs, const pool_allocator<Ty2>& rhs) NOEXCEPT {
+template<typename TyL, typename TyR>
+bool operator==(const pool_allocator<TyL>& lhs, const pool_allocator<TyR>& rhs) NOEXCEPT {
     return lhs.is_equal_to(rhs);
 }
-template<typename Ty>
-bool operator==(const pool_allocator<Ty>& lhs, const pool_allocator<Ty>& rhs) NOEXCEPT {
-    return lhs.is_equal_to(rhs);
-}
-
-template<typename Ty1, typename Ty2>
-bool operator!=(const pool_allocator<Ty1>& lhs, const pool_allocator<Ty2>& rhs) NOEXCEPT {
-    return !(lhs == rhs);
-}
-template<typename Ty>
-bool operator!=(const pool_allocator<Ty>& lhs, const pool_allocator<Ty>& rhs) NOEXCEPT {
+template<typename TyL, typename TyR>
+bool operator!=(const pool_allocator<TyL>& lhs, const pool_allocator<TyR>& rhs) NOEXCEPT {
     return !(lhs == rhs);
 }
 
@@ -382,21 +373,12 @@ class global_pool_allocator<void> {
     global_pool_allocator select_on_container_copy_construction() const NOEXCEPT { return *this; }
 };
 
-template<typename Ty1, typename Ty2>
-bool operator==(const global_pool_allocator<Ty1>& lhs, const global_pool_allocator<Ty2>& rhs) NOEXCEPT {
+template<typename TyL, typename TyR>
+bool operator==(const global_pool_allocator<TyL>& lhs, const global_pool_allocator<TyR>& rhs) NOEXCEPT {
     return true;
 }
-template<typename Ty>
-bool operator==(const global_pool_allocator<Ty>& lhs, const global_pool_allocator<Ty>& rhs) NOEXCEPT {
-    return true;
-}
-
-template<typename Ty1, typename Ty2>
-bool operator!=(const global_pool_allocator<Ty1>& lhs, const global_pool_allocator<Ty2>& rhs) NOEXCEPT {
-    return !(lhs == rhs);
-}
-template<typename Ty>
-bool operator!=(const global_pool_allocator<Ty>& lhs, const global_pool_allocator<Ty>& rhs) NOEXCEPT {
+template<typename TyL, typename TyR>
+bool operator!=(const global_pool_allocator<TyL>& lhs, const global_pool_allocator<TyR>& rhs) NOEXCEPT {
     return !(lhs == rhs);
 }
 

@@ -78,7 +78,7 @@ class rbtree_unique : public rbtree_base<NodeTy, Alloc, Comp> {
                 std::addressof(this->head_), node_t::get_key(node_t::get_value(node)), this->get_compare());
             if (result.second == 0) {
                 super::helpers::delete_node(*this, node);
-                return std::make_pair(iterator::from_base(result.first), false);
+                return std::make_pair(iterator(result.first), false);
             }
             node_t::set_head(node, std::addressof(this->head_));
             ++this->size_;
@@ -87,7 +87,7 @@ class rbtree_unique : public rbtree_base<NodeTy, Alloc, Comp> {
             super::helpers::delete_node(*this, node);
             throw;
         }
-        return std::make_pair(iterator::from_base(node), true);
+        return std::make_pair(iterator(node), true);
     }
 
     iterator insert(const_iterator hint, const value_type& val) { return emplace_hint(hint, val); }
@@ -101,7 +101,7 @@ class rbtree_unique : public rbtree_base<NodeTy, Alloc, Comp> {
                                                                 this->get_compare());
             if (result.second == 0) {
                 super::helpers::delete_node(*this, node);
-                return iterator::from_base(result.first);
+                return iterator(result.first);
             }
             node_t::set_head(node, std::addressof(this->head_));
             ++this->size_;
@@ -110,7 +110,7 @@ class rbtree_unique : public rbtree_base<NodeTy, Alloc, Comp> {
             super::helpers::delete_node(*this, node);
             throw;
         }
-        return iterator::from_base(node);
+        return iterator(node);
     }
 
     insert_return_type insert(node_type&& nh) {
@@ -121,12 +121,12 @@ class rbtree_unique : public rbtree_base<NodeTy, Alloc, Comp> {
         auto* node = nh.node_;
         auto result = rbtree_find_insert_unique_pos<node_t>(
             std::addressof(this->head_), node_t::get_key(node_t::get_value(node)), this->get_compare());
-        if (result.second == 0) { return {iterator::from_base(result.first), false, std::move(nh)}; }
+        if (result.second == 0) { return {iterator(result.first), false, std::move(nh)}; }
         node_t::set_head(node, std::addressof(this->head_));
         ++this->size_;
         nh.node_ = nullptr;
         rbtree_insert(std::addressof(this->head_), node, result.first, result.second < 0);
-        return {iterator::from_base(node), true, node_type(*this)};
+        return {iterator(node), true, node_type(*this)};
     }
 
     iterator insert(const_iterator hint, node_type&& nh) {
@@ -138,12 +138,12 @@ class rbtree_unique : public rbtree_base<NodeTy, Alloc, Comp> {
         auto result = rbtree_find_insert_unique_pos<node_t>(std::addressof(this->head_), this->to_ptr(hint),
                                                             node_t::get_key(node_t::get_value(node)),
                                                             this->get_compare());
-        if (result.second == 0) { return iterator::from_base(result.first); }
+        if (result.second == 0) { return iterator(result.first); }
         node_t::set_head(node, std::addressof(this->head_));
         ++this->size_;
         nh.node_ = nullptr;
         rbtree_insert(std::addressof(this->head_), node, result.first, result.second < 0);
-        return iterator::from_base(node);
+        return iterator(node);
     }
 
     template<typename Val, typename = std::enable_if_t<std::is_constructible<value_type, Val&&>::value>>
