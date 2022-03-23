@@ -1,6 +1,6 @@
 #pragma once
 
-#include "string_ext.h"
+#include "stringalg.h"
 
 #include <regex>
 
