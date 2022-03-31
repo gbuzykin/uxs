@@ -69,10 +69,17 @@ class UTIL_EXPORT basic_iobuf : public iostate {
     basic_iobuf& flush();
     basic_iobuf& endl() { return put('\n').flush(); }
 
+    pos_type seek(off_type off, seekdir dir = seekdir::kBeg);
+    pos_type tell() {
+        if (this->fail()) { return -1; }
+        return seekimpl(0, seekdir::kCurr);
+    }
+
  protected:
     virtual int underflow();
     virtual int ungetfail();
     virtual int overflow(char_type ch);
+    virtual pos_type seekimpl(off_type off, seekdir dir);
     virtual int sync();
 
     char_type* first() const { return first_; }
