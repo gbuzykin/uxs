@@ -75,6 +75,19 @@ basic_iobuf<CharT>& basic_iobuf<CharT>::flush() {
 }
 
 template<typename CharT>
+typename basic_iobuf<CharT>::pos_type basic_iobuf<CharT>::seek(off_type off, seekdir dir) {
+    this->setstate(this->rdstate() & ~iostate_bits::kEof);
+    if (this->fail()) { return -1; }
+    if (!!(this->mode() & iomode::kOut) && sync() < 0) {
+        this->setstate(iostate_bits::kFail);
+        return -1;
+    }
+    pos_type pos = seekimpl(off, dir);
+    if (pos == pos_type(-1)) { this->setstate(iostate_bits::kFail); }
+    return pos;
+}
+
+template<typename CharT>
 int basic_iobuf<CharT>::underflow() {
     return -1;
 }
@@ -86,6 +99,11 @@ int basic_iobuf<CharT>::ungetfail() {
 
 template<typename CharT>
 int basic_iobuf<CharT>::overflow(char_type ch) {
+    return -1;
+}
+
+template<typename CharT>
+typename basic_iobuf<CharT>::pos_type basic_iobuf<CharT>::seekimpl(off_type off, seekdir dir) {
     return -1;
 }
 

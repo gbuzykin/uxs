@@ -23,6 +23,9 @@ UTIL_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iomode, uint8_t);
 enum class iostate_bits : uint8_t { kGood = 0, kBad = 1, kFail = 2, kEof = 4 };
 UTIL_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iostate_bits, uint8_t);
 
+enum class seekdir : uint8_t { kBeg = 0, kEnd, kCurr };
+UTIL_IMPLEMENT_BITWISE_OPS_FOR_ENUM(seekdir, uint8_t);
+
 class iostate {
  public:
     iostate() = default;

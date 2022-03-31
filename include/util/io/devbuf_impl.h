@@ -43,6 +43,8 @@ void basic_devbuf<CharT>::initbuf(iomode mode, size_type bufsz) {
         *buf = '\0';
         this->setview(buf, buf, buf);
     }
+    int64_t abs_off = dev_->seek(0, seekdir::kCurr);
+    if (abs_off >= 0) { pos_ = abs_off / sizeof(char_type); }
     this->clear();
 }
 
@@ -75,12 +77,14 @@ const typename basic_devbuf<CharT>::char_type* basic_devbuf<CharT>::find_end_of_
 template<typename CharT>
 int basic_devbuf<CharT>::write_all(const void* data, size_type sz) {
     int ret = 0;
+    size_type n_written = sz;
     sz *= sizeof(char_type);
     do {
         size_type chunk_sz = 0;
         if ((ret = dev_->write(data, sz, chunk_sz)) < 0) { return ret; }
         data = reinterpret_cast<const uint8_t*>(data) + chunk_sz, sz -= chunk_sz;
     } while (sz != 0);
+    pos_ += n_written;
     return ret;
 }
 
@@ -97,6 +101,7 @@ int basic_devbuf<CharT>::read_at_least_one(void* data, size_type sz, size_type& 
         sz = n_read & (sizeof(char_type) - 1);
     } while (sz != 0);
     n_read /= sizeof(char_type);
+    pos_ += n_read;
     return n_read != 0 ? ret : -1;
 }
 
@@ -208,6 +213,27 @@ int basic_devbuf<CharT>::overflow(char_type ch) {
     *this->curr() = ch;
     this->bump(1);
     return ret;
+}
+
+template<typename CharT>
+typename basic_devbuf<CharT>::pos_type basic_devbuf<CharT>::seekimpl(off_type off, seekdir dir) {
+    assert(dev_ && this->first() && this->curr() && this->last());
+    if (dir != seekdir::kEnd) {
+        std::ptrdiff_t delta = !!(this->mode() & iomode::kOut) ? this->curr() - this->first() :
+                                                                 this->curr() - this->last();
+        pos_type pos = pos_ + delta;
+        if (dir == seekdir::kCurr) {
+            if (off == 0) { return pos; }
+            off += delta;
+        } else if (pos == off) {
+            return pos;
+        }
+    }
+    int64_t abs_off = dev_->seek(off * sizeof(char_type), dir);
+    if (abs_off < 0) { return -1; }
+    pos_ = abs_off / sizeof(char_type);
+    if (!(this->mode() & iomode::kOut)) { this->setview(this->first(), this->first(), this->first()); }
+    return pos_;
 }
 
 template<typename CharT>

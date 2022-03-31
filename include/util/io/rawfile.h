@@ -32,6 +32,7 @@ class UTIL_EXPORT rawfile : public iodevice {
 
     int read(void* buf, size_type sz, size_type& n_read) override;
     int write(const void* buf, size_type sz, size_type& n_written) override;
+    int64_t seek(int64_t off, seekdir dir) override;
     int ctrlesc_color(span<uint8_t> v) override;
     int flush() override;
 

@@ -121,4 +121,17 @@ int rawfile::ctrlesc_color(span<uint8_t> v) {
     return 0;
 }
 
+int64_t rawfile::seek(int64_t off, seekdir dir) {
+    DWORD method = FILE_BEGIN;
+    LONG pos_hi = static_cast<long>(off >> 32);
+    switch (dir) {
+        case seekdir::kCurr: method = FILE_CURRENT; break;
+        case seekdir::kEnd: method = FILE_END; break;
+        default: break;
+    }
+    DWORD pos_lo = ::SetFilePointer(fd_, static_cast<long>(off), &pos_hi, method);
+    if (pos_lo == INVALID_SET_FILE_POINTER) { return -1; }
+    return (static_cast<int64_t>(pos_hi) << 32) | pos_lo;
+}
+
 int rawfile::flush() { return 0; }

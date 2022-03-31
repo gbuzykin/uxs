@@ -62,6 +62,17 @@ int rawfile::write(const void* data, size_type sz, size_type& n_written) {
     return 0;
 }
 
+int64_t rawfile::seek(int64_t off, seekdir dir) {
+    int whence = SEEK_SET;
+    switch (dir) {
+        case seekdir::kCurr: whence = SEEK_CUR; break;
+        case seekdir::kEnd: whence = SEEK_END; break;
+        default: break;
+    }
+    off_t result = ::lseek(fd_, off, whence);
+    return result < 0 ? -1 : result;
+}
+
 int rawfile::ctrlesc_color(span<uint8_t> v) {
     using namespace std::placeholders;
     util::dynbuf_appender buf;

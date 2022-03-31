@@ -10,6 +10,9 @@ class UTIL_EXPORT basic_devbuf : public basic_iobuf<CharT> {
  public:
     using char_type = CharT;
     using size_type = typename basic_iobuf<CharT>::size_type;
+    using int_type = typename basic_iobuf<CharT>::int_type;
+    using pos_type = typename basic_iobuf<CharT>::pos_type;
+    using off_type = typename basic_iobuf<CharT>::off_type;
 
     explicit basic_devbuf(iodevice& dev) : basic_iobuf<CharT>(iomode::kIn, iostate_bits::kFail), dev_(&dev) {}
     basic_devbuf(iodevice& dev, iomode mode, size_type bufsz = 0) : dev_(&dev) { initbuf(mode, bufsz); }
@@ -27,6 +30,7 @@ class UTIL_EXPORT basic_devbuf : public basic_iobuf<CharT> {
  protected:
     int underflow() override;
     int overflow(char_type ch) override;
+    pos_type seekimpl(off_type off, seekdir dir) override;
     int sync() override;
 
     void setdev(iodevice* dev) { dev_ = dev; }
@@ -43,6 +47,7 @@ class UTIL_EXPORT basic_devbuf : public basic_iobuf<CharT> {
     };
     iodevice* dev_ = nullptr;
     size_type bufsz_ = 0;
+    pos_type pos_ = 0;
     basic_iobuf<char_type>* tie_buf_ = nullptr;
 
     const char_type* find_end_of_ctrlesc(const char_type* first, const char_type* last);
