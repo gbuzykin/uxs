@@ -37,24 +37,22 @@ bool contains(const Range& r, const Key& k) {
     return detail::find(r, k).second;
 }
 
-// ---- erase
-
-template<typename Container, typename Key>
-auto erase_one(Container& c, const Key& k) -> decltype(std::end(c)) {
-    auto result = detail::find(c, k);
-    if (result.second) { return c.erase(result.first); }
-    return result.first;
+template<typename Range, typename Pred>
+bool contains_if(const Range& r, Pred p) {
+    return std::find_if(std::begin(r), std::end(r), p) != std::end(r);
 }
+
+// ---- erase
 
 namespace detail {
 template<typename Container, typename Range, typename Val>
-auto erase(Container& c, Range&& r, const Val& v) -> decltype(std::begin(c) + 1 == std::end(r), c.size()) {
+auto erase_ranged(Container& c, Range&& r, const Val& v) -> decltype(std::begin(c) + 1 == std::end(r), c.size()) {
     auto old_sz = c.size();
     c.erase(std::remove(std::begin(r), std::end(r), v), std::end(r));
     return old_sz - c.size();
 }
 template<typename Container, typename Range, typename Val, typename... Dummy>
-auto erase(Container& c, Range&& r, const Val& v, Dummy&&...) -> decltype(std::end(c) == std::end(r), c.size()) {
+auto erase_ranged(Container& c, Range&& r, const Val& v, Dummy&&...) -> decltype(std::end(c) == std::end(r), c.size()) {
     auto old_sz = c.size();
     for (auto first = std::begin(r), last = std::end(r); first != last;) {
         if (*first == v) {
@@ -72,38 +70,39 @@ auto erase(Container& c, const Val& v) -> decltype(c.find(v), c.size()) {
                   "function `util::erase_one` should be used for associative containers to erase by key!");
     return 0;
 }
-template<typename Container, typename Range>
-auto erase(Container& c, Range&& r) -> decltype(std::end(c) == std::end(r), c.size()) {
-    auto old_sz = c.size();
-    c.erase(std::begin(r), std::end(r));
-    return old_sz - c.size();
-}
 template<typename Container, typename Val, typename... Dummy>
 auto erase(Container& c, const Val& v, Dummy&&...) -> decltype(c.size()) {
-    return detail::erase(c, c, v);
+    return detail::erase_ranged(c, c, v);
 }
 }  // namespace detail
 
 template<typename Container, typename Range, typename Val>
 auto erase(Container& c, Range&& r, const Val& v) -> decltype(c.size()) {
-    return detail::erase(c, std::forward<Range>(r), v);
+    return detail::erase_ranged(c, std::forward<Range>(r), v);
 }
 
-template<typename Container, typename Ty>
-auto erase(Container& c, Ty&& x) -> decltype(c.size()) {
-    return detail::erase(c, std::forward<Ty>(x));
+template<typename Container, typename Val>
+auto erase(Container& c, const Val& v) -> decltype(c.size()) {
+    return detail::erase(c, v);
+}
+
+template<typename Container, typename Key>
+auto erase_one(Container& c, const Key& k) -> decltype(std::end(c)) {
+    auto result = detail::find(c, k);
+    if (result.second) { return c.erase(result.first); }
+    return result.first;
 }
 
 namespace detail {
 template<typename Container, typename Range, typename Pred>
-auto erase_if(Container& c, Range&& r, Pred p)  //
+auto erase_if_ranged(Container& c, Range&& r, Pred p)  //
     -> decltype(std::begin(c) + 1 == std::end(r), c.size()) {
     auto old_sz = c.size();
     c.erase(std::remove_if(std::begin(r), std::end(r), p), std::end(r));
     return old_sz - c.size();
 }
 template<typename Container, typename Range, typename Pred, typename... Dummy>
-auto erase_if(Container& c, Range&& r, Pred p, Dummy&&...)  //
+auto erase_if_ranged(Container& c, Range&& r, Pred p, Dummy&&...)  //
     -> decltype(std::end(c) == std::end(r), c.size()) {
     auto old_sz = c.size();
     for (auto first = std::begin(r), last = std::end(r); first != last;) {
@@ -119,12 +118,19 @@ auto erase_if(Container& c, Range&& r, Pred p, Dummy&&...)  //
 
 template<typename Container, typename Range, typename Pred>
 auto erase_if(Container& c, Range&& r, Pred p) -> decltype(c.size()) {
-    return detail::erase_if(c, std::forward<Range>(r), p);
+    return detail::erase_if_ranged(c, std::forward<Range>(r), p);
 }
 
 template<typename Container, typename Pred>
 auto erase_if(Container& c, Pred p) -> decltype(c.size()) {
-    return detail::erase_if(c, c, p);
+    return detail::erase_if_ranged(c, c, p);
+}
+
+template<typename Container, typename Range>
+auto erase_range(Container& c, Range&& r) -> decltype(std::end(c) == std::end(r), c.size()) {
+    auto old_sz = c.size();
+    c.erase(std::begin(r), std::end(r));
+    return old_sz - c.size();
 }
 
 // ---- unique
