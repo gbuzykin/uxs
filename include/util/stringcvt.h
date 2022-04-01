@@ -76,10 +76,7 @@ class char_buf_appender {
  public:
     explicit char_buf_appender(char* dst) : dst_(dst) {}
     char* get_ptr() const { return dst_; }
-    template<typename InputIt,
-             typename = std::enable_if_t<std::is_base_of<
-                 std::input_iterator_tag, typename std::iterator_traits<InputIt>::iterator_category>::value>>
-    char_buf_appender& append(InputIt first, InputIt last) {
+    char_buf_appender& append(const char* first, const char* last) {
         dst_ = std::copy(first, last, dst_);
         return *this;
     }
@@ -97,10 +94,7 @@ class char_n_buf_appender {
  public:
     char_n_buf_appender(char* dst, size_t n) : dst_(dst), last_(dst + n) {}
     char* get_ptr() const { return dst_; }
-    template<typename InputIt,
-             typename = std::enable_if_t<std::is_base_of<
-                 std::random_access_iterator_tag, typename std::iterator_traits<InputIt>::iterator_category>::value>>
-    char_n_buf_appender& append(InputIt first, InputIt last) {
+    char_n_buf_appender& append(const char* first, const char* last) {
         dst_ = std::copy_n(first, std::min<size_t>(last - first, last_ - dst_), dst_);
         return *this;
     }
@@ -117,29 +111,6 @@ class char_n_buf_appender {
     char* last_;
 };
 
-namespace detail {
-template<typename InputIt, typename StrTy,
-         typename = std::enable_if_t<std::is_base_of<std::random_access_iterator_tag,
-                                                     typename std::iterator_traits<InputIt>::iterator_category>::value>>
-StrTy& fmt_adjusted(InputIt first, InputIt last, StrTy& s, const fmt_state& fmt) {
-    unsigned len = static_cast<unsigned>(last - first);
-    switch (fmt.flags & fmt_flags::kAdjustField) {
-        case fmt_flags::kLeft: {
-            s.append(first, last).append(fmt.width - len, fmt.fill);
-        } break;
-        case fmt_flags::kInternal: {
-            unsigned right = fmt.width - len, left = right >> 1;
-            right -= left;
-            s.append(left, fmt.fill).append(first, last).append(right, fmt.fill);
-        } break;
-        default: {
-            s.append(fmt.width - len, fmt.fill).append(first, last);
-        } break;
-    }
-    return s;
-}
-}  // namespace detail
-
 template<typename Ty>
 struct string_converter;
 
@@ -149,50 +120,27 @@ struct string_converter_base {
     static Ty default_value() { return {}; }
 };
 
-#define SCVT_DECLARE_STANDARD_STRING_CONVERTERS(ty) \
+#define SCVT_DECLARE_STANDARD_STRING_CONVERTER(ty) \
     template<> \
     struct UTIL_EXPORT string_converter<ty> : string_converter_base<ty> { \
         static const char* from_string(const char* first, const char* last, ty& val); \
-        static std::string& to_string(ty val, std::string& s, const fmt_state& fmt); \
-        static char_buf_appender& to_string(ty val, char_buf_appender& s, const fmt_state& fmt); \
-        static char_n_buf_appender& to_string(ty val, char_n_buf_appender& s, const fmt_state& fmt); \
+        template<typename StrTy> \
+        static StrTy& to_string(ty val, StrTy& s, const fmt_state& fmt); \
     };
 
-SCVT_DECLARE_STANDARD_STRING_CONVERTERS(int8_t)
-SCVT_DECLARE_STANDARD_STRING_CONVERTERS(int16_t)
-SCVT_DECLARE_STANDARD_STRING_CONVERTERS(int32_t)
-SCVT_DECLARE_STANDARD_STRING_CONVERTERS(int64_t)
-SCVT_DECLARE_STANDARD_STRING_CONVERTERS(uint8_t)
-SCVT_DECLARE_STANDARD_STRING_CONVERTERS(uint16_t)
-SCVT_DECLARE_STANDARD_STRING_CONVERTERS(uint32_t)
-SCVT_DECLARE_STANDARD_STRING_CONVERTERS(uint64_t)
-SCVT_DECLARE_STANDARD_STRING_CONVERTERS(float)
-SCVT_DECLARE_STANDARD_STRING_CONVERTERS(double)
-#undef SCVT_DECLARE_STANDARD_STRING_CONVERTERS
-
-template<>
-struct UTIL_EXPORT string_converter<char> : string_converter_base<char> {
-    static const char* from_string(const char* first, const char* last, char& val);
-    template<typename StrTy>
-    static StrTy& to_string(char val, StrTy& s, const fmt_state& fmt) {
-        if (fmt.width > 1) { return detail::fmt_adjusted(&val, &val + 1, s, fmt); }
-        s.push_back(val);
-        return s;
-    }
-};
-
-template<>
-struct UTIL_EXPORT string_converter<bool> : string_converter_base<bool> {
-    static const char* from_string(const char* first, const char* last, bool& val);
-    template<typename StrTy>
-    static StrTy& to_string(bool val, StrTy& s, const fmt_state& fmt) {
-        std::string_view sval = !(fmt.flags & fmt_flags::kUpperCase) ?
-                                    (val ? std::string_view("true", 4) : std::string_view("false", 5)) :
-                                    (val ? std::string_view("TRUE", 4) : std::string_view("FALSE", 5));
-        if (sval.size() < fmt.width) { return detail::fmt_adjusted(sval.data(), sval.data() + sval.size(), s, fmt); }
-        return s.append(sval.data(), sval.data() + sval.size());
-    }
-};
+SCVT_DECLARE_STANDARD_STRING_CONVERTER(int8_t)
+SCVT_DECLARE_STANDARD_STRING_CONVERTER(int16_t)
+SCVT_DECLARE_STANDARD_STRING_CONVERTER(int32_t)
+SCVT_DECLARE_STANDARD_STRING_CONVERTER(int64_t)
+SCVT_DECLARE_STANDARD_STRING_CONVERTER(uint8_t)
+SCVT_DECLARE_STANDARD_STRING_CONVERTER(uint16_t)
+SCVT_DECLARE_STANDARD_STRING_CONVERTER(uint32_t)
+SCVT_DECLARE_STANDARD_STRING_CONVERTER(uint64_t)
+SCVT_DECLARE_STANDARD_STRING_CONVERTER(float)
+SCVT_DECLARE_STANDARD_STRING_CONVERTER(double)
+SCVT_DECLARE_STANDARD_STRING_CONVERTER(char)
+SCVT_DECLARE_STANDARD_STRING_CONVERTER(bool)
+#undef SCVT_DECLARE_STANDARD_STRING_CONVERTER
 
 template<typename Ty, typename Def>
 Ty from_string(std::string_view s, Def&& def) {
