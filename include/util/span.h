@@ -13,20 +13,6 @@ const size_t dynamic_extent = size_t(-1);
 constexpr size_t dynamic_extent = std::numeric_limits<size_t>::max();
 #endif  // __cplusplus < 201703L
 
-namespace detail {
-template<typename Range, typename Ty>
-struct is_span_convertible {
-    template<typename Range_>
-    static auto test(Range_* r) -> std::is_same<std::decay_t<decltype(*(r->data() + r->size()))>, Ty>;
-    template<typename Range_>
-    static std::false_type test(...);
-    using type = decltype(test<std::remove_reference_t<Range>>(nullptr));
-};
-}  // namespace detail
-
-template<typename Range, typename Ty>
-struct is_span_convertible : detail::is_span_convertible<Range, Ty>::type {};
-
 template<typename Ty>
 class span {
  public:
@@ -43,7 +29,7 @@ class span {
     span() NOEXCEPT {}
     template<typename Ty2, typename = std::enable_if_t<std::is_same<std::remove_cv_t<Ty2>, value_type>::value>>
     span(Ty2* v, size_type count) NOEXCEPT : begin_(v), size_(count) {}
-    template<typename Range, typename = std::enable_if_t<is_span_convertible<Range, value_type>::value>>
+    template<typename Range, typename = std::enable_if_t<is_contiguous_range<Range, value_type>::value>>
     span(Range&& r) NOEXCEPT : begin_(r.data()), size_(r.size()) {}
 
     ~span() = default;

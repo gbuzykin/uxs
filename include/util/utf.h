@@ -120,6 +120,8 @@ inline unsigned get_utf8_byte_count(uint8_t ch) {
     return 1;
 }
 
+inline unsigned get_utf16_word_count(uint16_t ch) { return (ch & 0xdc00) == 0xd800 ? 2 : 1; }
+
 template<typename Container>
 void pop_utf8(Container& c) {
     while (!c.empty()) {

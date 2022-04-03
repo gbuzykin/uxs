@@ -93,6 +93,20 @@ struct remove_const<std::pair<Ty1, Ty2>> {
     using type = std::pair<std::remove_const_t<Ty1>, std::remove_const_t<Ty2>>;
 };
 
+namespace detail {
+template<typename Range, typename Ty>
+struct is_contiguous_range {
+    template<typename Range_>
+    static auto test(Range_* r) -> std::is_same<std::decay_t<decltype(*(r->data() + r->size()))>, Ty>;
+    template<typename Range_>
+    static std::false_type test(...);
+    using type = decltype(test<std::remove_reference_t<Range>>(nullptr));
+};
+}  // namespace detail
+
+template<typename Range, typename Ty>
+struct is_contiguous_range : detail::is_contiguous_range<Range, Ty>::type {};
+
 template<typename Ty>
 Ty get_and_set(Ty& v, std::remove_reference_t<Ty> v_new) {
     std::swap(v, v_new);
