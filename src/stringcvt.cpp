@@ -174,91 +174,13 @@ const char g_digits[][2] = {
     {'9', '0'}, {'9', '1'}, {'9', '2'}, {'9', '3'}, {'9', '4'}, {'9', '5'}, {'9', '6'}, {'9', '7'}, {'9', '8'},
     {'9', '9'}};
 
-const char* accum_mantissa(const char* p, const char* end, uint64_t& m, int& exp) {
-    for (; p < end && is_digit(*p); ++p) {
-        if (m < pow_table_t::kMaxMantissa10 / 10) {  // decimal mantissa can hold up to 19 digits
-            m = 10 * m + static_cast<uint64_t>(*p - '0');
-        } else {
-            ++exp;
-        }
-    }
-    return p;
-}
-
-const char* to_fp_exp10(const char* p, const char* end, fp_exp10_format& fp10) {
-    if (p == end) {
-        return p;
-    } else if (is_digit(*p)) {  // integer part
-        fp10.mantissa = static_cast<uint64_t>(*p++ - '0');
-        p = accum_mantissa(p, end, fp10.mantissa, fp10.exp);
-        if (p < end && *p == '.') { ++p; }  // skip decimal point
-    } else if (*p == '.' && p + 1 < end && is_digit(*(p + 1))) {
-        fp10.mantissa = static_cast<uint64_t>(*(p + 1) - '0');  // tenth
-        fp10.exp = -1, p += 2;
-    } else {
-        return p;
-    }
-    const char* p1 = accum_mantissa(p, end, fp10.mantissa, fp10.exp);  // fractional part
-    fp10.exp -= static_cast<unsigned>(p1 - p);
-    if (p1 < end && (*p1 == 'e' || *p1 == 'E')) {  // optional exponent
-        int exp_optional = 0;
-        if ((p = to_integer(p1 + 1, end, exp_optional)) > p1 + 1) { fp10.exp += exp_optional, p1 = p; }
-    }
-    return p1;
-}
-
 }  // namespace scvt
 
-#define SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(ty, from_string_func) \
-    /*static*/ const char* string_converter<ty>::from_string(const char* first, const char* last, ty& val) { \
-        const char* p = scvt::skip_spaces(first, last); \
-        last = scvt::from_string_func(p, last, val); \
-        return last > p ? last : first; \
-    }
-
-SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(int8_t, to_integer)
-SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(int16_t, to_integer)
-SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(int32_t, to_integer)
-SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(int64_t, to_integer)
-SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(uint8_t, to_integer)
-SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(uint16_t, to_integer)
-SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(uint32_t, to_integer)
-SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(uint64_t, to_integer)
-SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(float, to_float)
-SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(double, to_float)
-#undef SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER
-
-/*static*/ const char* string_converter<char>::from_string(const char* first, const char* last, char& val) {
-    const char* p = scvt::skip_spaces(first, last);
-    if (p == last) { return first; }
-    val = *p;
-    return ++p;
-}
-
-/*static*/ const char* string_converter<bool>::from_string(const char* first, const char* last, bool& val) {
-    const char *p = scvt::skip_spaces(first, last), *p0 = p;
-    if ((p = scvt::starts_with(p, last, "true", 4)) > p0) {
-        val = true;
-    } else if ((p = scvt::starts_with(p, last, "false", 5)) > p0) {
-        val = false;
-    } else if (p < last && is_digit(*p)) {
-        val = false;
-        do {
-            if (*p++ != '0') { val = true; }
-        } while (p < last && is_digit(*p));
-    } else {
-        return first;
-    }
-    return p;
-}
-
 #define SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(ty) \
-    /*static*/ template std::string& string_converter<ty>::to_string(ty val, std::string& s, const fmt_state& fmt); \
-    /*static*/ template char_buf_appender& string_converter<ty>::to_string(ty val, char_buf_appender& s, \
-                                                                           const fmt_state& fmt); \
-    /*static*/ template char_n_buf_appender& string_converter<ty>::to_string(ty val, char_n_buf_appender& s, \
-                                                                             const fmt_state& fmt);
-
+    template const char* string_converter<ty>::from_string(const char* first, const char* last, ty& val); \
+    template std::string& string_converter<ty>::to_string(ty val, std::string& s, const fmt_state& fmt); \
+    template char_buf_appender& string_converter<ty>::to_string(ty val, char_buf_appender& s, const fmt_state& fmt); \
+    template char_n_buf_appender& string_converter<ty>::to_string(ty val, char_n_buf_appender& s, const fmt_state& fmt);
 SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int8_t)
 SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int16_t)
 SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int32_t)
@@ -272,5 +194,25 @@ SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(double)
 SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(char)
 SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(bool)
 #undef SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER
+
+#define SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(ty) \
+    template const wchar_t* wstring_converter<ty>::from_string(const wchar_t* first, const wchar_t* last, ty& val); \
+    template std::wstring& wstring_converter<ty>::to_string(ty val, std::wstring& s, const fmt_state& fmt); \
+    template wchar_buf_appender& wstring_converter<ty>::to_string(ty val, wchar_buf_appender& s, const fmt_state& fmt); \
+    template wchar_n_buf_appender& wstring_converter<ty>::to_string(ty val, wchar_n_buf_appender& s, \
+                                                                    const fmt_state& fmt);
+SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int8_t)
+SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int16_t)
+SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int32_t)
+SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int64_t)
+SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(uint8_t)
+SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(uint16_t)
+SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(uint32_t)
+SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(uint64_t)
+SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(float)
+SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(double)
+SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(wchar_t)
+SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(bool)
+#undef SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER
 
 }  // namespace util

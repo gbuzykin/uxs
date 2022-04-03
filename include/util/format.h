@@ -10,52 +10,58 @@ namespace util {
 namespace detail {
 
 template<typename StrTy>
-UTIL_EXPORT StrTy& fmt_append_string(std::string_view val, StrTy& s, fmt_state& fmt);
+UTIL_EXPORT StrTy& fmt_append_string(std::basic_string_view<typename StrTy::value_type> val, StrTy& s, fmt_state& fmt);
 
 template<typename Ty, typename StrTy, typename = void>
 struct fmt_arg_appender;
 
 template<typename Ty, typename StrTy>
-struct fmt_arg_appender<Ty, StrTy, std::void_t<typename string_converter<Ty>::is_string_converter>> {
+struct fmt_arg_appender<
+    Ty, StrTy, std::void_t<typename basic_string_converter<typename StrTy::value_type, Ty>::is_string_converter>> {
     static StrTy& append(const void* val, StrTy& s, fmt_state& fmt) {
-        return string_converter<Ty>::to_string(*reinterpret_cast<const Ty*>(val), s, fmt);
+        return basic_string_converter<typename StrTy::value_type, Ty>::to_string(*reinterpret_cast<const Ty*>(val), s,
+                                                                                 fmt);
     }
 };
 
+template<typename CharT>
+struct is_character : std::false_type {};
+template<>
+struct is_character<char> : std::true_type {};
+template<>
+struct is_character<wchar_t> : std::true_type {};
+
 template<typename Ty, typename StrTy>
-struct fmt_arg_appender<Ty*, StrTy, void> {
+struct fmt_arg_appender<Ty*, StrTy, std::enable_if_t<!is_character<Ty>::value>> {
     static StrTy& append(const void* val, StrTy& s, fmt_state& fmt) {
         fmt.flags &= ~fmt_flags::kBaseField;
         fmt.flags |= fmt_flags::kHex | fmt_flags::kShowBase;
-        return string_converter<uintptr_t>::to_string(reinterpret_cast<uintptr_t>(val), s, fmt);
+        return basic_string_converter<typename StrTy::value_type, uintptr_t>::to_string(
+            reinterpret_cast<uintptr_t>(val), s, fmt);
     }
 };
 
 template<typename StrTy>
-struct fmt_arg_appender<char*, StrTy, void> {
+struct fmt_arg_appender<typename StrTy::value_type*, StrTy, void> {
     static StrTy& append(const void* val, StrTy& s, fmt_state& fmt) {
-        return fmt_append_string(std::string_view(static_cast<const char*>(val)), s, fmt);
+        return fmt_append_string(
+            std::basic_string_view<typename StrTy::value_type>(static_cast<const typename StrTy::value_type*>(val)), s,
+            fmt);
     }
 };
 
 template<typename StrTy>
-struct fmt_arg_appender<std::string_view, StrTy, void> {
+struct fmt_arg_appender<std::basic_string_view<typename StrTy::value_type>, StrTy, void> {
     static StrTy& append(const void* val, StrTy& s, fmt_state& fmt) {
-        return fmt_append_string(*reinterpret_cast<const std::string_view*>(val), s, fmt);
+        return fmt_append_string(*reinterpret_cast<const std::basic_string_view<typename StrTy::value_type>*>(val), s,
+                                 fmt);
     }
 };
 
 template<typename StrTy>
-struct fmt_arg_appender<StrTy, char*, void> {
-    static StrTy& append(StrTy& s, const void* val, fmt_state& fmt) {
-        return fmt_append_string(s, std::string_view(static_cast<const char*>(val)), fmt);
-    }
-};
-
-template<typename StrTy>
-struct fmt_arg_appender<std::string, StrTy, void> {
+struct fmt_arg_appender<std::basic_string<typename StrTy::value_type>, StrTy, void> {
     static StrTy& append(const void* val, StrTy& s, fmt_state& fmt) {
-        return fmt_append_string(*reinterpret_cast<const std::string*>(val), s, fmt);
+        return fmt_append_string(*reinterpret_cast<const std::basic_string<typename StrTy::value_type>*>(val), s, fmt);
     }
 };
 
@@ -95,10 +101,11 @@ auto make_fmt_args(const Ts&... args) NOEXCEPT -> std::array<fmt_arg_list_item<S
 }  // namespace detail
 
 template<typename StrTy>
-UTIL_EXPORT StrTy& format_append_v(std::string_view fmt, StrTy& s, span<const detail::fmt_arg_list_item<StrTy>> args);
+UTIL_EXPORT StrTy& format_append_v(std::basic_string_view<typename StrTy::value_type> fmt, StrTy& s,
+                                   span<const detail::fmt_arg_list_item<StrTy>> args);
 
 template<typename StrTy, typename... Ts>
-StrTy& format_append(std::string_view fmt, StrTy& s, const Ts&... args) {
+StrTy& format_append(std::basic_string_view<typename StrTy::value_type> fmt, StrTy& s, const Ts&... args) {
     return format_append_v<StrTy>(fmt, s, detail::make_fmt_args<StrTy>(args...));
 }
 
@@ -110,14 +117,33 @@ std::string format(std::string_view fmt, const Ts&... args) {
 }
 
 template<typename... Ts>
+std::wstring format(std::wstring_view fmt, const Ts&... args) {
+    std::wstring result;
+    format_append(fmt, result, args...);
+    return result;
+}
+
+template<typename... Ts>
 char* format_to(char* dst, std::string_view fmt, const Ts&... args) {
     char_buf_appender appender(dst);
     return format_append(fmt, appender, args...).get_ptr();
 }
 
 template<typename... Ts>
+wchar_t* format_to(wchar_t* dst, std::wstring_view fmt, const Ts&... args) {
+    wchar_buf_appender appender(dst);
+    return format_append(fmt, appender, args...).get_ptr();
+}
+
+template<typename... Ts>
 char* format_to_n(char* dst, size_t n, std::string_view fmt, const Ts&... args) {
     char_n_buf_appender appender(dst, n);
+    return format_append(fmt, appender, args...).get_ptr();
+}
+
+template<typename... Ts>
+wchar_t* format_to_n(wchar_t* dst, size_t n, std::wstring_view fmt, const Ts&... args) {
+    wchar_n_buf_appender appender(dst, n);
     return format_append(fmt, appender, args...).get_ptr();
 }
 
