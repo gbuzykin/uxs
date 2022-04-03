@@ -24,11 +24,167 @@ struct fmt_arg_specs {
     size_t n_prec_arg = 0;
 };
 
-UTIL_EXPORT void fmt_parse_arg_spec(const char* p, fmt_arg_specs& specs);
+template<typename CharT>
+const CharT* fmt_parse_adjustment(const CharT* p, fmt_state& fmt) {
+    switch (*p) {
+        case '<': fmt.flags |= fmt_flags::kLeft; return p + 1;
+        case '^': fmt.flags |= fmt_flags::kInternal; return p + 1;
+        case '>': return p + 1;
+        default: {
+            switch (*(p + 1)) {
+                case '<': fmt.fill = *p, fmt.flags |= fmt_flags::kLeft; return p + 2;
+                case '^': fmt.fill = *p, fmt.flags |= fmt_flags::kInternal; return p + 2;
+                case '>': fmt.fill = *p; return p + 2;
+                default: break;
+            }
+        } break;
+    }
+    return p;
+}
 
-template<typename StrTy>
-std::pair<const char*, bool> fmt_parse_next(const char* p, const char* last, StrTy& s, fmt_arg_specs& specs) {
-    const char* p0 = p;
+template<typename CharT>
+const CharT* fmt_parse_sign(const CharT* p, fmt_state& fmt) {
+    switch (*p) {
+        case '+': fmt.flags |= fmt_flags::kSignPos; return p + 1;
+        case ' ': fmt.flags |= fmt_flags::kSignAlign; return p + 1;
+        case '-': return p + 1;
+        default: break;
+    }
+    return p;
+}
+
+template<typename CharT>
+const CharT* fmt_parse_alternate(const CharT* p, fmt_state& fmt) {
+    if (*p == '#') {
+        fmt.flags |= fmt_flags::kShowPoint | fmt_flags::kShowBase;
+        return p + 1;
+    }
+    return p;
+}
+
+template<typename CharT>
+const CharT* fmt_parse_leading_zeroes(const CharT* p, fmt_state& fmt) {
+    if (*p == '0') {
+        fmt.flags |= fmt_flags::kLeadingZeroes;
+        return p + 1;
+    }
+    return p;
+}
+
+template<typename Ty, typename CharT>
+const CharT* fmt_parse_num(const CharT* p, Ty& num) {
+    while (is_digit(*p)) { num = 10 * num + static_cast<Ty>(*p++ - '0'); }
+    return p;
+}
+
+template<typename CharT>
+const CharT* fmt_parse_width(const CharT* p, detail::fmt_arg_specs& specs) {
+    if (is_digit(*p)) {
+        specs.fmt.width = static_cast<unsigned>(*p++ - '0');
+        p = fmt_parse_num<unsigned>(p, specs.fmt.width);
+    } else if (*p == '{') {
+        specs.flags |= detail::fmt_parse_flags::kDynamicWidth;
+        if (*++p == '}') { return p + 1; }
+        if (is_digit(*p)) {
+            specs.flags |= detail::fmt_parse_flags::kWidthArgNumSpecified;
+            specs.n_width_arg = static_cast<size_t>(*p++ - '0');
+            p = fmt_parse_num(p, specs.n_width_arg);
+        }
+        while (*p++ != '}') {}
+    }
+    return p;
+}
+
+template<typename CharT>
+const CharT* fmt_parse_precision(const CharT* p, detail::fmt_arg_specs& specs) {
+    if (*p != '.') { return p; }
+    if (is_digit(*++p)) {
+        specs.fmt.prec = static_cast<int>(*p++ - '0');
+        p = fmt_parse_num<int>(p, specs.fmt.prec);
+    } else if (*p == '{') {
+        specs.flags |= detail::fmt_parse_flags::kDynamicPrec;
+        if (*++p == '}') { return p + 1; }
+        if (is_digit(*p)) {
+            specs.flags |= detail::fmt_parse_flags::kPrecArgNumSpecified;
+            specs.n_prec_arg = static_cast<size_t>(*p++ - '0');
+            p = fmt_parse_num(p, specs.n_prec_arg);
+        }
+        while (*p++ != '}') {}
+    }
+    return p;
+}
+
+template<typename CharT>
+const CharT* fmt_parse_type(const CharT* p, fmt_state& fmt) {
+    switch (*p++) {
+        case 's': return p;
+        case 'c': return p;
+        case 'b': fmt.flags |= fmt_flags::kBin; return p;
+        case 'B': fmt.flags |= fmt_flags::kBin | fmt_flags::kUpperCase; return p;
+        case 'o': fmt.flags |= fmt_flags::kOct; return p;
+        case 'd': return p;
+        case 'x': fmt.flags |= fmt_flags::kHex; return p;
+        case 'X': fmt.flags |= fmt_flags::kHex | fmt_flags::kUpperCase; return p;
+        case 'p': return p;
+        case 'P': fmt.flags |= fmt_flags::kUpperCase; return p;
+        case 'f': {
+            fmt.flags |= fmt_flags::kFixed;
+            if (fmt.prec < 0) { fmt.prec = 6; }
+            return p;
+        } break;
+        case 'F': {
+            fmt.flags |= fmt_flags::kFixed | fmt_flags::kUpperCase;
+            if (fmt.prec < 0) { fmt.prec = 6; }
+            return p;
+        } break;
+        case 'e': {
+            fmt.flags |= fmt_flags::kScientific;
+            if (fmt.prec < 0) { fmt.prec = 6; }
+            return p;
+        } break;
+        case 'E': {
+            fmt.flags |= fmt_flags::kScientific | fmt_flags::kUpperCase;
+            if (fmt.prec < 0) { fmt.prec = 6; }
+            return p;
+        } break;
+        case 'g': {
+            if (fmt.prec < 0) { fmt.prec = 6; }
+            return p;
+        } break;
+        case 'G': {
+            fmt.flags |= fmt_flags::kUpperCase;
+            if (fmt.prec < 0) { fmt.prec = 6; }
+            return p;
+        } break;
+        default: break;
+    }
+    return p - 1;
+}
+
+template<typename CharT>
+void fmt_parse_arg_spec(const CharT* p, fmt_arg_specs& specs) {
+    specs.fmt = fmt_state();
+    specs.flags = fmt_parse_flags::kDefault;
+    if (*p == '}') { return; }
+    if (is_digit(*p)) {
+        specs.flags |= fmt_parse_flags::kArgNumSpecified;
+        specs.n_arg = static_cast<size_t>(*p++ - '0');
+        p = fmt_parse_num<size_t>(p, specs.n_arg);
+    }
+    if (*p++ == ':') {
+        p = fmt_parse_adjustment(p, specs.fmt);
+        p = fmt_parse_sign(p, specs.fmt);
+        p = fmt_parse_alternate(p, specs.fmt);
+        p = fmt_parse_leading_zeroes(p, specs.fmt);
+        p = fmt_parse_width(p, specs);
+        p = fmt_parse_precision(p, specs);
+        fmt_parse_type(p, specs.fmt);
+    }
+}
+
+template<typename StrTy, typename CharT>
+std::pair<const CharT*, bool> fmt_parse_next(const CharT* p, const CharT* last, StrTy& s, fmt_arg_specs& specs) {
+    const CharT* p0 = p;
     do {
         if (*p == '{' || *p == '}') {
             s.append(p0, p);
@@ -78,26 +234,40 @@ unsigned get_fmt_arg_integer_value(const detail::fmt_arg_list_item<StrTy>& arg, 
     throw std::runtime_error(msg_not_integer);
 }
 
+template<typename CharT>
+struct utf_char_count_getter;
+
+template<>
+struct utf_char_count_getter<char> {
+    unsigned operator()(uint8_t ch) { return get_utf8_byte_count(ch); }
+};
+
+template<>
+struct utf_char_count_getter<wchar_t> {
+    unsigned operator()(uint16_t ch) { return get_utf16_word_count(ch); }
+};
+
 template<typename StrTy>
-StrTy& fmt_append_string(std::string_view val, StrTy& s, fmt_state& fmt) {
-    const char *first = val.data(), *last = first + val.size();
+StrTy& fmt_append_string(std::basic_string_view<typename StrTy::value_type> val, StrTy& s, fmt_state& fmt) {
+    using CharT = typename StrTy::value_type;
+    const CharT *first = val.data(), *last = first + val.size();
     size_t len = 0;
     unsigned count = 0;
     if (fmt.prec >= 0) {
         unsigned prec = fmt.prec;
-        const char* p = first;
+        const CharT* p = first;
         while (prec > 0 && last - p > count) {
             p += count;
-            count = get_utf8_byte_count(*p), --prec;
+            count = utf_char_count_getter<CharT>()(*p), --prec;
         }
         if (prec == 0 && last - p > count) { last = p + count; }
         if (fmt.width == 0) { return s.append(first, last); }
         len = static_cast<unsigned>(fmt.prec) - prec;
     } else if (fmt.width > 0) {
-        const char* p = first;
+        const CharT* p = first;
         while (last - p > count) {
             p += count;
-            count = get_utf8_byte_count(*p), ++len;
+            count = utf_char_count_getter<CharT>()(*p), ++len;
         }
     }
 
@@ -122,13 +292,15 @@ StrTy& fmt_append_string(std::string_view val, StrTy& s, fmt_state& fmt) {
 }  // namespace detail
 
 template<typename StrTy>
-StrTy& format_append_v(std::string_view fmt, StrTy& s, span<const detail::fmt_arg_list_item<StrTy>> args) {
+StrTy& format_append_v(std::basic_string_view<typename StrTy::value_type> fmt, StrTy& s,
+                       span<const detail::fmt_arg_list_item<StrTy>> args) {
     size_t n = 0;
     auto check_arg_idx = [&args](size_t idx) {
         if (idx >= args.size()) { throw std::out_of_range("out of format argument list"); }
     };
     detail::fmt_arg_specs specs;
-    const char *first = fmt.data(), *last = fmt.data() + fmt.size();
+    using CharT = typename StrTy::value_type;
+    const CharT *first = fmt.data(), *last = fmt.data() + fmt.size();
     while (first != last) {
         bool put_arg = false;
         std::tie(first, put_arg) = fmt_parse_next(first, last, s, specs);

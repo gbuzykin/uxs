@@ -12,7 +12,7 @@ template<typename InputIt, typename InputFn = nofunc>
 unsigned from_hex(InputIt in, int digs, InputFn fn = InputFn{}, bool* ok = nullptr) {
     unsigned val = 0;
     while (digs > 0) {
-        char ch = fn(*in++);
+        int ch = fn(*in++);
         val <<= 4;
         --digs;
         int dig_v = xdigit_v(ch);
@@ -65,54 +65,69 @@ struct fmt_state {
     CONSTEXPR fmt_state() = default;
     CONSTEXPR fmt_state(fmt_flags fl) : flags(fl) {}
     CONSTEXPR fmt_state(fmt_flags fl, int p) : flags(fl), prec(p) {}
-    CONSTEXPR fmt_state(fmt_flags fl, int p, unsigned w, char ch) : flags(fl), prec(p), width(w), fill(ch) {}
+    CONSTEXPR fmt_state(fmt_flags fl, int p, unsigned w, int ch) : flags(fl), prec(p), width(w), fill(ch) {}
     fmt_flags flags = fmt_flags::kDec;
     int prec = -1;
     unsigned width = 0;
-    char fill = ' ';
+    int fill = ' ';
 };
 
-class char_buf_appender {
+template<typename CharT>
+class basic_char_buf_appender {
  public:
-    explicit char_buf_appender(char* dst) : dst_(dst) {}
-    char* get_ptr() const { return dst_; }
-    char_buf_appender& append(const char* first, const char* last) {
+    using value_type = CharT;
+
+    explicit basic_char_buf_appender(CharT* dst) : dst_(dst) {}
+    CharT* get_ptr() const { return dst_; }
+    basic_char_buf_appender& append(const CharT* first, const CharT* last) {
         dst_ = std::copy(first, last, dst_);
         return *this;
     }
-    char_buf_appender& append(size_t count, char ch) {
+    basic_char_buf_appender& append(size_t count, CharT ch) {
         dst_ = std::fill_n(dst_, count, ch);
         return *this;
     }
-    void push_back(char ch) { *dst_++ = ch; }
+    void push_back(CharT ch) { *dst_++ = ch; }
 
  private:
-    char* dst_;
+    CharT* dst_;
 };
 
-class char_n_buf_appender {
+template<typename CharT>
+class basic_char_n_buf_appender {
  public:
-    char_n_buf_appender(char* dst, size_t n) : dst_(dst), last_(dst + n) {}
-    char* get_ptr() const { return dst_; }
-    char_n_buf_appender& append(const char* first, const char* last) {
+    using value_type = CharT;
+
+    basic_char_n_buf_appender(CharT* dst, size_t n) : dst_(dst), last_(dst + n) {}
+    CharT* get_ptr() const { return dst_; }
+    basic_char_n_buf_appender& append(const CharT* first, const CharT* last) {
         dst_ = std::copy_n(first, std::min<size_t>(last - first, last_ - dst_), dst_);
         return *this;
     }
-    char_n_buf_appender& append(size_t count, char ch) {
+    basic_char_n_buf_appender& append(size_t count, CharT ch) {
         dst_ = std::fill_n(dst_, std::min<size_t>(count, last_ - dst_), ch);
         return *this;
     }
-    void push_back(char ch) {
+    void push_back(CharT ch) {
         if (dst_ != last_) { *dst_++ = ch; }
     }
 
  private:
-    char* dst_;
-    char* last_;
+    CharT* dst_;
+    CharT* last_;
 };
 
+template<typename CharT, typename Ty>
+struct basic_string_converter;
+
+using char_buf_appender = basic_char_buf_appender<char>;
+using wchar_buf_appender = basic_char_buf_appender<wchar_t>;
+using char_n_buf_appender = basic_char_n_buf_appender<char>;
+using wchar_n_buf_appender = basic_char_n_buf_appender<wchar_t>;
 template<typename Ty>
-struct string_converter;
+using string_converter = basic_string_converter<char, Ty>;
+template<typename Ty>
+using wstring_converter = basic_string_converter<wchar_t, Ty>;
 
 template<typename Ty>
 struct string_converter_base {
@@ -121,13 +136,12 @@ struct string_converter_base {
 };
 
 #define SCVT_DECLARE_STANDARD_STRING_CONVERTER(ty) \
-    template<> \
-    struct UTIL_EXPORT string_converter<ty> : string_converter_base<ty> { \
-        static const char* from_string(const char* first, const char* last, ty& val); \
+    template<typename CharT> \
+    struct UTIL_EXPORT basic_string_converter<CharT, ty> : string_converter_base<ty> { \
+        static const CharT* from_string(const CharT* first, const CharT* last, ty& val); \
         template<typename StrTy> \
         static StrTy& to_string(ty val, StrTy& s, const fmt_state& fmt); \
     };
-
 SCVT_DECLARE_STANDARD_STRING_CONVERTER(int8_t)
 SCVT_DECLARE_STANDARD_STRING_CONVERTER(int16_t)
 SCVT_DECLARE_STANDARD_STRING_CONVERTER(int32_t)
@@ -138,7 +152,7 @@ SCVT_DECLARE_STANDARD_STRING_CONVERTER(uint32_t)
 SCVT_DECLARE_STANDARD_STRING_CONVERTER(uint64_t)
 SCVT_DECLARE_STANDARD_STRING_CONVERTER(float)
 SCVT_DECLARE_STANDARD_STRING_CONVERTER(double)
-SCVT_DECLARE_STANDARD_STRING_CONVERTER(char)
+SCVT_DECLARE_STANDARD_STRING_CONVERTER(CharT)
 SCVT_DECLARE_STANDARD_STRING_CONVERTER(bool)
 #undef SCVT_DECLARE_STANDARD_STRING_CONVERTER
 
@@ -149,6 +163,13 @@ Ty from_string(std::string_view s, Def&& def) {
     return result;
 }
 
+template<typename Ty, typename Def>
+Ty from_wstring(std::wstring_view s, Def&& def) {
+    Ty result(std::forward<Def>(def));
+    wstring_converter<Ty>::from_string(s.data(), s.data() + s.size(), result);
+    return result;
+}
+
 template<typename Ty>
 Ty from_string(std::string_view s) {
     Ty result(string_converter<Ty>::default_value());
@@ -156,14 +177,28 @@ Ty from_string(std::string_view s) {
     return result;
 }
 
+template<typename Ty>
+Ty from_wstring(std::wstring_view s) {
+    Ty result(wstring_converter<Ty>::default_value());
+    wstring_converter<Ty>::from_string(s.data(), s.data() + s.size(), result);
+    return result;
+}
+
 template<typename Ty, typename StrTy>
 StrTy& to_string_append(const Ty& val, StrTy& s, const fmt_state& fmt) {
-    return string_converter<Ty>::to_string(val, s, fmt);
+    return basic_string_converter<typename StrTy::value_type, Ty>::to_string(val, s, fmt);
 }
 
 template<typename Ty, typename... Args>
 std::string to_string(const Ty& val, Args&&... args) {
     std::string result;
+    to_string_append(val, result, fmt_state(std::forward<Args>(args)...));
+    return result;
+}
+
+template<typename Ty, typename... Args>
+std::wstring to_wstring(const Ty& val, Args&&... args) {
+    std::wstring result;
     to_string_append(val, result, fmt_state(std::forward<Args>(args)...));
     return result;
 }
@@ -175,8 +210,20 @@ char* to_string_to(char* buf, const Ty& val, Args&&... args) {
 }
 
 template<typename Ty, typename... Args>
+wchar_t* to_wstring_to(wchar_t* buf, const Ty& val, Args&&... args) {
+    wchar_buf_appender appender(buf);
+    return to_string_append(val, appender, fmt_state(std::forward<Args>(args)...)).get_ptr();
+}
+
+template<typename Ty, typename... Args>
 char* to_string_to_n(char* buf, size_t n, const Ty& val, Args&&... args) {
     char_n_buf_appender appender(buf, n);
+    return to_string_append(val, appender, fmt_state(std::forward<Args>(args)...)).get_ptr();
+}
+
+template<typename Ty, typename... Args>
+wchar_t* to_wstring_to_n(wchar_t* buf, size_t n, const Ty& val, Args&&... args) {
+    wchar_n_buf_appender appender(buf, n);
     return to_string_append(val, appender, fmt_state(std::forward<Args>(args)...)).get_ptr();
 }
 

@@ -136,22 +136,23 @@ inline uint128_t mul64x64(uint64_t x, uint64_t y, uint64_t bias = 0) {
 
 inline uint128_t mul96x64_hi128(uint96_t x, uint64_t y) { return mul64x64(x.hi, y, mul64x32(y, x.lo).hi); }
 
-inline const char* starts_with(const char* p, const char* end, const char* s, size_t len) {
+template<typename CharT>
+const CharT* starts_with(const CharT* p, const CharT* end, const char* s, size_t len) {
     if (static_cast<size_t>(end - p) < len) { return p; }
-    for (const char *p1 = p, *p2 = s; p1 < end; ++p1, ++p2) {
-        char ch1 = to_lower(*p1), ch2 = to_lower(*p2);
-        if (ch1 != ch2) { return p; }
+    for (const CharT* p1 = p; p1 < end; ++p1, ++s) {
+        if (to_lower(*p1) != *s) { return p; }
     }
     return p + len;
 }
 
-inline const char* skip_spaces(const char* p, const char* end) {
-    while (p < end && is_space(static_cast<unsigned char>(*p))) { ++p; }
+template<typename CharT>
+const CharT* skip_spaces(const CharT* p, const CharT* end) {
+    while (p < end && is_space(*p)) { ++p; }
     return p;
 }
 
-template<typename Ty>
-char* gen_digits(char* p, Ty v) {
+template<typename CharT, typename Ty>
+CharT* gen_digits(CharT* p, Ty v) {
     while (v >= 10) {
         const Ty t = v / 100;
         const char* d = &g_digits[static_cast<unsigned>(v - 100 * t)][0];
@@ -162,8 +163,8 @@ char* gen_digits(char* p, Ty v) {
     return p;
 }
 
-template<typename StrTy>
-StrTy& fmt_adjusted(const char* first, const char* last, StrTy& s, const fmt_state& fmt) {
+template<typename CharT, typename StrTy>
+StrTy& fmt_adjusted(const CharT* first, const CharT* last, StrTy& s, const fmt_state& fmt) {
     unsigned len = static_cast<unsigned>(last - first);
     switch (fmt.flags & fmt_flags::kAdjustField) {
         case fmt_flags::kLeft: {
@@ -183,9 +184,9 @@ StrTy& fmt_adjusted(const char* first, const char* last, StrTy& s, const fmt_sta
 
 // ---- from string to value
 
-template<typename Ty>
-const char* to_integer(const char* p, const char* end, Ty& val) {
-    const char* p0 = p;
+template<typename CharT, typename Ty>
+const CharT* to_integer(const CharT* p, const CharT* end, Ty& val) {
+    const CharT* p0 = p;
     bool neg = false;
     if (p == end) {
         return p0;
@@ -201,13 +202,46 @@ const char* to_integer(const char* p, const char* end, Ty& val) {
     return p;
 }
 
-UTIL_EXPORT const char* to_fp_exp10(const char* p, const char* end, fp_exp10_format& fp10);
+template<typename CharT>
+const CharT* accum_mantissa(const CharT* p, const CharT* end, uint64_t& m, int& exp) {
+    for (; p < end && is_digit(*p); ++p) {
+        if (m < pow_table_t::kMaxMantissa10 / 10) {  // decimal mantissa can hold up to 19 digits
+            m = 10 * m + static_cast<uint64_t>(*p - '0');
+        } else {
+            ++exp;
+        }
+    }
+    return p;
+}
 
-template<typename Ty>
-const char* to_float(const char* p, const char* end, Ty& val) {
+template<typename CharT>
+const CharT* to_fp_exp10(const CharT* p, const CharT* end, fp_exp10_format& fp10) {
+    if (p == end) {
+        return p;
+    } else if (is_digit(*p)) {  // integer part
+        fp10.mantissa = static_cast<uint64_t>(*p++ - '0');
+        p = accum_mantissa(p, end, fp10.mantissa, fp10.exp);
+        if (p < end && *p == '.') { ++p; }  // skip decimal point
+    } else if (*p == '.' && p + 1 < end && is_digit(*(p + 1))) {
+        fp10.mantissa = static_cast<uint64_t>(*(p + 1) - '0');  // tenth
+        fp10.exp = -1, p += 2;
+    } else {
+        return p;
+    }
+    const CharT* p1 = accum_mantissa(p, end, fp10.mantissa, fp10.exp);  // fractional part
+    fp10.exp -= static_cast<unsigned>(p1 - p);
+    if (p1 < end && (*p1 == 'e' || *p1 == 'E')) {  // optional exponent
+        int exp_optional = 0;
+        if ((p = to_integer(p1 + 1, end, exp_optional)) > p1 + 1) { fp10.exp += exp_optional, p1 = p; }
+    }
+    return p1;
+}
+
+template<typename CharT, typename Ty>
+const CharT* to_float(const CharT* p, const CharT* end, Ty& val) {
     enum class fp_spec_t { kFinite = 0, kInf, kNaN } special = fp_spec_t::kFinite;
     fp_exp10_format fp10;
-    const char* p0 = p;
+    const CharT* p0 = p;
     bool neg = false;
 
     if (p == end) {
@@ -220,7 +254,7 @@ const char* to_float(const char* p, const char* end, Ty& val) {
 
     int exp = 0;
     uint64_t mantissa2 = 0;
-    const char* p1 = to_fp_exp10(p, end, fp10);
+    const CharT* p1 = to_fp_exp10(p, end, fp10);
     if (p1 > p) {
         if (fp10.mantissa == 0 || fp10.exp < -pow_table_t::kPow10Max) {  // perfect zero
         } else if (fp10.exp > pow_table_t::kPow10Max) {                  // infinity
@@ -315,8 +349,9 @@ const char* to_float(const char* p, const char* end, Ty& val) {
 
 template<typename Ty, typename StrTy, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
 StrTy& fmt_bin(Ty val, StrTy& s, const fmt_state& fmt) {
-    std::array<char, 65> buf;
-    char *last = buf.data() + buf.size(), *p = last;
+    using CharT = typename StrTy::value_type;
+    std::array<CharT, 65> buf;
+    CharT *last = buf.data() + buf.size(), *p = last;
     if (!!(fmt.flags & fmt_flags::kShowBase)) { *--p = !(fmt.flags & fmt_flags::kUpperCase) ? 'b' : 'B'; }
     do {
         *--p = '0' + static_cast<unsigned>(val & 0x1);
@@ -332,8 +367,9 @@ StrTy& fmt_bin(Ty val, StrTy& s, const fmt_state& fmt) {
 
 template<typename Ty, typename StrTy, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
 StrTy& fmt_oct(Ty val, StrTy& s, const fmt_state& fmt) {
-    std::array<char, 23> buf;
-    char *last = buf.data() + buf.size(), *p = last;
+    using CharT = typename StrTy::value_type;
+    std::array<CharT, 23> buf;
+    CharT *last = buf.data() + buf.size(), *p = last;
     do {
         *--p = '0' + static_cast<unsigned>(val & 0x7);
         val >>= 3;
@@ -349,8 +385,9 @@ StrTy& fmt_oct(Ty val, StrTy& s, const fmt_state& fmt) {
 
 template<typename Ty, typename StrTy, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
 StrTy& fmt_hex(Ty val, StrTy& s, const fmt_state& fmt) {
-    std::array<char, 18> buf;
-    char *last = buf.data() + buf.size(), *p = last;
+    using CharT = typename StrTy::value_type;
+    std::array<CharT, 18> buf;
+    CharT *last = buf.data() + buf.size(), *p = last;
     const char* digs = !(fmt.flags & fmt_flags::kUpperCase) ? "0123456789abcdef" : "0123456789ABCDEF";
     do {
         *--p = digs[val & 0xf];
@@ -374,9 +411,10 @@ StrTy& fmt_hex(Ty val, StrTy& s, const fmt_state& fmt) {
 
 template<typename Ty, typename StrTy, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
 StrTy& fmt_dec_unsigned(Ty val, StrTy& s, const fmt_state& fmt) {
-    std::array<char, 20> buf;
-    char* last = buf.data() + buf.size();
-    char* p = gen_digits(last, val);
+    using CharT = typename StrTy::value_type;
+    std::array<CharT, 20> buf;
+    CharT* last = buf.data() + buf.size();
+    CharT* p = gen_digits(last, val);
     if (p == last) { *--p = '0'; }
     unsigned len = static_cast<unsigned>(last - p);
     if (fmt.width > len) {
@@ -397,9 +435,10 @@ StrTy& fmt_dec_signed(Ty val, StrTy& s, const fmt_state& fmt) {
         show_sign = 1, sign = ' ';
     }
 
-    std::array<char, 21> buf;
-    char* last = buf.data() + buf.size();
-    char* p = gen_digits(last, static_cast<typename std::make_unsigned<Ty>::type>(val));
+    using CharT = typename StrTy::value_type;
+    std::array<CharT, 21> buf;
+    CharT* last = buf.data() + buf.size();
+    CharT* p = gen_digits(last, static_cast<typename std::make_unsigned<Ty>::type>(val));
     if (p == last) { *--p = '0'; }
     unsigned len = static_cast<unsigned>(last - p) + show_sign;
     if (fmt.width > len && !!(fmt.flags & fmt_flags::kLeadingZeroes)) {
@@ -450,9 +489,10 @@ inline unsigned fmt_fp_exp10_fixed_len(const fp_exp10_format& fp10, fmt_flags fl
 
 template<typename StrTy>
 StrTy& fmt_fp_exp10(const fp_exp10_format& fp10, StrTy& s, fmt_flags flags, int prec) {
-    std::array<char, 25> buf;
-    char *p_exp = buf.data() + 20, *last = p_exp + 4;
-    char* p = scvt::gen_digits(p_exp, fp10.mantissa);
+    using CharT = typename StrTy::value_type;
+    std::array<CharT, 25> buf;
+    CharT *p_exp = buf.data() + 20, *last = p_exp + 4;
+    CharT* p = scvt::gen_digits(p_exp, fp10.mantissa);
 
     // exponent
     int exp10 = fp10.exp;
@@ -484,9 +524,10 @@ StrTy& fmt_fp_exp10(const fp_exp10_format& fp10, StrTy& s, fmt_flags flags, int 
 
 template<typename StrTy>
 StrTy& fmt_fp_exp10_fixed(const fp_exp10_format& fp10, StrTy& s, fmt_flags flags, int prec) {
-    std::array<char, 20> buf;
-    char* last = buf.data() + buf.size();
-    char* p = scvt::gen_digits(last, fp10.mantissa);
+    using CharT = typename StrTy::value_type;
+    std::array<CharT, 20> buf;
+    CharT* last = buf.data() + buf.size();
+    CharT* p = scvt::gen_digits(last, fp10.mantissa);
 
     int k = 1 + fp10.exp;
     if (k > 0) {
@@ -586,21 +627,20 @@ StrTy& fmt_float(Ty val, StrTy& s, const fmt_state& fmt) {
     mantissa &= fp_traits<Ty>::kMantissaMask;
 
     if (exp == fp_traits<Ty>::kExpMax) {
-        std::array<char, 4> buf;
-        char *p = buf.data(), *p0 = p;
+        using CharT = typename StrTy::value_type;
+        std::array<CharT, 4> buf;
+        CharT *p = buf.data(), *p0 = p;
         if (show_sign) { *p++ = sign; }
-        if (!(fmt.flags & fmt_flags::kUpperCase)) {
-            if (mantissa == 0) {  // infinity
+        if (mantissa == 0) {  // infinity
+            if (!(fmt.flags & fmt_flags::kUpperCase)) {
                 p[0] = 'i', p[1] = 'n', p[2] = 'f';
-            } else {  // NaN
-                p[0] = 'n', p[1] = 'a', p[2] = 'n';
-            }
-        } else {
-            if (mantissa == 0) {  // infinity
+            } else {
                 p[0] = 'I', p[1] = 'N', p[2] = 'F';
-            } else {  // NaN
-                p[0] = 'N', p[1] = 'A', p[2] = 'N';
             }
+        } else if (!(fmt.flags & fmt_flags::kUpperCase)) {  // NaN
+            p[0] = 'n', p[1] = 'a', p[2] = 'n';
+        } else {  // NaN
+            p[0] = 'N', p[1] = 'A', p[2] = 'N';
         }
         p += 3;
         if (fmt.width > static_cast<unsigned>(p - p0)) { return fmt_adjusted(p0, p, s, fmt); }
@@ -848,38 +888,86 @@ not_zero_result:
 
 }  // namespace scvt
 
-#define SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(ty, to_string_func) \
-    /*static*/ template<typename StrTy> \
-    StrTy& string_converter<ty>::to_string(ty val, StrTy& s, const fmt_state& fmt) { \
+#define SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(ty, from_string_func, to_string_func) \
+    template<typename CharT> \
+    const CharT* basic_string_converter<CharT, ty>::from_string(const CharT* first, const CharT* last, ty& val) { \
+        const CharT* p = scvt::skip_spaces(first, last); \
+        last = scvt::from_string_func(p, last, val); \
+        return last > p ? last : first; \
+    } \
+    template<typename CharT> \
+    template<typename StrTy> \
+    StrTy& basic_string_converter<CharT, ty>::to_string(ty val, StrTy& s, const fmt_state& fmt) { \
         return scvt::to_string_func(val, s, fmt); \
     }
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int8_t, to_integer, fmt_signed)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int16_t, to_integer, fmt_signed)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int32_t, to_integer, fmt_signed)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int64_t, to_integer, fmt_signed)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint8_t, to_integer, fmt_unsigned)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint16_t, to_integer, fmt_unsigned)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint32_t, to_integer, fmt_unsigned)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint64_t, to_integer, fmt_unsigned)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(float, to_float, fmt_float)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(double, to_float, fmt_float)
+#undef SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER
 
-SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(int8_t, fmt_signed)
-SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(int16_t, fmt_signed)
-SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(int32_t, fmt_signed)
-SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(int64_t, fmt_signed)
-SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(uint8_t, fmt_unsigned)
-SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(uint16_t, fmt_unsigned)
-SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(uint32_t, fmt_unsigned)
-SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(uint64_t, fmt_unsigned)
-SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(float, fmt_float)
-SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(double, fmt_float)
-#undef SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER
+template<typename CharT>
+const CharT* basic_string_converter<CharT, CharT>::from_string(const CharT* first, const CharT* last, CharT& val) {
+    const CharT* p = scvt::skip_spaces(first, last);
+    if (p == last) { return first; }
+    val = *p;
+    return ++p;
+}
 
+template<typename CharT>
 template<typename StrTy>
-/*static*/ StrTy& string_converter<char>::to_string(char val, StrTy& s, const fmt_state& fmt) {
+StrTy& basic_string_converter<CharT, CharT>::to_string(CharT val, StrTy& s, const fmt_state& fmt) {
     if (fmt.width > 1) { return scvt::fmt_adjusted(&val, &val + 1, s, fmt); }
     s.push_back(val);
     return s;
 }
 
+template<typename CharT>
+const CharT* basic_string_converter<CharT, bool>::from_string(const CharT* first, const CharT* last, bool& val) {
+    const CharT *p = scvt::skip_spaces(first, last), *p0 = p;
+    if ((p = scvt::starts_with(p, last, "true", 4)) > p0) {
+        val = true;
+    } else if ((p = scvt::starts_with(p, last, "false", 5)) > p0) {
+        val = false;
+    } else if (p < last && is_digit(*p)) {
+        val = false;
+        do {
+            if (*p++ != '0') { val = true; }
+        } while (p < last && is_digit(*p));
+    } else {
+        return first;
+    }
+    return p;
+}
+
+template<typename CharT>
 template<typename StrTy>
-/*static*/ StrTy& string_converter<bool>::to_string(bool val, StrTy& s, const fmt_state& fmt) {
-    std::string_view sval = !(fmt.flags & fmt_flags::kUpperCase) ?
-                                (val ? std::string_view("true", 4) : std::string_view("false", 5)) :
-                                (val ? std::string_view("TRUE", 4) : std::string_view("FALSE", 5));
-    if (sval.size() < fmt.width) { return scvt::fmt_adjusted(sval.data(), sval.data() + sval.size(), s, fmt); }
-    return s.append(sval.data(), sval.data() + sval.size());
+StrTy& basic_string_converter<CharT, bool>::to_string(bool val, StrTy& s, const fmt_state& fmt) {
+    std::array<CharT, 5> buf;
+    CharT *p = buf.data(), *p0 = p;
+    if (val) {
+        if (!(fmt.flags & fmt_flags::kUpperCase)) {
+            p[0] = 't', p[1] = 'r', p[2] = 'u', p[3] = 'e';
+        } else {
+            p[0] = 'T', p[1] = 'R', p[2] = 'U', p[3] = 'E';
+        }
+        p += 4;
+    } else {
+        if (!(fmt.flags & fmt_flags::kUpperCase)) {
+            p[0] = 'f', p[1] = 'a', p[2] = 'l', p[3] = 's', p[4] = 'e';
+        } else {
+            p[0] = 'F', p[1] = 'A', p[2] = 'L', p[3] = 'S', p[4] = 'E';
+        }
+        p += 5;
+    }
+    if (fmt.width > static_cast<unsigned>(p - p0)) { return scvt::fmt_adjusted(p0, p, s, fmt); }
+    return s.append(p0, p);
 }
 
 }  // namespace util
