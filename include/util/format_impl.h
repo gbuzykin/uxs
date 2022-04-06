@@ -81,7 +81,7 @@ template<typename CharT>
 const CharT* fmt_parse_width(const CharT* p, detail::fmt_arg_specs& specs) {
     if (is_digit(*p)) {
         specs.fmt.width = static_cast<unsigned>(*p++ - '0');
-        p = fmt_parse_num<unsigned>(p, specs.fmt.width);
+        p = fmt_parse_num(p, specs.fmt.width);
     } else if (*p == '{') {
         specs.flags |= detail::fmt_parse_flags::kDynamicWidth;
         if (*++p == '}') { return p + 1; }
@@ -100,7 +100,7 @@ const CharT* fmt_parse_precision(const CharT* p, detail::fmt_arg_specs& specs) {
     if (*p != '.') { return p; }
     if (is_digit(*++p)) {
         specs.fmt.prec = static_cast<int>(*p++ - '0');
-        p = fmt_parse_num<int>(p, specs.fmt.prec);
+        p = fmt_parse_num(p, specs.fmt.prec);
     } else if (*p == '{') {
         specs.flags |= detail::fmt_parse_flags::kDynamicPrec;
         if (*++p == '}') { return p + 1; }
@@ -242,10 +242,17 @@ struct utf_char_count_getter<char> {
     unsigned operator()(uint8_t ch) { return get_utf8_byte_count(ch); }
 };
 
+#if defined(WCHAR_MAX) && WCHAR_MAX > 0xffff
+template<>
+struct utf_char_count_getter<wchar_t> {
+    unsigned operator()(uint32_t ch) { return 1; }
+};
+#else   // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
 template<>
 struct utf_char_count_getter<wchar_t> {
     unsigned operator()(uint16_t ch) { return get_utf16_word_count(ch); }
 };
+#endif  // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
 
 template<typename StrTy>
 StrTy& fmt_append_string(std::basic_string_view<typename StrTy::value_type> val, StrTy& s, fmt_state& fmt) {

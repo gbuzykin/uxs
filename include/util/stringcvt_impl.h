@@ -18,11 +18,8 @@ struct fp_traits;
 template<>
 struct fp_traits<double> {
     enum : unsigned { kTotalBits = 64, kBitsPerMantissa = 52 };
-    static const uint64_t kSignBit = 1ull << (kTotalBits - 1);
     static const uint64_t kMantissaMask = (1ull << kBitsPerMantissa) - 1;
-    static const uint64_t kExpMask = ~kMantissaMask & ~kSignBit;
-    static const int kExpMax = kExpMask >> kBitsPerMantissa;
-    static const int kExpBias = kExpMax >> 1;
+    static const int kExpMax = (1 << (kTotalBits - kBitsPerMantissa - 1)) - 1;
     static uint64_t to_u64(const double& f) { return *reinterpret_cast<const uint64_t*>(&f); }
     static double from_u64(const uint64_t& u64) { return *reinterpret_cast<const double*>(&u64); }
 };
@@ -30,11 +27,8 @@ struct fp_traits<double> {
 template<>
 struct fp_traits<float> {
     enum : unsigned { kTotalBits = 32, kBitsPerMantissa = 23 };
-    static const uint64_t kSignBit = 1ull << (kTotalBits - 1);
     static const uint64_t kMantissaMask = (1ull << kBitsPerMantissa) - 1;
-    static const uint64_t kExpMask = ~kMantissaMask & ~kSignBit & ((1ull << kTotalBits) - 1);
-    static const int kExpMax = kExpMask >> kBitsPerMantissa;
-    static const int kExpBias = kExpMax >> 1;
+    static const int kExpMax = (1 << (kTotalBits - kBitsPerMantissa - 1)) - 1;
     static uint64_t to_u64(const float& f) { return *reinterpret_cast<const uint32_t*>(&f); }
     static float from_u64(const uint64_t& u64) { return *reinterpret_cast<const float*>(&u64); }
 };
@@ -54,6 +48,11 @@ struct fp_m96_t {
     int exp;
 };
 
+struct fp_m64_t {
+    uint64_t m;
+    int exp;
+};
+
 struct pow_table_t {
     enum : int { kPow10Max = 400, kPow2Max = 1100, kPrecLimit = 19 };
     enum : uint64_t { kMaxMantissa10 = 10000000000000000000ull };
@@ -62,11 +61,6 @@ struct pow_table_t {
     std::array<uint64_t, 20> ten_pows;
     std::array<int64_t, 70> decimal_mul;
     pow_table_t();
-};
-
-struct fp_exp10_format {
-    uint64_t mantissa = 0;
-    int exp = 0;
 };
 
 extern const pow_table_t g_pow_tbl;
@@ -136,6 +130,8 @@ inline uint128_t mul64x64(uint64_t x, uint64_t y, uint64_t bias = 0) {
 
 inline uint128_t mul96x64_hi128(uint96_t x, uint64_t y) { return mul64x64(x.hi, y, mul64x32(y, x.lo).hi); }
 
+// ---- from string to value
+
 template<typename CharT>
 const CharT* starts_with(const CharT* p, const CharT* end, const char* s, size_t len) {
     if (static_cast<size_t>(end - p) < len) { return p; }
@@ -151,7 +147,198 @@ const CharT* skip_spaces(const CharT* p, const CharT* end) {
     return p;
 }
 
-template<typename CharT, typename Ty>
+template<typename Ty, typename CharT>
+Ty to_integer(const CharT* p, const CharT* end, const CharT*& last) {
+    bool neg = false;
+    last = p;
+    if (p == end) {
+        return 0;
+    } else if (*p == '+') {
+        ++p;  // skip positive sign
+    } else if (*p == '-') {
+        ++p, neg = true;  // negative sign
+    }
+    if (p == end || !is_digit(*p)) { return 0; }
+    Ty val = static_cast<int>(*p++ - '0');
+    while (p < end && is_digit(*p)) { val = 10 * val + static_cast<int>(*p++ - '0'); }
+    if (neg) { val = -val; }  // apply sign
+    last = p;
+    return val;
+}
+
+template<typename CharT>
+const CharT* accum_mantissa(const CharT* p, const CharT* end, uint64_t& m, int& exp) {
+    for (; p < end && is_digit(*p); ++p) {
+        if (m < pow_table_t::kMaxMantissa10 / 10) {  // decimal mantissa can hold up to 19 digits
+            m = 10 * m + static_cast<int>(*p - '0');
+        } else {
+            ++exp;
+        }
+    }
+    return p;
+}
+
+template<typename CharT>
+const CharT* to_fp_exp10(const CharT* p, const CharT* end, fp_m64_t& fp10) {
+    if (p == end) { return p; }
+    if (is_digit(*p)) {  // integer part
+        fp10.m = static_cast<int>(*p++ - '0');
+        p = accum_mantissa(p, end, fp10.m, fp10.exp);
+        if (p < end && *p == '.') { ++p; }  // skip decimal point
+    } else if (*p == '.' && p + 1 < end && is_digit(*(p + 1))) {
+        fp10.m = static_cast<int>(*(p + 1) - '0');  // tenth
+        fp10.exp = -1, p += 2;
+    } else {
+        return p;
+    }
+    const CharT* p1 = accum_mantissa(p, end, fp10.m, fp10.exp);  // fractional part
+    fp10.exp -= static_cast<unsigned>(p1 - p);
+    if (p1 < end && (*p1 == 'e' || *p1 == 'E')) {  // optional exponent
+        int exp_optional = to_integer<int32_t>(p1 + 1, end, p);
+        if (p > p1 + 1) { fp10.exp += exp_optional, p1 = p; }
+    }
+    return p1;
+}
+
+static uint64_t fp_exp10_to_exp2(fp_m64_t fp10, const unsigned bpm, const int exp_max) {
+    if (fp10.m == 0 || fp10.exp < -pow_table_t::kPow10Max) { return 0; }                      // perfect zero
+    if (fp10.exp > pow_table_t::kPow10Max) { return static_cast<uint64_t>(exp_max) << bpm; }  // infinity
+
+    unsigned log = 1 + ulog2(fp10.m);
+    fp10.m <<= 64 - log;
+
+    // Convert decimal mantissa to binary :
+    // Note: coefficients in `coef10to2` are normalized and belong [1, 2) range
+    // Note: multiplication of 64-bit mantissa by 96-bit coefficient gives 160-bit result,
+    // but we drop the lowest 32 bits
+    const fp_m96_t& coef = g_pow_tbl.coef10to2[pow_table_t::kPow10Max + fp10.exp];
+    uint128_t res128 = mul96x64_hi128(coef.m, fp10.m);
+    res128.hi += fp10.m;  // apply implicit 1 term of normalized coefficient
+    // Note: overflow is possible while summing `res128.hi += fp10.m`
+    // Move binary mantissa to the left position so the most significant `1` is hidden
+    if (res128.hi >= fp10.m) {
+        res128.hi = (res128.hi << 1) | (res128.lo >> 63);
+        res128.lo <<= 1, --log;
+    }
+
+    // Obtain binary exponent
+    const int exp_bias = exp_max >> 1;
+    fp_m64_t fp2{0, static_cast<int>(exp_bias + log + coef.exp)};
+    if (fp2.exp >= exp_max) {
+        return static_cast<uint64_t>(exp_max) << bpm;  // infinity
+    } else if (fp2.exp <= -static_cast<int>(bpm)) {
+        // corner cases: perfect zero or the smallest possible floating point number
+        return fp2.exp == -static_cast<int>(bpm) ? 1ull : 0;
+    }
+
+    // General case: obtain rounded binary mantissa bits
+
+    // When `exp <= 0` mantissa will be denormalized further, so store the real mantissa length
+    const unsigned n_bits = fp2.exp > 0 ? bpm : bpm + fp2.exp - 1;
+
+    // Do banker's or `nearest even` rounding :
+    // It seems that perfect rounding is not possible, because theoretical binary mantissa
+    // representation can be of infinite length. But we use some heuristic to detect exact halves.
+    // If we take long enough range of bits after the point where we need to break series then
+    // analyzing this bits we can make the decision in which direction to round.
+    // The following bits: x x x x x x 1 0 0 0 0 0 0 0 0 0 . . . . . . we consider as exact half
+    //                     x x x x x x 0 1 1 1 1 1 1 1 1 1 . . . . . . and this is exact half too
+    //                    | needed    | to be rounded     | unknown   |
+    // In our case we need `n_bits` left bits in `res128.hi`, all other bits are rounded and dropped.
+    // To decide in which direction to round we use reliable bits after `n_bits`. Totally 96 bits are
+    // reliable, because `coef10to2` has 96-bit precision. So, we use only `res128.hi` and higher 32-bit
+    // part of `res128.lo`.
+
+    // Drop unreliable bits and resolve the case of periodical `1`
+    // Note: we do not need to reset lower 32-bit part of `res128.lo`, because it is ignored further
+    const uint64_t before_rounding = res128.hi, lsb_half = 0x80000000;
+    res128.lo += lsb_half;
+    if (res128.lo < lsb_half) { ++res128.hi; }  // handle lower part overflow
+
+    // Do banker's rounding
+    const uint64_t half = 1ull << (63 - n_bits);
+    res128.hi += hi32(res128.lo) == 0 && (res128.hi & (half << 1)) == 0 ? half - 1 : half;
+    if (res128.hi < before_rounding) {  // overflow while rounding
+        // Note: the value can become normalized if `exp == 0` or infinity if `exp == exp_max - 1`
+        // Note: in case of overflow 'fp2.m' will be `0`
+        ++fp2.exp;
+    } else {
+        // shift mantissa to the right position
+        fp2.m = res128.hi >> (64 - bpm);
+    }
+
+    // Compose floating point value
+    if (fp2.exp <= 0) { return (fp2.m | (1ull << bpm)) >> (1 - fp2.exp); }  // denormalized
+    return (static_cast<uint64_t>(fp2.exp) << bpm) | fp2.m;
+}
+
+template<typename CharT>
+uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, const unsigned bpm, const int exp_max) {
+    enum class fp_spec_t { kFinite = 0, kInf, kNaN } special = fp_spec_t::kFinite;
+    uint64_t fp2 = 0;
+    last = p;
+
+    if (p == end) {
+        return 0;
+    } else if (*p == '+') {
+        ++p;  // skip positive sign
+    } else if (*p == '-') {
+        ++p, fp2 = static_cast<uint64_t>(1 + exp_max) << bpm;  // negative sign
+    }
+
+    fp_m64_t fp10{0, 0};
+    const CharT* p1 = to_fp_exp10(p, end, fp10);
+    if (p1 > p) {
+        fp2 |= fp_exp10_to_exp2(fp10, bpm, exp_max);
+    } else if ((p1 = starts_with(p, end, "inf", 3)) > p) {  // infinity
+        fp2 |= static_cast<uint64_t>(exp_max) << bpm;
+    } else if ((p1 = starts_with(p, end, "nan", 3)) > p) {  // NaN
+        fp2 |= (static_cast<uint64_t>(exp_max) << bpm) | ((1ull << bpm) - 1);
+    } else {
+        return 0;
+    }
+
+    last = p1;
+    return fp2;
+}
+
+template<typename Ty, typename CharT>
+Ty to_float(const CharT* p, const CharT* end, const CharT*& last) {
+    return fp_traits<Ty>::from_u64(
+        to_float_common(p, end, last, fp_traits<Ty>::kBitsPerMantissa, fp_traits<Ty>::kExpMax));
+}  // namespace scvt
+
+// ---- from value to string
+
+template<typename Ty, typename CharT>
+CharT* gen_bin_digits(CharT* p, Ty v) {
+    do {
+        *--p = '0' + static_cast<unsigned>(v & 0x1);
+        v >>= 1;
+    } while (v != 0);
+    return p;
+}
+
+template<typename Ty, typename CharT>
+CharT* gen_oct_digits(CharT* p, Ty v) {
+    do {
+        *--p = '0' + static_cast<unsigned>(v & 0x7);
+        v >>= 3;
+    } while (v != 0);
+    return p;
+}
+
+template<typename Ty, typename CharT>
+CharT* gen_hex_digits(CharT* p, Ty v, bool upper) {
+    const char* digs = upper ? "0123456789ABCDEF" : "0123456789abcdef";
+    do {
+        *--p = digs[v & 0xf];
+        v >>= 4;
+    } while (v != 0);
+    return p;
+}
+
+template<typename Ty, typename CharT>
 CharT* gen_digits(CharT* p, Ty v) {
     while (v >= 10) {
         const Ty t = v / 100;
@@ -163,7 +350,7 @@ CharT* gen_digits(CharT* p, Ty v) {
     return p;
 }
 
-template<typename CharT, typename StrTy>
+template<typename StrTy, typename CharT>
 StrTy& fmt_adjusted(const CharT* first, const CharT* last, StrTy& s, const fmt_state& fmt) {
     unsigned len = static_cast<unsigned>(last - first);
     switch (fmt.flags & fmt_flags::kAdjustField) {
@@ -182,181 +369,13 @@ StrTy& fmt_adjusted(const CharT* first, const CharT* last, StrTy& s, const fmt_s
     return s;
 }
 
-// ---- from string to value
-
-template<typename CharT, typename Ty>
-const CharT* to_integer(const CharT* p, const CharT* end, Ty& val) {
-    const CharT* p0 = p;
-    bool neg = false;
-    if (p == end) {
-        return p0;
-    } else if (*p == '+') {
-        ++p;  // skip positive sign
-    } else if (*p == '-') {
-        ++p, neg = true;  // negative sign
-    }
-    if (p == end || !is_digit(*p)) { return p0; }
-    val = static_cast<Ty>(*p++ - '0');
-    while (p < end && is_digit(*p)) { val = 10 * val + static_cast<Ty>(*p++ - '0'); }
-    if (neg) { val = ~val + 1; }  // apply sign
-    return p;
-}
-
-template<typename CharT>
-const CharT* accum_mantissa(const CharT* p, const CharT* end, uint64_t& m, int& exp) {
-    for (; p < end && is_digit(*p); ++p) {
-        if (m < pow_table_t::kMaxMantissa10 / 10) {  // decimal mantissa can hold up to 19 digits
-            m = 10 * m + static_cast<uint64_t>(*p - '0');
-        } else {
-            ++exp;
-        }
-    }
-    return p;
-}
-
-template<typename CharT>
-const CharT* to_fp_exp10(const CharT* p, const CharT* end, fp_exp10_format& fp10) {
-    if (p == end) {
-        return p;
-    } else if (is_digit(*p)) {  // integer part
-        fp10.mantissa = static_cast<uint64_t>(*p++ - '0');
-        p = accum_mantissa(p, end, fp10.mantissa, fp10.exp);
-        if (p < end && *p == '.') { ++p; }  // skip decimal point
-    } else if (*p == '.' && p + 1 < end && is_digit(*(p + 1))) {
-        fp10.mantissa = static_cast<uint64_t>(*(p + 1) - '0');  // tenth
-        fp10.exp = -1, p += 2;
-    } else {
-        return p;
-    }
-    const CharT* p1 = accum_mantissa(p, end, fp10.mantissa, fp10.exp);  // fractional part
-    fp10.exp -= static_cast<unsigned>(p1 - p);
-    if (p1 < end && (*p1 == 'e' || *p1 == 'E')) {  // optional exponent
-        int exp_optional = 0;
-        if ((p = to_integer(p1 + 1, end, exp_optional)) > p1 + 1) { fp10.exp += exp_optional, p1 = p; }
-    }
-    return p1;
-}
-
-template<typename CharT, typename Ty>
-const CharT* to_float(const CharT* p, const CharT* end, Ty& val) {
-    enum class fp_spec_t { kFinite = 0, kInf, kNaN } special = fp_spec_t::kFinite;
-    fp_exp10_format fp10;
-    const CharT* p0 = p;
-    bool neg = false;
-
-    if (p == end) {
-        return p0;
-    } else if (*p == '+') {
-        ++p;  // skip positive sign
-    } else if (*p == '-') {
-        ++p, neg = true;  // negative sign
-    }
-
-    int exp = 0;
-    uint64_t mantissa2 = 0;
-    const CharT* p1 = to_fp_exp10(p, end, fp10);
-    if (p1 > p) {
-        if (fp10.mantissa == 0 || fp10.exp < -pow_table_t::kPow10Max) {  // perfect zero
-        } else if (fp10.exp > pow_table_t::kPow10Max) {                  // infinity
-            exp = fp_traits<Ty>::kExpMax;
-        } else {
-            unsigned log = 1 + ulog2(fp10.mantissa);
-            fp10.mantissa <<= 64 - log;
-
-            // Convert decimal mantissa to binary :
-            // Note: coefficients in `coef10to2` are normalized and belong [1, 2) range
-            // Note: multiplication of 64-bit mantissa by 96-bit coefficient gives 160-bit result,
-            // but we drop the lowest 32 bits
-            const fp_m96_t& coef = g_pow_tbl.coef10to2[pow_table_t::kPow10Max + fp10.exp];
-            uint128_t res128 = mul96x64_hi128(coef.m, fp10.mantissa);
-            res128.hi += fp10.mantissa;  // apply implicit 1 term of normalized coefficient
-            // Note: overflow is possible while summing `res128.hi += fp10.mantissa`
-            // Move binary mantissa to the left position so the most significant `1` is hidden
-            if (res128.hi >= fp10.mantissa) {
-                res128.hi = (res128.hi << 1) | (res128.lo >> 63);
-                res128.lo <<= 1, --log;
-            }
-
-            // Obtain binary exponent
-            exp = fp_traits<Ty>::kExpBias + log + coef.exp;
-            if (exp >= fp_traits<Ty>::kExpMax) {
-                exp = fp_traits<Ty>::kExpMax;  // infinity
-            } else if (exp <= -static_cast<int>(fp_traits<Ty>::kBitsPerMantissa)) {
-                // corner cases: perfect zero or the smallest possible floating point number
-                if (exp == -static_cast<int>(fp_traits<Ty>::kBitsPerMantissa)) { mantissa2 = 1ull; }
-                exp = 0;
-            } else {
-                // General case: obtain rounded binary mantissa bits
-
-                // When `exp <= 0` mantissa will be denormalized further, so store the real mantissa length
-                const unsigned n_bits = exp > 0 ? fp_traits<Ty>::kBitsPerMantissa :
-                                                  fp_traits<Ty>::kBitsPerMantissa + exp - 1;
-
-                // Do banker's or `nearest even` rounding :
-                // It seems that perfect rounding is not possible, because theoretical binary mantissa
-                // representation can be of infinite length. But we use some heuristic to detect exact halves.
-                // If we take long enough range of bits after the point where we need to break series then
-                // analyzing this bits we can make the decision in which direction to round.
-                // The following bits: x x x x x x 1 0 0 0 0 0 0 0 0 0 . . . . . . we consider as exact half
-                //                     x x x x x x 0 1 1 1 1 1 1 1 1 1 . . . . . . and this is exact half too
-                //                    | needed    | to be rounded     | unknown   |
-                // In our case we need `n_bits` left bits in `res128.hi`, all other bits are rounded and dropped.
-                // To decide in which direction to round we use reliable bits after `n_bits`. Totally 96 bits are
-                // reliable, because `coef10to2` has 96-bit precision. So, we use only `res128.hi` and higher 32-bit
-                // part of `res128.lo`.
-
-                // Drop unreliable bits and resolve the case of periodical `1`
-                // Note: we do not need to reset lower 32-bit part of `res128.lo`, because it is ignored further
-                const uint64_t before_rounding = res128.hi, lsb_half = 0x80000000;
-                res128.lo += lsb_half;
-                if (res128.lo < lsb_half) { ++res128.hi; }  // handle lower part overflow
-
-                // Do banker's rounding
-                const uint64_t half = 1ull << (63 - n_bits);
-                res128.hi += hi32(res128.lo) == 0 && (res128.hi & (half << 1)) == 0 ? half - 1 : half;
-                if (res128.hi < before_rounding) {  // overflow while rounding
-                    // Note: the value can become normalized if `exp == 0`
-                    // or infinity if `exp == fp_traits<Ty>::kExpMax - 1`
-                    // Note: in case of overflow mantissa will be `0`
-                    ++exp;
-                }
-
-                // shift mantissa to the right position
-                mantissa2 = res128.hi >> (64 - fp_traits<Ty>::kBitsPerMantissa);
-                if (exp <= 0) {  // denormalize
-                    mantissa2 |= 1ull << fp_traits<Ty>::kBitsPerMantissa;
-                    mantissa2 >>= 1 - exp;
-                    exp = 0;
-                }
-            }
-        }
-    } else if ((p1 = starts_with(p, end, "inf", 3)) > p) {  // infinity
-        exp = fp_traits<Ty>::kExpMax;
-    } else if ((p1 = starts_with(p, end, "nan", 3)) > p) {  // NaN
-        exp = fp_traits<Ty>::kExpMax;
-        mantissa2 = fp_traits<Ty>::kMantissaMask;
-    } else {
-        return p0;
-    }
-
-    // Compose floating point value
-    val = fp_traits<Ty>::from_u64((neg ? fp_traits<Ty>::kSignBit : 0) |
-                                  (static_cast<uint64_t>(exp) << fp_traits<Ty>::kBitsPerMantissa) | mantissa2);
-    return p1;
-}  // namespace scvt
-
-// ---- from value to string
-
 template<typename Ty, typename StrTy, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
 StrTy& fmt_bin(Ty val, StrTy& s, const fmt_state& fmt) {
     using CharT = typename StrTy::value_type;
     std::array<CharT, 65> buf;
     CharT *last = buf.data() + buf.size(), *p = last;
     if (!!(fmt.flags & fmt_flags::kShowBase)) { *--p = !(fmt.flags & fmt_flags::kUpperCase) ? 'b' : 'B'; }
-    do {
-        *--p = '0' + static_cast<unsigned>(val & 0x1);
-        val >>= 1;
-    } while (val != 0);
+    p = gen_bin_digits(p, val);
     unsigned len = static_cast<unsigned>(last - p);
     if (fmt.width > len) {
         if (!(fmt.flags & fmt_flags::kLeadingZeroes)) { return fmt_adjusted(p, last, s, fmt); }
@@ -369,11 +388,8 @@ template<typename Ty, typename StrTy, typename = std::enable_if_t<std::is_unsign
 StrTy& fmt_oct(Ty val, StrTy& s, const fmt_state& fmt) {
     using CharT = typename StrTy::value_type;
     std::array<CharT, 23> buf;
-    CharT *last = buf.data() + buf.size(), *p = last;
-    do {
-        *--p = '0' + static_cast<unsigned>(val & 0x7);
-        val >>= 3;
-    } while (val != 0);
+    CharT* last = buf.data() + buf.size();
+    CharT* p = gen_oct_digits(last, val);
     if (!!(fmt.flags & fmt_flags::kShowBase)) { *--p = '0'; }
     unsigned len = static_cast<unsigned>(last - p);
     if (fmt.width > len) {
@@ -387,12 +403,8 @@ template<typename Ty, typename StrTy, typename = std::enable_if_t<std::is_unsign
 StrTy& fmt_hex(Ty val, StrTy& s, const fmt_state& fmt) {
     using CharT = typename StrTy::value_type;
     std::array<CharT, 18> buf;
-    CharT *last = buf.data() + buf.size(), *p = last;
-    const char* digs = !(fmt.flags & fmt_flags::kUpperCase) ? "0123456789abcdef" : "0123456789ABCDEF";
-    do {
-        *--p = digs[val & 0xf];
-        val >>= 4;
-    } while (val != 0);
+    CharT* last = buf.data() + buf.size();
+    CharT* p = gen_hex_digits(last, val, !!(fmt.flags & fmt_flags::kUpperCase));
     unsigned len = static_cast<unsigned>(last - p);
     if (!!(fmt.flags & fmt_flags::kShowBase)) {
         len += 2, p -= 2;
@@ -479,20 +491,20 @@ StrTy& fmt_signed(Ty val, StrTy& s, const fmt_state& fmt) {
     return s;
 }
 
-inline unsigned fmt_fp_exp10_len(const fp_exp10_format& fp10, fmt_flags flags, int prec) {
+inline unsigned fmt_fp_exp10_len(const fp_m64_t& fp10, fmt_flags flags, int prec) {
     return 1 + prec + (prec > 0 || !!(flags & fmt_flags::kShowPoint) ? 1 : 0) + (fp10.exp >= 100 ? 5 : 4);
 }
 
-inline unsigned fmt_fp_exp10_fixed_len(const fp_exp10_format& fp10, fmt_flags flags, int prec) {
+inline unsigned fmt_fp_exp10_fixed_len(const fp_m64_t& fp10, fmt_flags flags, int prec) {
     return 1 + std::max(fp10.exp, 0) + prec + (prec > 0 || !!(flags & fmt_flags::kShowPoint) ? 1 : 0);
 }
 
 template<typename StrTy>
-StrTy& fmt_fp_exp10(const fp_exp10_format& fp10, StrTy& s, fmt_flags flags, int prec) {
+StrTy& fmt_fp_exp10(const fp_m64_t& fp10, StrTy& s, fmt_flags flags, int prec) {
     using CharT = typename StrTy::value_type;
     std::array<CharT, 25> buf;
     CharT *p_exp = buf.data() + 20, *last = p_exp + 4;
-    CharT* p = scvt::gen_digits(p_exp, fp10.mantissa);
+    CharT* p = scvt::gen_digits(p_exp, fp10.m);
 
     // exponent
     int exp10 = fp10.exp;
@@ -523,11 +535,11 @@ StrTy& fmt_fp_exp10(const fp_exp10_format& fp10, StrTy& s, fmt_flags flags, int 
 }
 
 template<typename StrTy>
-StrTy& fmt_fp_exp10_fixed(const fp_exp10_format& fp10, StrTy& s, fmt_flags flags, int prec) {
+StrTy& fmt_fp_exp10_fixed(const fp_m64_t& fp10, StrTy& s, fmt_flags flags, int prec) {
     using CharT = typename StrTy::value_type;
     std::array<CharT, 20> buf;
     CharT* last = buf.data() + buf.size();
-    CharT* p = scvt::gen_digits(last, fp10.mantissa);
+    CharT* p = scvt::gen_digits(last, fp10.m);
 
     int k = 1 + fp10.exp;
     if (k > 0) {
@@ -610,59 +622,19 @@ inline int remove_trailing_zeros(uint64_t& n) {
     return s;
 }
 
-template<typename Ty, typename StrTy, typename = std::enable_if_t<std::is_floating_point<Ty>::value>>
-StrTy& fmt_float(Ty val, StrTy& s, const fmt_state& fmt) {
-    uint64_t mantissa = fp_traits<Ty>::to_u64(val);
-    char sign = '+', show_sign = 0;
-    if (mantissa & fp_traits<Ty>::kSignBit) {
-        sign = '-', show_sign = 1;  // negative value
-    } else if ((fmt.flags & fmt_flags::kSignField) == fmt_flags::kSignPos) {
-        show_sign = 1;
-    } else if ((fmt.flags & fmt_flags::kSignField) == fmt_flags::kSignAlign) {
-        show_sign = 1, sign = ' ';
-    }
-
-    // Binary exponent and mantissa
-    int exp = static_cast<int>((mantissa & fp_traits<Ty>::kExpMask) >> fp_traits<Ty>::kBitsPerMantissa);
-    mantissa &= fp_traits<Ty>::kMantissaMask;
-
-    if (exp == fp_traits<Ty>::kExpMax) {
-        using CharT = typename StrTy::value_type;
-        std::array<CharT, 4> buf;
-        CharT *p = buf.data(), *p0 = p;
-        if (show_sign) { *p++ = sign; }
-        if (mantissa == 0) {  // infinity
-            if (!(fmt.flags & fmt_flags::kUpperCase)) {
-                p[0] = 'i', p[1] = 'n', p[2] = 'f';
-            } else {
-                p[0] = 'I', p[1] = 'N', p[2] = 'F';
-            }
-        } else if (!(fmt.flags & fmt_flags::kUpperCase)) {  // NaN
-            p[0] = 'n', p[1] = 'a', p[2] = 'n';
-        } else {  // NaN
-            p[0] = 'N', p[1] = 'A', p[2] = 'N';
-        }
-        p += 3;
-        if (fmt.width > static_cast<unsigned>(p - p0)) { return fmt_adjusted(p0, p, s, fmt); }
-        return s.append(p0, p);
-    }
-
-    fp_exp10_format fp10;
-    fmt_flags fp_fmt = fmt.flags & fmt_flags::kFloatField;
-    int prec = fmt.prec;
-
-    if (mantissa != 0 || exp > 0) {
+static fp_m64_t fp_exp2_to_exp10(fp_m64_t fp2, fmt_flags& fp_fmt, int& prec, const unsigned bpm, const int exp_max) {
+    if (fp2.m != 0 || fp2.exp > 0) {
         bool optimal = false;
-        unsigned log = fp_traits<Ty>::kBitsPerMantissa;
+        unsigned log = bpm;
 
         // Shift binary mantissa so the MSB bit is `1`
-        if (exp > 0) {
-            mantissa <<= 63 - fp_traits<Ty>::kBitsPerMantissa;
-            mantissa |= 1ull << 63;
+        if (fp2.exp > 0) {
+            fp2.m <<= 63 - bpm;
+            fp2.m |= 1ull << 63;
         } else {  // handle denormalized form
-            log = ulog2(mantissa);
-            mantissa <<= 63 - log;
-            exp -= fp_traits<Ty>::kBitsPerMantissa - 1 - log;
+            log = ulog2(fp2.m);
+            fp2.m <<= 63 - log;
+            fp2.exp -= bpm - 1 - log;
         }
 
         if (prec < 0) {
@@ -673,7 +645,8 @@ StrTy& fmt_float(Ty val, StrTy& s, const fmt_state& fmt) {
         }
 
         // Obtain decimal power
-        fp10.exp = g_pow_tbl.exp2to10[pow_table_t::kPow2Max - fp_traits<Ty>::kExpBias + exp];
+        const int exp_bias = exp_max >> 1;
+        fp_m64_t fp10{0, g_pow_tbl.exp2to10[pow_table_t::kPow2Max - exp_bias + fp2.exp]};
 
         // Evaluate desired decimal mantissa length (its integer part)
         // Note: integer part of decimal mantissa is the digits to output,
@@ -692,8 +665,8 @@ StrTy& fmt_float(Ty val, StrTy& s, const fmt_state& fmt) {
             // To get the desired count of digits we move up the `coef10to2` table, it's equivalent to
             // multiplying the result by a certain power of 10
             const fp_m96_t& coef = g_pow_tbl.coef10to2[pow_table_t::kPow10Max - fp10.exp + n_digs - 1];
-            uint128_t res128 = mul96x64_hi128(coef.m, mantissa);
-            res128.hi += mantissa;  // apply implicit 1 term of normalized coefficient
+            uint128_t res128 = mul96x64_hi128(coef.m, fp2.m);
+            res128.hi += fp2.m;  // apply implicit 1 term of normalized coefficient
 
             // Do banker's or `nearest even` rounding :
             // It seems that perfect rounding is not possible, because theoretical decimal mantissa
@@ -716,10 +689,10 @@ StrTy& fmt_float(Ty val, StrTy& s, const fmt_state& fmt) {
 
             // Overflow is possible while summing `res128.hi += mantissa` or rounding - store this
             // overflowed bit. We must take it into account in further calculations
-            const uint64_t higher_bit = res128.hi < mantissa ? 1ull : 0ull;
+            const uint64_t higher_bit = res128.hi < fp2.m ? 1ull : 0ull;
 
             // Store the shift needed to align integer part of decimal mantissa with 64-bit boundary
-            const unsigned shift = 63 + fp_traits<Ty>::kExpBias - exp - coef.exp;  // sum coefficient exponent as well
+            const unsigned shift = 63 + exp_bias - fp2.exp - coef.exp;  // sum coefficient exponent as well
             // Note: resulting decimal mantissa has the form `C * 10^n_digs`, where `C` belongs [1, 20) range.
             // So, if `C >= 10` we get decimal mantissa with one excess digit. We should detect these cases
             // and divide decimal mantissa by 10 for scientific format
@@ -734,9 +707,9 @@ StrTy& fmt_float(Ty val, StrTy& s, const fmt_state& fmt) {
                 ++fp10.exp;
                 // Divide 65-bit value by 10. We know the division result for 10^64 summand, so we just use it.
                 const uint64_t div64 = 1844674407370955161ull, mod64 = 6;
-                fp10.mantissa = div64 + (res128.hi + mod64) / 10;
-                unsigned mod = static_cast<unsigned>(res128.hi - 10 * fp10.mantissa);
-                if (mod > 5 || (mod == 5 && (res128.lo != 0 || (fp10.mantissa & 1) != 0))) { ++fp10.mantissa; }
+                fp10.m = div64 + (res128.hi + mod64) / 10;
+                unsigned mod = static_cast<unsigned>(res128.hi - 10 * fp10.m);
+                if (mod > 5 || (mod == 5 && (res128.lo != 0 || (fp10.m & 1) != 0))) { ++fp10.m; }
             } else {
                 // Align integer part of decimal mantissa with 64-bit boundary
                 if (shift == 0) {
@@ -754,43 +727,41 @@ StrTy& fmt_float(Ty val, StrTy& s, const fmt_state& fmt) {
                 if (fp_fmt != fmt_flags::kFixed && res128.hi >= g_pow_tbl.ten_pows[n_digs]) {
                     ++fp10.exp, err_mul += 10;  // one excess digit
                     // Remove one excess digit for scientific format, do 'nearest even' rounding
-                    fp10.mantissa = res128.hi / 10;
-                    err = res128.hi - 10 * fp10.mantissa;
-                    if (err > 5 || (err == 5 && (res128.lo != 0 || (fp10.mantissa & 1) != 0))) {
-                        ++fp10.mantissa, err -= 10;
-                    }
+                    fp10.m = res128.hi / 10;
+                    err = res128.hi - 10 * fp10.m;
+                    if (err > 5 || (err == 5 && (res128.lo != 0 || (fp10.m & 1) != 0))) { ++fp10.m, err -= 10; }
                 } else {
                     // Do 'nearest even' rounding
                     const uint64_t half = 1ull << 63;
                     const uint64_t frac = (res128.hi & 1) == 0 ? res128.lo + half - 1 : res128.lo + half;
-                    fp10.mantissa = res128.hi;
-                    if (frac < res128.lo) { ++fp10.mantissa, err = -1; }
-                    if (fp10.mantissa >= g_pow_tbl.ten_pows[n_digs]) {
+                    fp10.m = res128.hi;
+                    if (frac < res128.lo) { ++fp10.m, err = -1; }
+                    if (fp10.m >= g_pow_tbl.ten_pows[n_digs]) {
                         ++fp10.exp;  // one excess digit
                         if (fp_fmt != fmt_flags::kFixed) {
                             // Remove one excess digit for scientific format
-                            // Note: `fp10.mantissa` is exact power of 10 in this case
-                            fp10.mantissa /= 10;
+                            // Note: `fp10.m` is exact power of 10 in this case
+                            fp10.m /= 10;
                         }
                     }
                 }
             }
 
-            if (fp10.mantissa != 0) {
+            if (fp10.m != 0) {
                 if (optimal) {
                     // Evaluate acceptable error range to pass roundtrip test
                     assert(log + shift >= 30);
                     const unsigned shift2 = log + shift - 30;
                     int64_t delta_minus = (coef.m.hi >> shift2) | (1ull << (64 - shift2));
                     int64_t delta_plus = delta_minus;
-                    if (exp > 1 && mantissa == 1ull << 63) { delta_plus >>= 1; }
+                    if (fp2.exp > 1 && fp2.m == 1ull << 63) { delta_plus >>= 1; }
                     err = (err << 32) | (res128.lo >> 32);
 
                     // Trim trailing unsignificant digits
                     const int64_t max_err_mul = delta_minus << 1;
                     while (true) {
-                        uint64_t t = fp10.mantissa / 10;
-                        unsigned mod = static_cast<unsigned>(fp10.mantissa - 10 * t);
+                        uint64_t t = fp10.m / 10;
+                        unsigned mod = static_cast<unsigned>(fp10.m - 10 * t);
                         if (mod > 0) {
                             err += err_mul[mod];
                             err_mul += 10;
@@ -809,9 +780,9 @@ StrTy& fmt_float(Ty val, StrTy& s, const fmt_state& fmt) {
                         } else {
                             err_mul += 10;
                         }
-                        --prec, fp10.mantissa = t;
+                        --prec, fp10.m = t;
                         if (*err_mul >= max_err_mul) {
-                            prec -= remove_trailing_zeros(fp10.mantissa);
+                            prec -= remove_trailing_zeros(fp10.m);
                             break;
                         }
                     }
@@ -822,18 +793,16 @@ StrTy& fmt_float(Ty val, StrTy& s, const fmt_state& fmt) {
                     }
                 } else if (fp_fmt == fmt_flags::kDefault) {
                     const int prec0 = prec;
-                    prec = n_digs - 1 - remove_trailing_zeros(fp10.mantissa);
+                    prec = n_digs - 1 - remove_trailing_zeros(fp10.m);
                     // Select format for number representation
                     if (fp10.exp >= -4 && fp10.exp <= prec0) {
                         fp_fmt = fmt_flags::kFixed, prec = std::max(prec - fp10.exp, 0);
                     }
                 }
 
-                goto not_zero_result;
+                return fp10;
             }
         }
-
-        fp10.exp = 0;
     }
 
     if (fp_fmt == fmt_flags::kDefault) {
@@ -844,7 +813,48 @@ StrTy& fmt_float(Ty val, StrTy& s, const fmt_state& fmt) {
         prec &= 0xffff;
     }
 
-not_zero_result:
+    return fp_m64_t{0, 0};
+}
+
+template<typename StrTy>
+StrTy& fmt_float_common(uint64_t u64, StrTy& s, const fmt_state& fmt, const unsigned bpm, const int exp_max) {
+    char sign = '+', show_sign = 0;
+    if (u64 & (static_cast<uint64_t>(1 + exp_max) << bpm)) {
+        sign = '-', show_sign = 1;  // negative value
+    } else if ((fmt.flags & fmt_flags::kSignField) == fmt_flags::kSignPos) {
+        show_sign = 1;
+    } else if ((fmt.flags & fmt_flags::kSignField) == fmt_flags::kSignAlign) {
+        show_sign = 1, sign = ' ';
+    }
+
+    // Binary exponent and mantissa
+    fp_m64_t fp2{u64 & ((1ull << bpm) - 1), static_cast<int>((u64 >> bpm) & exp_max)};
+
+    if (fp2.exp == exp_max) {
+        using CharT = typename StrTy::value_type;
+        std::array<CharT, 4> buf;
+        CharT *p = buf.data(), *p0 = p;
+        if (show_sign) { *p++ = sign; }
+        if (fp2.m == 0) {  // infinity
+            if (!(fmt.flags & fmt_flags::kUpperCase)) {
+                p[0] = 'i', p[1] = 'n', p[2] = 'f';
+            } else {
+                p[0] = 'I', p[1] = 'N', p[2] = 'F';
+            }
+        } else if (!(fmt.flags & fmt_flags::kUpperCase)) {  // NaN
+            p[0] = 'n', p[1] = 'a', p[2] = 'n';
+        } else {  // NaN
+            p[0] = 'N', p[1] = 'A', p[2] = 'N';
+        }
+        p += 3;
+        if (fmt.width > static_cast<unsigned>(p - p0)) { return fmt_adjusted(p0, p, s, fmt); }
+        return s.append(p0, p);
+    }
+
+    int prec = fmt.prec;
+    fmt_flags fp_fmt = fmt.flags & fmt_flags::kFloatField;
+    fp_m64_t fp10 = fp_exp2_to_exp10(fp2, fp_fmt, prec, bpm, exp_max);
+
     if (fmt.width > 0) {
         unsigned len = show_sign;
         if (fp_fmt == fmt_flags::kFixed) {
@@ -886,30 +896,39 @@ not_zero_result:
     return fmt_fp_exp10(fp10, s, fmt.flags, prec);
 }
 
+template<typename Ty, typename StrTy, typename = std::enable_if_t<std::is_floating_point<Ty>::value>>
+StrTy& fmt_float(Ty val, StrTy& s, const fmt_state& fmt) {
+    return fmt_float_common(fp_traits<Ty>::to_u64(val), s, fmt, fp_traits<Ty>::kBitsPerMantissa, fp_traits<Ty>::kExpMax);
+}
+
 }  // namespace scvt
 
 #define SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(ty, from_string_func, to_string_func) \
     template<typename CharT> \
     const CharT* basic_string_converter<CharT, ty>::from_string(const CharT* first, const CharT* last, ty& val) { \
         const CharT* p = scvt::skip_spaces(first, last); \
-        last = scvt::from_string_func(p, last, val); \
-        return last > p ? last : first; \
+        ty t = scvt::from_string_func(p, last, last); \
+        if (last > p) { \
+            val = t; \
+            return last; \
+        } \
+        return first; \
     } \
     template<typename CharT> \
     template<typename StrTy> \
     StrTy& basic_string_converter<CharT, ty>::to_string(ty val, StrTy& s, const fmt_state& fmt) { \
         return scvt::to_string_func(val, s, fmt); \
     }
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int8_t, to_integer, fmt_signed)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int16_t, to_integer, fmt_signed)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int32_t, to_integer, fmt_signed)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int64_t, to_integer, fmt_signed)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint8_t, to_integer, fmt_unsigned)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint16_t, to_integer, fmt_unsigned)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint32_t, to_integer, fmt_unsigned)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint64_t, to_integer, fmt_unsigned)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(float, to_float, fmt_float)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(double, to_float, fmt_float)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int8_t, to_integer<int32_t>, fmt_signed<int32_t>)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int16_t, to_integer<int32_t>, fmt_signed<int32_t>)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int32_t, to_integer<int32_t>, fmt_signed)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int64_t, to_integer<int64_t>, fmt_signed)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint8_t, to_integer<int32_t>, fmt_unsigned<uint32_t>)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint16_t, to_integer<int32_t>, fmt_unsigned<uint32_t>)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint32_t, to_integer<int32_t>, fmt_unsigned)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint64_t, to_integer<int64_t>, fmt_unsigned)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(float, to_float<float>, fmt_float)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(double, to_float<double>, fmt_float)
 #undef SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER
 
 template<typename CharT>

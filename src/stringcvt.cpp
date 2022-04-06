@@ -138,7 +138,7 @@ pow_table_t::pow_table_t() {
     // 2^N -> 10^M power conversion index table
     for (int exp = -kPow2Max; exp <= kPow2Max; ++exp) {
         auto it = std::lower_bound(coef10to2.begin(), coef10to2.end(), -exp,
-                                   [](decltype(*coef10to2.begin()) el, int exp) { return el.exp < exp; });
+                                   [](const fp_m96_t& el, int exp) { return el.exp < exp; });
         exp2to10[kPow2Max + exp] = kPow10Max - static_cast<int>(it - coef10to2.begin());
     }
 
