@@ -111,40 +111,40 @@ StrTy& format_append(std::basic_string_view<typename StrTy::value_type> fmt, Str
 
 template<typename... Ts>
 std::string format(std::string_view fmt, const Ts&... args) {
-    std::string result;
-    format_append(fmt, result, args...);
-    return result;
+    util::dynbuf_appender appender;
+    format_append(fmt, appender, args...);
+    return std::string(appender.data(), appender.size());
 }
 
 template<typename... Ts>
 std::wstring format(std::wstring_view fmt, const Ts&... args) {
-    std::wstring result;
-    format_append(fmt, result, args...);
-    return result;
+    util::wdynbuf_appender appender;
+    format_append(fmt, appender, args...);
+    return std::wstring(appender.data(), appender.size());
 }
 
 template<typename... Ts>
 char* format_to(char* dst, std::string_view fmt, const Ts&... args) {
-    char_buf_appender appender(dst);
-    return format_append(fmt, appender, args...).get_ptr();
+    unlimbuf_appender appender(dst);
+    return format_append(fmt, appender, args...).curr();
 }
 
 template<typename... Ts>
 wchar_t* format_to(wchar_t* dst, std::wstring_view fmt, const Ts&... args) {
-    wchar_buf_appender appender(dst);
-    return format_append(fmt, appender, args...).get_ptr();
+    wunlimbuf_appender appender(dst);
+    return format_append(fmt, appender, args...).curr();
 }
 
 template<typename... Ts>
 char* format_to_n(char* dst, size_t n, std::string_view fmt, const Ts&... args) {
-    char_n_buf_appender appender(dst, n);
-    return format_append(fmt, appender, args...).get_ptr();
+    limbuf_appender appender(dst, n);
+    return format_append(fmt, appender, args...).curr();
 }
 
 template<typename... Ts>
 wchar_t* format_to_n(wchar_t* dst, size_t n, std::wstring_view fmt, const Ts&... args) {
-    wchar_n_buf_appender appender(dst, n);
-    return format_append(fmt, appender, args...).get_ptr();
+    wlimbuf_appender appender(dst, n);
+    return format_append(fmt, appender, args...).curr();
 }
 
 }  // namespace util
