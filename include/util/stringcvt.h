@@ -2,7 +2,6 @@
 
 #include "chars.h"
 #include "string_view.h"
-#include "utility.h"
 
 #include <algorithm>
 
@@ -72,18 +71,35 @@ struct fmt_state {
     int fill = ' ';
 };
 
-template<typename CharT>
-class basic_char_buf_appender {
+template<typename CharT, typename Appender>
+class basic_appender_mixin {
  public:
     using value_type = CharT;
+    Appender& append(const value_type* first, size_t count) {
+        return static_cast<Appender&>(*this).append(first, first + count);
+    }
+    Appender& append(std::basic_string_view<value_type> s) {
+        return static_cast<Appender&>(*this).append(s.data(), s.data() + s.size());
+    }
+    Appender& operator+=(std::basic_string_view<value_type> s) {
+        return static_cast<Appender&>(*this).append(s.data(), s.data() + s.size());
+    }
+    Appender& operator+=(value_type ch) {
+        static_cast<Appender&>(*this).push_back(ch);
+        return static_cast<Appender&>(*this);
+    }
+};
 
-    explicit basic_char_buf_appender(CharT* dst) : dst_(dst) {}
-    CharT* get_ptr() const { return dst_; }
-    basic_char_buf_appender& append(const CharT* first, const CharT* last) {
+template<typename CharT>
+class basic_unlimbuf_appender : public basic_appender_mixin<CharT, basic_unlimbuf_appender<CharT>> {
+ public:
+    explicit basic_unlimbuf_appender(CharT* dst) : dst_(dst) {}
+    CharT* curr() const { return dst_; }
+    basic_unlimbuf_appender& append(const CharT* first, const CharT* last) {
         dst_ = std::copy(first, last, dst_);
         return *this;
     }
-    basic_char_buf_appender& append(size_t count, CharT ch) {
+    basic_unlimbuf_appender& append(size_t count, CharT ch) {
         dst_ = std::fill_n(dst_, count, ch);
         return *this;
     }
@@ -93,37 +109,93 @@ class basic_char_buf_appender {
     CharT* dst_;
 };
 
-template<typename CharT>
-class basic_char_n_buf_appender {
- public:
-    using value_type = CharT;
+using unlimbuf_appender = basic_unlimbuf_appender<char>;
+using wunlimbuf_appender = basic_unlimbuf_appender<wchar_t>;
 
-    basic_char_n_buf_appender(CharT* dst, size_t n) : dst_(dst), last_(dst + n) {}
-    CharT* get_ptr() const { return dst_; }
-    basic_char_n_buf_appender& append(const CharT* first, const CharT* last) {
+template<typename CharT>
+class basic_limbuf_appender : public basic_appender_mixin<CharT, basic_limbuf_appender<CharT>> {
+ public:
+    basic_limbuf_appender(CharT* dst, size_t n) : dst_(dst), last_(dst + n) {}
+    CharT* curr() const { return dst_; }
+    CharT* last() const { return last_; }
+    basic_limbuf_appender& append(const CharT* first, const CharT* last) {
         dst_ = std::copy_n(first, std::min<size_t>(last - first, last_ - dst_), dst_);
         return *this;
     }
-    basic_char_n_buf_appender& append(size_t count, CharT ch) {
+    basic_limbuf_appender& append(size_t count, CharT ch) {
         dst_ = std::fill_n(dst_, std::min<size_t>(count, last_ - dst_), ch);
         return *this;
     }
     void push_back(CharT ch) {
         if (dst_ != last_) { *dst_++ = ch; }
     }
+    basic_limbuf_appender& setcurr(CharT* curr) {
+        assert(dst_ <= curr && curr <= last_);
+        dst_ = curr;
+        return *this;
+    }
 
  private:
-    CharT* dst_;
-    CharT* last_;
+    CharT *dst_, *last_;
 };
+
+using limbuf_appender = basic_limbuf_appender<char>;
+using wlimbuf_appender = basic_limbuf_appender<wchar_t>;
+
+template<typename CharT>
+class basic_dynbuf_appender : public basic_appender_mixin<CharT, basic_dynbuf_appender<CharT>> {
+ public:
+    basic_dynbuf_appender() : first_(buf_), dst_(buf_), last_(&buf_[kInlineBufSize]) {}
+    ~basic_dynbuf_appender();
+    basic_dynbuf_appender(const basic_dynbuf_appender&) = delete;
+    basic_dynbuf_appender& operator=(const basic_dynbuf_appender&) = delete;
+    size_t size() const { return dst_ - first_; }
+    const CharT* data() const { return first_; }
+    const CharT* curr() const { return dst_; }
+    basic_dynbuf_appender& append(const CharT* first, const CharT* last) {
+        if (last_ - dst_ < last - first) { grow(last - first); }
+        dst_ = std::copy(first, last, dst_);
+        return *this;
+    }
+    basic_dynbuf_appender& append(size_t count, CharT ch) {
+        if (static_cast<size_t>(last_ - dst_) < count) { grow(count); }
+        dst_ = std::fill_n(dst_, count, ch);
+        return *this;
+    }
+    void push_back(CharT ch) {
+        if (last_ == dst_) { grow(1); }
+        *dst_++ = ch;
+    }
+    CharT* reserve(size_t count) {
+        if (static_cast<size_t>(last_ - dst_) < count) { grow(count); }
+        return dst_;
+    }
+    basic_dynbuf_appender& setcurr(CharT* curr) {
+        assert(dst_ <= curr && curr <= last_);
+        dst_ = curr;
+        return *this;
+    }
+
+ private:
+    enum : unsigned {
+#if defined(NDEBUG)
+        kInlineBufSize = 256 / sizeof(CharT)
+#else   // defined(NDEBUG)
+        kInlineBufSize = 7 / sizeof(CharT)
+#endif  // defined(NDEBUG)
+    };
+    CharT *first_, *dst_, *last_;
+    CharT buf_[kInlineBufSize];
+
+    void grow(size_t extra);
+};
+
+using dynbuf_appender = basic_dynbuf_appender<char>;
+using wdynbuf_appender = basic_dynbuf_appender<wchar_t>;
 
 template<typename CharT, typename Ty>
 struct basic_string_converter;
 
-using char_buf_appender = basic_char_buf_appender<char>;
-using wchar_buf_appender = basic_char_buf_appender<wchar_t>;
-using char_n_buf_appender = basic_char_n_buf_appender<char>;
-using wchar_n_buf_appender = basic_char_n_buf_appender<wchar_t>;
 template<typename Ty>
 using string_converter = basic_string_converter<char, Ty>;
 template<typename Ty>
@@ -191,40 +263,40 @@ StrTy& to_string_append(const Ty& val, StrTy& s, const fmt_state& fmt) {
 
 template<typename Ty, typename... Args>
 std::string to_string(const Ty& val, Args&&... args) {
-    std::string result;
-    to_string_append(val, result, fmt_state(std::forward<Args>(args)...));
-    return result;
+    util::dynbuf_appender appender;
+    to_string_append(val, appender, fmt_state(std::forward<Args>(args)...));
+    return std::string(appender.data(), appender.size());
 }
 
 template<typename Ty, typename... Args>
 std::wstring to_wstring(const Ty& val, Args&&... args) {
-    std::wstring result;
-    to_string_append(val, result, fmt_state(std::forward<Args>(args)...));
-    return result;
+    util::wdynbuf_appender appender;
+    to_string_append(val, appender, fmt_state(std::forward<Args>(args)...));
+    return std::wstring(appender.data(), appender.size());
 }
 
 template<typename Ty, typename... Args>
 char* to_string_to(char* buf, const Ty& val, Args&&... args) {
-    char_buf_appender appender(buf);
-    return to_string_append(val, appender, fmt_state(std::forward<Args>(args)...)).get_ptr();
+    unlimbuf_appender appender(buf);
+    return to_string_append(val, appender, fmt_state(std::forward<Args>(args)...)).curr();
 }
 
 template<typename Ty, typename... Args>
 wchar_t* to_wstring_to(wchar_t* buf, const Ty& val, Args&&... args) {
-    wchar_buf_appender appender(buf);
-    return to_string_append(val, appender, fmt_state(std::forward<Args>(args)...)).get_ptr();
+    wunlimbuf_appender appender(buf);
+    return to_string_append(val, appender, fmt_state(std::forward<Args>(args)...)).curr();
 }
 
 template<typename Ty, typename... Args>
 char* to_string_to_n(char* buf, size_t n, const Ty& val, Args&&... args) {
-    char_n_buf_appender appender(buf, n);
-    return to_string_append(val, appender, fmt_state(std::forward<Args>(args)...)).get_ptr();
+    limbuf_appender appender(buf, n);
+    return to_string_append(val, appender, fmt_state(std::forward<Args>(args)...)).curr();
 }
 
 template<typename Ty, typename... Args>
 wchar_t* to_wstring_to_n(wchar_t* buf, size_t n, const Ty& val, Args&&... args) {
-    wchar_n_buf_appender appender(buf, n);
-    return to_string_append(val, appender, fmt_state(std::forward<Args>(args)...)).get_ptr();
+    wlimbuf_appender appender(buf, n);
+    return to_string_append(val, appender, fmt_state(std::forward<Args>(args)...)).curr();
 }
 
 }  // namespace util

@@ -116,14 +116,14 @@ struct large_int {
         const uint64_t half = 0x80000000;
         v.lo += half;
         if (v.lo < half) { ++v.hi; }
-        return fp_m96_t{v.hi, static_cast<uint32_t>(hi32(v.lo)), exp};
+        return fp_m96_t{{v.hi, static_cast<uint32_t>(hi32(v.lo))}, exp};
     }
 };
 
 pow_table_t::pow_table_t() {
     // 10^N -> 2^M power conversion table
     large_int<24> lrg{10};
-    coef10to2[kPow10Max] = fp_m96_t{0, 0, 0};
+    coef10to2[kPow10Max] = fp_m96_t{{0, 0}, 0};
     for (unsigned n = 0; n < kPow10Max; ++n) {
         auto norm = lrg.get_normalized<4>();
         lrg.multiply(10);
@@ -131,7 +131,7 @@ pow_table_t::pow_table_t() {
         if (norm.first.count != 0) {
             coef10to2[kPow10Max - n - 1] = norm.first.invert(2).make_fp_m96(-norm.second - 1);
         } else {
-            coef10to2[kPow10Max - n - 1] = fp_m96_t{0, 0, -norm.second};
+            coef10to2[kPow10Max - n - 1] = fp_m96_t{{0, 0}, -norm.second};
         }
     }
 
@@ -178,9 +178,9 @@ const char g_digits[][2] = {
 
 #define SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(ty) \
     template const char* string_converter<ty>::from_string(const char* first, const char* last, ty& val); \
-    template std::string& string_converter<ty>::to_string(ty val, std::string& s, const fmt_state& fmt); \
-    template char_buf_appender& string_converter<ty>::to_string(ty val, char_buf_appender& s, const fmt_state& fmt); \
-    template char_n_buf_appender& string_converter<ty>::to_string(ty val, char_n_buf_appender& s, const fmt_state& fmt);
+    template unlimbuf_appender& string_converter<ty>::to_string(ty val, unlimbuf_appender& s, const fmt_state& fmt); \
+    template limbuf_appender& string_converter<ty>::to_string(ty val, limbuf_appender& s, const fmt_state& fmt); \
+    template dynbuf_appender& string_converter<ty>::to_string(ty val, dynbuf_appender& s, const fmt_state& fmt);
 SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int8_t)
 SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int16_t)
 SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int32_t)
@@ -197,10 +197,9 @@ SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(bool)
 
 #define SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(ty) \
     template const wchar_t* wstring_converter<ty>::from_string(const wchar_t* first, const wchar_t* last, ty& val); \
-    template std::wstring& wstring_converter<ty>::to_string(ty val, std::wstring& s, const fmt_state& fmt); \
-    template wchar_buf_appender& wstring_converter<ty>::to_string(ty val, wchar_buf_appender& s, const fmt_state& fmt); \
-    template wchar_n_buf_appender& wstring_converter<ty>::to_string(ty val, wchar_n_buf_appender& s, \
-                                                                    const fmt_state& fmt);
+    template wunlimbuf_appender& wstring_converter<ty>::to_string(ty val, wunlimbuf_appender& s, const fmt_state& fmt); \
+    template wlimbuf_appender& wstring_converter<ty>::to_string(ty val, wlimbuf_appender& s, const fmt_state& fmt); \
+    template wdynbuf_appender& wstring_converter<ty>::to_string(ty val, wdynbuf_appender& s, const fmt_state& fmt);
 SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int8_t)
 SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int16_t)
 SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int32_t)
@@ -214,5 +213,10 @@ SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(double)
 SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(wchar_t)
 SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(bool)
 #undef SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER
+
+template basic_dynbuf_appender<char>::~basic_dynbuf_appender();
+template void basic_dynbuf_appender<char>::grow(size_t extra);
+template basic_dynbuf_appender<wchar_t>::~basic_dynbuf_appender();
+template void basic_dynbuf_appender<wchar_t>::grow(size_t extra);
 
 }  // namespace util
