@@ -1,7 +1,5 @@
 #include "util/stringalg.h"
 
-#include <algorithm>
-
 using namespace util;
 
 std::wstring util::from_utf8_to_wide(std::string_view s) {

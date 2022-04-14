@@ -1,4 +1,4 @@
-#include "util/format.h"
+#include "util/format_impl.h"
 
 using namespace util;
 
@@ -132,7 +132,10 @@ inline const char* fmt_parse_type(const char* p, fmt_state& fmt) {
     return p - 1;
 }
 
-void util::detail::fmt_parse_arg_spec(const char* p, detail::fmt_arg_specs& specs) {
+namespace util {
+namespace detail {
+
+void fmt_parse_arg_spec(const char* p, fmt_arg_specs& specs) {
     specs.fmt = fmt_state();
     specs.flags = fmt_parse_flags::kDefault;
     if (*p == '}') { return; }
@@ -151,3 +154,18 @@ void util::detail::fmt_parse_arg_spec(const char* p, detail::fmt_arg_specs& spec
         fmt_parse_type(p, specs.fmt);
     }
 }
+
+template std::string& fmt_append_string(std::string_view, std::string&, fmt_state&);
+template char_buf_appender& fmt_append_string(std::string_view, char_buf_appender&, fmt_state&);
+template char_n_buf_appender& fmt_append_string(std::string_view, char_n_buf_appender&, fmt_state&);
+
+}  // namespace detail
+
+template std::string& format_append_v(std::string_view, std::string&,
+                                      span<const detail::fmt_arg_list_item<std::string>>);
+template char_buf_appender& format_append_v(std::string_view, char_buf_appender&,
+                                            span<const detail::fmt_arg_list_item<char_buf_appender>>);
+template char_n_buf_appender& format_append_v(std::string_view, char_n_buf_appender&,
+                                              span<const detail::fmt_arg_list_item<char_n_buf_appender>>);
+
+}  // namespace util
