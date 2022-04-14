@@ -241,7 +241,6 @@ struct pow_table_t {
     std::array<int, kPow2Bias + kPow2Max + 1> exp2to10;
     std::array<uint64_t, 2070> bigpow10;
     std::array<unsigned, kBigPow10Max + 1> bigpow10_offset;
-    std::array<uint64_t, 20> ten_pows;
     std::array<int64_t, 70> decimal_mul;
     pow_table_t();
 };
@@ -284,12 +283,8 @@ pow_table_t::pow_table_t() {
         exp2to10[kPow2Bias + exp] = kPow10Max - static_cast<int>(it - coef10to2.begin());
     }
 
-    // powers of ten 10^N, N = 0, 1, 2, ...
+    // decimal-binary multipliers
     uint64_t mul = 1ull;
-    for (uint32_t n = 0; n < ten_pows.size(); ++n, mul *= 10u) { ten_pows[n] = mul; }
-
-    // decimal multipliers
-    mul = 1ull;
     for (uint32_t n = 0; n < decimal_mul.size(); n += 10, mul *= 10u) {
         decimal_mul[n] = mul << 32;
         for (uint32_t k = 1; k < 10; ++k) { decimal_mul[n + k] = (mul * k) << 32; }
@@ -298,9 +293,21 @@ pow_table_t::pow_table_t() {
 
 static const pow_table_t g_pow_tbl;
 
+// maximal default precisions for each mantissa length
 static const int g_default_prec[] = {2,  2,  2,  3,  3,  3,  4,  4,  4,  5,  5,  5,  5,  6,  6,  6,  7,  7,
                                      7,  8,  8,  8,  8,  9,  9,  9,  10, 10, 10, 11, 11, 11, 11, 12, 12, 12,
                                      13, 13, 13, 14, 14, 14, 14, 15, 15, 15, 16, 16, 16, 17, 17, 17, 17};
+
+// minimal digit count for numbers 2^N <= x < 2^(N+1), N = 0, 1, 2, ...
+const unsigned g_exp2_digs[] = {1,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  4,  5,  5,  5,  6,  6,  6,  7,  7,
+                                7,  7,  8,  8,  8,  9,  9,  9,  10, 10, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 13, 13,
+                                14, 14, 14, 15, 15, 15, 16, 16, 16, 16, 17, 17, 17, 18, 18, 18, 19, 19, 19, 19, 20};
+
+#define SCVT_POWERS_OF_10(base) \
+    base, (base)*10, (base)*100, (base)*1000, (base)*10000, (base)*100000, (base)*1000000, (base)*10000000, \
+        (base)*100000000, (base)*1000000000
+// powers of ten 10^N, N = 0, 1, 2, ...
+const uint64_t g_ten_pows[] = {SCVT_POWERS_OF_10(1ull), SCVT_POWERS_OF_10(10000000000ull)};
 
 const char g_digits[][2] = {
     {'0', '0'}, {'0', '1'}, {'0', '2'}, {'0', '3'}, {'0', '4'}, {'0', '5'}, {'0', '6'}, {'0', '7'}, {'0', '8'},
@@ -475,16 +482,17 @@ fp10_t fp_exp2_to_exp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& flags, int& pr
         if (flags == fmt_flags::kFixed) { n_digs += fp10.exp; }  // for fixed format
 
         if (n_digs > pow_table_t::kPrecLimit) {  // Long decimal mantissa
-            static std::array<unsigned, 10> dig_base = {1,      10,      100,      1000,      10000,
-                                                        100000, 1000000, 10000000, 100000000, 1000000000};
+            static std::array<unsigned, 10> dig_base = {SCVT_POWERS_OF_10(1)};
 
             // 12 uint64-s are enough to hold all (normalized!) 10^n, n <= 324, +1 to multiply by uint64
             std::array<uint64_t, 16> buf;  // so, 16 are enough for sure
 
-            // Reserve space for digits. For scientific format decimal point (+1), sign (+1), and exponent (+5) are
-            // added inplace, so reserve additional space for them. Note: the first digit can belong [1, 20) range,
-            // reserve space (+1) for it
-            char *p0 = digs.reserve_at_curr(n_digs + 8) + 2, *p1 = p0;  // left margin for decimal point and sign
+            // Reserve space for digits.
+            // For scientific format sign (+1), decimal point (+1), and exponent (+5) are added inplace,
+            // so reserve additional space for them.
+            // For fixed format reserve place for sign (+1) and `0.` prefix (+2).
+            // Note: the first digit can belong [1, 20) range, reserve space (+1) for it.
+            char *p0 = digs.reserve_at_curr(n_digs + 9) + 3, *p1 = p0;  // left margin for sign, decimal point or `0.`
 
             uint64_t* num = &buf[0];  // numerator
             unsigned sz = 1;
@@ -650,7 +658,7 @@ fp10_t fp_exp2_to_exp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& flags, int& pr
                 res128.hi = carry;
             }
 
-            if (flags != fmt_flags::kFixed && res128.hi >= g_pow_tbl.ten_pows[n_digs]) {
+            if (flags != fmt_flags::kFixed && res128.hi >= g_ten_pows[n_digs]) {
                 ++fp10.exp, err_mul += 10;  // one excess digit
                 // Remove one excess digit for scientific format, do 'nearest even' rounding
                 fp10.m = res128.hi / 10u;
@@ -662,7 +670,7 @@ fp10_t fp_exp2_to_exp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& flags, int& pr
                 uint64_t frac = res128.lo;
                 add64_carry(frac, msb64 - 1 + (res128.hi & 1), carry);
                 fp10.m = res128.hi + carry, err = -static_cast<int64_t>(carry);
-                if (fp10.m >= g_pow_tbl.ten_pows[n_digs]) {
+                if (fp10.m >= g_ten_pows[n_digs]) {
                     ++fp10.exp;  // one excess digit
                     if (flags != fmt_flags::kFixed) {
                         // Remove one excess digit for scientific format
@@ -719,7 +727,7 @@ fp10_t fp_exp2_to_exp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& flags, int& pr
                     if (fp10.exp >= -4 && fp10.exp <= prec) { flags = fmt_flags::kFixed, prec -= fp10.exp; }
                     if (!alternate) {
                         prec -= remove_trailing_zeros(fp10.m);
-                        if (prec < 0) { fp10.m *= g_pow_tbl.ten_pows[-prec], prec = 0; }
+                        if (prec < 0) { fp10.m *= g_ten_pows[-prec], prec = 0; }
                     } else if (prec == 0) {
                         fp10.m *= 10u, prec = 1;
                     }
@@ -744,7 +752,7 @@ fp10_t fp_exp2_to_exp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& flags, int& pr
     // Reserve space for zeroes. For scientific format decimal point (+1), sign (+1), and exponent (+5) are
     // added inplace, so reserve additional space for them.
     unsigned n_digs = static_cast<unsigned>(1 + prec);
-    char* p = digs.reserve_at_curr(n_digs + 7) + 2;  // left margin for decimal point and sign
+    char* p = digs.reserve_at_curr(n_digs + 8) + 3;  // left margin for sign, decimal point or `0.`
     std::fill_n(p, n_digs, '0');
     return fp10_t{p, static_cast<unsigned>(n_digs), 0};
 }

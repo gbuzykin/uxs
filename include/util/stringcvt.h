@@ -89,7 +89,15 @@ template<typename CharT>
 class basic_unlimbuf_appender : public basic_appender_mixin<CharT, basic_unlimbuf_appender<CharT>> {
  public:
     explicit basic_unlimbuf_appender(CharT* dst) : curr_(dst) {}
+    basic_unlimbuf_appender(const basic_unlimbuf_appender&) = delete;
+    basic_unlimbuf_appender& operator=(const basic_unlimbuf_appender&) = delete;
+    CharT& back() { return *(curr_ - 1); }
     CharT* curr() { return curr_; }
+    basic_unlimbuf_appender& setcurr(CharT* curr) {
+        curr_ = curr;
+        return *this;
+    }
+
     template<typename CharT_>
     basic_unlimbuf_appender& append(const CharT_* first, const CharT_* last) {
         curr_ = std::copy(first, last, curr_);
@@ -112,7 +120,16 @@ template<typename CharT>
 class basic_limbuf_appender : public basic_appender_mixin<CharT, basic_limbuf_appender<CharT>> {
  public:
     basic_limbuf_appender(CharT* dst, size_t n) : curr_(dst), last_(dst + n) {}
+    basic_limbuf_appender(const basic_limbuf_appender&) = delete;
+    basic_limbuf_appender& operator=(const basic_limbuf_appender&) = delete;
+    CharT& back() { return *(curr_ - 1); }
     CharT* curr() { return curr_; }
+    basic_limbuf_appender& setcurr(CharT* curr) {
+        assert(curr <= last_);
+        curr_ = curr;
+        return *this;
+    }
+
     template<typename CharT_>
     basic_limbuf_appender& append(const CharT_* first, const CharT_* last) {
         curr_ = std::copy_n(first, std::min<size_t>(last - first, last_ - curr_), curr_);
