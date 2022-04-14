@@ -48,22 +48,24 @@ struct fp_m64_t {
     int exp;
 };
 
+extern const unsigned g_exp2_digs[];
+extern const uint64_t g_ten_pows[];
 extern const char g_digits[][2];
 
 #if defined(_MSC_VER)
 inline unsigned ulog2(uint32_t x) {
     unsigned long ret;
-    _BitScanReverse(&ret, x);
+    _BitScanReverse(&ret, x | 1);
     return ret;
 }
 inline unsigned ulog2(uint64_t x) {
     unsigned long ret;
-    _BitScanReverse64(&ret, x);
+    _BitScanReverse64(&ret, x | 1);
     return ret;
 }
 #elif defined(__GNUC__) && defined(__x86_64__)
-inline unsigned ulog2(uint32_t x) { return __builtin_clz(x) ^ 31; }
-inline unsigned ulog2(uint64_t x) { return __builtin_clzll(x) ^ 63; }
+inline unsigned ulog2(uint32_t x) { return __builtin_clz(x | 1) ^ 31; }
+inline unsigned ulog2(uint64_t x) { return __builtin_clzll(x | 1) ^ 63; }
 #else
 struct ulog2_table_t {
     std::array<unsigned, 256> n_bit;
@@ -249,101 +251,175 @@ Ty to_float(const CharT* p, const CharT* end, const CharT*& last) {
 
 // ---- from value to string
 
-template<typename StrTy, typename CharT>
-StrTy& fmt_adjusted(StrTy& s, const CharT* first, const CharT* last, const fmt_state& fmt) {
-    const unsigned len = static_cast<unsigned>(last - first);
+template<typename StrTy, typename Func>
+inline StrTy& fmt_adjusted(StrTy& s, Func fn, unsigned len, const fmt_state& fmt) {
     unsigned left = fmt.width - len, right = left;
     switch (fmt.flags & fmt_flags::kAdjustField) {
         case fmt_flags::kLeft: left = 0; break;
         case fmt_flags::kInternal: left >>= 1, right -= left; break;
         default: right = 0; break;
     }
-    return s.append(left, fmt.fill).append(first, last).append(right, fmt.fill);
+    s.append(left, fmt.fill);
+    return fn(s).append(right, fmt.fill);
 }
 
-template<typename CharT>
-basic_dynbuffer<CharT>& fmt_adjusted(basic_dynbuffer<CharT>& s, const CharT* first, const CharT* last,
-                                     const fmt_state& fmt) {
+template<typename CharT, typename Func>
+inline basic_dynbuffer<CharT>& fmt_adjusted(basic_dynbuffer<CharT>& s, Func fn, unsigned len, const fmt_state& fmt) {
     basic_unlimbuf_appender<CharT> appender(s.reserve_at_curr(fmt.width));
-    return s.setcurr(fmt_adjusted(appender, first, last, fmt).curr());
+    return s.setcurr(fmt_adjusted(appender, fn, len, fmt).curr());
 }
 
 // --------------------------
 
-enum class NPref { k0 = 0, k1, k2 };
-
-template<typename StrTy, typename CharT>
-StrTy& fmt_num_adjusted(StrTy& s, const CharT* first, const CharT* last, NPref n_pref, const fmt_state& fmt) {
-    if (!(fmt.flags & fmt_flags::kLeadingZeroes)) { return fmt_adjusted(s, first, last, fmt); }
-    const unsigned len = static_cast<unsigned>(last - first);
-    switch (n_pref) {
-        case NPref::k1: s.push_back(*first++); break;
-        case NPref::k2: s.push_back(*first++), s.push_back(*first++); break;
-        default: break;
+template<typename StrTy, typename Func>
+inline StrTy& fmt_num_adjusted(StrTy& s, Func fn, unsigned len, unsigned n_prefix, const fmt_state& fmt) {
+    unsigned left = fmt.width - len, right = left;
+    int fill = fmt.fill;
+    if (!(fmt.flags & fmt_flags::kLeadingZeroes)) {
+        switch (fmt.flags & fmt_flags::kAdjustField) {
+            case fmt_flags::kLeft: left = 0; break;
+            case fmt_flags::kInternal: left >>= 1, right -= left; break;
+            default: right = 0; break;
+        }
+    } else {
+        fill = '0';
     }
-    return s.append(fmt.width - len, '0').append(first, last);
+    s.append(left, fill);
+    fn(s);
+    if (!(fmt.flags & fmt_flags::kLeadingZeroes)) {
+        s.append(right, fmt.fill);
+    } else if (n_prefix != 0) {
+        *(&s.back() - fmt.width + n_prefix) = *(&s.back() - len + n_prefix);
+        *(&s.back() - len + n_prefix) = '0';
+    }
+    return s;
 }
 
-template<typename CharT>
-basic_dynbuffer<CharT>& fmt_num_adjusted(basic_dynbuffer<CharT>& s, const CharT* first, const CharT* last, NPref n_pref,
-                                         const fmt_state& fmt) {
+template<typename CharT, typename Func>
+inline basic_dynbuffer<CharT>& fmt_num_adjusted(basic_dynbuffer<CharT>& s, Func fn, unsigned len, unsigned n_prefix,
+                                                const fmt_state& fmt) {
     basic_unlimbuf_appender<CharT> appender(s.reserve_at_curr(fmt.width));
-    return s.setcurr(fmt_num_adjusted(appender, first, last, n_pref, fmt).curr());
+    return s.setcurr(fmt_num_adjusted(appender, fn, len, n_prefix, fmt).curr());
 }
 
 // ---- binary
 
-template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
-StrTy& fmt_bin(StrTy& s, Ty val, const fmt_state& fmt) {
-    using CharT = typename StrTy::value_type;
-    std::array<CharT, 65> buf;
-    CharT *last = buf.data() + buf.size(), *p = last;
+template<typename CharT, typename Ty>
+CharT* fmt_bin(CharT* p, Ty val, unsigned len, const fmt_state& fmt) {
+    CharT* last = (p += len);
     if (!!(fmt.flags & fmt_flags::kAlternate)) { *--p = !(fmt.flags & fmt_flags::kUpperCase) ? 'b' : 'B'; }
     do {
-        *--p = '0' + static_cast<unsigned>(val & 0x1);
+        *--p = '0' + static_cast<unsigned>(val & 1);
         val >>= 1;
     } while (val != 0);
-    if (fmt.width > static_cast<unsigned>(last - p)) { return fmt_num_adjusted(s, p, last, NPref::k0, fmt); }
-    return s.append(p, last);
+    return last;
+}
+
+template<typename CharT, typename Ty>
+basic_unlimbuf_appender<CharT>& fmt_bin(basic_unlimbuf_appender<CharT>& s, Ty val, unsigned len, const fmt_state& fmt) {
+    return s.setcurr(fmt_bin(s.curr(), val, len, fmt));
+}
+
+template<typename CharT, typename Ty>
+basic_dynbuffer<CharT>& fmt_bin(basic_dynbuffer<CharT>& s, Ty val, unsigned len, const fmt_state& fmt) {
+    return s.setcurr(fmt_bin(s.reserve_at_curr(len), val, len, fmt));
+}
+
+template<typename StrTy, typename Ty>
+StrTy& fmt_bin(StrTy& s, Ty val, unsigned len, const fmt_state& fmt) {
+    typename StrTy::value_type buf[65];
+    return s.append(buf, fmt_bin(buf, val, len, fmt));
+}
+
+template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
+StrTy& fmt_bin(StrTy& s, Ty val, const fmt_state& fmt) {
+    const unsigned len = (!!(fmt.flags & fmt_flags::kAlternate) ? 2 : 1) + ulog2(val);
+    const auto fn = [val, len, &fmt](StrTy& s) -> StrTy& { return fmt_bin(s, val, len, fmt); };
+    return fmt.width > len ? fmt_num_adjusted(s, fn, len, 0, fmt) : fn(s);
 }
 
 // ---- octal
 
-template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
-StrTy& fmt_oct(StrTy& s, Ty val, const fmt_state& fmt) {
-    using CharT = typename StrTy::value_type;
-    std::array<CharT, 32> buf;
-    CharT *last = buf.data() + buf.size(), *p = last;
+template<typename CharT, typename Ty>
+CharT* fmt_oct(CharT* p, Ty val, unsigned len, const fmt_state& fmt) {
+    CharT* last = (p += len);
     do {
-        *--p = '0' + static_cast<unsigned>(val & 0x7);
+        *--p = '0' + static_cast<unsigned>(val & 7);
         val >>= 3;
     } while (val != 0);
     if (!!(fmt.flags & fmt_flags::kAlternate)) { *--p = '0'; }
-    if (fmt.width > static_cast<unsigned>(last - p)) { return fmt_num_adjusted(s, p, last, NPref::k0, fmt); }
-    return s.append(p, last);
+    return last;
+}
+
+template<typename CharT, typename Ty>
+basic_unlimbuf_appender<CharT>& fmt_oct(basic_unlimbuf_appender<CharT>& s, Ty val, unsigned len, const fmt_state& fmt) {
+    return s.setcurr(fmt_oct(s.curr(), val, len, fmt));
+}
+
+template<typename CharT, typename Ty>
+basic_dynbuffer<CharT>& fmt_oct(basic_dynbuffer<CharT>& s, Ty val, unsigned len, const fmt_state& fmt) {
+    return s.setcurr(fmt_oct(s.reserve_at_curr(len), val, len, fmt));
+}
+
+template<typename StrTy, typename Ty>
+StrTy& fmt_oct(StrTy& s, Ty val, unsigned len, const fmt_state& fmt) {
+    typename StrTy::value_type buf[32];
+    return s.append(buf, fmt_oct(buf, val, len, fmt));
+}
+
+template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
+StrTy& fmt_oct(StrTy& s, Ty val, const fmt_state& fmt) {
+    const unsigned len = (!!(fmt.flags & fmt_flags::kAlternate) ? 2 : 1) + ulog2(val) / 3;
+    const auto fn = [val, len, &fmt](StrTy& s) -> StrTy& { return fmt_oct(s, val, len, fmt); };
+    return fmt.width > len ? fmt_num_adjusted(s, fn, len, 0, fmt) : fn(s);
 }
 
 // ---- hexadecimal
 
-template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
-StrTy& fmt_hex(StrTy& s, Ty val, const fmt_state& fmt) {
-    using CharT = typename StrTy::value_type;
-    std::array<CharT, 32> buf;
-    CharT *last = buf.data() + buf.size(), *p = last;
+template<typename CharT, typename Ty>
+CharT* fmt_hex(CharT* p, Ty val, unsigned len, const fmt_state& fmt) {
     const char* digs = !!(fmt.flags & fmt_flags::kUpperCase) ? "0123456789ABCDEF" : "0123456789abcdef";
+    CharT* last = (p += len);
     do {
         *--p = digs[val & 0xf];
         val >>= 4;
     } while (val != 0);
-    NPref n_pref = NPref::k0;
     if (!!(fmt.flags & fmt_flags::kAlternate)) {
-        n_pref = NPref::k2, p -= 2, p[0] = '0', p[1] = !(fmt.flags & fmt_flags::kUpperCase) ? 'x' : 'X';
+        p -= 2, p[0] = '0', p[1] = !(fmt.flags & fmt_flags::kUpperCase) ? 'x' : 'X';
     }
-    if (fmt.width > static_cast<unsigned>(last - p)) { return fmt_num_adjusted(s, p, last, n_pref, fmt); }
-    return s.append(p, last);
+    return last;
 }
 
-// ---- decimal
+template<typename CharT, typename Ty>
+basic_unlimbuf_appender<CharT>& fmt_hex(basic_unlimbuf_appender<CharT>& s, Ty val, unsigned len, const fmt_state& fmt) {
+    return s.setcurr(fmt_hex(s.curr(), val, len, fmt));
+}
+
+template<typename CharT, typename Ty>
+basic_dynbuffer<CharT>& fmt_hex(basic_dynbuffer<CharT>& s, Ty val, unsigned len, const fmt_state& fmt) {
+    return s.setcurr(fmt_hex(s.reserve_at_curr(len), val, len, fmt));
+}
+
+template<typename StrTy, typename Ty>
+StrTy& fmt_hex(StrTy& s, Ty val, unsigned len, const fmt_state& fmt) {
+    typename StrTy::value_type buf[32];
+    return s.append(buf, fmt_hex(buf, val, len, fmt));
+}
+
+template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
+StrTy& fmt_hex(StrTy& s, Ty val, const fmt_state& fmt) {
+    const unsigned len = (!!(fmt.flags & fmt_flags::kAlternate) ? 3 : 1) + (ulog2(val) >> 2);
+    const auto fn = [val, len, &fmt](StrTy& s) -> StrTy& { return fmt_hex(s, val, len, fmt); };
+    return fmt.width > len ? fmt_num_adjusted(s, fn, len, !!(fmt.flags & fmt_flags::kAlternate) ? 2 : 0, fmt) : fn(s);
+}
+
+// ---- decimal unsigned
+
+template<typename Ty>
+unsigned fmt_dec_unsigned_len(Ty val) {
+    const unsigned pow = g_exp2_digs[ulog2(val)];
+    return val >= g_ten_pows[pow] ? pow + 1 : pow;
+}
 
 template<typename CharT, typename Ty>
 CharT* gen_digits(CharT* p, Ty v) {
@@ -361,14 +437,58 @@ CharT* gen_digits(CharT* p, Ty v) {
     return p;
 }
 
+template<typename CharT, typename Ty>
+CharT* fmt_dec_unsigned(CharT* p, Ty val, unsigned len) {
+    gen_digits(p + len, val);
+    return p + len;
+}
+
+template<typename CharT, typename Ty>
+basic_unlimbuf_appender<CharT>& fmt_dec_unsigned(basic_unlimbuf_appender<CharT>& s, Ty val, unsigned len) {
+    return s.setcurr(fmt_dec_unsigned(s.curr(), val, len));
+}
+
+template<typename CharT, typename Ty>
+basic_dynbuffer<CharT>& fmt_dec_unsigned(basic_dynbuffer<CharT>& s, Ty val, unsigned len) {
+    return s.setcurr(fmt_dec_unsigned(s.reserve_at_curr(len), val, len));
+}
+
+template<typename StrTy, typename Ty>
+StrTy& fmt_dec_unsigned(StrTy& s, Ty val, unsigned len) {
+    typename StrTy::value_type buf[32];
+    return s.append(buf, fmt_dec_unsigned(buf, val, len));
+}
+
 template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
 StrTy& fmt_dec_unsigned(StrTy& s, Ty val, const fmt_state& fmt) {
-    using CharT = typename StrTy::value_type;
-    std::array<CharT, 32> buf;
-    CharT* last = buf.data() + buf.size();
-    CharT* p = gen_digits(last, val);
-    if (fmt.width > static_cast<unsigned>(last - p)) { return fmt_num_adjusted(s, p, last, NPref::k0, fmt); }
-    return s.append(p, last);
+    const unsigned len = fmt_dec_unsigned_len(val);
+    const auto fn = [val, len](StrTy& s) -> StrTy& { return fmt_dec_unsigned(s, val, len); };
+    return fmt.width > len ? fmt_num_adjusted(s, fn, len, 0, fmt) : fn(s);
+}
+
+// ---- decimal signed
+
+template<typename CharT, typename Ty>
+CharT* fmt_dec_signed(CharT* p, Ty val, char sign, unsigned len) {
+    if (sign != '\0') { *p = sign; }
+    gen_digits(p + len, static_cast<typename std::make_unsigned<Ty>::type>(val));
+    return p + len;
+}
+
+template<typename CharT, typename Ty>
+basic_unlimbuf_appender<CharT>& fmt_dec_signed(basic_unlimbuf_appender<CharT>& s, Ty val, char sign, unsigned len) {
+    return s.setcurr(fmt_dec_signed(s.curr(), val, sign, len));
+}
+
+template<typename CharT, typename Ty>
+basic_dynbuffer<CharT>& fmt_dec_signed(basic_dynbuffer<CharT>& s, Ty val, char sign, unsigned len) {
+    return s.setcurr(fmt_dec_signed(s.reserve_at_curr(len), val, sign, len));
+}
+
+template<typename StrTy, typename Ty>
+StrTy& fmt_dec_signed(StrTy& s, Ty val, char sign, unsigned len) {
+    typename StrTy::value_type buf[32];
+    return s.append(buf, fmt_dec_signed(buf, val, sign, len));
 }
 
 template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_signed<Ty>::value>>
@@ -380,14 +500,10 @@ StrTy& fmt_dec_signed(StrTy& s, Ty val, const fmt_state& fmt) {
         sign = (fmt.flags & fmt_flags::kSignField) == fmt_flags::kSignPos ? '+' : ' ';
     }
 
-    using CharT = typename StrTy::value_type;
-    std::array<CharT, 32> buf;
-    CharT* last = buf.data() + buf.size();
-    CharT* p = gen_digits(last, static_cast<typename std::make_unsigned<Ty>::type>(val));
-    NPref n_pref = NPref::k0;
-    if (sign != '\0') { n_pref = NPref::k1, *--p = sign; }
-    if (fmt.width > static_cast<unsigned>(last - p)) { return fmt_num_adjusted(s, p, last, n_pref, fmt); }
-    return s.append(p, last);
+    const unsigned len = (sign != '\0' ? 1 : 0) +
+                         fmt_dec_unsigned_len(static_cast<typename std::make_unsigned<Ty>::type>(val));
+    const auto fn = [val, len, sign](StrTy& s) -> StrTy& { return fmt_dec_signed(s, val, sign, len); };
+    return fmt.width > len ? fmt_num_adjusted(s, fn, len, sign != '\0' ? 1 : 0, fmt) : fn(s);
 }
 
 // --------------------------
@@ -424,9 +540,11 @@ StrTy& fmt_signed(StrTy& s, Ty val, const fmt_state& fmt) {
 
 template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_same<Ty, typename StrTy::value_type>::value>>
 StrTy& fmt_char(StrTy& s, Ty val, const fmt_state& fmt) {
-    if (fmt.width > 1) { return fmt_adjusted(s, &val, &val + 1, fmt); }
-    s.push_back(val);
-    return s;
+    const auto fn = [val](StrTy& s) -> StrTy& {
+        s.push_back(val);
+        return s;
+    };
+    return fmt.width > 1 ? fmt_adjusted(s, fn, 1, fmt) : fn(s);
 }
 
 // ---- float
@@ -437,19 +555,35 @@ struct fp10_t {
     int exp;
 };
 
-inline unsigned fmt_float_len(int exp, char sign, fmt_flags flags, int prec) {
-    return (sign != '\0' ? 6 : 5) + (std::abs(exp) >= 100 ? 1 : 0) +
-           (prec > 0 || !!(flags & fmt_flags::kAlternate) ? prec + 1 : 0);
-}
-
-inline unsigned fmt_float_fixed_len(int exp, char sign, fmt_flags flags, int prec) {
-    return (sign != '\0' ? 2 : 1) + std::max(exp, 0) + (prec > 0 || !!(flags & fmt_flags::kAlternate) ? prec + 1 : 0);
+inline unsigned fmt_float_len(int exp, char sign, bool is_fixed, fmt_flags flags, int prec) {
+    unsigned len = is_fixed ? (sign != '\0' ? 2 : 1) + std::max(exp, 0) :
+                              (sign != '\0' ? 6 : 5) + (std::abs(exp) >= 100 ? 1 : 0);
+    return len + (prec > 0 || !!(flags & fmt_flags::kAlternate) ? prec + 1 : 0);
 }
 
 template<typename StrTy>
-StrTy& fmt_fp_exp10(StrTy& s, const fp10_t& fp10, char sign, fmt_flags flags, int prec) {
-    int exp10 = fp10.exp;
+StrTy& fmt_fp_exp10(StrTy& s, const fp10_t& fp10, char sign, bool is_fixed, fmt_flags flags, int prec) {
     char *first = fp10.digs, *last = first + fp10.n_digs;
+    if (is_fixed) {
+        int k = 1 + fp10.exp;
+        if (k > 0) {
+            if (sign != '\0') { *--first = sign; }
+            s.append(first, fp10.digs + k);
+            if (prec > 0) {
+                fp10.digs[k - 1] = '.';
+                return s.append(fp10.digs + k - 1, last);
+            }
+        } else {
+            first -= 2, first[0] = '0', first[1] = '.';
+            if (sign != '\0') { *--first = sign; }
+            if (prec > 0) { return s.append(first, fp10.digs).append(-k, '0').append(fp10.digs, last); }
+            s.push_back('0');
+        }
+        if (!!(flags & fmt_flags::kAlternate)) { s.push_back('.'); }
+        return s;
+    }
+
+    int exp10 = fp10.exp;
     last[0] = !(flags & fmt_flags::kUpperCase) ? 'e' : 'E';
     if (exp10 < 0) {
         last[1] = '-', exp10 = -exp10;
@@ -468,58 +602,6 @@ StrTy& fmt_fp_exp10(StrTy& s, const fp10_t& fp10, char sign, fmt_flags flags, in
     return s.append(first, last);
 }
 
-template<typename StrTy>
-StrTy& fmt_fp_exp10_fixed(StrTy& s, const fp10_t& fp10, char sign, fmt_flags flags, int prec) {
-    if (sign != '\0') { s.push_back(sign); }
-    int k = 1 + fp10.exp;
-    if (k > 0) {
-        s.append(fp10.digs, fp10.digs + k);
-        if (prec > 0) {
-            s.push_back('.');
-            return s.append(fp10.digs + k, fp10.digs + fp10.n_digs);
-        }
-    } else {
-        s.push_back('0');
-        if (prec > 0) {
-            s.push_back('.');
-            return s.append(-k, '0').append(fp10.digs, fp10.digs + fp10.n_digs);
-        }
-    }
-    if (!!(flags & fmt_flags::kAlternate)) { s.push_back('.'); }
-    return s;
-}
-
-template<typename StrTy>
-StrTy& fmt_float_adjusted_finite(StrTy& s, const fp10_t& fp10, char sign, bool is_fixed, int prec, unsigned len,
-                                 const fmt_state& fmt) {
-    unsigned left = fmt.width - len, right = left;
-    if (!(fmt.flags & fmt_flags::kLeadingZeroes)) {
-        switch (fmt.flags & fmt_flags::kAdjustField) {
-            case fmt_flags::kLeft: left = 0; break;
-            case fmt_flags::kInternal: left >>= 1, right -= left; break;
-            default: right = 0; break;
-        }
-        s.append(left, fmt.fill);
-    } else {
-        if (sign != '\0') { s.push_back(sign); }
-        s.append(left, '0');
-        sign = '\0', right = 0;
-    }
-    if (is_fixed) {
-        fmt_fp_exp10_fixed(s, fp10, sign, fmt.flags, prec);
-    } else {
-        fmt_fp_exp10(s, fp10, sign, fmt.flags, prec);
-    }
-    return s.append(right, fmt.fill);
-}
-
-template<typename CharT>
-basic_dynbuffer<CharT>& fmt_float_adjusted_finite(basic_dynbuffer<CharT>& s, const fp10_t& fp10, char sign,
-                                                  bool is_fixed, int prec, unsigned len, const fmt_state& fmt) {
-    basic_unlimbuf_appender<CharT> appender(s.reserve_at_curr(fmt.width));
-    return s.setcurr(fmt_float_adjusted_finite(appender, fp10, sign, is_fixed, prec, len, fmt).curr());
-}
-
 UTIL_EXPORT fp10_t fp_exp2_to_exp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& flags, int& prec, bool alternate,
                                     unsigned bpm, const int exp_bias);
 
@@ -536,24 +618,14 @@ StrTy& fmt_float_common(StrTy& s, uint64_t u64, const fmt_state& fmt, const unsi
     const fp_m64_t fp2{u64 & ((1ull << bpm) - 1), static_cast<int>((u64 >> bpm) & exp_max)};
 
     if (fp2.exp == exp_max) {
-        using CharT = typename StrTy::value_type;
-        std::array<CharT, 4> buf;
-        CharT *p = buf.data(), *p0 = p;
-        if (sign != '\0') { *p++ = sign; }
-        if (fp2.m == 0) {
-            if (!(fmt.flags & fmt_flags::kUpperCase)) {
-                p[0] = 'i', p[1] = 'n', p[2] = 'f';
-            } else {
-                p[0] = 'I', p[1] = 'N', p[2] = 'F';
-            }
-        } else if (!(fmt.flags & fmt_flags::kUpperCase)) {
-            p[0] = 'n', p[1] = 'a', p[2] = 'n';
-        } else {
-            p[0] = 'N', p[1] = 'A', p[2] = 'N';
-        }
-        p += 3;
-        if (fmt.width > static_cast<unsigned>(p - p0)) { return fmt_adjusted(s, p0, p, fmt); }
-        return s.append(p0, p);
+        const char* p0 = fp2.m == 0 ? (!(fmt.flags & fmt_flags::kUpperCase) ? "inf" : "INF") :
+                                      (!(fmt.flags & fmt_flags::kUpperCase) ? "nan" : "NAN");
+        const unsigned len = sign != '\0' ? 4 : 3;
+        const auto fn = [p0, sign](StrTy& s) -> StrTy& {
+            if (sign != '\0') { s.push_back(sign); }
+            return s.append(p0, p0 + 3);
+        };
+        return fmt.width > len ? fmt_adjusted(s, fn, len, fmt) : fn(s);
     }
 
     dynbuffer digs;
@@ -562,14 +634,14 @@ StrTy& fmt_float_common(StrTy& s, uint64_t u64, const fmt_state& fmt, const unsi
     const bool alternate = !!(fmt.flags & fmt_flags::kAlternate);
     const fp10_t fp10 = fp_exp2_to_exp10(digs, fp2, flags, prec, alternate, bpm, exp_max >> 1);
     const bool is_fixed = flags == fmt_flags::kFixed;
+    const auto fn = [&fp10, sign, is_fixed, &fmt, prec](StrTy& s) -> StrTy& {
+        return fmt_fp_exp10(s, fp10, sign, is_fixed, fmt.flags, prec);
+    };
     if (fmt.width > 0) {
-        const unsigned len = is_fixed ? fmt_float_fixed_len(fp10.exp, sign, fmt.flags, prec) :
-                                        fmt_float_len(fp10.exp, sign, fmt.flags, prec);
-        if (fmt.width > len) { return fmt_float_adjusted_finite(s, fp10, sign, is_fixed, prec, len, fmt); }
+        const unsigned len = fmt_float_len(fp10.exp, sign, is_fixed, fmt.flags, prec);
+        if (fmt.width > len) { return fmt_num_adjusted(s, fn, len, sign != '\0' ? 1 : 0, fmt); }
     }
-
-    if (is_fixed) { return fmt_fp_exp10_fixed(s, fp10, sign, fmt.flags, prec); }
-    return fmt_fp_exp10(s, fp10, sign, fmt.flags, prec);
+    return fn(s);
 }
 
 template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_floating_point<Ty>::value>>
@@ -629,26 +701,11 @@ size_t string_converter<bool>::from_string(std::basic_string_view<CharT> s, bool
 
 template<typename StrTy>
 StrTy& string_converter<bool>::to_string(StrTy& s, bool val, const fmt_state& fmt) {
-    using CharT = typename StrTy::value_type;
-    std::array<CharT, 5> buf;
-    CharT *p = buf.data(), *p0 = p;
-    if (val) {
-        if (!(fmt.flags & fmt_flags::kUpperCase)) {
-            p[0] = 't', p[1] = 'r', p[2] = 'u', p[3] = 'e';
-        } else {
-            p[0] = 'T', p[1] = 'R', p[2] = 'U', p[3] = 'E';
-        }
-        p += 4;
-    } else {
-        if (!(fmt.flags & fmt_flags::kUpperCase)) {
-            p[0] = 'f', p[1] = 'a', p[2] = 'l', p[3] = 's', p[4] = 'e';
-        } else {
-            p[0] = 'F', p[1] = 'A', p[2] = 'L', p[3] = 'S', p[4] = 'E';
-        }
-        p += 5;
-    }
-    if (fmt.width > static_cast<unsigned>(p - p0)) { return scvt::fmt_adjusted(s, p0, p, fmt); }
-    return s.append(p0, p);
+    std::string_view sval = val ? std::string_view(!(fmt.flags & fmt_flags::kUpperCase) ? "true" : "TRUE", 4) :
+                                  std::string_view(!(fmt.flags & fmt_flags::kUpperCase) ? "false" : "FALSE", 5);
+    const unsigned len = static_cast<unsigned>(sval.size());
+    const auto fn = [sval](StrTy& s) -> StrTy& { return s.append(sval.data(), sval.data() + sval.size()); };
+    return fmt.width > len ? scvt::fmt_adjusted(s, fn, len, fmt) : fn(s);
 }
 
 }  // namespace util
