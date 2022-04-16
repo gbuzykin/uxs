@@ -75,12 +75,6 @@ template<typename CharT, typename Appender>
 class basic_appender_mixin {
  public:
     using value_type = CharT;
-    Appender& append(const value_type* first, size_t count) {
-        return static_cast<Appender&>(*this).append(first, first + count);
-    }
-    Appender& append(std::basic_string_view<value_type> s) {
-        return static_cast<Appender&>(*this).append(s.data(), s.data() + s.size());
-    }
     Appender& operator+=(std::basic_string_view<value_type> s) {
         return static_cast<Appender&>(*this).append(s.data(), s.data() + s.size());
     }

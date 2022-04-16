@@ -262,40 +262,36 @@ StrTy& fmt_append_string(std::basic_string_view<typename StrTy::value_type> val,
     const CharT *first = val.data(), *last = first + val.size();
     size_t len = 0;
     unsigned count = 0;
+    const CharT* p = first;
     if (fmt.prec >= 0) {
         unsigned prec = fmt.prec;
-        const CharT* p = first;
+        len = prec;
         while (prec > 0 && last - p > count) {
             p += count;
             count = utf_char_count_getter<CharT>()(*p), --prec;
         }
-        if (prec == 0 && last - p > count) { last = p + count; }
-        if (fmt.width == 0) { return s.append(first, last); }
-        len = static_cast<unsigned>(fmt.prec) - prec;
+        if (prec > 0) {
+            len -= prec;
+        } else if (last - p > count) {
+            last = p + count;
+        }
     } else if (fmt.width > 0) {
-        const CharT* p = first;
         while (last - p > count) {
             p += count;
             count = utf_char_count_getter<CharT>()(*p), ++len;
         }
     }
 
-    if (len >= fmt.width) { return s.append(first, last); }
-
-    switch (fmt.flags & fmt_flags::kAdjustField) {
-        case fmt_flags::kLeft: {
-            s.append(first, last).append(fmt.width - static_cast<unsigned>(len), fmt.fill);
-        } break;
-        case fmt_flags::kInternal: {
-            unsigned right = fmt.width - static_cast<unsigned>(len), left = right >> 1;
-            right -= left;
-            s.append(left, fmt.fill).append(first, last).append(right, fmt.fill);
-        } break;
-        default: {
-            s.append(fmt.width - static_cast<unsigned>(len), fmt.fill).append(first, last);
-        } break;
+    if (fmt.width > len) {
+        unsigned left = fmt.width - static_cast<unsigned>(len), right = left;
+        switch (fmt.flags & fmt_flags::kAdjustField) {
+            case fmt_flags::kLeft: left = 0; break;
+            case fmt_flags::kInternal: left >>= 1, right -= left; break;
+            default: right = 0; break;
+        }
+        return s.append(left, fmt.fill).append(first, last).append(right, fmt.fill);
     }
-    return s;
+    return s.append(first, last);
 }
 
 }  // namespace detail

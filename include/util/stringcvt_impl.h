@@ -311,63 +311,16 @@ Ty to_float(const CharT* p, const CharT* end, const CharT*& last) {
 
 // ---- from value to string
 
-template<typename Ty, typename CharT>
-CharT* gen_bin_digits(CharT* p, Ty v) {
-    do {
-        *--p = '0' + static_cast<unsigned>(v & 0x1);
-        v >>= 1;
-    } while (v != 0);
-    return p;
-}
-
-template<typename Ty, typename CharT>
-CharT* gen_oct_digits(CharT* p, Ty v) {
-    do {
-        *--p = '0' + static_cast<unsigned>(v & 0x7);
-        v >>= 3;
-    } while (v != 0);
-    return p;
-}
-
-template<typename Ty, typename CharT>
-CharT* gen_hex_digits(CharT* p, Ty v, bool upper) {
-    const char* digs = upper ? "0123456789ABCDEF" : "0123456789abcdef";
-    do {
-        *--p = digs[v & 0xf];
-        v >>= 4;
-    } while (v != 0);
-    return p;
-}
-
-template<typename Ty, typename CharT>
-CharT* gen_digits(CharT* p, Ty v) {
-    if (v < 10) {
-        *--p = '0' + static_cast<unsigned>(v);
-        return p;
-    }
-    do {
-        const Ty t = v / 100;
-        const char* d = &g_digits[static_cast<unsigned>(v - 100 * t)][0];
-        p -= 2, v = t;
-        p[0] = d[0], p[1] = d[1];
-    } while (v >= 10);
-    if (v > 0) { *--p = '0' + static_cast<unsigned>(v); }
-    return p;
-}
-
 template<typename StrTy, typename CharT>
 StrTy& fmt_adjusted(const CharT* first, const CharT* last, StrTy& s, const fmt_state& fmt) {
-    unsigned len = static_cast<unsigned>(last - first);
+    const unsigned len = static_cast<unsigned>(last - first);
+    unsigned left = fmt.width - len, right = left;
     switch (fmt.flags & fmt_flags::kAdjustField) {
-        case fmt_flags::kLeft: return s.append(first, last).append(fmt.width - len, fmt.fill);
-        case fmt_flags::kInternal: {
-            unsigned right = fmt.width - len;
-            unsigned left = right >> 1;
-            right -= left;
-            return s.append(left, fmt.fill).append(first, last).append(right, fmt.fill);
-        } break;
-        default: return s.append(fmt.width - len, fmt.fill).append(first, last);
+        case fmt_flags::kLeft: left = 0; break;
+        case fmt_flags::kInternal: left >>= 1, right -= left; break;
+        default: right = 0; break;
     }
+    return s.append(left, fmt.fill).append(first, last).append(right, fmt.fill);
 }
 
 template<typename CharT>
@@ -389,31 +342,42 @@ basic_limbuf_appender<CharT>& fmt_adjusted(const CharT* first, const CharT* last
     return s.append(appender.data(), appender.curr());
 }
 
-template<unsigned NPref, typename StrTy, typename CharT>
-StrTy& fmt_num_adjusted(const CharT* first, const CharT* last, StrTy& s, unsigned len, const fmt_state& fmt) {
+// --------------------------
+
+enum class NPref { k0 = 0, k1, k2 };
+
+template<typename StrTy, typename CharT>
+StrTy& fmt_num_adjusted(const CharT* first, const CharT* last, StrTy& s, NPref n_pref, const fmt_state& fmt) {
     if (!(fmt.flags & fmt_flags::kLeadingZeroes)) { return fmt_adjusted(first, last, s, fmt); }
-    for (unsigned n = 0; n < NPref; ++n) { s.push_back(*first++); }
+    const unsigned len = static_cast<unsigned>(last - first);
+    switch (n_pref) {
+        case NPref::k1: s.push_back(*first++); break;
+        case NPref::k2: s.push_back(*first++), s.push_back(*first++); break;
+        default: break;
+    }
     return s.append(fmt.width - len, '0').append(first, last);
 }
 
-template<unsigned NPref, typename CharT>
+template<typename CharT>
 basic_dynbuf_appender<CharT>& fmt_num_adjusted(const CharT* first, const CharT* last, basic_dynbuf_appender<CharT>& s,
-                                               unsigned len, const fmt_state& fmt) {
+                                               NPref n_pref, const fmt_state& fmt) {
     basic_unlimbuf_appender<CharT> appender(s.reserve(fmt.width));
-    return s.setcurr(fmt_num_adjusted<NPref>(first, last, appender, len, fmt).curr());
+    return s.setcurr(fmt_num_adjusted(first, last, appender, n_pref, fmt).curr());
 }
 
-template<unsigned NPref, typename CharT>
+template<typename CharT>
 basic_limbuf_appender<CharT>& fmt_num_adjusted(const CharT* first, const CharT* last, basic_limbuf_appender<CharT>& s,
-                                               unsigned len, const fmt_state& fmt) {
+                                               NPref n_pref, const fmt_state& fmt) {
     if (static_cast<size_t>(s.last() - s.curr()) >= fmt.width) {
         basic_unlimbuf_appender<CharT> appender(s.curr());
-        return s.setcurr(fmt_num_adjusted<NPref>(first, last, appender, len, fmt).curr());
+        return s.setcurr(fmt_num_adjusted(first, last, appender, n_pref, fmt).curr());
     }
     basic_dynbuf_appender<CharT> appender;
-    fmt_num_adjusted<NPref>(first, last, appender, len, fmt);
+    fmt_num_adjusted(first, last, appender, n_pref, fmt);
     return s.append(appender.data(), appender.curr());
 }
+
+// ---- binary
 
 template<typename Ty, typename StrTy, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
 StrTy& fmt_bin(Ty val, StrTy& s, const fmt_state& fmt) {
@@ -421,38 +385,66 @@ StrTy& fmt_bin(Ty val, StrTy& s, const fmt_state& fmt) {
     std::array<CharT, 65> buf;
     CharT *last = buf.data() + buf.size(), *p = last;
     if (!!(fmt.flags & fmt_flags::kShowBase)) { *--p = !(fmt.flags & fmt_flags::kUpperCase) ? 'b' : 'B'; }
-    p = gen_bin_digits(p, val);
-    const unsigned len = static_cast<unsigned>(last - p);
-    if (fmt.width > len) { return fmt_num_adjusted<0>(p, last, s, len, fmt); }
+    do {
+        *--p = '0' + static_cast<unsigned>(val & 0x1);
+        val >>= 1;
+    } while (val != 0);
+    if (fmt.width > static_cast<unsigned>(last - p)) { return fmt_num_adjusted(p, last, s, NPref::k0, fmt); }
     return s.append(p, last);
 }
+
+// ---- octal
 
 template<typename Ty, typename StrTy, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
 StrTy& fmt_oct(Ty val, StrTy& s, const fmt_state& fmt) {
     using CharT = typename StrTy::value_type;
     std::array<CharT, 32> buf;
-    CharT* last = buf.data() + buf.size();
-    CharT* p = gen_oct_digits(last, val);
+    CharT *last = buf.data() + buf.size(), *p = last;
+    do {
+        *--p = '0' + static_cast<unsigned>(val & 0x7);
+        val >>= 3;
+    } while (val != 0);
     if (!!(fmt.flags & fmt_flags::kShowBase)) { *--p = '0'; }
-    const unsigned len = static_cast<unsigned>(last - p);
-    if (fmt.width > len) { return fmt_num_adjusted<0>(p, last, s, len, fmt); }
+    if (fmt.width > static_cast<unsigned>(last - p)) { return fmt_num_adjusted(p, last, s, NPref::k0, fmt); }
     return s.append(p, last);
 }
+
+// ---- hexadecimal
 
 template<typename Ty, typename StrTy, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
 StrTy& fmt_hex(Ty val, StrTy& s, const fmt_state& fmt) {
     using CharT = typename StrTy::value_type;
     std::array<CharT, 32> buf;
-    CharT* last = buf.data() + buf.size();
-    CharT* p = gen_hex_digits(last, val, !!(fmt.flags & fmt_flags::kUpperCase));
-    const unsigned len = static_cast<unsigned>(last - p);
+    CharT *last = buf.data() + buf.size(), *p = last;
+    const char* digs = !!(fmt.flags & fmt_flags::kUpperCase) ? "0123456789ABCDEF" : "0123456789abcdef";
+    do {
+        *--p = digs[val & 0xf];
+        val >>= 4;
+    } while (val != 0);
+    NPref n_pref = NPref::k0;
     if (!!(fmt.flags & fmt_flags::kShowBase)) {
-        p -= 2, p[0] = '0', p[1] = !(fmt.flags & fmt_flags::kUpperCase) ? 'x' : 'X';
-        if (fmt.width > 2 + len) { return fmt_num_adjusted<2>(p, last, s, 2 + len, fmt); }
-    } else if (fmt.width > len) {
-        return fmt_num_adjusted<0>(p, last, s, len, fmt);
+        n_pref = NPref::k2, p -= 2, p[0] = '0', p[1] = !(fmt.flags & fmt_flags::kUpperCase) ? 'x' : 'X';
     }
+    if (fmt.width > static_cast<unsigned>(last - p)) { return fmt_num_adjusted(p, last, s, n_pref, fmt); }
     return s.append(p, last);
+}
+
+// ---- decimal
+
+template<typename Ty, typename CharT>
+CharT* gen_digits(CharT* p, Ty v) {
+    if (v < 10) {
+        *--p = '0' + static_cast<unsigned>(v);
+        return p;
+    }
+    do {
+        const Ty t = v / 100;
+        const char* d = &g_digits[static_cast<unsigned>(v - 100 * t)][0];
+        p -= 2, v = t;
+        p[0] = d[0], p[1] = d[1];
+    } while (v >= 10);
+    if (v > 0) { *--p = '0' + static_cast<unsigned>(v); }
+    return p;
 }
 
 template<typename Ty, typename StrTy, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
@@ -461,8 +453,7 @@ StrTy& fmt_dec_unsigned(Ty val, StrTy& s, const fmt_state& fmt) {
     std::array<CharT, 32> buf;
     CharT* last = buf.data() + buf.size();
     CharT* p = gen_digits(last, val);
-    const unsigned len = static_cast<unsigned>(last - p);
-    if (fmt.width > len) { return fmt_num_adjusted<0>(p, last, s, len, fmt); }
+    if (fmt.width > static_cast<unsigned>(last - p)) { return fmt_num_adjusted(p, last, s, NPref::k0, fmt); }
     return s.append(p, last);
 }
 
@@ -479,15 +470,13 @@ StrTy& fmt_dec_signed(Ty val, StrTy& s, const fmt_state& fmt) {
     std::array<CharT, 32> buf;
     CharT* last = buf.data() + buf.size();
     CharT* p = gen_digits(last, static_cast<typename std::make_unsigned<Ty>::type>(val));
-    const unsigned len = static_cast<unsigned>(last - p);
-    if (sign != '\0') {
-        *--p = sign;
-        if (fmt.width > 1 + len) { return fmt_num_adjusted<1>(p, last, s, 1 + len, fmt); }
-    } else if (fmt.width > len) {
-        return fmt_num_adjusted<0>(p, last, s, len, fmt);
-    }
+    NPref n_pref = NPref::k0;
+    if (sign != '\0') { n_pref = NPref::k1, *--p = sign; }
+    if (fmt.width > static_cast<unsigned>(last - p)) { return fmt_num_adjusted(p, last, s, n_pref, fmt); }
     return s.append(p, last);
 }
+
+// --------------------------
 
 template<typename Ty, typename StrTy, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
 StrTy& fmt_unsigned(Ty val, StrTy& s, const fmt_state& fmt) {
@@ -516,6 +505,8 @@ StrTy& fmt_signed(Ty val, StrTy& s, const fmt_state& fmt) {
     }
     return s;
 }
+
+// ---- float
 
 inline unsigned fmt_float_len(int exp, char sign, fmt_flags flags, int prec) {
     return (sign != '\0' ? 6 : 5) + (std::abs(exp) >= 100 ? 1 : 0) +
@@ -551,7 +542,7 @@ StrTy& fmt_fp_exp10(const fp_m64_t& fp10, char sign, StrTy& s, fmt_flags flags, 
     CharT* p = p_exp;
     int n_digs = 1;
     if (prec > 0) {
-        p = scvt::gen_digits(p, fp10.m);
+        p = gen_digits(p, fp10.m);
         n_digs = static_cast<int>(p_exp - p);
         --p, p[0] = p[1], p[1] = '.';
     } else {
@@ -568,7 +559,7 @@ StrTy& fmt_fp_exp10_fixed(const fp_m64_t& fp10, char sign, StrTy& s, fmt_flags f
     using CharT = typename StrTy::value_type;
     std::array<CharT, 32> buf;
     CharT* last = buf.data() + buf.size();
-    CharT* p = scvt::gen_digits(last, fp10.m);
+    CharT* p = gen_digits(last, fp10.m);
     if (sign != '\0') { s.push_back(sign); }
 
     int k = 1 + fp10.exp, n_digs = static_cast<int>(last - p);
@@ -608,13 +599,15 @@ basic_dynbuf_appender<CharT>& fmt_fp_exp10_fixed(const fp_m64_t& fp10, char sign
 template<typename CharT>
 basic_limbuf_appender<CharT>& fmt_fp_exp10_fixed(const fp_m64_t& fp10, char sign, basic_limbuf_appender<CharT>& s,
                                                  fmt_flags flags, int prec) {
-    if (static_cast<size_t>(s.last() - s.curr()) >= fmt_float_fixed_len(fp10.exp, sign, flags, prec)) {
+    const unsigned len = fmt_float_fixed_len(fp10.exp, sign, flags, prec);
+    if (static_cast<size_t>(s.last() - s.curr()) >= len) {
         basic_unlimbuf_appender<CharT> appender(s.curr());
         return s.setcurr(fmt_fp_exp10_fixed(fp10, sign, appender, flags, prec).curr());
     }
-    basic_dynbuf_appender<CharT> appender;
-    fmt_fp_exp10_fixed(fp10, sign, appender, flags, prec);
-    return s.append(appender.data(), appender.curr());
+    basic_dynbuf_appender<CharT> buf;
+    basic_unlimbuf_appender<CharT> appender(buf.reserve(len));
+    buf.setcurr(fmt_fp_exp10_fixed(fp10, sign, appender, flags, prec).curr());
+    return s.append(buf.data(), buf.curr());
 }
 
 // Compilers should be able to optimize this into the ror instruction
@@ -670,29 +663,28 @@ inline int remove_trailing_zeros(uint64_t& n) {
     return s;
 }
 
-static fp_m64_t fp_exp2_to_exp10(fp_m64_t fp2, bool is_default, bool& is_fixed, int& prec, const unsigned bpm,
-                                 const int exp_max) {
+static fp_m64_t fp_exp2_to_exp10(fp_m64_t fp2, bool is_default, bool& is_fixed, int& prec, unsigned bpm,
+                                 const int exp_bias) {
     if (fp2.m != 0 || fp2.exp > 0) {
         bool optimal = false;
-        unsigned log = bpm;
 
         // Shift binary mantissa so the MSB bit is `1`
         if (fp2.exp > 0) {
             fp2.m <<= 63 - bpm;
             fp2.m |= 1ull << 63;
         } else {  // handle denormalized form
-            log = ulog2(fp2.m);
-            fp2.m <<= 63 - log, fp2.exp -= bpm - 1 - log;
+            const unsigned bpm0 = bpm;
+            bpm = ulog2(fp2.m);
+            fp2.m <<= 63 - bpm, fp2.exp -= bpm0 - bpm - 1;
         }
 
         if (prec < 0) {
-            prec = g_default_prec[log], optimal = is_default;
+            prec = g_default_prec[bpm], optimal = is_default;
         } else {
             prec &= 0xffff;
         }
 
         // Obtain decimal power
-        const int exp_bias = exp_max >> 1;
         fp_m64_t fp10{0, g_pow_tbl.exp2to10[pow_table_t::kPow2Max - exp_bias + fp2.exp]};
 
         // Evaluate desired decimal mantissa length (its integer part)
@@ -797,15 +789,14 @@ static fp_m64_t fp_exp2_to_exp10(fp_m64_t fp2, bool is_default, bool& is_fixed, 
             if (fp10.m != 0) {
                 if (optimal) {
                     // Evaluate acceptable error range to pass roundtrip test
-                    assert(log + shift >= 30);
-                    const unsigned shift2 = log + shift - 30;
+                    assert(bpm + shift >= 30);
+                    const unsigned shift2 = bpm + shift - 30;
                     int64_t delta_minus = (coef.m.hi >> shift2) | (1ull << (64 - shift2));
                     int64_t delta_plus = delta_minus;
                     if (fp2.exp > 1 && fp2.m == 1ull << 63) { delta_plus >>= 1; }
                     err = (err << 32) | (res128.lo >> 32);
 
                     // Trim trailing unsignificant digits
-                    const int64_t max_err_mul = delta_minus << 1;
                     while (true) {
                         uint64_t t = fp10.m / 10;
                         unsigned mod = static_cast<unsigned>(fp10.m - 10 * t);
@@ -828,16 +819,14 @@ static fp_m64_t fp_exp2_to_exp10(fp_m64_t fp2, bool is_default, bool& is_fixed, 
                             err_mul += 10;
                         }
                         --prec, fp10.m = t;
-                        if (*err_mul >= max_err_mul) {
+                        if (*err_mul + err >= delta_plus && *err_mul - err >= delta_minus) {
                             prec -= remove_trailing_zeros(fp10.m);
                             break;
                         }
                     }
                     if (prec < 0) { ++fp10.exp, prec = 0; }
                     // Select format for number representation
-                    if (fp10.exp >= -4 && fp10.exp <= prec + 4) {
-                        is_fixed = true, prec = std::max(prec - fp10.exp, 0);
-                    }
+                    if (fp10.exp >= -4 && fp10.exp <= prec) { is_fixed = true, prec -= fp10.exp; }
                 } else if (is_default) {
                     const int prec0 = prec;
                     prec = n_digs - 1 - remove_trailing_zeros(fp10.m);
@@ -862,51 +851,47 @@ static fp_m64_t fp_exp2_to_exp10(fp_m64_t fp2, bool is_default, bool& is_fixed, 
 }
 
 template<typename StrTy>
-StrTy& fmt_float_adjusted_finite(const fp_m64_t& fp10, char sign, StrTy& s, bool is_fixed, int prec, unsigned len,
+StrTy& fmt_float_adjusted_finite(const fp_m64_t& fp10, char sign, bool is_fixed, StrTy& s, int prec, unsigned len,
                                  const fmt_state& fmt) {
+    unsigned left = fmt.width - len, right = left;
     if (!(fmt.flags & fmt_flags::kLeadingZeroes)) {
-        if ((fmt.flags & fmt_flags::kAdjustField) != fmt_flags::kRight) {
-            unsigned left = 0, right = fmt.width - len;
-            if ((fmt.flags & fmt_flags::kAdjustField) == fmt_flags::kInternal) {
-                left = right >> 1;
-                right -= left;
-            }
-            s.append(left, fmt.fill);
-            if (is_fixed) {
-                fmt_fp_exp10_fixed(fp10, sign, s, fmt.flags, prec);
-            } else {
-                fmt_fp_exp10(fp10, sign, s, fmt.flags, prec);
-            }
-            return s.append(right, fmt.fill);
+        switch (fmt.flags & fmt_flags::kAdjustField) {
+            case fmt_flags::kLeft: left = 0; break;
+            case fmt_flags::kInternal: left >>= 1, right -= left; break;
+            default: right = 0; break;
         }
-        s.append(fmt.width - len, fmt.fill);
+        s.append(left, fmt.fill);
     } else {
         if (sign != '\0') { s.push_back(sign); }
-        s.append(fmt.width - len, '0');
-        sign = '\0';
+        s.append(left, '0');
+        sign = '\0', right = 0;
     }
-    if (is_fixed) { return fmt_fp_exp10_fixed(fp10, sign, s, fmt.flags, prec); }
-    return fmt_fp_exp10(fp10, sign, s, fmt.flags, prec);
+    if (is_fixed) {
+        fmt_fp_exp10_fixed(fp10, sign, s, fmt.flags, prec);
+    } else {
+        fmt_fp_exp10(fp10, sign, s, fmt.flags, prec);
+    }
+    return s.append(right, fmt.fill);
 }
 
 template<typename CharT>
-basic_dynbuf_appender<CharT>& fmt_float_adjusted_finite(const fp_m64_t& fp10, char sign,
-                                                        basic_dynbuf_appender<CharT>& s, bool is_fixed, int prec,
-                                                        unsigned len, const fmt_state& fmt) {
+basic_dynbuf_appender<CharT>& fmt_float_adjusted_finite(const fp_m64_t& fp10, char sign, bool is_fixed,
+                                                        basic_dynbuf_appender<CharT>& s, int prec, unsigned len,
+                                                        const fmt_state& fmt) {
     basic_unlimbuf_appender<CharT> appender(s.reserve(fmt.width));
-    return s.setcurr(fmt_float_adjusted_finite(fp10, sign, appender, is_fixed, prec, len, fmt).curr());
+    return s.setcurr(fmt_float_adjusted_finite(fp10, sign, is_fixed, appender, prec, len, fmt).curr());
 }
 
 template<typename CharT>
-basic_limbuf_appender<CharT>& fmt_float_adjusted_finite(const fp_m64_t& fp10, char sign,
-                                                        basic_limbuf_appender<CharT>& s, bool is_fixed, int prec,
-                                                        unsigned len, const fmt_state& fmt) {
+basic_limbuf_appender<CharT>& fmt_float_adjusted_finite(const fp_m64_t& fp10, char sign, bool is_fixed,
+                                                        basic_limbuf_appender<CharT>& s, int prec, unsigned len,
+                                                        const fmt_state& fmt) {
     if (static_cast<size_t>(s.last() - s.curr()) >= fmt.width) {
         basic_unlimbuf_appender<CharT> appender(s.curr());
-        return s.setcurr(fmt_float_adjusted_finite(fp10, sign, appender, is_fixed, prec, len, fmt).curr());
+        return s.setcurr(fmt_float_adjusted_finite(fp10, sign, is_fixed, appender, prec, len, fmt).curr());
     }
     basic_dynbuf_appender<CharT> appender;
-    fmt_float_adjusted_finite(fp10, sign, appender, is_fixed, prec, len, fmt);
+    fmt_float_adjusted_finite(fp10, sign, is_fixed, appender, prec, len, fmt);
     return s.append(appender.data(), appender.curr());
 }
 
@@ -945,11 +930,12 @@ StrTy& fmt_float_common(uint64_t u64, StrTy& s, const fmt_state& fmt, const unsi
 
     int prec = fmt.prec;
     bool is_fixed = (fmt.flags & fmt_flags::kFloatField) == fmt_flags::kFixed;
-    const fp_m64_t fp10 = fp_exp2_to_exp10(fp2, !(fmt.flags & fmt_flags::kFloatField), is_fixed, prec, bpm, exp_max);
+    const fp_m64_t fp10 = fp_exp2_to_exp10(fp2, !(fmt.flags & fmt_flags::kFloatField), is_fixed, prec, bpm,
+                                           exp_max >> 1);
     if (fmt.width > 0) {
         const unsigned len = is_fixed ? fmt_float_fixed_len(fp10.exp, sign, fmt.flags, prec) :
                                         fmt_float_len(fp10.exp, sign, fmt.flags, prec);
-        if (fmt.width > len) { return fmt_float_adjusted_finite(fp10, sign, s, is_fixed, prec, len, fmt); }
+        if (fmt.width > len) { return fmt_float_adjusted_finite(fp10, sign, is_fixed, s, prec, len, fmt); }
     }
 
     if (is_fixed) { return fmt_fp_exp10_fixed(fp10, sign, s, fmt.flags, prec); }
