@@ -178,9 +178,9 @@ const char g_digits[][2] = {
 
 #define SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(ty) \
     template const char* string_converter<ty>::from_string(const char* first, const char* last, ty& val); \
-    template unlimbuf_appender& string_converter<ty>::to_string(ty val, unlimbuf_appender& s, const fmt_state& fmt); \
-    template limbuf_appender& string_converter<ty>::to_string(ty val, limbuf_appender& s, const fmt_state& fmt); \
-    template dynbuf_appender& string_converter<ty>::to_string(ty val, dynbuf_appender& s, const fmt_state& fmt);
+    template unlimbuf_appender& string_converter<ty>::to_string(unlimbuf_appender& s, ty val, const fmt_state& fmt); \
+    template limbuf_appender& string_converter<ty>::to_string(limbuf_appender& s, ty val, const fmt_state& fmt); \
+    template dynbuf_appender& string_converter<ty>::to_string(dynbuf_appender& s, ty val, const fmt_state& fmt);
 SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int8_t)
 SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int16_t)
 SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int32_t)
@@ -196,10 +196,10 @@ SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(bool)
 #undef SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER
 
 #define SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(ty) \
-    template const wchar_t* wstring_converter<ty>::from_string(const wchar_t* first, const wchar_t* last, ty& val); \
-    template wunlimbuf_appender& wstring_converter<ty>::to_string(ty val, wunlimbuf_appender& s, const fmt_state& fmt); \
-    template wlimbuf_appender& wstring_converter<ty>::to_string(ty val, wlimbuf_appender& s, const fmt_state& fmt); \
-    template wdynbuf_appender& wstring_converter<ty>::to_string(ty val, wdynbuf_appender& s, const fmt_state& fmt);
+    template const wchar_t* string_converter<ty>::from_string(const wchar_t* first, const wchar_t* last, ty& val); \
+    template wunlimbuf_appender& string_converter<ty>::to_string(wunlimbuf_appender& s, ty val, const fmt_state& fmt); \
+    template wlimbuf_appender& string_converter<ty>::to_string(wlimbuf_appender& s, ty val, const fmt_state& fmt); \
+    template wdynbuf_appender& string_converter<ty>::to_string(wdynbuf_appender& s, ty val, const fmt_state& fmt);
 SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int8_t)
 SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int16_t)
 SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int32_t)

@@ -185,7 +185,7 @@ void fmt_parse_arg_spec(const CharT* p, fmt_arg_specs& specs) {
 }
 
 template<typename StrTy, typename CharT>
-std::pair<const CharT*, bool> fmt_parse_next(const CharT* p, const CharT* last, StrTy& s, fmt_arg_specs& specs) {
+std::pair<const CharT*, bool> fmt_parse_next(StrTy& s, const CharT* p, const CharT* last, fmt_arg_specs& specs) {
     const CharT* p0 = p;
     do {
         if (*p == '{' || *p == '}') {
@@ -237,27 +237,27 @@ unsigned get_fmt_arg_integer_value(const detail::fmt_arg_list_item<StrTy>& arg, 
 }
 
 template<typename CharT>
-struct utf_char_count_getter;
+struct utf_count_chars;
 
 template<>
-struct utf_char_count_getter<char> {
-    unsigned operator()(uint8_t ch) { return get_utf8_byte_count(ch); }
+struct utf_count_chars<char> {
+    unsigned operator()(uint8_t ch) const { return get_utf8_byte_count(ch); }
 };
 
 #if defined(WCHAR_MAX) && WCHAR_MAX > 0xffff
 template<>
-struct utf_char_count_getter<wchar_t> {
-    unsigned operator()(uint32_t ch) { return 1; }
+struct utf_count_chars<wchar_t> {
+    unsigned operator()(uint32_t ch) const { return 1; }
 };
 #else   // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
 template<>
-struct utf_char_count_getter<wchar_t> {
-    unsigned operator()(uint16_t ch) { return get_utf16_word_count(ch); }
+struct utf_count_chars<wchar_t> {
+    unsigned operator()(uint16_t ch) const { return get_utf16_word_count(ch); }
 };
 #endif  // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
 
 template<typename StrTy>
-StrTy& fmt_append_string(std::basic_string_view<typename StrTy::value_type> val, StrTy& s, fmt_state& fmt) {
+StrTy& fmt_append_string(StrTy& s, std::basic_string_view<typename StrTy::value_type> val, fmt_state& fmt) {
     using CharT = typename StrTy::value_type;
     const CharT *first = val.data(), *last = first + val.size();
     size_t len = 0;
@@ -268,7 +268,7 @@ StrTy& fmt_append_string(std::basic_string_view<typename StrTy::value_type> val,
         len = prec;
         while (prec > 0 && last - p > count) {
             p += count;
-            count = utf_char_count_getter<CharT>()(*p), --prec;
+            count = utf_count_chars<CharT>()(*p), --prec;
         }
         if (prec > 0) {
             len -= prec;
@@ -278,7 +278,7 @@ StrTy& fmt_append_string(std::basic_string_view<typename StrTy::value_type> val,
     } else if (fmt.width > 0) {
         while (last - p > count) {
             p += count;
-            count = utf_char_count_getter<CharT>()(*p), ++len;
+            count = utf_count_chars<CharT>()(*p), ++len;
         }
     }
 
@@ -297,7 +297,7 @@ StrTy& fmt_append_string(std::basic_string_view<typename StrTy::value_type> val,
 }  // namespace detail
 
 template<typename StrTy>
-StrTy& format_append_v(std::basic_string_view<typename StrTy::value_type> fmt, StrTy& s,
+StrTy& format_append_v(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
                        span<const detail::fmt_arg_list_item<StrTy>> args) {
     size_t n = 0;
     auto check_arg_idx = [&args](size_t idx) {
@@ -308,7 +308,7 @@ StrTy& format_append_v(std::basic_string_view<typename StrTy::value_type> fmt, S
     const CharT *first = fmt.data(), *last = fmt.data() + fmt.size();
     while (first != last) {
         bool put_arg = false;
-        std::tie(first, put_arg) = fmt_parse_next(first, last, s, specs);
+        std::tie(first, put_arg) = fmt_parse_next(s, first, last, specs);
         if (put_arg) {
             // obtain argument number
             if (!(specs.flags & detail::fmt_parse_flags::kArgNumSpecified)) { specs.n_arg = n++; }
@@ -328,7 +328,7 @@ StrTy& format_append_v(std::basic_string_view<typename StrTy::value_type> fmt, S
                 specs.fmt.prec = detail::get_fmt_arg_integer_value(
                     args[specs.n_prec_arg], "agrument precision is not integer", "agrument precision is negative");
             }
-            args[specs.n_arg].second(args[specs.n_arg].first, s, specs.fmt);
+            args[specs.n_arg].second(s, args[specs.n_arg].first, specs.fmt);
         }
     }
     return s;

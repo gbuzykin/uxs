@@ -187,13 +187,8 @@ class basic_dynbuf_appender : public basic_appender_mixin<CharT, basic_dynbuf_ap
 using dynbuf_appender = basic_dynbuf_appender<char>;
 using wdynbuf_appender = basic_dynbuf_appender<wchar_t>;
 
-template<typename CharT, typename Ty>
-struct basic_string_converter;
-
 template<typename Ty>
-using string_converter = basic_string_converter<char, Ty>;
-template<typename Ty>
-using wstring_converter = basic_string_converter<wchar_t, Ty>;
+struct string_converter;
 
 template<typename Ty>
 struct string_converter_base {
@@ -202,11 +197,12 @@ struct string_converter_base {
 };
 
 #define SCVT_DECLARE_STANDARD_STRING_CONVERTER(ty) \
-    template<typename CharT> \
-    struct UTIL_EXPORT basic_string_converter<CharT, ty> : string_converter_base<ty> { \
+    template<> \
+    struct UTIL_EXPORT string_converter<ty> : string_converter_base<ty> { \
+        template<typename CharT> \
         static const CharT* from_string(const CharT* first, const CharT* last, ty& val); \
         template<typename StrTy> \
-        static StrTy& to_string(ty val, StrTy& s, const fmt_state& fmt); \
+        static StrTy& to_string(StrTy& s, ty val, const fmt_state& fmt); \
     };
 SCVT_DECLARE_STANDARD_STRING_CONVERTER(int8_t)
 SCVT_DECLARE_STANDARD_STRING_CONVERTER(int16_t)
@@ -218,7 +214,8 @@ SCVT_DECLARE_STANDARD_STRING_CONVERTER(uint32_t)
 SCVT_DECLARE_STANDARD_STRING_CONVERTER(uint64_t)
 SCVT_DECLARE_STANDARD_STRING_CONVERTER(float)
 SCVT_DECLARE_STANDARD_STRING_CONVERTER(double)
-SCVT_DECLARE_STANDARD_STRING_CONVERTER(CharT)
+SCVT_DECLARE_STANDARD_STRING_CONVERTER(char)
+SCVT_DECLARE_STANDARD_STRING_CONVERTER(wchar_t)
 SCVT_DECLARE_STANDARD_STRING_CONVERTER(bool)
 #undef SCVT_DECLARE_STANDARD_STRING_CONVERTER
 
@@ -232,7 +229,7 @@ Ty from_string(std::string_view s, Def&& def) {
 template<typename Ty, typename Def>
 Ty from_wstring(std::wstring_view s, Def&& def) {
     Ty result(std::forward<Def>(def));
-    wstring_converter<Ty>::from_string(s.data(), s.data() + s.size(), result);
+    string_converter<Ty>::from_string(s.data(), s.data() + s.size(), result);
     return result;
 }
 
@@ -245,52 +242,52 @@ Ty from_string(std::string_view s) {
 
 template<typename Ty>
 Ty from_wstring(std::wstring_view s) {
-    Ty result(wstring_converter<Ty>::default_value());
-    wstring_converter<Ty>::from_string(s.data(), s.data() + s.size(), result);
+    Ty result(string_converter<Ty>::default_value());
+    string_converter<Ty>::from_string(s.data(), s.data() + s.size(), result);
     return result;
 }
 
 template<typename Ty, typename StrTy>
-StrTy& to_string_append(const Ty& val, StrTy& s, const fmt_state& fmt) {
-    return basic_string_converter<typename StrTy::value_type, Ty>::to_string(val, s, fmt);
+StrTy& to_string_append(StrTy& s, const Ty& val, const fmt_state& fmt) {
+    return string_converter<Ty>::to_string(s, val, fmt);
 }
 
 template<typename Ty, typename... Args>
 std::string to_string(const Ty& val, Args&&... args) {
     util::dynbuf_appender appender;
-    to_string_append(val, appender, fmt_state(std::forward<Args>(args)...));
+    to_string_append(appender, val, fmt_state(std::forward<Args>(args)...));
     return std::string(appender.data(), appender.size());
 }
 
 template<typename Ty, typename... Args>
 std::wstring to_wstring(const Ty& val, Args&&... args) {
     util::wdynbuf_appender appender;
-    to_string_append(val, appender, fmt_state(std::forward<Args>(args)...));
+    to_string_append(appender, val, fmt_state(std::forward<Args>(args)...));
     return std::wstring(appender.data(), appender.size());
 }
 
 template<typename Ty, typename... Args>
 char* to_string_to(char* buf, const Ty& val, Args&&... args) {
     unlimbuf_appender appender(buf);
-    return to_string_append(val, appender, fmt_state(std::forward<Args>(args)...)).curr();
+    return to_string_append(appender, val, fmt_state(std::forward<Args>(args)...)).curr();
 }
 
 template<typename Ty, typename... Args>
 wchar_t* to_wstring_to(wchar_t* buf, const Ty& val, Args&&... args) {
     wunlimbuf_appender appender(buf);
-    return to_string_append(val, appender, fmt_state(std::forward<Args>(args)...)).curr();
+    return to_string_append(appender, val, fmt_state(std::forward<Args>(args)...)).curr();
 }
 
 template<typename Ty, typename... Args>
 char* to_string_to_n(char* buf, size_t n, const Ty& val, Args&&... args) {
     limbuf_appender appender(buf, n);
-    return to_string_append(val, appender, fmt_state(std::forward<Args>(args)...)).curr();
+    return to_string_append(appender, val, fmt_state(std::forward<Args>(args)...)).curr();
 }
 
 template<typename Ty, typename... Args>
 wchar_t* to_wstring_to_n(wchar_t* buf, size_t n, const Ty& val, Args&&... args) {
     wlimbuf_appender appender(buf, n);
-    return to_string_append(val, appender, fmt_state(std::forward<Args>(args)...)).curr();
+    return to_string_append(appender, val, fmt_state(std::forward<Args>(args)...)).curr();
 }
 
 }  // namespace util
