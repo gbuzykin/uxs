@@ -117,8 +117,8 @@ std::string replace_strings(std::string_view s, Finder finder, std::string_view 
     return result;
 }
 
-template<typename Range, typename SepTy, typename StrTy, typename JoinFn = grow>
-StrTy& join_strings_append(const Range& r, SepTy sep, StrTy& s, JoinFn fn = JoinFn{}) {
+template<typename StrTy, typename Range, typename SepTy, typename JoinFn = grow>
+StrTy& join_strings_append(StrTy& s, const Range& r, SepTy sep, JoinFn fn = JoinFn{}) {
     if (std::begin(r) != std::end(r)) {
         for (auto it = std::begin(r);;) {
             fn(s, *it);
@@ -134,7 +134,7 @@ StrTy& join_strings_append(const Range& r, SepTy sep, StrTy& s, JoinFn fn = Join
 
 template<typename Range, typename SepTy, typename JoinFn = grow>
 std::string join_strings(const Range& r, SepTy sep, std::string prefix, JoinFn fn = JoinFn{}) {
-    return std::move(join_strings_append(r, sep, prefix, fn));
+    return std::move(join_strings_append(prefix, r, sep, fn));
 }
 
 template<split_flags flags = split_flags::kNoFlags, typename Finder, typename OutputFn,  //
@@ -239,8 +239,8 @@ auto separate_words(std::string_view s, char sep, OutputFn fn = OutputFn{})
     return result;
 }
 
-template<typename Range, typename StrTy, typename InputFn = nofunc>
-StrTy& pack_strings_append(const Range& r, char sep, StrTy& s, InputFn fn = InputFn{}) {
+template<typename StrTy, typename Range, typename InputFn = nofunc>
+StrTy& pack_strings_append(StrTy& s, const Range& r, typename StrTy::value_type sep, InputFn fn = InputFn{}) {
     if (std::begin(r) != std::end(r)) {
         for (auto it = std::begin(r);;) {
             auto el = fn(*it);
@@ -266,7 +266,7 @@ StrTy& pack_strings_append(const Range& r, char sep, StrTy& s, InputFn fn = Inpu
 
 template<typename Range, typename InputFn = nofunc>
 std::string pack_strings(const Range& r, char sep, std::string prefix, InputFn fn = InputFn{}) {
-    return std::move(pack_strings_append(r, sep, prefix, fn));
+    return std::move(pack_strings_append(prefix, r, sep, fn));
 }
 
 template<typename OutputFn, typename OutputIt>
