@@ -33,7 +33,7 @@ unsigned from_utf16(InputIt first, InputIt last, InputIt& next, uint32_t& code) 
     unsigned n_read = 1;
     if ((code & 0xdc00) == 0xd800) {
         if (first == last) { return 0; }
-        code = 0x10000 + ((code & 0x3ff) << 10) | (*first++ & 0x3ff), ++n_read;
+        code = 0x10000 + (((code & 0x3ff) << 10) | (*first++ & 0x3ff)), ++n_read;
     }
     next = first;
     return n_read;

@@ -542,7 +542,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
                 auto* node = helpers::reconstruct_node(*this, reuse, *first);
                 reuse = reuse->next;
                 ++size_;
-                dllist_insert_before(std::addressof(head_), node);
+                dllist_insert_before<dllist_node_t>(std::addressof(head_), node);
             }
         } catch (...) {
             delete_node_chain(reuse->next);
@@ -575,10 +575,9 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<detai
         try {
             for (; reuse != std::addressof(head_) && sz; --sz) {
                 auto* node = helpers::reconstruct_node(*this, reuse, val);
-                ;
                 reuse = reuse->next;
                 ++size_;
-                dllist_insert_before(std::addressof(head_), node);
+                dllist_insert_before<dllist_node_t>(std::addressof(head_), node);
             }
         } catch (...) {
             delete_node_chain(reuse->next);
