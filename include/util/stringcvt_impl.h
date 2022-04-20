@@ -813,7 +813,7 @@ static fp_m64_t fp_exp2_to_exp10(fp_m64_t fp2, bool is_default, bool& is_fixed, 
                     if (fp2.exp > 1 && fp2.m == 1ull << 63) { delta_plus >>= 1; }
                     err = (err << 32) | (res128.lo >> 32);
 
-                    // Trim trailing unsignificant digits
+                    // Trim trailing insignificant digits
                     while (true) {
                         uint64_t t = fp10.m / 10;
                         unsigned mod = static_cast<unsigned>(fp10.m - 10 * t);

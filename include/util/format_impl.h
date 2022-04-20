@@ -319,14 +319,14 @@ StrTy& format_append_v(StrTy& s, std::basic_string_view<typename StrTy::value_ty
                 if (!(specs.flags & detail::fmt_parse_flags::kWidthArgNumSpecified)) { specs.n_width_arg = n++; }
                 check_arg_idx(specs.n_width_arg);
                 specs.fmt.width = detail::get_fmt_arg_integer_value(
-                    args[specs.n_width_arg], "agrument width is not integer", "agrument width is negative");
+                    args[specs.n_width_arg], "argument width is not integer", "argument width is negative");
             }
             if (!!(specs.flags & detail::fmt_parse_flags::kDynamicPrec)) {
                 // obtain argument number for precision
                 if (!(specs.flags & detail::fmt_parse_flags::kPrecArgNumSpecified)) { specs.n_prec_arg = n++; }
                 check_arg_idx(specs.n_prec_arg);
                 specs.fmt.prec = detail::get_fmt_arg_integer_value(
-                    args[specs.n_prec_arg], "agrument precision is not integer", "agrument precision is negative");
+                    args[specs.n_prec_arg], "argument precision is not integer", "argument precision is negative");
             }
             args[specs.n_arg].second(s, args[specs.n_arg].first, specs.fmt);
         }
