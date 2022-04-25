@@ -7,12 +7,12 @@
 namespace util {
 
 namespace detail {
-template<>
-struct string_finder<std::regex> {
-    const std::regex& regex;
+template<typename CharT>
+struct string_finder<std::basic_regex<CharT>> {
+    const std::basic_regex<CharT>& regex;
     using is_finder = int;
-    using iterator = std::string_view::const_iterator;
-    explicit string_finder(const std::regex& in_regex) : regex(in_regex) {}
+    using iterator = typename std::basic_string_view<CharT>::const_iterator;
+    explicit string_finder(const std::basic_regex<CharT>& tgt) : regex(tgt) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         std::match_results<iterator> m;
         if (std::regex_search(begin, end, m, regex)) { return m[0]; }
@@ -20,12 +20,12 @@ struct string_finder<std::regex> {
     }
 };
 
-template<>
-struct reversed_string_finder<std::regex> {
-    const std::regex& regex;
+template<typename CharT>
+struct reversed_string_finder<std::basic_regex<CharT>> {
+    const std::basic_regex<CharT>& regex;
     using is_reversed_finder = int;
-    using iterator = std::string_view::const_iterator;
-    explicit reversed_string_finder(const std::regex& in_regex) : regex(in_regex) {}
+    using iterator = typename std::basic_string_view<CharT>::const_iterator;
+    explicit reversed_string_finder(const std::basic_regex<CharT>& tgt) : regex(tgt) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         std::match_results<iterator> m;
         auto result = std::make_pair(begin, begin);
@@ -44,5 +44,17 @@ struct reversed_string_finder<std::regex> {
     }
 };
 }  // namespace detail
+
+inline detail::string_finder<std::regex> sfind(const std::regex& re) { return detail::string_finder<std::regex>(re); }
+inline detail::reversed_string_finder<std::regex> rsfind(const std::regex& re) {
+    return detail::reversed_string_finder<std::regex>(re);
+}
+
+inline detail::string_finder<std::wregex> sfind(const std::wregex& re) {
+    return detail::string_finder<std::wregex>(re);
+}
+inline detail::reversed_string_finder<std::wregex> rsfind(const std::wregex& re) {
+    return detail::reversed_string_finder<std::wregex>(re);
+}
 
 }  // namespace util
