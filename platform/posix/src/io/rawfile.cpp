@@ -77,7 +77,7 @@ int rawfile::ctrlesc_color(span<uint8_t> v) {
     using namespace std::placeholders;
     util::dynbuf_appender buf;
     buf += "\033[";
-    basic_join_strings(buf, v, ';', std::bind(to_string_append<uint8_t, util::dynbuf_appender>, _1, _2, fmt_state()));
+    basic_join_strings(buf, v, ';', std::bind(basic_to_string<util::dynbuf_appender, uint8_t>, _1, _2, fmt_state()));
     buf += 'm';
     return ::write(fd_, buf.data(), buf.size()) < 0 ? -1 : 0;
 }

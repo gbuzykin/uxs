@@ -5,6 +5,8 @@
 #include <type_traits>
 #include <utility>
 
+#define COMMA ,
+
 #define UTIL_IMPLEMENT_BITWISE_OPS_FOR_ENUM(ty, enum_base) \
     CONSTEXPR ty operator&(ty lhs, ty rhs) { \
         return static_cast<ty>(static_cast<enum_base>(lhs) & static_cast<enum_base>(rhs)); \
