@@ -4,6 +4,13 @@
 
 namespace util {
 
+template<typename CharT>
+struct is_character : std::false_type {};
+template<>
+struct is_character<char> : std::true_type {};
+template<>
+struct is_character<wchar_t> : std::true_type {};
+
 CONSTEXPR bool is_digit(int ch) { return ch >= '0' && ch <= '9'; }
 CONSTEXPR bool is_xdigit(int ch) { return is_digit(ch) || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F'); }
 CONSTEXPR bool is_space(int ch) { return ch == ' ' || (ch >= '\t' && ch <= '\r'); }

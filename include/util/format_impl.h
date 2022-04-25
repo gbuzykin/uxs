@@ -3,8 +3,6 @@
 #include "utf.h"
 #include "util/format.h"
 
-#include <stdexcept>
-
 namespace util {
 namespace detail {
 
@@ -58,7 +56,7 @@ const CharT* fmt_parse_sign(const CharT* p, fmt_state& fmt) {
 template<typename CharT>
 const CharT* fmt_parse_alternate(const CharT* p, fmt_state& fmt) {
     if (*p == '#') {
-        fmt.flags |= fmt_flags::kShowPoint | fmt_flags::kShowBase;
+        fmt.flags |= fmt_flags::kAlternate;
         return p + 1;
     }
     return p;
@@ -73,7 +71,7 @@ const CharT* fmt_parse_leading_zeroes(const CharT* p, fmt_state& fmt) {
     return p;
 }
 
-template<typename Ty, typename CharT>
+template<typename CharT, typename Ty>
 const CharT* fmt_parse_num(const CharT* p, Ty& num) {
     while (is_digit(*p)) { num = 10 * num + static_cast<Ty>(*p++ - '0'); }
     return p;
@@ -171,7 +169,7 @@ void fmt_parse_arg_spec(const CharT* p, fmt_arg_specs& specs) {
     if (is_digit(*p)) {
         specs.flags |= fmt_parse_flags::kArgNumSpecified;
         specs.n_arg = static_cast<size_t>(*p++ - '0');
-        p = fmt_parse_num<size_t>(p, specs.n_arg);
+        p = fmt_parse_num(p, specs.n_arg);
     }
     if (*p++ == ':') {
         p = fmt_parse_adjustment(p, specs.fmt);
@@ -214,13 +212,13 @@ template<typename StrTy>
 unsigned get_fmt_arg_integer_value(const detail::fmt_arg_list_item<StrTy>& arg, const char* msg_not_integer,
                                    const char* msg_negative) {
 #define FMT_ARG_INTEGER_VALUE_CASE(ty) \
-    if (arg.second == detail::fmt_arg_appender<ty, StrTy>::append) { \
+    if (arg.second == detail::fmt_arg_appender<StrTy, ty>::append) { \
         ty val = *reinterpret_cast<const ty*>(arg.first); \
-        if (val < 0) { throw std::runtime_error(msg_negative); } \
+        if (val < 0) { throw format_error(msg_negative); } \
         return static_cast<unsigned>(val); \
     }
 #define FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(ty) \
-    if (arg.second == detail::fmt_arg_appender<ty, StrTy>::append) { \
+    if (arg.second == detail::fmt_arg_appender<StrTy, ty>::append) { \
         return static_cast<unsigned>(*reinterpret_cast<const ty*>(arg.first)); \
     }
     FMT_ARG_INTEGER_VALUE_CASE(int32_t)
@@ -233,7 +231,7 @@ unsigned get_fmt_arg_integer_value(const detail::fmt_arg_list_item<StrTy>& arg, 
     FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(uint64_t)
 #undef FMT_ARG_INTEGER_VALUE_CASE
 #undef FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE
-    throw std::runtime_error(msg_not_integer);
+    throw format_error(msg_not_integer);
 }
 
 template<typename CharT>
@@ -297,11 +295,11 @@ StrTy& fmt_append_string(StrTy& s, std::basic_string_view<typename StrTy::value_
 }  // namespace detail
 
 template<typename StrTy>
-StrTy& format_append_v(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
-                       span<const detail::fmt_arg_list_item<StrTy>> args) {
+StrTy& basic_format(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
+                    span<const detail::fmt_arg_list_item<StrTy>> args) {
     size_t n = 0;
     auto check_arg_idx = [&args](size_t idx) {
-        if (idx >= args.size()) { throw std::out_of_range("out of format argument list"); }
+        if (idx >= args.size()) { throw format_error("out of argument list"); }
     };
     detail::fmt_arg_specs specs;
     using CharT = typename StrTy::value_type;
@@ -318,15 +316,15 @@ StrTy& format_append_v(StrTy& s, std::basic_string_view<typename StrTy::value_ty
                 // obtain argument number for width
                 if (!(specs.flags & detail::fmt_parse_flags::kWidthArgNumSpecified)) { specs.n_width_arg = n++; }
                 check_arg_idx(specs.n_width_arg);
-                specs.fmt.width = detail::get_fmt_arg_integer_value(
-                    args[specs.n_width_arg], "argument width is not integer", "argument width is negative");
+                specs.fmt.width = detail::get_fmt_arg_integer_value(args[specs.n_width_arg], "width is not an integer",
+                                                                    "negative width specified");
             }
             if (!!(specs.flags & detail::fmt_parse_flags::kDynamicPrec)) {
                 // obtain argument number for precision
                 if (!(specs.flags & detail::fmt_parse_flags::kPrecArgNumSpecified)) { specs.n_prec_arg = n++; }
                 check_arg_idx(specs.n_prec_arg);
                 specs.fmt.prec = detail::get_fmt_arg_integer_value(
-                    args[specs.n_prec_arg], "argument precision is not integer", "argument precision is negative");
+                    args[specs.n_prec_arg], "precision is not an integer", "negative precision specified");
             }
             args[specs.n_arg].second(s, args[specs.n_arg].first, specs.fmt);
         }

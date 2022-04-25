@@ -4,42 +4,42 @@
 #include "stringcvt.h"
 
 #include <array>
+#include <stdexcept>
 
 namespace util {
+
+class format_error : public std::runtime_error {
+ public:
+    explicit format_error(const char* message) : std::runtime_error(message) {}
+    explicit format_error(const std::string& message) : std::runtime_error(message) {}
+};
 
 namespace detail {
 
 template<typename StrTy>
 UTIL_EXPORT StrTy& fmt_append_string(StrTy& s, std::basic_string_view<typename StrTy::value_type> val, fmt_state& fmt);
 
-template<typename Ty, typename StrTy, typename = void>
+template<typename StrTy, typename Ty, typename = void>
 struct fmt_arg_appender;
 
-template<typename Ty, typename StrTy>
-struct fmt_arg_appender<Ty, StrTy, std::void_t<typename string_converter<Ty>::is_string_converter>> {
+template<typename StrTy, typename Ty>
+struct fmt_arg_appender<StrTy, Ty, std::void_t<typename string_converter<Ty>::is_string_converter>> {
     static StrTy& append(StrTy& s, const void* val, fmt_state& fmt) {
-        return string_converter<Ty>::to_string(s, *reinterpret_cast<const Ty*>(val), fmt);
+        return basic_to_string(s, *reinterpret_cast<const Ty*>(val), fmt);
     }
 };
 
-template<typename CharT>
-struct is_character : std::false_type {};
-template<>
-struct is_character<char> : std::true_type {};
-template<>
-struct is_character<wchar_t> : std::true_type {};
-
-template<typename Ty, typename StrTy>
-struct fmt_arg_appender<Ty*, StrTy, std::enable_if_t<!is_character<Ty>::value>> {
+template<typename StrTy, typename Ty>
+struct fmt_arg_appender<StrTy, Ty*, std::enable_if_t<!is_character<Ty>::value>> {
     static StrTy& append(StrTy& s, const void* val, fmt_state& fmt) {
         fmt.flags &= ~fmt_flags::kBaseField;
-        fmt.flags |= fmt_flags::kHex | fmt_flags::kShowBase;
-        return string_converter<uintptr_t>::to_string(s, reinterpret_cast<uintptr_t>(val), fmt);
+        fmt.flags |= fmt_flags::kHex | fmt_flags::kAlternate;
+        return basic_to_string(s, reinterpret_cast<uintptr_t>(val), fmt);
     }
 };
 
 template<typename StrTy>
-struct fmt_arg_appender<typename StrTy::value_type*, StrTy, void> {
+struct fmt_arg_appender<StrTy, typename StrTy::value_type*, void> {
     static StrTy& append(StrTy& s, const void* val, fmt_state& fmt) {
         using CharT = typename StrTy::value_type;
         return fmt_append_string(s, std::basic_string_view<CharT>(static_cast<const CharT*>(val)), fmt);
@@ -47,7 +47,7 @@ struct fmt_arg_appender<typename StrTy::value_type*, StrTy, void> {
 };
 
 template<typename StrTy>
-struct fmt_arg_appender<std::basic_string_view<typename StrTy::value_type>, StrTy, void> {
+struct fmt_arg_appender<StrTy, std::basic_string_view<typename StrTy::value_type>, void> {
     static StrTy& append(StrTy& s, const void* val, fmt_state& fmt) {
         using CharT = typename StrTy::value_type;
         return fmt_append_string(s, *reinterpret_cast<const std::basic_string_view<CharT>*>(val), fmt);
@@ -55,7 +55,7 @@ struct fmt_arg_appender<std::basic_string_view<typename StrTy::value_type>, StrT
 };
 
 template<typename StrTy>
-struct fmt_arg_appender<std::basic_string<typename StrTy::value_type>, StrTy, void> {
+struct fmt_arg_appender<StrTy, std::basic_string<typename StrTy::value_type>, void> {
     static StrTy& append(StrTy& s, const void* val, fmt_state& fmt) {
         using CharT = typename StrTy::value_type;
         return fmt_append_string(s, *reinterpret_cast<const std::basic_string<CharT>*>(val), fmt);
@@ -92,18 +92,18 @@ struct fmt_arg_type<Ty*, void> {
 
 template<typename StrTy, typename... Ts>
 auto make_fmt_args(const Ts&... args) NOEXCEPT -> std::array<fmt_arg_list_item<StrTy>, sizeof...(Ts)> {
-    return {{{get_fmt_arg_ptr(args), fmt_arg_appender<typename fmt_arg_type<Ts>::type, StrTy>::append}...}};
+    return {{{get_fmt_arg_ptr(args), fmt_arg_appender<StrTy, typename fmt_arg_type<Ts>::type>::append}...}};
 }
 
 }  // namespace detail
 
 template<typename StrTy>
-UTIL_EXPORT StrTy& format_append_v(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
-                                   span<const detail::fmt_arg_list_item<StrTy>> args);
+UTIL_EXPORT StrTy& basic_format(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
+                                span<const detail::fmt_arg_list_item<StrTy>> args);
 
 template<typename StrTy, typename... Ts>
 StrTy& format_append(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt, const Ts&... args) {
-    return format_append_v<StrTy>(s, fmt, detail::make_fmt_args<StrTy>(args...));
+    return basic_format<StrTy>(s, fmt, detail::make_fmt_args<StrTy>(args...));
 }
 
 template<typename... Ts>
