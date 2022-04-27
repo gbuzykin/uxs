@@ -6,7 +6,6 @@
 #include "stringcvt.h"
 
 #include <array>
-#include <cstring>
 
 namespace util {
 

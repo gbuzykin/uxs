@@ -2,8 +2,8 @@
 
 This is a collection of useful (template) classes and functions developed upon standard C++ library.
 It can be compiled using *C++11*, but *C++17* is more preferable.  This README file briefly
-describes contents of this library and can be not up-do-date, it is also gives guidelines how to use
-this stuff.  For more detailed information see wiki [wiki](https://github.com/gbuzykin/std-ext/wiki)
+describes contents of this library and can be not up-do-date, it also gives guidelines on how to use
+this stuff.  For more detailed information see [wiki](https://github.com/gbuzykin/std-ext/wiki)
 pages.
 
 The collection includes the following groups of helpers:
@@ -19,7 +19,7 @@ The collection includes the following groups of helpers:
 - functions for converting *UTF-8*, *UTF-16*, *UTF-32* to each other
 - library for string *parsing*, *formatting* and *printing*
 - library for *buffered input/output* (alternative to rather slow and consuming standard streams),
-  which are compliant with the printing functions
+  which is compliant with the printing functions
 - dynamic *variant* object implementation `util::variant`, which can hold data of various types
   known at runtime and convert one to another (not a template with predefined set of types); it
   easily integrates with mentioned string parsers and formatters for to and from string conversion
@@ -37,12 +37,12 @@ The collection includes the following groups of helpers:
 
 The following groups of helpers are planned to be developed and added to the collection soon:
 
-- Data structures for hierarchical records and its `<xml>` and `json` loaders and savers
+- Data structures to store hierarchical records and its `<xml>` and `json` loaders and savers
 - *Z* inflation and deflation support for *buffered input/output* (*zlib* integration)
 - Ability to read and write files using *buffered input/output* inside *zip* archives (*libzip*
   integration)
 
-## How to use
+## How to Use
 
 This library is not a standalone library, so it doesn't have its own building script or
 `CMakeLists.txt` file.  Instead, the common way to add this collection to the target project is to
@@ -81,5 +81,5 @@ target_include_directories(<project-name> PUBLIC ... std-ext/include ${platform_
 This [project](https://github.com/gbuzykin/std-ext-tests) can be referenced as `std-ext` usage
 example.  It is a separate project for `std-ext` testing and contains lots of use- and test-cases.
 A simple own test-suite is implemented to sort and organize tests; it involves verification tests
-with predefined input data, brute-force-like tests with large amount or random-generated data and
+with predefined input data, brute-force-like tests with large amount of random-generated data, and
 performance tests.  Tests from GCC test-suite are also ported for *containers* testing.

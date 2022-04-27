@@ -1,5 +1,7 @@
 #include "util/variant.h"
 
+#include <cstring>
+
 using namespace util;
 
 static variant_type_impl<bool> g_bool_variant_type;
