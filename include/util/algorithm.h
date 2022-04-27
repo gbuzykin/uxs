@@ -345,6 +345,10 @@ OutputIt copy(const Range& r, OutputIt out) {
     return std::copy(std::begin(r), std::end(r), out);
 }
 
+template<typename Range, typename OutputIt>
+OutputIt uninitialized_copy(const Range& r, OutputIt out) {
+    return std::uninitialized_copy(std::begin(r), std::end(r), out);
+}
 template<typename Range, typename OutputIt, typename Pred>
 OutputIt copy_if(const Range& r, OutputIt out, Pred p) {
     return std::copy_if(std::begin(r), std::end(r), out, p);
