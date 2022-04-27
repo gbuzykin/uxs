@@ -63,6 +63,7 @@ class UTIL_EXPORT basic_iobuf : public iostate {
     }
 
     size_type read(span<char_type> s);
+    size_type skip(size_type n);
     basic_iobuf& write(span<const char_type> s);
     basic_iobuf& write(const char_type* cstr) { return write(std::basic_string_view<char_type>(cstr)); }
     basic_iobuf& fill_n(size_type n, char_type ch);
