@@ -23,6 +23,7 @@ The collection includes the following groups of helpers:
 - dynamic *variant* object implementation `util::variant`, which can hold data of various types
   known at runtime and convert one to another (not a template with predefined set of types); it
   easily integrates with mentioned string parsers and formatters for to and from string conversion
+- data structures `db::value` to store hierarchical records and arrays; `json` file reader and writer
 - insert, erase and find algorithm implementations for *bidirectional lists* and *red-black trees*
   (in the form of functions to make it possible to implement either universal containers or
   intrusive data structures)
@@ -37,10 +38,10 @@ The collection includes the following groups of helpers:
 
 The following groups of helpers are planned to be developed and added to the collection soon:
 
-- Data structures to store hierarchical records and its `<xml>` and `json` loaders and savers
-- *Z* inflation and deflation support for *buffered input/output* (*zlib* integration)
-- Ability to read and write files using *buffered input/output* inside *zip* archives (*libzip*
+- ability to read and write files using *buffered input/output* inside *zip* archives (*libzip*
   integration)
+- `<xml>` file parser
+- *Z* inflation and deflation support for *buffered input/output* (*zlib* integration)
 
 ## How to Use
 
