@@ -13,16 +13,16 @@ class map;
 
 template<typename Key, typename Ty, typename Comp = std::less<Key>,
          typename Alloc = std::allocator<std::pair<const Key, Ty>>>
-class multimap : public detail::rbtree_multi<detail::map_node_type<Key, Ty>, Alloc, Comp> {
+class multimap : public detail::rbtree_multi<detail::map_node_traits<Key, Ty>, Alloc, Comp> {
  private:
-    using super = detail::rbtree_multi<detail::map_node_type<Key, Ty>, Alloc, Comp>;
+    using node_traits = detail::map_node_traits<Key, Ty>;
+    using super = detail::rbtree_multi<node_traits, Alloc, Comp>;
     using alloc_traits = typename super::alloc_traits;
     using alloc_type = typename super::alloc_type;
-    using node_t = typename super::node_t;
 
  public:
     using allocator_type = typename super::allocator_type;
-    using mapped_type = typename node_t::mapped_type;
+    using mapped_type = typename node_traits::mapped_type;
     using value_type = typename super::value_type;
     using key_compare = typename super::key_compare;
     using value_compare = typename super::value_compare_func;
@@ -65,7 +65,7 @@ class multimap : public detail::rbtree_multi<detail::map_node_type<Key, Ty>, All
     }
 
     multimap& operator=(std::initializer_list<value_type> l) {
-        this->assign_impl(l.begin(), l.end(), std::is_copy_assignable<typename node_t::writable_value_t>());
+        this->assign_impl(l.begin(), l.end(), std::is_copy_assignable<typename node_traits::writable_value_t>());
         return *this;
     }
 

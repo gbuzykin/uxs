@@ -9,12 +9,12 @@ namespace detail {
 //-----------------------------------------------------------------------------
 // Red-black tree with unique keys implementation
 
-template<typename NodeTy, typename Alloc, typename Comp>
-class rbtree_unique : public rbtree_base<NodeTy, Alloc, Comp> {
+template<typename NodeTraits, typename Alloc, typename Comp>
+class rbtree_unique : public rbtree_base<NodeTraits, Alloc, Comp> {
  protected:
-    using super = rbtree_base<NodeTy, Alloc, Comp>;
+    using node_traits = NodeTraits;
+    using super = rbtree_base<node_traits, Alloc, Comp>;
     using alloc_type = typename super::alloc_type;
-    using node_t = typename super::node_t;
 
  public:
     using allocator_type = typename super::allocator_type;
@@ -60,12 +60,12 @@ class rbtree_unique : public rbtree_base<NodeTy, Alloc, Comp> {
 #endif  // __cplusplus < 201703L
 
     void assign(std::initializer_list<value_type> l) {
-        assign_impl(l.begin(), l.end(), std::is_copy_assignable<typename node_t::writable_value_t>());
+        assign_impl(l.begin(), l.end(), std::is_copy_assignable<typename node_traits::writable_value_t>());
     }
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     void assign(InputIt first, InputIt last) {
-        assign_impl(first, last, std::is_assignable<typename node_t::writable_value_t&, decltype(*first)>());
+        assign_impl(first, last, std::is_assignable<typename node_traits::writable_value_t&, decltype(*first)>());
     }
 
     std::pair<iterator, bool> insert(const value_type& val) { return emplace(val); }
@@ -74,13 +74,13 @@ class rbtree_unique : public rbtree_base<NodeTy, Alloc, Comp> {
     std::pair<iterator, bool> emplace(Args&&... args) {
         auto* node = this->new_node(std::forward<Args>(args)...);
         try {
-            auto result = rbtree_find_insert_unique_pos<node_t>(
-                std::addressof(this->head_), node_t::get_key(node_t::get_value(node)), this->get_compare());
+            auto result = rbtree_find_insert_unique_pos<node_traits>(
+                std::addressof(this->head_), node_traits::get_key(node_traits::get_value(node)), this->get_compare());
             if (result.second == 0) {
                 super::helpers::delete_node(*this, node);
                 return std::make_pair(iterator(result.first), false);
             }
-            node_t::set_head(node, std::addressof(this->head_));
+            node_traits::set_head(node, std::addressof(this->head_));
             ++this->size_;
             rbtree_insert(std::addressof(this->head_), node, result.first, result.second < 0);
         } catch (...) {
@@ -96,14 +96,14 @@ class rbtree_unique : public rbtree_base<NodeTy, Alloc, Comp> {
     iterator emplace_hint(const_iterator hint, Args&&... args) {
         auto* node = this->new_node(std::forward<Args>(args)...);
         try {
-            auto result = rbtree_find_insert_unique_pos<node_t>(std::addressof(this->head_), this->to_ptr(hint),
-                                                                node_t::get_key(node_t::get_value(node)),
-                                                                this->get_compare());
+            auto result = rbtree_find_insert_unique_pos<node_traits>(std::addressof(this->head_), this->to_ptr(hint),
+                                                                     node_traits::get_key(node_traits::get_value(node)),
+                                                                     this->get_compare());
             if (result.second == 0) {
                 super::helpers::delete_node(*this, node);
                 return iterator(result.first);
             }
-            node_t::set_head(node, std::addressof(this->head_));
+            node_traits::set_head(node, std::addressof(this->head_));
             ++this->size_;
             rbtree_insert(std::addressof(this->head_), node, result.first, result.second < 0);
         } catch (...) {
@@ -119,10 +119,10 @@ class rbtree_unique : public rbtree_base<NodeTy, Alloc, Comp> {
             throw std::logic_error("allocators incompatible for insert");
         }
         auto* node = nh.node_;
-        auto result = rbtree_find_insert_unique_pos<node_t>(
-            std::addressof(this->head_), node_t::get_key(node_t::get_value(node)), this->get_compare());
+        auto result = rbtree_find_insert_unique_pos<node_traits>(
+            std::addressof(this->head_), node_traits::get_key(node_traits::get_value(node)), this->get_compare());
         if (result.second == 0) { return {iterator(result.first), false, std::move(nh)}; }
-        node_t::set_head(node, std::addressof(this->head_));
+        node_traits::set_head(node, std::addressof(this->head_));
         ++this->size_;
         nh.node_ = nullptr;
         rbtree_insert(std::addressof(this->head_), node, result.first, result.second < 0);
@@ -135,11 +135,11 @@ class rbtree_unique : public rbtree_base<NodeTy, Alloc, Comp> {
             throw std::logic_error("allocators incompatible for insert");
         }
         auto* node = nh.node_;
-        auto result = rbtree_find_insert_unique_pos<node_t>(std::addressof(this->head_), this->to_ptr(hint),
-                                                            node_t::get_key(node_t::get_value(node)),
-                                                            this->get_compare());
+        auto result = rbtree_find_insert_unique_pos<node_traits>(std::addressof(this->head_), this->to_ptr(hint),
+                                                                 node_traits::get_key(node_traits::get_value(node)),
+                                                                 this->get_compare());
         if (result.second == 0) { return iterator(result.first); }
-        node_t::set_head(node, std::addressof(this->head_));
+        node_traits::set_head(node, std::addressof(this->head_));
         ++this->size_;
         nh.node_ = nullptr;
         rbtree_insert(std::addressof(this->head_), node, result.first, result.second < 0);
@@ -169,7 +169,7 @@ class rbtree_unique : public rbtree_base<NodeTy, Alloc, Comp> {
     template<typename InputIt>
     void assign_impl(InputIt first, InputIt last, std::false_type);
     template<typename Comp2>
-    void merge_impl(rbtree_base<NodeTy, Alloc, Comp2>&& other);
+    void merge_impl(rbtree_base<NodeTraits, Alloc, Comp2>&& other);
     template<typename InputIt>
     void insert_impl(InputIt first, InputIt last) {
         assert(super::check_iterator_range(first, last, is_random_access_iterator<InputIt>()));
@@ -177,9 +177,9 @@ class rbtree_unique : public rbtree_base<NodeTy, Alloc, Comp> {
     }
 };  // namespace detail
 
-template<typename NodeTy, typename Alloc, typename Comp>
+template<typename NodeTraits, typename Alloc, typename Comp>
 template<typename InputIt>
-void rbtree_unique<NodeTy, Alloc, Comp>::assign_impl(InputIt first, InputIt last, std::true_type) {
+void rbtree_unique<NodeTraits, Alloc, Comp>::assign_impl(InputIt first, InputIt last, std::true_type) {
     assert(super::check_iterator_range(first, last, is_random_access_iterator<InputIt>()));
     if (first == last) {
         this->clear();
@@ -190,11 +190,11 @@ void rbtree_unique<NodeTy, Alloc, Comp>::assign_impl(InputIt first, InputIt last
         this->reset();
         try {
             do {
-                node_t::get_writable_value(reuse) = *first;
+                node_traits::get_writable_value(reuse) = *first;
                 ++first;
-                auto result = rbtree_find_insert_unique_pos<node_t>(
-                    std::addressof(this->head_), std::addressof(this->head_), node_t::get_key(node_t::get_value(reuse)),
-                    this->get_compare());
+                auto result = rbtree_find_insert_unique_pos<node_traits>(
+                    std::addressof(this->head_), std::addressof(this->head_),
+                    node_traits::get_key(node_traits::get_value(reuse)), this->get_compare());
                 if (result.second != 0) {
                     auto* next = super::reuse_next(reuse);
                     ++this->size_;
@@ -212,9 +212,9 @@ void rbtree_unique<NodeTy, Alloc, Comp>::assign_impl(InputIt first, InputIt last
     insert_impl(first, last);
 }
 
-template<typename NodeTy, typename Alloc, typename Comp>
+template<typename NodeTraits, typename Alloc, typename Comp>
 template<typename InputIt>
-void rbtree_unique<NodeTy, Alloc, Comp>::assign_impl(InputIt first, InputIt last, std::false_type) {
+void rbtree_unique<NodeTraits, Alloc, Comp>::assign_impl(InputIt first, InputIt last, std::false_type) {
     assert(super::check_iterator_range(first, last, is_random_access_iterator<InputIt>()));
     if (first == last) {
         this->clear();
@@ -230,9 +230,9 @@ void rbtree_unique<NodeTy, Alloc, Comp>::assign_impl(InputIt first, InputIt last
                 ++first;
                 auto* next = reuse;
                 reuse = node;
-                auto result = rbtree_find_insert_unique_pos<node_t>(
-                    std::addressof(this->head_), std::addressof(this->head_), node_t::get_key(node_t::get_value(node)),
-                    this->get_compare());
+                auto result = rbtree_find_insert_unique_pos<node_traits>(
+                    std::addressof(this->head_), std::addressof(this->head_),
+                    node_traits::get_key(node_traits::get_value(node)), this->get_compare());
                 if (result.second != 0) {
                     ++this->size_;
                     rbtree_insert(std::addressof(this->head_), node, result.first, result.second < 0);
@@ -243,7 +243,9 @@ void rbtree_unique<NodeTy, Alloc, Comp>::assign_impl(InputIt first, InputIt last
             } while (first != last);
         } catch (...) {
             this->delete_node_chain(reuse);
-            if (node != reuse) { super::alloc_traits::deallocate(*this, static_cast<node_t*>(node), 1); }
+            if (node != reuse) {
+                super::alloc_traits::deallocate(*this, static_cast<typename node_traits::node_t*>(node), 1);
+            }
             throw;
         }
         this->delete_node_chain(node);
@@ -251,21 +253,21 @@ void rbtree_unique<NodeTy, Alloc, Comp>::assign_impl(InputIt first, InputIt last
     insert_impl(first, last);
 }
 
-template<typename NodeTy, typename Alloc, typename Comp>
+template<typename NodeTraits, typename Alloc, typename Comp>
 template<typename Comp2>
-void rbtree_unique<NodeTy, Alloc, Comp>::merge_impl(rbtree_base<NodeTy, Alloc, Comp2>&& other) {
+void rbtree_unique<NodeTraits, Alloc, Comp>::merge_impl(rbtree_base<NodeTraits, Alloc, Comp2>&& other) {
     if (!other.size_ || std::addressof(other) == static_cast<alloc_type*>(this)) { return; }
     if (!is_alloc_always_equal<alloc_type>::value && !this->is_same_alloc(other)) {
         throw std::logic_error("allocators incompatible for merge");
     }
     auto* node = other.head_.parent;
     do {
-        auto result = rbtree_find_insert_unique_pos<node_t>(
-            std::addressof(this->head_), node_t::get_key(node_t::get_value(node)), this->get_compare());
+        auto result = rbtree_find_insert_unique_pos<node_traits>(
+            std::addressof(this->head_), node_traits::get_key(node_traits::get_value(node)), this->get_compare());
         if (result.second != 0) {
             --other.size_;
             auto* next = rbtree_remove(std::addressof(other.head_), node);
-            node_t::set_head(node, std::addressof(this->head_));
+            node_traits::set_head(node, std::addressof(this->head_));
             ++this->size_;
             rbtree_insert(std::addressof(this->head_), node, result.first, result.second < 0);
             node = next;

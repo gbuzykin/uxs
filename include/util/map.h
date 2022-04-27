@@ -13,17 +13,17 @@ class multimap;
 
 template<typename Key, typename Ty, typename Comp = std::less<Key>,
          typename Alloc = std::allocator<std::pair<const Key, Ty>>>
-class map : public detail::rbtree_unique<detail::map_node_type<Key, Ty>, Alloc, Comp> {
+class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc, Comp> {
  private:
-    using super = detail::rbtree_unique<detail::map_node_type<Key, Ty>, Alloc, Comp>;
+    using node_traits = detail::map_node_traits<Key, Ty>;
+    using super = detail::rbtree_unique<node_traits, Alloc, Comp>;
     using alloc_traits = typename super::alloc_traits;
     using alloc_type = typename super::alloc_type;
-    using node_t = typename super::node_t;
 
  public:
     using allocator_type = typename super::allocator_type;
     using key_type = typename super::key_type;
-    using mapped_type = typename node_t::mapped_type;
+    using mapped_type = typename node_traits::mapped_type;
     using value_type = typename super::value_type;
     using key_compare = typename super::key_compare;
     using value_compare = typename super::value_compare_func;
@@ -66,7 +66,7 @@ class map : public detail::rbtree_unique<detail::map_node_type<Key, Ty>, Alloc, 
     }
 
     map& operator=(std::initializer_list<value_type> l) {
-        this->assign_impl(l.begin(), l.end(), std::is_copy_assignable<typename node_t::writable_value_t>());
+        this->assign_impl(l.begin(), l.end(), std::is_copy_assignable<typename node_traits::writable_value_t>());
         return *this;
     }
 
@@ -186,11 +186,11 @@ class map : public detail::rbtree_unique<detail::map_node_type<Key, Ty>, Alloc, 
  protected:
     template<typename Key2, typename... Args>
     std::pair<iterator, bool> try_emplace_impl(Key2&& key, Args&&... args) {
-        auto result = rbtree_find_insert_unique_pos<node_t>(std::addressof(this->head_), key, this->get_compare());
+        auto result = rbtree_find_insert_unique_pos<node_traits>(std::addressof(this->head_), key, this->get_compare());
         if (result.second == 0) { return std::make_pair(iterator(result.first), false); }
         auto* node = this->new_node(std::piecewise_construct, std::forward_as_tuple(std::forward<Key2>(key)),
                                     std::forward_as_tuple(std::forward<Args>(args)...));
-        node_t::set_head(node, std::addressof(this->head_));
+        node_traits::set_head(node, std::addressof(this->head_));
         ++this->size_;
         rbtree_insert(std::addressof(this->head_), node, result.first, result.second < 0);
         return std::make_pair(iterator(node), true);
@@ -198,12 +198,12 @@ class map : public detail::rbtree_unique<detail::map_node_type<Key, Ty>, Alloc, 
 
     template<typename Key2, typename... Args>
     std::pair<iterator, bool> try_emplace_hint_impl(const_iterator hint, Key2&& key, Args&&... args) {
-        auto result = rbtree_find_insert_unique_pos<node_t>(std::addressof(this->head_), this->to_ptr(hint), key,
-                                                            this->get_compare());
+        auto result = rbtree_find_insert_unique_pos<node_traits>(std::addressof(this->head_), this->to_ptr(hint), key,
+                                                                 this->get_compare());
         if (result.second == 0) { return std::make_pair(iterator(result.first), false); }
         auto* node = this->new_node(std::piecewise_construct, std::forward_as_tuple(std::forward<Key2>(key)),
                                     std::forward_as_tuple(std::forward<Args>(args)...));
-        node_t::set_head(node, std::addressof(this->head_));
+        node_traits::set_head(node, std::addressof(this->head_));
         ++this->size_;
         rbtree_insert(std::addressof(this->head_), node, result.first, result.second < 0);
         return std::make_pair(iterator(node), true);
