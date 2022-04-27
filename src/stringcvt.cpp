@@ -3,127 +3,244 @@
 namespace util {
 namespace scvt {
 
-template<unsigned MaxWords>
-struct large_int {
-    enum : unsigned { kMaxWords = MaxWords };
-    unsigned count = 0;
-    std::array<uint64_t, kMaxWords> x;
-    large_int() { x.fill(0); }
-    explicit large_int(uint32_t val) : large_int() { count = 1, x[0] = val; }
+const uint64_t msb64 = 1ull << 63;
 
-    bool less(const large_int& rhv) const {
-        if (count != rhv.count) { return count < rhv.count; };
-        for (unsigned n = count; n > 0; --n) {
-            if (x[n - 1] != rhv.x[n - 1]) { return x[n - 1] < rhv.x[n - 1]; }
-        }
-        return false;
-    }
-
-    large_int& subtract(const large_int& rhv) {
-        unsigned n = 0;
-        uint64_t carry = 0;
-        for (; n < rhv.count; ++n) {
-            uint64_t tmp = x[n] + carry;
-            carry = tmp > x[n] || tmp < rhv.x[n] ? ~0ull : 0ull;
-            x[n] = tmp - rhv.x[n];
-        }
-        for (; carry != 0 && n < kMaxWords; ++n) { carry = x[n]-- == 0 ? ~0ull : 0ull; }
-        if (n > count) {
-            count = n;
-        } else {  // track zero words
-            while (count > 0 && x[count - 1] == 0) { --count; }
-        }
-        return *this;
-    }
-
-    large_int& negate() {
-        unsigned n = 0;
-        uint64_t carry = 0;
-        for (; n < count; ++n) {
-            x[n] = carry - x[n];
-            carry = carry != 0 || x[n] != 0 ? ~0ull : 0ull;
-        }
-        if (carry != 0 && n < kMaxWords) {
-            do { --x[n++]; } while (n < kMaxWords);
-        } else {  // track zero words
-            while (count > 0 && x[count - 1] == 0) { --count; }
-        }
-        return *this;
-    }
-
-    large_int& multiply(uint32_t val) {
-        uint96_t mul{0, 0};
-        for (unsigned n = 0; n < count; ++n) {
-            mul = mul64x32(x[n], val, static_cast<uint32_t>(hi32(mul.hi)));
-            x[n] = make64(mul.hi, mul.lo);
-        }
-        if (hi32(mul.hi) != 0) { x[count++] = hi32(mul.hi); }
-        return *this;
-    }
-
-    large_int& shr1() {
-        for (unsigned n = 1; n < count; ++n) { x[n - 1] = (x[n - 1] >> 1) | (x[n] << 63); }
-        if ((x[count - 1] >>= 1) == 0) { --count; }
-        return *this;
-    }
-
-    large_int& invert(unsigned word_limit = kMaxWords) {
-        large_int a{*this}, div{*this};
-        a.negate();
-        div.shr1();
-        div.x[kMaxWords - 1] |= 1ull << 63;
-        count = kMaxWords;
-        for (unsigned n = kMaxWords; n > kMaxWords - word_limit; --n) {
-            uint64_t mask = 1ull << 63;
-            x[n - 1] = 0;
-            do {
-                if (!a.less(div)) { a.subtract(div), x[n - 1] |= mask; }
-                div.shr1();
-            } while (mask >>= 1);
-            if (x[n - 1] == 0) { --count; }
-        }
-        return *this;
-    }
-
-    template<unsigned MaxWords2>
-    std::pair<large_int<MaxWords2>, int> get_normalized() const {
-        large_int<MaxWords2> norm;
-        unsigned shift = ulog2(x[count - 1]);
-        if (count <= MaxWords2) {
-            if (shift > 0) {
-                norm.x[MaxWords2 - count] = x[0] << (64 - shift);
-                for (unsigned n = 1; n < count; ++n) {
-                    norm.x[MaxWords2 - count + n] = (x[n] << (64 - shift)) | (x[n - 1] >> shift);
-                }
-            } else {
-                norm.x[MaxWords2 - count] = 0;
-                for (unsigned n = 1; n < count; ++n) { norm.x[MaxWords2 - count + n] = x[n - 1]; }
-            }
-        } else if (shift > 0) {
-            for (unsigned n = count - MaxWords2; n < count; ++n) {
-                norm.x[MaxWords2 - count + n] = (x[n] << (64 - shift)) | (x[n - 1] >> shift);
-            }
-        } else {
-            for (unsigned n = count - MaxWords2; n < count; ++n) { norm.x[MaxWords2 - count + n] = x[n - 1]; }
-        }
-        norm.count = MaxWords2;
-        while (norm.count > 0 && norm.x[norm.count - 1] == 0) { --norm.count; }
-        return {norm, shift + 64 * (count - 1)};
-    }
-
-    fp_m96_t make_fp_m96(int exp) const {
-        uint128_t v{x[kMaxWords - 1], x[kMaxWords - 2]};
-        const uint64_t half = 0x80000000;
-        v.lo += half;
-        if (v.lo < half) { ++v.hi; }
-        return fp_m96_t{{v.hi, static_cast<uint32_t>(hi32(v.lo))}, exp};
-    }
+struct uint128_t {
+    uint64_t hi;
+    uint64_t lo;
 };
 
+struct uint96_t {
+    uint64_t hi;
+    uint32_t lo;
+};
+
+struct fp_m96_t {
+    uint96_t m;
+    int exp;
+};
+
+inline uint64_t lo32(uint64_t x) { return x & 0xffffffff; }
+inline uint64_t hi32(uint64_t x) { return x >> 32; }
+
+template<typename TyH, typename TyL>
+uint64_t make64(TyH hi, TyL lo) {
+    return (static_cast<uint64_t>(hi) << 32) | static_cast<uint64_t>(lo);
+}
+
+inline uint128_t mul64x32(uint64_t x, uint32_t y, uint32_t bias = 0) {
+#if defined(__GNUC__) && defined(__x86_64__)
+    gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x) * static_cast<gcc_ints::uint128>(y) + bias;
+    return uint128_t{static_cast<uint64_t>(p >> 64), static_cast<uint64_t>(p)};
+#else
+    const uint64_t lower = lo32(x) * y + bias;
+    const uint64_t higher = hi32(x) * y + hi32(lower);
+    return uint128_t{hi32(higher), make64(lo32(higher), lo32(lower))};
+#endif
+}
+
+inline uint128_t mul64x64(uint64_t x, uint64_t y, uint64_t bias = 0) {
+#if defined(_MSC_VER) && defined(_M_X64)
+    uint128_t result;
+    result.lo = _umul128(x, y, &result.hi);
+#    if _MSC_VER >= 1920
+    result.hi += _addcarry_u64(0, result.lo, bias, &result.lo);
+#    else  // VS2013 compiler bug workaround
+    result.lo += bias;
+    if (result.lo < bias) { ++result.hi; }
+#    endif
+    return result;
+#elif defined(__GNUC__) && defined(__x86_64__)
+    gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x) * static_cast<gcc_ints::uint128>(y) + bias;
+    return uint128_t{static_cast<uint64_t>(p >> 64), static_cast<uint64_t>(p)};
+#else
+    uint64_t lower = lo32(x) * lo32(y) + lo32(bias), higher = hi32(x) * hi32(y);
+    uint64_t mid1 = lo32(x) * hi32(y) + hi32(bias), mid2 = hi32(x) * lo32(y) + hi32(lower);
+    uint64_t t = lo32(mid1) + lo32(mid2);
+    return uint128_t{higher + hi32(mid1) + hi32(mid2) + hi32(t), make64(lo32(t), lo32(lower))};
+#endif
+}
+
+inline uint128_t mul96x64_hi128(uint96_t x, uint64_t y) {
+#if defined(__GNUC__) && defined(__x86_64__)
+    gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x.lo) * static_cast<gcc_ints::uint128>(y);
+    p = static_cast<gcc_ints::uint128>(x.hi) * static_cast<gcc_ints::uint128>(y) + (p >> 32);
+    return uint128_t{static_cast<uint64_t>(p >> 64), static_cast<uint64_t>(p)};
+#else
+    const uint64_t lower = lo32(y) * x.lo;
+    return mul64x64(x.hi, y, hi32(y) * x.lo + hi32(lower));
+#endif
+}
+
+#if defined(_MSC_VER) && defined(_M_X64)
+using one_bit_t = unsigned char;
+inline void add64_carry(uint64_t& a, uint64_t b, one_bit_t& carry) { carry = _addcarry_u64(carry, a, b, &a); }
+inline void sub64_borrow(uint64_t& a, uint64_t b, one_bit_t& borrow) { borrow = _subborrow_u64(borrow, a, b, &a); }
+#elif SCVT_HAS_BUILTIN(__builtin_addcll) && SCVT_HAS_BUILTIN(__builtin_subcll)
+using one_bit_t = unsigned long long;
+inline void add64_carry(uint64_t& a, uint64_t b, one_bit_t& carry) { a = __builtin_addcll(a, b, carry, &carry); }
+inline void sub64_borrow(uint64_t& a, uint64_t b, one_bit_t& borrow) { a = __builtin_subcll(a, b, borrow, &borrow); }
+#else
+using one_bit_t = uint8_t;
+inline void add64_carry(uint64_t& a, uint64_t b, one_bit_t& carry) {
+    b += carry;
+    a += b;
+    carry = a < b || b < carry ? 1 : 0;
+}
+inline void sub64_borrow(uint64_t& a, uint64_t b, one_bit_t& borrow) {
+    b += borrow;
+    borrow = a < b || b < borrow ? 1 : 0;
+    a -= b;
+}
+#endif
+
+// --------------------------
+
+inline unsigned bignum_multiply_by(const uint64_t* x, uint64_t* y, unsigned sz, unsigned mul) {
+    uint128_t t{0, 0};
+    for (unsigned k = sz; k > 0; --k) {
+        t = mul64x32(x[k - 1], mul, static_cast<uint32_t>(lo32(t.hi)));
+        y[k - 1] = t.lo;
+    }
+    return static_cast<unsigned>(lo32(t.hi));
+}
+
+inline bool bignum_less(const uint64_t* x, const uint64_t* y, unsigned sz) {
+    for (unsigned k = 0; k < sz; ++k) {
+        if (x[k] != y[k]) { return x[k] < y[k]; }
+    }
+    return false;
+}
+
+inline int bignum_2x_compare(const uint64_t* x, const uint64_t* y, unsigned sz) {
+    if (!(x[0] & msb64)) { return -1; }
+    for (unsigned k = 0; k < sz - 1; ++k) {
+        uint64_t x2x = (x[k] << 1) | (x[k + 1] >> 63);
+        if (x2x != y[k]) { return x2x > y[k] ? 1 : -1; }
+    }
+    uint64_t x2x = x[sz - 1] << 1;
+    return x2x != y[sz - 1] ? (x2x > y[sz - 1] ? 1 : -1) : 0;
+}
+
+inline unsigned bignum_subtract(uint64_t* x, const uint64_t* y, unsigned sz) {
+    one_bit_t borrow = 0;
+    for (unsigned k = sz; k > 0; --k) { sub64_borrow(x[k - 1], y[k - 1], borrow); }
+    return borrow;
+}
+
+inline unsigned bignum_subtract_2_p(uint64_t* x, const uint64_t* y, unsigned sz, unsigned p) {
+    one_bit_t borrow = 0;
+    sub64_borrow(x[sz - 1], y[sz - 1] << p, borrow);
+    for (unsigned k = sz - 1; k > 0; --k) { sub64_borrow(x[k - 1], y[k - 1] << p | (y[k] >> (64 - p)), borrow); }
+    return borrow;
+}
+
+static unsigned bignum_divmod(unsigned& integral, uint64_t* x, const uint64_t* y, unsigned sz) {
+    assert(integral > 0);
+    unsigned quotient = 0;
+    if (integral > 4) {
+        // Try to subtract 2^p-multiples of denominator from the numerator
+        unsigned p = ulog2(integral - 1) - 1;  // estimate maximum `p`
+        unsigned n_delta = (1 << p) + static_cast<unsigned>(y[0] >> (64 - p));
+        do {
+            integral -= n_delta + bignum_subtract_2_p(x, y, sz, p), quotient += 1 << p;
+            while (integral <= n_delta) {
+                if (--p == 0) { goto finish; }
+                n_delta = (1 << p) + static_cast<unsigned>(y[0] >> (64 - p));
+            }
+        } while (p > 0);
+    }
+
+finish:
+    while (integral > 1) { integral -= 1 + bignum_subtract(x, y, sz), ++quotient; }
+    if (integral == 1 && !bignum_less(x, y, sz)) { integral -= 1 + bignum_subtract(x, y, sz), ++quotient; }
+    return quotient;
+}
+
+static unsigned bignum_multiply_by_uint64(uint64_t* result, const uint64_t* x, unsigned sz, uint64_t mul) {
+    uint128_t t = mul64x64(x[sz - 1], mul);
+    uint64_t lower = t.lo;
+    for (unsigned k = sz - 1; k > 0; --k) {
+        t = mul64x64(x[k - 1], mul, t.hi);
+        result[k] = t.lo;
+    }
+    result[0] = t.hi;
+    if (lower != 0) {
+        result[sz++] = lower;
+    } else {
+        while (sz > 0 && x[sz - 1] == 0) { --sz; }
+    }
+    return sz;
+}
+
+inline unsigned bignum_shift_left(uint64_t* x, unsigned sz, unsigned shift) {
+    unsigned higher = static_cast<unsigned>(x[0] >> (64 - shift));
+    for (unsigned n = 0; n < sz - 1; ++n) { x[n] = (x[n] << shift) | (x[n + 1] >> (64 - shift)); }
+    x[sz - 1] <<= shift;
+    return higher;
+}
+
+inline uint64_t bignum_shift_right(uint64_t* x, unsigned sz, unsigned shift, uint64_t higher) {
+    uint64_t lower = x[sz - 1] << (64 - shift);
+    for (unsigned k = sz; k > 1; --k) { x[k - 1] = (x[k - 1] >> shift) | (x[k - 2] << (64 - shift)); }
+    x[0] = (x[0] >> shift) | (higher << (64 - shift));
+    return lower;
+}
+
+// --------------------------
+
+static uint128_t uint128_multiply_by_10(const uint128_t& v, int& exp) {
+    const uint32_t mul = 10;
+    uint128_t t = mul64x32(v.lo, mul);
+    uint128_t result{0, t.lo};
+    t = mul64x32(v.hi, mul, static_cast<uint32_t>(lo32(t.hi)));
+    const uint64_t higher = lo32(t.hi);
+    result.hi = t.lo;
+    // re-normalize
+    const unsigned shift = higher >= 8 ? 4 : 3;
+    exp += shift;
+    result.lo = (result.lo >> shift) | (result.hi << (64 - shift));
+    result.hi = (result.hi >> shift) | (higher << (64 - shift));
+    return result;
+}
+
+static uint128_t uint128_multiply_by_0_1(const uint128_t& v, int& exp) {
+    const uint64_t mul = 0xccccccccccccccccull;
+    one_bit_t carry = 0;
+    uint128_t lower = mul64x64(v.lo, mul);
+    uint128_t t = mul64x64(v.hi, mul, lower.hi);
+    uint128_t higher{0, t.hi};
+    lower.hi = t.lo;
+    add64_carry(lower.hi, lower.lo, carry);
+    add64_carry(higher.lo, t.lo, carry);
+    add64_carry(higher.hi, t.hi, carry);
+    exp -= 3;
+    if (!(higher.hi & msb64)) {  // re-normalize
+        higher.hi = (higher.hi << 1) | (higher.lo >> 63);
+        higher.lo = (higher.lo << 1) | (lower.hi >> 63);
+        --exp;
+    }
+    return higher;
+}
+
+static fp_m96_t uint128_to_fp_m96(const uint128_t& v, int exp) {
+    one_bit_t carry = 0;
+    uint128_t result{(v.hi << 1) | (v.lo >> 63), v.lo << 1};
+    add64_carry(result.lo, 0x80000000, carry);
+    return fp_m96_t{{result.hi + carry, static_cast<uint32_t>(hi32(result.lo))}, exp};
+}
+
+// --------------------------
+
 struct pow_table_t {
-    enum : int { kPow10Max = 400, kPow2Max = 1100, kPrecLimit = 19 };
+    enum : int { kPrecLimit = 18 };
+    enum : int { kPow10Max = 324 + kPrecLimit - 1 };
+    enum : int { kBigPow10Max = 324 };
+    enum : int { kPow2Bias = 1074, kPow2Max = 1023 };
     std::array<fp_m96_t, 2 * kPow10Max + 1> coef10to2;
-    std::array<int, 2 * kPow2Max + 1> exp2to10;
+    std::array<int, kPow2Bias + kPow2Max + 1> exp2to10;
+    std::array<uint64_t, 2070> bigpow10;
+    std::array<unsigned, kBigPow10Max + 1> bigpow10_offset;
     std::array<uint64_t, 20> ten_pows;
     std::array<int64_t, 70> decimal_mul;
     pow_table_t();
@@ -131,24 +248,40 @@ struct pow_table_t {
 
 pow_table_t::pow_table_t() {
     // 10^N -> 2^M power conversion table
-    large_int<24> lrg{10};
+    int exp = 0;
+    uint128_t v{msb64, 0};
     coef10to2[kPow10Max] = fp_m96_t{{0, 0}, 0};
     for (unsigned n = 0; n < kPow10Max; ++n) {
-        auto norm = lrg.get_normalized<4>();
-        lrg.multiply(10);
-        coef10to2[kPow10Max + n + 1] = norm.first.make_fp_m96(norm.second);
-        if (norm.first.count != 0) {
-            coef10to2[kPow10Max - n - 1] = norm.first.invert(2).make_fp_m96(-norm.second - 1);
-        } else {
-            coef10to2[kPow10Max - n - 1] = fp_m96_t{{0, 0}, -norm.second};
-        }
+        v = uint128_multiply_by_10(v, exp);
+        coef10to2[kPow10Max + n + 1] = uint128_to_fp_m96(v, exp);
     }
 
+    exp = 0, v = uint128_t{msb64, 0};
+    for (unsigned n = 0; n < kPow10Max; ++n) {
+        v = uint128_multiply_by_0_1(v, exp);
+        coef10to2[kPow10Max - n - 1] = uint128_to_fp_m96(v, exp);
+    }
+
+    // 10^N big numbers and its offsets
+    unsigned sz = 1, prev_sz = 0, total_sz = 1;
+    bigpow10_offset[0] = 0;
+    bigpow10[0] = 0x4000000000000000ull;
+    for (unsigned n = 1; n < kBigPow10Max; ++n) {
+        uint64_t* x = &bigpow10[total_sz];
+        bigpow10_offset[n] = total_sz;
+        unsigned integral = 10 + bignum_multiply_by(&bigpow10[prev_sz], x, sz, 10);
+        unsigned shift = integral >= 16 ? 4 : 3;
+        uint64_t lower = bignum_shift_right(x, sz, shift, integral);
+        if (lower != 0) { x[sz++] = lower; }
+        prev_sz = total_sz, total_sz += sz;
+    }
+    bigpow10_offset[kBigPow10Max] = total_sz;
+
     // 2^N -> 10^M power conversion index table
-    for (int exp = -kPow2Max; exp <= kPow2Max; ++exp) {
+    for (int exp = -kPow2Bias; exp <= kPow2Max; ++exp) {
         auto it = std::lower_bound(coef10to2.begin(), coef10to2.end(), -exp,
                                    [](const fp_m96_t& el, int exp) { return el.exp < exp; });
-        exp2to10[kPow2Max + exp] = kPow10Max - static_cast<int>(it - coef10to2.begin());
+        exp2to10[kPow2Bias + exp] = kPow10Max - static_cast<int>(it - coef10to2.begin());
     }
 
     // powers of ten 10^N, N = 0, 1, 2, ...
@@ -223,8 +356,8 @@ uint64_t fp_exp10_to_exp2(fp_m64_t fp10, const unsigned bpm, const int exp_max) 
 
     // Do banker's or `nearest even` rounding :
     // It seems that exact halves detection is not possible without exact integral numbers tracking.
-    // So we use some heuristic to detect exact halves. But there are reasons to believe that this approach is
-    // theoretically justified. If we take long enough range of bits after the point where we need to break the
+    // So we use some heuristic to detect exact halves. But there are reasons to believe that this approach can
+    // be theoretically justified. If we take long enough range of bits after the point where we need to break the
     // series then analyzing this bits we can make the decision in which direction to round. The following bits:
     //               x x x x x x 1 0 0 0 0 0 0 0 0 0 . . . . . . we consider as exact half
     //               x x x x x x 0 1 1 1 1 1 1 1 1 1 . . . . . . and this is exact half too
@@ -233,17 +366,14 @@ uint64_t fp_exp10_to_exp2(fp_m64_t fp10, const unsigned bpm, const int exp_max) 
     // To decide in which direction to round we use reliable bits after `n_bits`. Totally 96 bits are
     // reliable, because `coef10to2` has 96-bit precision. So, we use only `res128.hi` and higher 32-bit
     // part of `res128.lo`.
-
+    one_bit_t carry = 0;
+    const uint64_t half = 1ull << (63 - n_bits);
     // Drop unreliable bits and resolve the case of periodical `1`
     // Note: we do not need to reset lower 32-bit part of `res128.lo`, because it is ignored further
-    const uint64_t before_rounding = res128.hi, lsb_half = 0x80000000;
-    res128.lo += lsb_half;
-    if (res128.lo < lsb_half) { ++res128.hi; }  // handle lower part overflow
-
+    add64_carry(res128.lo, 0x80000000, carry);
     // Do banker's rounding
-    const uint64_t half = 1ull << (63 - n_bits);
-    res128.hi += hi32(res128.lo) == 0 && (res128.hi & (half << 1)) == 0 ? half - 1 : half;
-    if (res128.hi < before_rounding) {  // overflow while rounding
+    add64_carry(res128.hi, hi32(res128.lo) == 0 && ((res128.hi + carry) & (half << 1)) == 0 ? half - 1 : half, carry);
+    if (carry) {  // overflow while rounding
         // Note: the value can become normalized if `exp == 0` or infinity if `exp == exp_max - 1`
         // Note: in case of overflow 'fp2.m' will be `0`
         ++fp2.exp;
@@ -259,14 +389,68 @@ uint64_t fp_exp10_to_exp2(fp_m64_t fp10, const unsigned bpm, const int exp_max) 
 
 // --------------------------
 
-fp_m64_t fp_exp2_to_exp10(fp_m64_t fp2, fmt_flags& flags, int& prec, unsigned bpm, const int exp_bias) {
+// Compilers should be able to optimize this into the ror instruction
+inline uint32_t rotr1(uint32_t n) { return (n >> 1) | (n << 31); }
+inline uint32_t rotr2(uint32_t n) { return (n >> 2) | (n << 30); }
+inline uint64_t rotr1(uint64_t n) { return (n >> 1) | (n << 63); }
+inline uint64_t rotr2(uint64_t n) { return (n >> 2) | (n << 62); }
+
+// Removes trailing zeros and returns the number of zeros removed (< 2^32)
+inline int remove_trailing_zeros_small(uint64_t& n) {
+    const uint32_t mod_inv_5 = 0xcccccccd;
+    const uint32_t mod_inv_25 = 0xc28f5c29;
+
+    int s = 0;
+    while (true) {
+        uint32_t q = rotr2(static_cast<uint32_t>(n) * mod_inv_25);
+        if (q > std::numeric_limits<uint32_t>::max() / 100u) { break; }
+        s += 2, n = q;
+    }
+    uint32_t q = rotr1(static_cast<uint32_t>(n) * mod_inv_5);
+    if (q <= std::numeric_limits<uint32_t>::max() / 10u) { ++s, n = q; }
+    return s;
+}
+
+// Removes trailing zeros and returns the number of zeros removed
+inline int remove_trailing_zeros(uint64_t& n) {
+    if (n <= std::numeric_limits<uint32_t>::max()) { return remove_trailing_zeros_small(n); }
+
+    // this magic number is ceil(2^90 / 10^8).
+    const uint64_t magic_number = 12379400392853802749ull;
+    const uint128_t nm = mul64x64(n, magic_number);
+
+    int s = 0;
+
+    // is n is divisible by 10^8?
+    if ((nm.hi & ((1ull << (90 - 64)) - 1)) == 0 && nm.lo < magic_number) {
+        // if yes, work with the quotient
+        n = nm.hi >> (90 - 64);
+        if (n <= std::numeric_limits<uint32_t>::max()) { return 8 + remove_trailing_zeros_small(n); }
+        s += 8;
+    }
+
+    const uint64_t mod_inv_5 = 0xcccccccccccccccd;
+    const uint64_t mod_inv_25 = 0x8f5c28f5c28f5c29;
+
+    while (true) {
+        uint64_t q = rotr2(n * mod_inv_25);
+        if (q > std::numeric_limits<uint64_t>::max() / 100u) { break; }
+        s += 2, n = q;
+    }
+    uint64_t q = rotr1(n * mod_inv_5);
+    if (q <= std::numeric_limits<uint64_t>::max() / 10u) { ++s, n = q; }
+    return s;
+}
+
+fp10_t fp_exp2_to_exp10(dynbuf_appender& digs, fp_m64_t fp2, fmt_flags& flags, int& prec, bool alternate, unsigned bpm,
+                        const int exp_bias) {
     if (fp2.m != 0 || fp2.exp > 0) {
         bool optimal = false;
 
         // Shift binary mantissa so the MSB bit is `1`
         if (fp2.exp > 0) {
             fp2.m <<= 63 - bpm;
-            fp2.m |= 1ull << 63;
+            fp2.m |= msb64;
         } else {  // handle denormalized form
             const unsigned bpm0 = bpm;
             bpm = ulog2(fp2.m);
@@ -280,7 +464,8 @@ fp_m64_t fp_exp2_to_exp10(fp_m64_t fp2, fmt_flags& flags, int& prec, unsigned bp
         }
 
         // Obtain decimal power
-        fp_m64_t fp10{0, g_pow_tbl.exp2to10[pow_table_t::kPow2Max - exp_bias + fp2.exp]};
+        assert(fp2.exp - exp_bias >= -pow_table_t::kPow2Bias && fp2.exp - exp_bias <= pow_table_t::kPow2Max);
+        fp_m64_t fp10{0, g_pow_tbl.exp2to10[pow_table_t::kPow2Bias + fp2.exp - exp_bias]};
 
         // Evaluate desired decimal mantissa length (its integer part)
         // Note: integer part of decimal mantissa is the digits to output,
@@ -289,23 +474,147 @@ fp_m64_t fp_exp2_to_exp10(fp_m64_t fp2, fmt_flags& flags, int& prec, unsigned bp
         int n_digs = 1 + prec;                                   // desired digit count for scientific format
         if (flags == fmt_flags::kFixed) { n_digs += fp10.exp; }  // for fixed format
 
-        if (n_digs >= 0) {
-            n_digs = std::min<int>(n_digs, pow_table_t::kPrecLimit);
+        if (n_digs > pow_table_t::kPrecLimit) {  // Long decimal mantissa
+            static std::array<unsigned, 10> dig_base = {1,      10,      100,      1000,      10000,
+                                                        100000, 1000000, 10000000, 100000000, 1000000000};
 
+            // 12 uint64-s are enough to hold all (normalized!) 10^n, n <= 324, +1 to multiply by uint64
+            std::array<uint64_t, 16> buf;  // so, 16 are enough for sure
+
+            // Reserve space for digits. For scientific format decimal point (+1), sign (+1), and exponent (+5) are
+            // added inplace, so reserve additional space for them. Note: the first digit can belong [1, 20) range,
+            // reserve space (+1) for it
+            char *p0 = digs.reserve(n_digs + 8) + 2, *p1 = p0;  // left margin for decimal point and sign
+
+            uint64_t* num = &buf[0];  // numerator
+            unsigned sz = 1;
+            bool round_to_upper = false;
+            const unsigned shift = 1 + g_pow_tbl.coef10to2[pow_table_t::kPow10Max - fp10.exp].exp + fp2.exp - exp_bias;
+            if (fp10.exp <= 0) {
+                unsigned dig = 0;
+                if (fp10.exp < 0) {
+                    one_bit_t carry = 0;
+                    const uint64_t* coef10to2 = &g_pow_tbl.bigpow10[g_pow_tbl.bigpow10_offset[-fp10.exp - 1]];
+                    sz = g_pow_tbl.bigpow10_offset[-fp10.exp] - g_pow_tbl.bigpow10_offset[-fp10.exp - 1];
+                    sz = bignum_multiply_by_uint64(num, coef10to2, sz, fp2.m);
+                    add64_carry(num[0], fp2.m, carry);  // handle implicit `1`
+                    dig = (carry << shift) | bignum_shift_left(num, sz, shift);
+                } else {
+                    dig = static_cast<unsigned>(fp2.m >> (64 - shift)), num[0] = fp2.m << shift;
+                }
+
+                if (dig >= 10u) {
+                    ++fp10.exp, p1[0] = g_digits[dig][0], p1[1] = g_digits[dig][1], p1 += 2;
+                    if (flags != fmt_flags::kFixed) { --n_digs; }
+                } else {  // start from the second position, reserve the first one for rounding
+                    *++p0 = '0' + dig, p1 = p0 + 1;
+                }
+
+                --n_digs;
+                while (n_digs > 0) {
+                    unsigned n_dig_base = std::min(n_digs, 9);
+                    dig = bignum_multiply_by(num, num, sz, dig_base[n_dig_base]);
+                    char* p1_next = p1 + n_dig_base;
+                    std::fill(p1, gen_digits(p1_next, dig), '0');
+                    p1 = p1_next, n_digs -= n_dig_base;
+                    while (sz > 0 && num[sz - 1] == 0) { --sz; }
+                    if (sz == 0) { goto finish; }  // tail of zeroes
+                }
+
+                round_to_upper = num[0] > msb64 || (sz == 1 && num[0] == msb64 && (dig & 1) != 0);  // nearest even
+            } else {
+                const uint64_t* coef10to2 = &g_pow_tbl.bigpow10[g_pow_tbl.bigpow10_offset[fp10.exp - 1]];
+                sz = g_pow_tbl.bigpow10_offset[fp10.exp] - g_pow_tbl.bigpow10_offset[fp10.exp - 1];
+
+                unsigned integral = static_cast<unsigned>(fp2.m >> (63 - shift));
+                num[0] = fp2.m << (shift + 1);
+                std::fill_n(num + 1, sz - 1, 0);
+
+                unsigned dig = bignum_divmod(integral, num, coef10to2, sz);
+                if (dig >= 10u) {
+                    ++fp10.exp, p1[0] = g_digits[dig][0], p1[1] = g_digits[dig][1], p1 += 2;
+                    if (flags != fmt_flags::kFixed) { --n_digs; }
+                } else {  // start from the second position, reserve the first one for rounding
+                    *++p0 = '0' + dig, p1 = p0 + 1;
+                }
+
+                --n_digs;
+                while (n_digs > 0) {
+                    unsigned n_dig_base = std::min(n_digs, 9);
+                    integral = (integral > 0 ? dig_base[n_dig_base] : 0) +
+                               bignum_multiply_by(num, num, sz, dig_base[n_dig_base]);
+                    if (integral > 0) {
+                        dig = bignum_divmod(integral, num, coef10to2, sz);
+                        char* p1_next = p1 + n_dig_base;
+                        std::fill(p1, gen_digits(p1_next, dig), '0');
+                        p1 = p1_next, n_digs -= n_dig_base;
+                    } else {
+                        if (std::all_of(num, num + sz, [](uint64_t x) { return x == 0; })) {
+                            goto finish;  // tail of zeroes
+                        }
+                        dig = 0, n_digs -= n_dig_base;
+                        p1 = std::fill_n(p1, n_dig_base, '0');
+                    }
+                }
+
+                if (integral == 1) {
+                    round_to_upper = true;
+                } else {
+                    int result = bignum_2x_compare(num, coef10to2, sz);
+                    round_to_upper = result > 0 || (result == 0 && (dig & 1) != 0);  // nearest even
+                }
+            }
+
+            if (round_to_upper) {  // round to upper value
+                char* p = p1;
+                while (p != p0) {
+                    --p;
+                    if (*p != '9') {
+                        ++*p;
+                        break;
+                    }
+                    *p = '0';
+                }
+                if (p == p0) {  // overflow: the number is exact power of 10
+                    ++fp10.exp, *--p0 = '1';
+                    if (flags != fmt_flags::kFixed) { --n_digs, --p1; }
+                }
+            }
+
+        finish:
+            if (!flags) {
+                // Select format for number representation
+                if (fp10.exp >= -4 && fp10.exp <= prec) { flags = fmt_flags::kFixed, prec -= fp10.exp; }
+                if (!alternate) {  // trim trailing zeroes
+                    if (n_digs < prec) {
+                        prec -= n_digs;
+                        while (*(p1 - 1) == '0' && prec > 0) { --p1, --prec; }
+                    } else {
+                        p1 = std::fill_n(p1, n_digs - prec, '0');
+                        prec = 0;
+                    }
+                    return fp10_t{p0, static_cast<unsigned>(p1 - p0), fp10.exp};
+                }
+            }
+
+            p1 = std::fill_n(p1, n_digs, '0');
+            return fp10_t{p0, static_cast<unsigned>(p1 - p0), fp10.exp};
+
+        } else if (n_digs >= 0) {
             // Calculate decimal mantissa representation :
             // Note: coefficients in `coef10to2` are normalized and belong [1, 2) range
             // Note: multiplication of 64-bit mantissa by 96-bit coefficient gives 160-bit result,
             // but we drop the lowest 32 bits
             // To get the desired count of digits we move up the `coef10to2` table, it's equivalent to
             // multiplying the result by a certain power of 10
+            assert(n_digs - fp10.exp - 1 >= -pow_table_t::kPow10Max && n_digs - fp10.exp - 1 <= pow_table_t::kPow10Max);
             fp_m96_t coef = g_pow_tbl.coef10to2[pow_table_t::kPow10Max - fp10.exp + n_digs - 1];
             uint128_t res128 = mul96x64_hi128(coef.m, fp2.m);
-            res128.hi += fp2.m;  // apply implicit 1 term of normalized coefficient
 
             // Do banker's or `nearest even` rounding :
             // It seems that exact halves detection is not possible without exact integral numbers tracking.
-            // So we use some heuristic to detect exact halves. But there are reasons to believe that this approach is
-            // theoretically justified. If we take long enough range of bits after the point where we need to break the
+            // So we use some heuristic to detect exact halves. But there are reasons to believe that this approach can
+            // be theoretically justified. If we take long enough range of bits after the point where we need to break the
             // series then analyzing this bits we can make the decision in which direction to round. The following bits:
             //               x x x x x x 1 0 0 0 0 0 0 0 0 0 . . . . . . we consider as exact half
             //               x x x x x x 0 1 1 1 1 1 1 1 1 1 . . . . . . and this is exact half too
@@ -314,16 +623,11 @@ fp_m64_t fp_exp2_to_exp10(fp_m64_t fp2, fmt_flags& flags, int& prec, unsigned bp
             // decimal mantissa, all other bits are rounded and dropped. To decide in which direction to round
             // we use reliable bits after decimal mantissa. Totally 96 bits are reliable, because `coef10to2`
             // has 96-bit precision. So, we use only `res128.hi` and higher 32-bit part of `res128.lo`.
-
+            one_bit_t carry = 0;
             // Drop unreliable bits and resolve the case of periodical `1`
-            const uint64_t lsb_half = 0x80000000;
-            res128.lo += lsb_half;
-            if (res128.lo < lsb_half) { ++res128.hi; }  // handle lower part overflow
-            res128.lo &= ~((1ull << 32) - 1);           // zero lower 32-bit part of `res128.lo`
-
-            // Overflow is possible while summing `res128.hi += mantissa` or rounding - store this
-            // overflowed bit. We must take it into account in further calculations
-            const uint64_t higher_bit = res128.hi < fp2.m ? 1ull : 0ull;
+            add64_carry(res128.lo, 0x80000000, carry);
+            add64_carry(res128.hi, fp2.m, carry);  // apply implicit 1 term of normalized coefficient
+            res128.lo &= ~((1ull << 32) - 1);      // zero lower 32-bit part of `res128.lo`
 
             // Store the shift needed to align integer part of decimal mantissa with 64-bit boundary
             const unsigned shift = 63 + exp_bias - fp2.exp - coef.exp;  // sum coefficient exponent as well
@@ -333,50 +637,37 @@ fp_m64_t fp_exp2_to_exp10(fp_m64_t fp2, fmt_flags& flags, int& prec, unsigned bp
 
             int64_t err = 0;
             const int64_t* err_mul = g_pow_tbl.decimal_mul.data();
-            if (shift == 0 && higher_bit != 0) {
-                assert(n_digs == pow_table_t::kPrecLimit);
-                // Decimal mantissa contains one excess digit, which doesn't fit 64 bits.
-                // We can't handle more than 64 bits while outputting the number, so remove it.
-                // Note: if `higher_bit == 1` decimal mantissa has 65 significant bits
-                ++fp10.exp;
-                // Divide 65-bit value by 10. We know the division result for 10^64 summand, so we just use it.
-                const uint64_t div64 = 1844674407370955161ull, mod64 = 6;
-                fp10.m = div64 + (res128.hi + mod64) / 10u;
-                unsigned mod = static_cast<unsigned>(res128.hi - 10u * fp10.m);
-                if (mod > 5 || (mod == 5 && (res128.lo != 0 || (fp10.m & 1) != 0))) { ++fp10.m; }
+            // Align integer part of decimal mantissa with 64-bit boundary
+            assert(shift != 0);
+            if (shift < 64) {
+                res128.lo = (res128.lo >> shift) | (res128.hi << (64 - shift));
+                res128.hi = (res128.hi >> shift) | (static_cast<uint64_t>(carry) << (64 - shift));
+            } else if (shift > 64) {
+                res128.lo = (res128.hi >> (shift - 64)) | (static_cast<uint64_t>(carry) << (128 - shift));
+                res128.hi = 0;
             } else {
-                // Align integer part of decimal mantissa with 64-bit boundary
-                if (shift == 0) {
-                } else if (shift < 64) {
-                    res128.lo = (res128.lo >> shift) | (res128.hi << (64 - shift));
-                    res128.hi = (res128.hi >> shift) | (higher_bit << (64 - shift));
-                } else if (shift > 64) {
-                    res128.lo = (res128.hi >> (shift - 64)) | (higher_bit << (128 - shift));
-                    res128.hi = 0;
-                } else {
-                    res128.lo = res128.hi;
-                    res128.hi = higher_bit;
-                }
+                res128.lo = res128.hi;
+                res128.hi = carry;
+            }
 
-                if (flags != fmt_flags::kFixed && res128.hi >= g_pow_tbl.ten_pows[n_digs]) {
-                    ++fp10.exp, err_mul += 10;  // one excess digit
-                    // Remove one excess digit for scientific format, do 'nearest even' rounding
-                    fp10.m = res128.hi / 10u;
-                    err = res128.hi - 10u * fp10.m;
-                    if (err > 5 || (err == 5 && (res128.lo != 0 || (fp10.m & 1) != 0))) { ++fp10.m, err -= 10; }
-                } else {
-                    // Do 'nearest even' rounding
-                    const uint64_t half = 1ull << 63;
-                    const uint64_t frac = (res128.hi & 1) == 0 ? res128.lo + half - 1 : res128.lo + half;
-                    fp10.m = res128.hi;
-                    if (frac < res128.lo) { ++fp10.m, err = -1; }
-                    if (fp10.m >= g_pow_tbl.ten_pows[n_digs]) {
-                        ++fp10.exp;  // one excess digit
-                        if (flags != fmt_flags::kFixed) {
-                            // Remove one excess digit for scientific format
-                            // Note: `fp10.m` is exact power of 10 in this case
-                            fp10.m /= 10u;
-                        }
+            if (flags != fmt_flags::kFixed && res128.hi >= g_pow_tbl.ten_pows[n_digs]) {
+                ++fp10.exp, err_mul += 10;  // one excess digit
+                // Remove one excess digit for scientific format, do 'nearest even' rounding
+                fp10.m = res128.hi / 10u;
+                err = res128.hi - 10u * fp10.m;
+                if (err > 5 || (err == 5 && (res128.lo != 0 || (fp10.m & 1) != 0))) { ++fp10.m, err -= 10; }
+            } else {
+                // Do 'nearest even' rounding
+                one_bit_t carry = 0;
+                uint64_t frac = res128.lo;
+                add64_carry(frac, msb64 - 1 + (res128.hi & 1), carry);
+                fp10.m = res128.hi + carry, err = -static_cast<int64_t>(carry);
+                if (fp10.m >= g_pow_tbl.ten_pows[n_digs]) {
+                    ++fp10.exp;  // one excess digit
+                    if (flags != fmt_flags::kFixed) {
+                        // Remove one excess digit for scientific format
+                        // Note: `fp10.m` is exact power of 10 in this case
+                        fp10.m /= 10u;
                     }
                 }
             }
@@ -388,7 +679,7 @@ fp_m64_t fp_exp2_to_exp10(fp_m64_t fp2, fmt_flags& flags, int& prec, unsigned bp
                     const unsigned shift2 = bpm + shift - 30;
                     int64_t delta_minus = (coef.m.hi >> shift2) | (1ull << (64 - shift2));
                     int64_t delta_plus = delta_minus;
-                    if (fp2.exp > 1 && fp2.m == 1ull << 63) { delta_plus >>= 1; }
+                    if (fp2.exp > 1 && fp2.m == msb64) { delta_plus >>= 1; }
                     err = (err << 32) | (res128.lo >> 32);
 
                     // Trim trailing insignificant digits
@@ -422,29 +713,40 @@ fp_m64_t fp_exp2_to_exp10(fp_m64_t fp2, fmt_flags& flags, int& prec, unsigned bp
                     if (prec < 0) { ++fp10.exp, prec = 0; }
                     // Select format for number representation
                     if (fp10.exp >= -4 && fp10.exp <= prec) { flags = fmt_flags::kFixed, prec -= fp10.exp; }
+                    if (alternate && prec == 0) { fp10.m *= 10u, prec = 1; }
                 } else if (!flags) {
-                    const int prec0 = prec;
-                    prec = n_digs - 1 - remove_trailing_zeros(fp10.m);
                     // Select format for number representation
-                    if (fp10.exp >= -4 && fp10.exp <= prec0) {
-                        flags = fmt_flags::kFixed, prec = std::max(prec - fp10.exp, 0);
+                    if (fp10.exp >= -4 && fp10.exp <= prec) { flags = fmt_flags::kFixed, prec -= fp10.exp; }
+                    if (!alternate) {
+                        prec -= remove_trailing_zeros(fp10.m);
+                        if (prec < 0) { fp10.m *= g_pow_tbl.ten_pows[-prec], prec = 0; }
+                    } else if (prec == 0) {
+                        fp10.m *= 10u, prec = 1;
                     }
                 }
 
-                return fp10;
+                // 32 chars are enough for sure. Start from the midpoint to reserve place
+                // for decimal point, sign, and exponent
+                char *p0 = digs.reserve(32) + 24, *p = gen_digits(p0, fp10.m);
+                return fp10_t{p, static_cast<unsigned>(p0 - p), fp10.exp};
             }
         }
     }
 
     if (!flags) {
-        flags = fmt_flags::kFixed, prec = 0;
+        flags = fmt_flags::kFixed, prec = !alternate ? 0 : std::max(1, prec - 1);
     } else if (prec < 0) {
         prec = 0;
     } else {
         prec &= 0xffff;
     }
 
-    return fp_m64_t{0, 0};
+    // Reserve space for zeroes. For scientific format decimal point (+1), sign (+1), and exponent (+5) are
+    // added inplace, so reserve additional space for them.
+    unsigned n_digs = static_cast<unsigned>(1 + prec);
+    char* p = digs.reserve(n_digs + 7) + 2;  // left margin for decimal point and sign
+    std::fill_n(p, n_digs, '0');
+    return fp10_t{p, static_cast<unsigned>(n_digs), 0};
 }
 
 }  // namespace scvt
