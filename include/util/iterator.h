@@ -217,21 +217,21 @@ auto operator+(typename iterator_facade<Iter, ValTy, Tag, RefTy, PtrTy, DiffTy>:
     return result;
 }
 
-template<typename Container, typename Iter, typename Tag, bool Const>
+template<typename Traits, typename Iter, typename Tag, bool Const>
 using container_iterator_facade =
-    iterator_facade<Iter, typename Container::value_type, Tag,
-                    std::conditional_t<Const, typename Container::const_reference, typename Container::reference>,
-                    std::conditional_t<Const, typename Container::const_pointer, typename Container::pointer>,
-                    typename Container::difference_type>;
+    iterator_facade<Iter, typename Traits::value_type, Tag,
+                    std::conditional_t<Const, typename Traits::const_reference, typename Traits::reference>,
+                    std::conditional_t<Const, typename Traits::const_pointer, typename Traits::pointer>,
+                    typename Traits::difference_type>;
 
 //-----------------------------------------------------------------------------
 // Array iterator
 
-template<typename Container, bool Const>
-class array_iterator : public container_iterator_facade<Container, array_iterator<Container, Const>,  //
+template<typename Traits, bool Const>
+class array_iterator : public container_iterator_facade<Traits, array_iterator<Traits, Const>,  //
                                                         std::random_access_iterator_tag, Const> {
  private:
-    using super = container_iterator_facade<Container, array_iterator, std::random_access_iterator_tag, Const>;
+    using super = container_iterator_facade<Traits, array_iterator, std::random_access_iterator_tag, Const>;
 
  public:
     using reference = typename super::reference;
@@ -265,19 +265,19 @@ class array_iterator : public container_iterator_facade<Container, array_iterato
     }
 
     template<bool Const2>
-    bool is_equal_to(const array_iterator<Container, Const2>& it) const {
+    bool is_equal_to(const array_iterator<Traits, Const2>& it) const {
         iterator_assert(begin_ == it.begin_ && end_ == it.end_);
         return ptr_ == it.ptr_;
     }
 
     template<bool Const2>
-    bool is_less_than(const array_iterator<Container, Const2>& it) const {
+    bool is_less_than(const array_iterator<Traits, Const2>& it) const {
         iterator_assert(begin_ == it.begin_ && end_ == it.end_);
         return ptr_ < it.ptr_;
     }
 
     template<bool Const2>
-    difference_type distance_to(const array_iterator<Container, Const2>& it) const {
+    difference_type distance_to(const array_iterator<Traits, Const2>& it) const {
         iterator_assert(begin_ == it.begin_ && end_ == it.end_);
         return it.ptr_ - ptr_;
     }
@@ -292,11 +292,11 @@ class array_iterator : public container_iterator_facade<Container, array_iterato
         return *this;
     }
     template<bool Const_ = Const>
-    array_iterator(const std::enable_if_t<Const_, array_iterator<Container, false>>& it) NOEXCEPT : ptr_(it.ptr_),
-                                                                                                    begin_(it.begin_),
-                                                                                                    end_(it.end_) {}
+    array_iterator(const std::enable_if_t<Const_, array_iterator<Traits, false>>& it) NOEXCEPT : ptr_(it.ptr_),
+                                                                                                 begin_(it.begin_),
+                                                                                                 end_(it.end_) {}
     template<bool Const_ = Const>
-    array_iterator& operator=(const std::enable_if_t<Const_, array_iterator<Container, false>>& it) NOEXCEPT {
+    array_iterator& operator=(const std::enable_if_t<Const_, array_iterator<Traits, false>>& it) NOEXCEPT {
         ptr_ = it.ptr_, begin_ = it.begin_, end_ = it.end_;
         return *this;
     }
@@ -313,9 +313,9 @@ class array_iterator : public container_iterator_facade<Container, array_iterato
         return *this;
     }
     template<bool Const_ = Const>
-    array_iterator(const std::enable_if_t<Const_, array_iterator<Container, false>>& it) NOEXCEPT : ptr_(it.ptr_) {}
+    array_iterator(const std::enable_if_t<Const_, array_iterator<Traits, false>>& it) NOEXCEPT : ptr_(it.ptr_) {}
     template<bool Const_ = Const>
-    array_iterator& operator=(const std::enable_if_t<Const_, array_iterator<Container, false>>& it) NOEXCEPT {
+    array_iterator& operator=(const std::enable_if_t<Const_, array_iterator<Traits, false>>& it) NOEXCEPT {
         ptr_ = it.ptr_;
         return *this;
     }
@@ -333,15 +333,15 @@ struct std::_Is_checked_helper<array_iterator<Traits, Const>> : std::true_type {
 //-----------------------------------------------------------------------------
 // List iterator
 
-template<typename Traits, typename NodeTy, bool Const>
-class list_iterator : public container_iterator_facade<Traits, list_iterator<Traits, NodeTy, Const>,  //
+template<typename Traits, typename NodeTraits, bool Const>
+class list_iterator : public container_iterator_facade<Traits, list_iterator<Traits, NodeTraits, Const>,  //
                                                        std::bidirectional_iterator_tag, Const> {
  private:
     using super = container_iterator_facade<Traits, list_iterator, std::bidirectional_iterator_tag, Const>;
 
  public:
     using reference = typename super::reference;
-    using node_type = typename NodeTy::iterator_node_t;
+    using node_type = typename NodeTraits::iterator_node_t;
 
     template<typename, typename, bool>
     friend class list_iterator;
@@ -357,33 +357,33 @@ class list_iterator : public container_iterator_facade<Traits, list_iterator<Tra
     }
 
     template<bool Const_ = Const>
-    list_iterator(const std::enable_if_t<Const_, list_iterator<Traits, NodeTy, false>>& it) NOEXCEPT : node_(it.node_) {
-    }
+    list_iterator(const std::enable_if_t<Const_, list_iterator<Traits, NodeTraits, false>>& it) NOEXCEPT
+        : node_(it.node_) {}
     template<bool Const_ = Const>
-    list_iterator& operator=(const std::enable_if_t<Const_, list_iterator<Traits, NodeTy, false>>& it) NOEXCEPT {
+    list_iterator& operator=(const std::enable_if_t<Const_, list_iterator<Traits, NodeTraits, false>>& it) NOEXCEPT {
         node_ = it.node_;
         return *this;
     }
 
     void increment() NOEXCEPT {
-        iterator_assert(node_ && (node_ != NodeTy::get_head(node_)));
-        node_ = NodeTy::get_next(node_);
+        iterator_assert(node_ && (node_ != NodeTraits::get_head(node_)));
+        node_ = NodeTraits::get_next(node_);
     }
 
     void decrement() NOEXCEPT {
-        iterator_assert(node_ && (node_ != NodeTy::get_front(NodeTy::get_head(node_))));
-        node_ = NodeTy::get_prev(node_);
+        iterator_assert(node_ && (node_ != NodeTraits::get_front(NodeTraits::get_head(node_))));
+        node_ = NodeTraits::get_prev(node_);
     }
 
     template<bool Const2>
-    bool is_equal_to(const list_iterator<Traits, NodeTy, Const2>& it) const NOEXCEPT {
-        iterator_assert(node_ && it.node_ && (NodeTy::get_head(node_) == NodeTy::get_head(it.node_)));
+    bool is_equal_to(const list_iterator<Traits, NodeTraits, Const2>& it) const NOEXCEPT {
+        iterator_assert(node_ && it.node_ && (NodeTraits::get_head(node_) == NodeTraits::get_head(it.node_)));
         return node_ == it.node_;
     }
 
     reference dereference() const NOEXCEPT {
         iterator_assert(node_);
-        return NodeTy::get_value(node_);
+        return NodeTraits::get_value(node_);
     }
 
     node_type* node() const { return node_; }
@@ -393,8 +393,8 @@ class list_iterator : public container_iterator_facade<Traits, list_iterator<Tra
 };
 
 #ifdef USE_CHECKED_ITERATORS
-template<typename Traits, typename NodeTy, bool Const>
-struct std::_Is_checked_helper<list_iterator<Traits, NodeTy, Const>> : std::true_type {};
+template<typename Traits, typename NodeTraits, bool Const>
+struct std::_Is_checked_helper<list_iterator<Traits, NodeTraits, Const>> : std::true_type {};
 #endif  // USE_CHECKED_ITERATORS
 
 //-----------------------------------------------------------------------------

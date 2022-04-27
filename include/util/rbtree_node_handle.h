@@ -10,14 +10,15 @@ namespace detail {
 //-----------------------------------------------------------------------------
 // Node handle implementation
 
-template<typename NodeTy, typename Alloc, typename NodeHandle, typename = void>
-class rbtree_node_handle_getters : protected std::allocator_traits<Alloc>::template rebind_alloc<NodeTy> {
+template<typename NodeTraits, typename Alloc, typename NodeHandle, typename = void>
+class rbtree_node_handle_getters
+    : protected std::allocator_traits<Alloc>::template rebind_alloc<typename NodeTraits::node_t> {
  protected:
-    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<NodeTy>;
-    using node_t = NodeTy;
+    using node_traits = NodeTraits;
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<typename node_traits::node_t>;
 
  public:
-    using value_type = typename node_t::value_type;
+    using value_type = typename node_traits::value_type;
     rbtree_node_handle_getters() NOEXCEPT_IF(std::is_nothrow_default_constructible<alloc_type>::value)
         : alloc_type(Alloc()) {}
     explicit rbtree_node_handle_getters(const alloc_type& alloc) NOEXCEPT : alloc_type(alloc) {}
@@ -29,19 +30,19 @@ class rbtree_node_handle_getters : protected std::allocator_traits<Alloc>::templ
         alloc_type::operator=(std::move(other));
         return *this;
     }
-    value_type& value() const { return node_t::get_value(static_cast<const NodeHandle*>(this)->node_); }
+    value_type& value() const { return node_traits::get_value(static_cast<const NodeHandle*>(this)->node_); }
 };
 
-template<typename NodeTy, typename Alloc, typename NodeHandle>
-class rbtree_node_handle_getters<NodeTy, Alloc, NodeHandle, std::void_t<typename NodeTy::mapped_type>>
-    : protected std::allocator_traits<Alloc>::template rebind_alloc<NodeTy> {
+template<typename NodeTraits, typename Alloc, typename NodeHandle>
+class rbtree_node_handle_getters<NodeTraits, Alloc, NodeHandle, std::void_t<typename NodeTraits::mapped_type>>
+    : protected std::allocator_traits<Alloc>::template rebind_alloc<typename NodeTraits::node_t> {
  protected:
-    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<NodeTy>;
-    using node_t = NodeTy;
+    using node_traits = NodeTraits;
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<typename node_traits::node_t>;
 
  public:
-    using key_type = typename node_t::key_type;
-    using mapped_type = typename node_t::mapped_type;
+    using key_type = typename node_traits::key_type;
+    using mapped_type = typename node_traits::mapped_type;
     rbtree_node_handle_getters() NOEXCEPT_IF(std::is_nothrow_default_constructible<alloc_type>::value)
         : alloc_type(Alloc()) {}
     explicit rbtree_node_handle_getters(const alloc_type& alloc) NOEXCEPT : alloc_type(alloc) {}
@@ -54,18 +55,17 @@ class rbtree_node_handle_getters<NodeTy, Alloc, NodeHandle, std::void_t<typename
         return *this;
     }
     key_type& key() const {
-        return const_cast<key_type&>(node_t::get_value(static_cast<const NodeHandle*>(this)->node_).first);
+        return const_cast<key_type&>(node_traits::get_value(static_cast<const NodeHandle*>(this)->node_).first);
     }
-    mapped_type& mapped() const { return node_t::get_value(static_cast<const NodeHandle*>(this)->node_).second; }
+    mapped_type& mapped() const { return node_traits::get_value(static_cast<const NodeHandle*>(this)->node_).second; }
 };
 
-template<typename Traits, typename NodeTy>
-class rbtree_node_handle
-    : public rbtree_node_handle_getters<NodeTy, typename Traits::allocator_type, rbtree_node_handle<Traits, NodeTy>> {
+template<typename Traits, typename NodeTraits>
+class rbtree_node_handle : public rbtree_node_handle_getters<NodeTraits, typename Traits::allocator_type,
+                                                             rbtree_node_handle<Traits, NodeTraits>> {
  private:
-    using super = rbtree_node_handle_getters<NodeTy, typename Traits::allocator_type, rbtree_node_handle>;
+    using super = rbtree_node_handle_getters<NodeTraits, typename Traits::allocator_type, rbtree_node_handle>;
     using alloc_type = typename super::alloc_type;
-    using node_t = typename super::node_t;
 
  public:
     using allocator_type = typename Traits::allocator_type;
@@ -120,9 +120,9 @@ class rbtree_node_handle
 }  // namespace util
 
 namespace std {
-template<typename Traits, typename NodeTy>
-void swap(util::detail::rbtree_node_handle<Traits, NodeTy>& nh1, util::detail::rbtree_node_handle<Traits, NodeTy>& nh2)
-    NOEXCEPT_IF(NOEXCEPT_IF(nh1.swap(nh2))) {
+template<typename Traits, typename NodeTraits>
+void swap(util::detail::rbtree_node_handle<Traits, NodeTraits>& nh1,
+          util::detail::rbtree_node_handle<Traits, NodeTraits>& nh2) NOEXCEPT_IF(NOEXCEPT_IF(nh1.swap(nh2))) {
     nh1.swap(nh2);
 }
 }  // namespace std

@@ -12,12 +12,12 @@ template<typename Key, typename Comp, typename Alloc>
 class set;
 
 template<typename Key, typename Comp = std::less<Key>, typename Alloc = std::allocator<Key>>
-class multiset : public detail::rbtree_multi<detail::set_node_type<Key>, Alloc, Comp> {
+class multiset : public detail::rbtree_multi<detail::set_node_traits<Key>, Alloc, Comp> {
  private:
-    using super = detail::rbtree_multi<detail::set_node_type<Key>, Alloc, Comp>;
+    using node_traits = detail::set_node_traits<Key>;
+    using super = detail::rbtree_multi<node_traits, Alloc, Comp>;
     using alloc_traits = typename super::alloc_traits;
     using alloc_type = typename super::alloc_type;
-    using node_t = typename super::node_t;
 
  public:
     using allocator_type = typename super::allocator_type;
@@ -61,7 +61,7 @@ class multiset : public detail::rbtree_multi<detail::set_node_type<Key>, Alloc, 
     }
 
     multiset& operator=(std::initializer_list<value_type> l) {
-        this->assign_impl(l.begin(), l.end(), std::is_copy_assignable<typename node_t::writable_value_t>());
+        this->assign_impl(l.begin(), l.end(), std::is_copy_assignable<typename node_traits::writable_value_t>());
         return *this;
     }
 
