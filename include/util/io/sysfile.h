@@ -26,6 +26,8 @@ class UTIL_EXPORT sysfile : public iodevice {
     }
 
     bool valid() const;
+    explicit operator bool() const { return valid(); }
+
     void attach(file_desc_t fd);
     file_desc_t detach();
 
