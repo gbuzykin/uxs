@@ -2,7 +2,7 @@
 
 #include "util/io/istringbuf.h"
 
-using namespace util;
+namespace util {
 
 template<typename CharT>
 basic_istringbuf<CharT>::basic_istringbuf(basic_istringbuf&& other) NOEXCEPT : basic_iobuf<CharT>(std::move(other)),
@@ -45,3 +45,5 @@ template<typename CharT>
 void basic_istringbuf<CharT>::redirect_ptrs() {
     this->setview(&str_[0], &str_[this->curr() - this->first()], &str_[str_.size()]);
 }
+
+}  // namespace util

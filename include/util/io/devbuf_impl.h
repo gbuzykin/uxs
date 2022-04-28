@@ -6,7 +6,7 @@
 #include <array>
 #include <memory>
 
-using namespace util;
+namespace util {
 
 template<typename CharT>
 basic_devbuf<CharT>::basic_devbuf(basic_devbuf&& other) NOEXCEPT : basic_iobuf<CharT>(std::move(other)),
@@ -31,11 +31,13 @@ basic_devbuf<CharT>& basic_devbuf<CharT>::operator=(basic_devbuf&& other) {
 template<typename CharT>
 void basic_devbuf<CharT>::initbuf(iomode mode, size_type bufsz) {
     assert(dev_);
-    bufsz = std::max<size_type>(bufsz, kMinBufSize) / sizeof(char_type);
     freebuf();
+    if (!(mode & iomode::kIn) && !(mode & iomode::kOut)) { return; }
+    if (!!(mode & iomode::kOut)) { mode &= ~iomode::kIn; }
+    this->setmode(mode);
+    bufsz = std::max<size_type>(bufsz, kMinBufSize) / sizeof(char_type);
     char_type* buf = std::allocator<char_type>().allocate(bufsz);
     bufsz_ = bufsz;
-    this->setmode(mode);
     if (!!(mode & iomode::kOut)) {
         size_type cr_reserve_sz = !!(mode & iomode::kCrLf) ? bufsz / kCrReserveRatio : 0;
         this->setview(buf + cr_reserve_sz, buf + cr_reserve_sz, buf + bufsz);
@@ -57,6 +59,7 @@ void basic_devbuf<CharT>::freebuf() {
                                                this->first(),
                                            bufsz_);
     this->setview(nullptr, nullptr, nullptr);
+    this->setmode(iomode::kNone);
     this->setstate(iostate_bits::kFail);
 }
 
@@ -181,7 +184,7 @@ typename basic_devbuf<CharT>::size_type basic_devbuf<CharT>::remove_crlf(char_ty
 template<typename CharT>
 int basic_devbuf<CharT>::underflow() {
     assert(dev_ && this->first() && this->curr() && this->last());
-    if (!!(this->mode() & iomode::kOut)) { return -1; }
+    if (!(this->mode() & iomode::kIn)) { return -1; }
     if (tie_buf_) { tie_buf_->flush(); }
     int ret = 0;
     size_type n_read = 0;
@@ -232,7 +235,7 @@ typename basic_devbuf<CharT>::pos_type basic_devbuf<CharT>::seekimpl(off_type of
     int64_t abs_off = dev_->seek(off * sizeof(char_type), dir);
     if (abs_off < 0) { return -1; }
     pos_ = abs_off / sizeof(char_type);
-    if (!(this->mode() & iomode::kOut)) { this->setview(this->first(), this->first(), this->first()); }
+    if (!!(this->mode() & iomode::kIn)) { this->setview(this->first(), this->first(), this->first()); }
     return pos_;
 }
 
@@ -245,3 +248,5 @@ int basic_devbuf<CharT>::sync() {
     if (ret < 0) { return ret; }
     return dev_->flush();
 }
+
+}  // namespace util

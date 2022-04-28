@@ -5,7 +5,7 @@
 namespace util {
 
 template<typename CharT>
-class basic_istringbuf : public basic_iobuf<CharT> {
+class UTIL_EXPORT basic_istringbuf : public basic_iobuf<CharT> {
  public:
     using char_type = typename basic_iobuf<CharT>::char_type;
     using size_type = typename basic_iobuf<CharT>::size_type;
