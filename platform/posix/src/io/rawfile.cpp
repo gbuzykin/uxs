@@ -24,7 +24,7 @@ void rawfile::attach(file_desc_t fd) {
     fd_ = fd;
 }
 
-rawfile::file_desc_t rawfile::detach() {
+file_desc_t rawfile::detach() {
     file_desc_t fd = fd_;
     fd_ = -1;
     return fd;
@@ -33,14 +33,9 @@ rawfile::file_desc_t rawfile::detach() {
 bool rawfile::open(const char* fname, iomode mode) {
     int oflag = O_RDONLY;
     if (!!(mode & iomode::kOut)) {
-        oflag = O_WRONLY | O_CREAT;
-        if (!!(mode & iomode::kCreateNew)) {
-            oflag |= O_EXCL;
-        } else if (!!(mode & iomode::kAppend)) {
-            oflag |= O_APPEND;
-        } else {
-            oflag |= O_TRUNC;
-        }
+        oflag = !!(mode & iomode::kIn) ? O_RDWR : O_WRONLY;
+        if (!!(mode & iomode::kCreate)) { oflag |= !!(mode & iomode::kExcl) ? O_CREAT | O_EXCL : O_CREAT; }
+        oflag |= !!(mode & iomode::kAppend) ? O_APPEND : O_TRUNC;
     }
     attach(::open(fname, O_LARGEFILE | oflag, S_IREAD | S_IWRITE));
     return fd_ >= 0;

@@ -22,7 +22,7 @@ void rawfile::attach(file_desc_t fd) {
     fd_ = fd;
 }
 
-rawfile::file_desc_t rawfile::detach() {
+file_desc_t rawfile::detach() {
     file_desc_t fd = fd_;
     fd_ = INVALID_HANDLE_VALUE;
     return fd;
@@ -31,12 +31,9 @@ rawfile::file_desc_t rawfile::detach() {
 bool rawfile::open(const char* fname, iomode mode) {
     DWORD access = GENERIC_READ, creat_disp = OPEN_EXISTING;
     if (!!(mode & iomode::kOut)) {
-        access = GENERIC_WRITE, creat_disp = CREATE_ALWAYS;
-        if (!!(mode & iomode::kCreateNew)) {
-            creat_disp = CREATE_NEW;
-        } else if (!!(mode & iomode::kAppend)) {
-            access |= FILE_APPEND_DATA, creat_disp = OPEN_ALWAYS;
-        }
+        access |= GENERIC_WRITE;
+        if (!!(mode & iomode::kCreate)) { creat_disp = !!(mode & iomode::kExcl) ? CREATE_NEW : CREATE_ALWAYS; }
+        if (!!(mode & iomode::kAppend)) { access |= FILE_APPEND_DATA; }
     }
     OFSTRUCT of;
     std::memset(&of, 0, sizeof(of));

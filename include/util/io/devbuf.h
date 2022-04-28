@@ -14,7 +14,7 @@ class UTIL_EXPORT basic_devbuf : public basic_iobuf<CharT> {
     using pos_type = typename basic_iobuf<CharT>::pos_type;
     using off_type = typename basic_iobuf<CharT>::off_type;
 
-    explicit basic_devbuf(iodevice& dev) : basic_iobuf<CharT>(iomode::kIn, iostate_bits::kFail), dev_(&dev) {}
+    explicit basic_devbuf(iodevice& dev) : basic_iobuf<CharT>(iomode::kNone, iostate_bits::kFail), dev_(&dev) {}
     basic_devbuf(iodevice& dev, iomode mode, size_type bufsz = 0) : dev_(&dev) { initbuf(mode, bufsz); }
     ~basic_devbuf() override;
     basic_devbuf(basic_devbuf&& other) NOEXCEPT;

@@ -4,14 +4,15 @@
 
 namespace util {
 
+#if defined(WIN32)
+using file_desc_t = void*;
+#elif defined(__linux__)
+using file_desc_t = int;
+#endif
+
 class UTIL_EXPORT rawfile : public iodevice {
  public:
     using size_type = iodevice::size_type;
-#if defined(WIN32)
-    using file_desc_t = void*;
-#elif defined(__linux__)
-    using file_desc_t = int;
-#endif
 
     rawfile();
     explicit rawfile(file_desc_t fd);

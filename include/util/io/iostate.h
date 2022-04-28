@@ -1,22 +1,24 @@
 #pragma once
 
-#include "../utility.h"
+#include "util/utility.h"
 
 namespace util {
 
-enum class iomode : uint8_t {
-    kIn = 0,
-    kOut = 1,
-    kAppend = 2,
-    kCreateNew = 4,
-    kCrLf = 8,
+enum class iomode : unsigned {
+    kNone = 0,
+    kIn = 1,
+    kOut = 2,
+    kCreate = 4,
+    kAppend = 8,
+    kExcl = 0x10,
+    kCrLf = 0x20,
 #if defined(WIN32)
     kText = kCrLf,
 #else   // defined(WIN32)
     kText = 0,
 #endif  // defined(WIN32)
-    kCtrlEsc = 0x10,
-    kSkipCtrlEsc = 0x30,
+    kCtrlEsc = 0x40,
+    kSkipCtrlEsc = 0xc0,
 };
 UTIL_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iomode, uint8_t);
 
@@ -49,8 +51,12 @@ class iostate {
     void setmode(iomode mode) { mode_ = mode; }
 
  private:
-    iomode mode_ = iomode::kIn;
+    iomode mode_ = iomode::kNone;
     iostate_bits state_ = iostate_bits::kGood;
 };
+
+namespace detail {
+UTIL_EXPORT iomode iomode_from_str(const char* mode, iomode def);
+}
 
 }  // namespace util

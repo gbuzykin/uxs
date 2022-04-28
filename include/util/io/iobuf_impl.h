@@ -4,7 +4,7 @@
 
 #include <algorithm>
 
-using namespace util;
+namespace util {
 
 template<typename CharT>
 basic_iobuf<CharT>::basic_iobuf(basic_iobuf&& other) NOEXCEPT : iostate(other),
@@ -126,3 +126,5 @@ template<typename CharT>
 int basic_iobuf<CharT>::sync() {
     return -1;
 }
+
+}  // namespace util

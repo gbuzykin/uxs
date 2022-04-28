@@ -4,7 +4,7 @@
 
 #include <algorithm>
 
-using namespace util;
+namespace util {
 
 template<typename CharT>
 basic_ostringbuf<CharT>::~basic_ostringbuf() {
@@ -88,3 +88,5 @@ void basic_ostringbuf<CharT>::grow(size_type extra) {
     }
     this->setview(first, first + static_cast<size_type>(this->curr() - this->first()), first + sz);
 }
+
+}  // namespace util
