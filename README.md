@@ -20,6 +20,8 @@ The collection includes the following groups of helpers:
 - library for string *parsing*, *formatting* and *printing*
 - library for *buffered input/output* (alternative to rather slow and consuming standard streams),
   which is compliant with the printing functions
+- special *buffered input/output* derived classes to read and write files inside *zip* archives
+  (*libzip* integration)
 - dynamic *variant* object implementation `util::variant`, which can hold data of various types
   known at runtime and convert one to another (not a template with predefined set of types); it
   easily integrates with mentioned string parsers and formatters for to and from string conversion
@@ -38,10 +40,8 @@ The collection includes the following groups of helpers:
 
 The following groups of helpers are planned to be developed and added to the collection soon:
 
-- ability to read and write files using *buffered input/output* inside *zip* archives (*libzip*
-  integration)
+- *ZLib* inflation and deflation support for *buffered input/output* (*zlib* integration)
 - `<xml>` file parser
-- *Z* inflation and deflation support for *buffered input/output* (*zlib* integration)
 
 ## How to Use
 
