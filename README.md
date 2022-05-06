@@ -78,6 +78,27 @@ target_include_directories(<project-name> PUBLIC ... std-ext/include ${platform_
 
 ```
 
+Also, `std-ext` needs external file `config.h`, which could be found and included as
+`#include "util/config.h"`.  The simplest way is to add this file in created `util` subfolder of
+`include` folder of the project.  Here is the minimal contents of this file:
+
+```cpp
+#pragma once
+#define UTIL_EXPORT
+```
+
+If the project is a library compiled for Windows, and it is needed to export symbols from `std-ext`
+as well, the recommended contents is the following:
+
+```cpp
+#pragma once
+#ifdef <library_name>_EXPORTS
+#    define UTIL_EXPORT __declspec(dllexport)
+#else
+#    define UTIL_EXPORT __declspec(dllimport)
+#endif
+```
+
 This [project](https://github.com/gbuzykin/std-ext-tests) can be referenced as `std-ext` usage
 example.  It is a separate project for `std-ext` testing and contains lots of use- and test-cases.
 A simple own test-suite is implemented to sort and organize tests; it involves verification tests
