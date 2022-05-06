@@ -4,6 +4,7 @@
 
 #include <array>
 #include <limits>
+#include <stdexcept>
 
 #if defined(_MSC_VER) && defined(_M_X64)
 #    include <intrin.h>
@@ -657,8 +658,15 @@ basic_dynbuf_appender<CharT>::~basic_dynbuf_appender() {
 
 template<typename CharT>
 void basic_dynbuf_appender<CharT>::grow(size_t extra) {
-    size_t sz = dst_ - first_;
-    sz += std::max(extra, sz >> 1);
+    size_t sz = dst_ - first_, delta_sz = std::max(extra, sz >> 1);
+    using alloc_traits = std::allocator_traits<std::allocator<CharT>>;
+    if (delta_sz > alloc_traits::max_size(std::allocator<CharT>()) - sz) {
+        if (extra > alloc_traits::max_size(std::allocator<CharT>()) - sz) {
+            throw std::length_error("too much to reserve");
+        }
+        delta_sz = extra;
+    }
+    sz += delta_sz;
     CharT* first = std::allocator<CharT>().allocate(sz);
     dst_ = std::copy(first_, dst_, first);
     if (first_ != buf_) { std::allocator<CharT>().deallocate(first_, last_ - first_); }

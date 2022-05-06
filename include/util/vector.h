@@ -337,7 +337,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
 
     vector_ptrs_t v_;
 
-    enum : size_type { kStartCapacity = 8 };
+    enum : unsigned { kStartCapacity = 8 };
 
     bool is_same_alloc(const alloc_type& alloc) { return static_cast<alloc_type&>(*this) == alloc; }
 
@@ -349,7 +349,12 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
     }
 
     size_type grow_capacity(size_type extra) const {
-        return std::max(size() + extra, std::max<size_type>(kStartCapacity, (3 * capacity()) >> 1));
+        size_t sz = size(), delta_sz = std::max(extra, sz >> 1);
+        if (delta_sz > alloc_traits::max_size(*this) - sz) {
+            if (extra > alloc_traits::max_size(*this) - sz) { throw std::length_error("too much to reserve"); }
+            delta_sz = extra;
+        }
+        return std::max<size_type>(sz + delta_sz, kStartCapacity);
     }
 
     vector_ptrs_t alloc_new(size_type sz) {

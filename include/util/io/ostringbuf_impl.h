@@ -70,8 +70,15 @@ typename basic_ostringbuf<CharT>::pos_type basic_ostringbuf<CharT>::seekimpl(off
 template<typename CharT>
 void basic_ostringbuf<CharT>::grow(size_type extra) {
     top_ = std::max(top_, this->curr());
-    size_type sz = top_ - this->first();
-    sz = std::max<size_type>(sz + std::max(extra, sz >> 1), kMinBufSize);
+    size_type sz = top_ - this->first(), delta_sz = std::max(extra, sz >> 1);
+    using alloc_traits = std::allocator_traits<std::allocator<char_type>>;
+    if (delta_sz > alloc_traits::max_size(std::allocator<char_type>()) - sz) {
+        if (extra > alloc_traits::max_size(std::allocator<char_type>()) - sz) {
+            throw std::length_error("too much to reserve");
+        }
+        delta_sz = extra;
+    }
+    sz = std::max<size_type>(sz + delta_sz, kMinBufSize);
     char_type* first = std::allocator<char_type>().allocate(sz);
     if (this->first() != nullptr) {
         top_ = std::copy(this->first(), top_, first);
