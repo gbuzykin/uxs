@@ -4,7 +4,6 @@
 #include "stringcvt.h"
 
 #include <array>
-#include <stdexcept>
 
 namespace util {
 
@@ -98,80 +97,80 @@ auto make_fmt_args(const Ts&... args) NOEXCEPT -> std::array<fmt_arg_list_item<S
 }  // namespace detail
 
 template<typename StrTy>
-UTIL_EXPORT StrTy& basic_format(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
-                                span<const detail::fmt_arg_list_item<StrTy>> args);
+UTIL_EXPORT StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
+                                 span<const detail::fmt_arg_list_item<StrTy>> args);
 
 template<typename StrTy, typename... Ts>
-StrTy& format_append(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt, const Ts&... args) {
-    return basic_format<StrTy>(s, fmt, detail::make_fmt_args<StrTy>(args...));
+StrTy& basic_format(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt, const Ts&... args) {
+    return basic_vformat<StrTy>(s, fmt, detail::make_fmt_args<StrTy>(args...));
 }
 
 template<typename... Ts>
 std::string format(std::string_view fmt, const Ts&... args) {
-    util::dynbuf_appender appender;
-    format_append(appender, fmt, args...);
-    return std::string(appender.data(), appender.size());
+    dynbuffer buf;
+    basic_format(buf, fmt, args...);
+    return std::string(buf.data(), buf.size());
 }
 
 template<typename... Ts>
 std::wstring format(std::wstring_view fmt, const Ts&... args) {
-    util::wdynbuf_appender appender;
-    format_append(appender, fmt, args...);
-    return std::wstring(appender.data(), appender.size());
+    wdynbuffer buf;
+    basic_format(buf, fmt, args...);
+    return std::wstring(buf.data(), buf.size());
 }
 
 template<typename... Ts>
-char* format_to(char* dst, std::string_view fmt, const Ts&... args) {
-    unlimbuf_appender appender(dst);
-    return format_append(appender, fmt, args...).curr();
+char* format_to(char* buf, std::string_view fmt, const Ts&... args) {
+    unlimbuf_appender appender(buf);
+    return basic_format(appender, fmt, args...).curr();
 }
 
 template<typename... Ts>
-wchar_t* format_to(wchar_t* dst, std::wstring_view fmt, const Ts&... args) {
-    wunlimbuf_appender appender(dst);
-    return format_append(appender, fmt, args...).curr();
+wchar_t* format_to(wchar_t* buf, std::wstring_view fmt, const Ts&... args) {
+    wunlimbuf_appender appender(buf);
+    return basic_format(appender, fmt, args...).curr();
 }
 
 template<typename... Ts>
-char* format_to_n(char* dst, size_t n, std::string_view fmt, const Ts&... args) {
-    limbuf_appender appender(dst, n);
-    return format_append(appender, fmt, args...).curr();
+char* format_to_n(char* buf, size_t n, std::string_view fmt, const Ts&... args) {
+    limbuf_appender appender(buf, n);
+    return basic_format(appender, fmt, args...).curr();
 }
 
 template<typename... Ts>
-wchar_t* format_to_n(wchar_t* dst, size_t n, std::wstring_view fmt, const Ts&... args) {
-    wlimbuf_appender appender(dst, n);
-    return format_append(appender, fmt, args...).curr();
+wchar_t* format_to_n(wchar_t* buf, size_t n, std::wstring_view fmt, const Ts&... args) {
+    wlimbuf_appender appender(buf, n);
+    return basic_format(appender, fmt, args...).curr();
 }
 
 template<typename... Ts>
-iobuf& fprint(iobuf& buf, std::string_view fmt, const Ts&... args) {
-    util::dynbuf_appender appender;
-    format_append(appender, fmt, args...);
-    return buf.write(as_span(appender.data(), appender.size()));
+iobuf& fprint(iobuf& out, std::string_view fmt, const Ts&... args) {
+    dynbuffer buf;
+    basic_format(buf, fmt, args...);
+    return out.write(as_span(buf.data(), buf.size()));
 }
 
 template<typename... Ts>
-wiobuf& fprint(wiobuf& buf, std::wstring_view fmt, const Ts&... args) {
-    util::wdynbuf_appender appender;
-    format_append(appender, fmt, args...);
-    return buf.write(as_span(appender.data(), appender.size()));
+wiobuf& fprint(wiobuf& out, std::wstring_view fmt, const Ts&... args) {
+    wdynbuffer buf;
+    basic_format(buf, fmt, args...);
+    return out.write(as_span(buf.data(), buf.size()));
 }
 
 template<typename... Ts>
-iobuf& fprintln(iobuf& buf, std::string_view fmt, const Ts&... args) {
-    util::dynbuf_appender appender;
-    format_append(appender, fmt, args...);
-    appender.push_back('\n');
-    return buf.write(as_span(appender.data(), appender.size())).flush();
+iobuf& fprintln(iobuf& out, std::string_view fmt, const Ts&... args) {
+    dynbuffer buf;
+    basic_format(buf, fmt, args...);
+    buf.push_back('\n');
+    return out.write(as_span(buf.data(), buf.size())).flush();
 }
 
 template<typename... Ts>
-wiobuf& fprintln(wiobuf& buf, std::wstring_view fmt, const Ts&... args) {
-    util::wdynbuf_appender appender;
-    format_append(appender, fmt, args...);
-    appender.push_back('\n');
-    return buf.write(as_span(appender.data(), appender.size())).flush();
+wiobuf& fprintln(wiobuf& out, std::wstring_view fmt, const Ts&... args) {
+    wdynbuffer buf;
+    basic_format(buf, fmt, args...);
+    buf.push_back('\n');
+    return out.write(as_span(buf.data(), buf.size())).flush();
 }
 
 template<typename... Ts>
