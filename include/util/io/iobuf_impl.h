@@ -108,7 +108,7 @@ int basic_iobuf<CharT>::underflow() {
 }
 
 template<typename CharT>
-int basic_iobuf<CharT>::ungetfail() {
+int basic_iobuf<CharT>::ungetfail(char_type ch) {
     return -1;
 }
 

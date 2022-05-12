@@ -213,8 +213,7 @@ int basic_devbuf<CharT>::overflow(char_type ch) {
     if (tie_buf_) { tie_buf_->flush(); }
     int ret = flush_buffer();
     if (ret < 0) { return ret; }
-    *this->curr() = ch;
-    this->bump(1);
+    this->putcurr(ch);
     return ret;
 }
 
