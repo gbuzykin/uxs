@@ -414,7 +414,6 @@ OutputIt make_quoted_text(std::basic_string_view<CharT> text, OutputIt out) {
     for (auto p2 = text.begin(); p2 != pend; ++p2) {
         std::string_view esc;
         switch (*p2) {
-            case '\'': esc = "\\\'"; break;
             case '\"': esc = "\\\""; break;
             case '\\': esc = "\\\\"; break;
             case '\a': esc = "\\a"; break;

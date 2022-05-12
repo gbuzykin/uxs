@@ -3,40 +3,33 @@
 dig       [0-9]
 hdig      [0-9a-fA-F]
 letter    [a-zA-Z]
-dec       {dig}+
-real      (({dig}+(\.{dig}*)?)|(\.{dig}+))((e|E)(\+?|\-?){dig}+)?
-ws        [ \f\r\t\v]
+dec       0|[1-9]{dig}*
 
 %%
 
 # String literal
-
-escape_unicode  <string> \\u{hdig}{4}
-escape_a        <string> \\a
+escape_quot     <string> \\\"
+escape_rev_sol  <string> \\\\
+escape_sol      <string> \\\/
 escape_b        <string> \\b
 escape_f        <string> \\f
-escape_r        <string> \\r
 escape_n        <string> \\n
+escape_r        <string> \\r
 escape_t        <string> \\t
-escape_v        <string> \\v
+escape_unicode  <string> \\u{hdig}{4}
 escape_other    <string> \\.
-
 string_seq      <string> [^"\\\n]+
-string_nl       <string> \n
-string_close    <string> \"
+string_close    <string> [^"\\\n]*\"
 
 # Other literals
-null_literal     "null"
-true_literal     "true"
-false_literal    "false"
-dec_literal      ('+'|'-')?{dec}
-real_literal     ('+'|'-')?{real}
+null     "null"
+true     "true"
+false    "false"
+decimal  (-|\+)?{dec}
+real     (-|\+)?({dec}(\.{dig}+)?((e|E)(\+|-)?{dig}+)?)
 
 # Other
 comment          "//"
-whitespace       {ws}+
-nl               \n
-string           \"
-other_char       .
+whitespace       [ \t\r]+
 
 %%

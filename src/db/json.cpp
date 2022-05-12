@@ -1,12 +1,10 @@
 #include "util/db/json.h"
 
-#include "util/format.h"
-#include "util/stringalg.h"
+#include "util/utf.h"
 
 namespace lex_detail {
 #include "lex_defs.h"
 }
-
 namespace lex_detail {
 #include "lex_analyzer.inl"
 }
@@ -16,220 +14,296 @@ using namespace util::db;
 
 // --------------------------
 
-json::reader::reader(iobuf& input) : input_(input) {
-    state_stack_.reserve(256);
+value json::reader::read() {
+    auto error = []() { throw exception("parsing error"); };
+
+    if (input_.peek() == iobuf::traits_type::eof()) { return {}; }
+
+    auto token_to_value = [&error](int tk, std::string_view lval) -> value {
+        switch (tk) {
+            case '[': return value::make_empty_array();
+            case '{': return value::make_empty_record();
+            case kNull: return {};
+            case kTrue: return true;
+            case kFalse: return false;
+            case kInteger: {
+                uint64_t u64 = 0;
+                if (stoval(lval, u64) != 0) {
+                    if (lval[0] == '-') {
+                        int64_t i64 = static_cast<int64_t>(u64);
+                        if (i64 >= std::numeric_limits<int32_t>::min() && i64 <= std::numeric_limits<int32_t>::max()) {
+                            return static_cast<int32_t>(i64);
+                        }
+                        return i64;
+                    } else if (u64 <= static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
+                        return static_cast<int32_t>(u64);
+                    } else if (u64 <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+                        return static_cast<int64_t>(u64);
+                    }
+                    return u64;
+                }
+                // too big integer - treat as double
+                return from_string<double>(lval);
+            } break;
+            case kDouble: return from_string<double>(lval);
+            case kString: return lval;
+        }
+        error();
+        return {};
+    };
+
+    std::string_view lval;
+    basic_dynbuffer<value*, 32> stack;
+
+    state_stack_.clear();
     state_stack_.push_back(lex_detail::sc_initial);
+
+    int tk = parse_token(lval);
+    value result = token_to_value(tk, lval);
+    if (!result.is_array() && !result.is_record()) { return result; }
+
+    value* top = &result;
+    bool comma = false;
+    tk = parse_token(lval);
+
+loop:
+    if (top->is_array()) {
+        if (comma || tk != ']') {
+            while (true) {
+                value& el = top->emplace_back(token_to_value(tk, lval));
+                tk = parse_token(lval);
+                if (el.is_array() || el.is_record()) {
+                    stack.push_back(top);
+                    top = &el, comma = false;
+                    goto loop;
+                }
+                if (tk == ']') { break; }
+                if (tk != ',') { error(); }
+                tk = parse_token(lval);
+            }
+        }
+    } else if (comma || tk != '}') {
+        while (true) {
+            if (tk != kString) { error(); }
+            std::string name(lval);
+            tk = parse_token(lval);
+            if (tk != ':') { error(); }
+            tk = parse_token(lval);
+            value& el = top->emplace(std::move(name), token_to_value(tk, lval));
+            tk = parse_token(lval);
+            if (el.is_array() || el.is_record()) {
+                stack.push_back(top);
+                top = &el, comma = false;
+                goto loop;
+            }
+            if (tk == '}') { break; }
+            if (tk != ',') { error(); }
+            tk = parse_token(lval);
+        }
+    }
+
+    while (!stack.empty()) {
+        top = stack.back();
+        stack.pop_back();
+        tk = parse_token(lval);
+        if (tk != (top->is_array() ? ']' : '}')) {
+            if (tk != ',') { error(); }
+            tk = parse_token(lval), comma = true;
+            goto loop;
+        }
+    }
+    return result;
 }
 
-int json::reader::read(value& v) {
-    if (!input_) { return -1; }
-    token_val_t tk_val;
-    int tk = parse_token(tk_val);
-    return parse_value(v, tk, tk_val);
-}
-
-int json::reader::parse_value(value& v, int tk, token_val_t& tk_val) {
-    if (tk == '{') {
-        if ((tk = parse_object(v, tk_val)) == 0) { return 0; }
-    } else if (tk == '[') {
-        if ((tk = parse_array(v, tk_val)) == 0) { return 0; }
-    } else if (tk >= kNull) {
-        v = token_to_value(tk, tk_val);
-        return 0;
-    }
-    return -1;
-}
-
-int json::reader::parse_array(value& v, token_val_t& tk_val) {
-    int tk = parse_token(tk_val);
-    if (tk == ']') {  // create an empty array
-        v.convert(value::dtype::kArray);
-        return 0;
-    }
-    while (parse_value(v.emplace_back(), tk, tk_val) == 0) {
-        if ((tk = parse_token(tk_val)) == ']') { return 0; }
-        if (tk != ',') { break; }
-        tk = parse_token(tk_val);
-    }
-    return -1;
-}
-
-int json::reader::parse_object(value& v, token_val_t& tk_val) {
-    int tk = parse_token(tk_val);
-    if (tk == '}') {  // create an empty object
-        v.convert(value::dtype::kRecord);
-        return 0;
-    }
-    while (tk == kString) {
-        if ((tk = parse_token(tk_val)) != ':') { return -1; }
-        value& field = v[tk_val.str];
-        tk = parse_token(tk_val);
-        if (parse_value(field, tk, tk_val) != 0) { return -1; }
-        if ((tk = parse_token(tk_val)) == '}') { return 0; }
-        if (tk != ',') { return -1; }
-        tk = parse_token(tk_val);
-    }
-    return -1;
-}
-
-int json::reader::parse_token(token_val_t& tk_val) {
-    std::string s;
+int json::reader::parse_token(std::string_view& lval) {
+    unsigned surrogate = 0;
     while (true) {
         int pat = 0;
         unsigned llen = 0;
-        const char* lexeme = first_;
+        const char* first = input_.in_avail_first();
         while (true) {
-            pat = lex_detail::lex(first_, buf_.data() + buf_.size(), state_stack_, llen, input_);
-            if (pat != lex_detail::err_end_of_input) {
+            bool stack_limitation = false;
+            const char* last = input_.in_avail_last();
+            if (state_stack_.avail() < static_cast<size_t>(last - first)) {
+                last = first + state_stack_.avail();
+                stack_limitation = true;
+            }
+            pat = lex_detail::lex(first, last, state_stack_.p_curr(), &llen, stack_limitation || input_);
+            if (pat >= lex_detail::predef_pat_default) {
                 break;
+            } else if (stack_limitation) {  // enlarge state stack and continue analysis
+                state_stack_.reserve_at_curr(llen);
+                first = last;
+                continue;
             } else if (!input_) {
-                return kEof;  // end of sequence
+                return kEof;  // end of sequence, first_ == last_
             }
-            // add more characters
-            if (input_.in_avail() == 0) { input_.peek(); }
-            auto avail = input_.in_avail_view();
-            if (!avail.empty()) {
-                buf_.erase(buf_.begin(), buf_.end() - llen);
-                buf_.insert(buf_.end(), avail.begin(), avail.end());
-                lexeme = first_ = buf_.data();
-                input_.skip(avail.size());
+            if (!input_.in_avail_empty()) {  // append read buffer to stash
+                stash_.append(input_.in_avail_first(), input_.in_avail_last());
+                input_.bump(input_.in_avail());
             }
+            // read more characters from input
+            input_.peek();
+            first = input_.in_avail_first();
         }
-        first_ += llen;
+        const char* lexeme = input_.in_avail_first();
+        if (stash_.empty()) {  // the stash is empty
+            input_.bump(llen);
+        } else if (llen >= stash_.size()) {  // all characters in stash buffer are used
+            // concatenate full lexeme in stash
+            size_t len_rest = llen - stash_.size();
+            stash_.append(input_.in_avail_first(), input_.in_avail_first() + len_rest);
+            input_.bump(len_rest);
+            stash_.clear();  // it resets end pointer, but retains the contents
+            lexeme = stash_.data();
+        } else {  // at least one character in stash is yet unused
+                  // put unused chars back to `iobuf`
+            for (const char* p = stash_.last(); p != stash_.curr(); --p) { input_.unget(*(p - 1)); }
+            lexeme = stash_.data();
+        }
         switch (pat) {
             // ------ escape sequences
-            case lex_detail::pat_escape_a: s.push_back('\a'); break;
-            case lex_detail::pat_escape_b: s.push_back('\b'); break;
-            case lex_detail::pat_escape_f: s.push_back('\f'); break;
-            case lex_detail::pat_escape_n: s.push_back('\n'); break;
-            case lex_detail::pat_escape_r: s.push_back('\r'); break;
-            case lex_detail::pat_escape_t: s.push_back('\t'); break;
-            case lex_detail::pat_escape_v: s.push_back('\v'); break;
-            case lex_detail::pat_escape_other: s.push_back(lexeme[1]); break;
+            case lex_detail::pat_escape_quot: str_.push_back('\"'); break;
+            case lex_detail::pat_escape_rev_sol: str_.push_back('\\'); break;
+            case lex_detail::pat_escape_sol: str_.push_back('/'); break;
+            case lex_detail::pat_escape_b: str_.push_back('\b'); break;
+            case lex_detail::pat_escape_f: str_.push_back('\f'); break;
+            case lex_detail::pat_escape_n: str_.push_back('\n'); break;
+            case lex_detail::pat_escape_r: str_.push_back('\r'); break;
+            case lex_detail::pat_escape_t: str_.push_back('\t'); break;
+            case lex_detail::pat_escape_other: return kEof;
             case lex_detail::pat_escape_unicode: {
                 unsigned unicode = (util::dig_v<16>(lexeme[2]) << 12) | (util::dig_v<16>(lexeme[3]) << 8) |
                                    (util::dig_v<16>(lexeme[4]) << 4) | util::dig_v<16>(lexeme[5]);
-                to_utf8(unicode, std::back_inserter(s));
+                if (surrogate != 0) {
+                    unicode = 0x10000 + (((surrogate & 0x3ff) << 10) | (unicode & 0x3ff));
+                    surrogate = 0;
+                } else if ((unicode & 0xdc00) == 0xd800) {
+                    surrogate = unicode;
+                    break;
+                }
+                to_utf8(unicode, std::back_inserter(str_));
             } break;
 
             // ------ strings
-            case lex_detail::pat_string_nl: s.push_back('\n'); break;
-            case lex_detail::pat_string: {
-                state_stack_.push_back(lex_detail::sc_string);
-            } break;
             case lex_detail::pat_string_seq: {
-                s.append(lexeme, llen);
+                str_.append(lexeme, lexeme + llen);
             } break;
             case lex_detail::pat_string_close: {
-                tk_val.str = std::move(s);
+                if (str_.empty()) {
+                    lval = std::string_view(lexeme, llen - 1);
+                } else {
+                    str_.append(lexeme, lexeme + llen - 1);
+                    lval = std::string_view(str_.data(), str_.size());
+                }
                 state_stack_.pop_back();
                 return kString;
             } break;
 
-            case lex_detail::pat_null_literal: return kNull;
-            case lex_detail::pat_true_literal: return kTrue;
-            case lex_detail::pat_false_literal: return kFalse;
-
-            case lex_detail::pat_dec_literal: {
-                tk_val.u64 = from_string<uint64_t>(std::string_view(lexeme, llen));
-                return lexeme[0] == '-' ? kNegInt : kPosInt;
-            } break;
-
-            case lex_detail::pat_real_literal: {
-                tk_val.dbl = from_string<double>(std::string_view(lexeme, llen));
-                return kDouble;
-            } break;
+            case lex_detail::pat_null: return kNull;
+            case lex_detail::pat_true: return kTrue;
+            case lex_detail::pat_false: return kFalse;
+            case lex_detail::pat_decimal: lval = std::string_view(lexeme, llen); return kInteger;
+            case lex_detail::pat_real: lval = std::string_view(lexeme, llen); return kDouble;
 
             case lex_detail::pat_whitespace: break;
-            case lex_detail::pat_nl: break;
             case lex_detail::pat_comment: {  // skip till end of line or stream
-                first_ = std::find(first_, buf_.data() + buf_.size(), '\n');
-                if (first_ != buf_.data() + buf_.size()) {
-                    ++first_;
-                } else {
-                    while (input_ && input_.get() != '\n') {}
-                }
+                while (input_ && input_.get() != '\n') {}
             } break;
 
-            case lex_detail::pat_other_char:
-            default: return lexeme[0];
+            default: {
+                if (lexeme[0] != '\n' && lexeme[0] != '\"') {
+                    return lexeme[0];
+                } else if (lexeme[0] == '\"') {
+                    str_.clear();
+                    state_stack_.push_back(lex_detail::sc_string);
+                } else if (state_stack_.back() == lex_detail::sc_string) {
+                    return kEof;
+                }
+            } break;
         }
     }
 
     return kEof;
 }
 
-/*static*/ value json::reader::token_to_value(int tk, const token_val_t& tk_val) {
-    switch (tk) {
-        case kTrue: return value(true);
-        case kFalse: return value(false);
-        case kPosInt: {
-            if (tk_val.u64 <= static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
-                return value(static_cast<int32_t>(tk_val.u64));
-            } else if (tk_val.u64 <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
-                return value(static_cast<int64_t>(tk_val.u64));
-            }
-            return value(tk_val.u64);
-        } break;
-        case kNegInt: {
-            int64_t i64 = static_cast<int64_t>(tk_val.u64);
-            if (i64 >= std::numeric_limits<int32_t>::min() && i64 <= std::numeric_limits<int32_t>::max()) {
-                return value(static_cast<int32_t>(i64));
-            }
-            return value(i64);
-        } break;
-        case kDouble: return value(tk_val.dbl);
-        case kString: return value(tk_val.str);
-        default: break;
-    }
-    return value();
-}
-
 // --------------------------
 
-void json::writer::write(const value& v, unsigned indent) {
-    switch (v.type()) {
-        case value::dtype::kNull: output_.write("null"); break;
-        case value::dtype::kBoolean: output_.write(v.as_bool() ? "true" : "false"); break;
-        case value::dtype::kInteger: fprint(output_, "{}", v.as_int()); break;
-        case value::dtype::kUInteger: fprint(output_, "{}", v.as_uint()); break;
-        case value::dtype::kInteger64: fprint(output_, "{}", v.as_int64()); break;
-        case value::dtype::kUInteger64: fprint(output_, "{}", v.as_uint64()); break;
-        case value::dtype::kDouble: fprint(output_, "{:#}", v.as_double()); break;
-        case value::dtype::kString: output_.write(make_quoted_text(v.as_string())); break;
-        case value::dtype::kArray: fmt_array(v, indent); break;
-        case value::dtype::kRecord: fmt_object(v, indent); break;
-    }
-}
+struct writer_stack_item_t {
+    writer_stack_item_t(const value* p, const value* el) : v(p), array_element(el) {}
+    writer_stack_item_t(const value* p, value::const_record_iterator el) : v(p), record_element(el) {}
+    const value* v;
+#if !defined(_MSC_VER) || _MSC_VER >= 1920
+    union {
+        const value* array_element;
+        value::const_record_iterator record_element;
+    };
+#else   // !defined(_MSC_VER) || _MSC_VER >= 1920
+    // Old versions of VS compiler don't support such unions
+    const value* array_element = nullptr;
+    value::const_record_iterator record_element;
+#endif  // !defined(_MSC_VER) || _MSC_VER >= 1920
+};
 
-void json::writer::fmt_array(const value& v, unsigned indent) {
-    output_.put('[');
-    if (!v.empty()) {
-        bool first = true;
-        for (const value& sub_v : v.view()) {
-            if (!first) { output_.write(", "); }
-            write(sub_v, indent);
-            first = false;
-        }
-    }
-    output_.put(']');
-}
+void json::writer::write(const value& v) {
+    unsigned indent = 0;
+    basic_dynbuffer<writer_stack_item_t, 32> stack;
 
-void json::writer::fmt_object(const value& v, unsigned indent) {
-    output_.put('{');
-    if (!v.empty()) {
-        bool first = true;
-        for (const auto& item : v.map()) {
-            if (!first) { output_.put(','); }
-            output_.endl();
-            output_.fill_n(indent + 4, ' ');
-            output_.write(make_quoted_text(item.first));
-            output_.write(": ");
-            write(item.second, indent + 4);
-            first = false;
+    auto write_value = [this, &stack, &indent](const value& v) {
+        switch (v.type()) {
+            case value::dtype::kArray: {
+                output_.put('[');
+                stack.emplace_back(&v, v.as_array().data());
+                return true;
+            } break;
+            case value::dtype::kRecord: {
+                output_.put('{');
+                indent += indent_size_;
+                stack.emplace_back(&v, v.as_map().begin());
+                return true;
+            } break;
+            default: v.print_scalar(output_); break;
         }
-        output_.endl();
-        output_.fill_n(indent, ' ');
+        return false;
+    };
+
+    if (!write_value(v)) { return; }
+
+loop:
+    writer_stack_item_t* top = stack.curr() - 1;
+    if (top->v->is_array()) {
+        auto range = top->v->as_array();
+        const value *el = top->array_element, *el_end = range.data() + range.size();
+        while (el != el_end) {
+            if (el != range.data()) { output_.put(',').put(' '); }
+            if (write_value(*el++)) {
+                (stack.curr() - 2)->array_element = el;
+                goto loop;
+            }
+        }
+        output_.put(']');
+    } else {
+        auto range = top->v->as_map();
+        auto el = top->record_element, el_end = range.end();
+        while (el != el_end) {
+            if (el != range.begin()) { output_.put(','); }
+            output_.put('\n');
+            output_.fill_n(indent, indent_char_);
+            print_quoted_text<char>(output_, el->first);
+            output_.put(':').put(' ');
+            if (write_value((el++)->second)) {
+                (stack.curr() - 2)->record_element = el;
+                goto loop;
+            }
+        }
+        indent -= indent_size_;
+        if (!top->v->empty()) {
+            output_.put('\n');
+            output_.fill_n(indent, indent_char_);
+        }
+        output_.put('}');
     }
-    output_.put('}');
+
+    stack.pop_back();
+    if (!stack.empty()) { goto loop; }
 }
