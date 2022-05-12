@@ -4,7 +4,6 @@
 
 #include <array>
 #include <limits>
-#include <stdexcept>
 
 #if defined(_MSC_VER) && defined(_M_X64)
 #    include <intrin.h>
@@ -93,6 +92,29 @@ inline unsigned ulog2(uint64_t x) {
 }
 #endif
 
+// --------------------------
+
+template<typename Ty>
+struct type_substitution {
+    using type = Ty;
+};
+template<>
+struct type_substitution<int8_t> {
+    using type = int32_t;
+};
+template<>
+struct type_substitution<int16_t> {
+    using type = int32_t;
+};
+template<>
+struct type_substitution<uint8_t> {
+    using type = uint32_t;
+};
+template<>
+struct type_substitution<uint16_t> {
+    using type = uint32_t;
+};
+
 // ---- from string to value
 
 template<typename CharT>
@@ -110,8 +132,8 @@ const CharT* skip_spaces(const CharT* p, const CharT* end) {
     return p;
 }
 
-template<typename Ty, typename CharT>
-Ty to_integer(const CharT* p, const CharT* end, const CharT*& last) {
+template<typename Ty, typename CharT, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
+Ty to_integer_limited(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) {
     bool neg = false;
     last = p;
     if (p == end) {
@@ -123,10 +145,26 @@ Ty to_integer(const CharT* p, const CharT* end, const CharT*& last) {
     }
     if (p == end || !is_digit(*p)) { return 0; }
     Ty val = static_cast<unsigned>(*p++ - '0');
-    while (p < end && is_digit(*p)) { val = 10u * val + static_cast<unsigned>(*p++ - '0'); }
-    if (neg) { val = ~val + 1; }  // apply sign
+    while (p < end && is_digit(*p)) {
+        Ty val0 = val;
+        val = 10u * val + static_cast<unsigned>(*p++ - '0');
+        if (val < val0) { return 0; }  // too big integer
+    }
+    // Note: resulting number must be in range [-(1 + pos_limit / 2), pos_limit]
+    if (neg) {
+        if (val > 1 + (pos_limit >> 1)) { return 0; }  // negative integer is out of range
+        val = ~val + 1;                                // apply sign
+    } else if (val > pos_limit) {
+        return 0;  // positive integer is out of range
+    }
     last = p;
     return val;
+}
+
+template<typename Ty, typename CharT>
+Ty to_integer(const CharT* p, const CharT* end, const CharT*& last) {
+    return to_integer_limited<typename type_substitution<typename std::make_unsigned<Ty>::type>::type>(
+        p, end, last, std::numeric_limits<typename std::make_unsigned<Ty>::type>::max());
 }
 
 template<typename Ty, typename CharT>
@@ -166,7 +204,7 @@ const CharT* to_fp_exp10(const CharT* p, const CharT* end, fp_m64_t& fp10) {
     const CharT* p1 = accum_mantissa(p, end, fp10.m, fp10.exp);  // fractional part
     fp10.exp -= static_cast<unsigned>(p1 - p);
     if (p1 < end && (*p1 == 'e' || *p1 == 'E')) {  // optional exponent
-        int exp_optional = static_cast<int>(to_integer<uint32_t>(p1 + 1, end, p));
+        int exp_optional = to_integer<int>(p1 + 1, end, p);
         if (p > p1 + 1) { fp10.exp += exp_optional, p1 = p; }
     }
     return p1;
@@ -224,22 +262,10 @@ StrTy& fmt_adjusted(StrTy& s, const CharT* first, const CharT* last, const fmt_s
 }
 
 template<typename CharT>
-basic_dynbuf_appender<CharT>& fmt_adjusted(basic_dynbuf_appender<CharT>& s, const CharT* first, const CharT* last,
-                                           const fmt_state& fmt) {
-    basic_unlimbuf_appender<CharT> appender(s.reserve(fmt.width));
+basic_dynbuffer<CharT>& fmt_adjusted(basic_dynbuffer<CharT>& s, const CharT* first, const CharT* last,
+                                     const fmt_state& fmt) {
+    basic_unlimbuf_appender<CharT> appender(s.reserve_at_curr(fmt.width));
     return s.setcurr(fmt_adjusted(appender, first, last, fmt).curr());
-}
-
-template<typename CharT>
-basic_limbuf_appender<CharT>& fmt_adjusted(basic_limbuf_appender<CharT>& s, const CharT* first, const CharT* last,
-                                           const fmt_state& fmt) {
-    if (static_cast<size_t>(s.last() - s.curr()) >= fmt.width) {
-        basic_unlimbuf_appender<CharT> appender(s.curr());
-        return s.setcurr(fmt_adjusted(appender, first, last, fmt).curr());
-    }
-    basic_dynbuf_appender<CharT> appender;
-    fmt_adjusted(appender, first, last, fmt);
-    return s.append(appender.data(), appender.curr());
 }
 
 // --------------------------
@@ -259,22 +285,10 @@ StrTy& fmt_num_adjusted(StrTy& s, const CharT* first, const CharT* last, NPref n
 }
 
 template<typename CharT>
-basic_dynbuf_appender<CharT>& fmt_num_adjusted(basic_dynbuf_appender<CharT>& s, const CharT* first, const CharT* last,
-                                               NPref n_pref, const fmt_state& fmt) {
-    basic_unlimbuf_appender<CharT> appender(s.reserve(fmt.width));
+basic_dynbuffer<CharT>& fmt_num_adjusted(basic_dynbuffer<CharT>& s, const CharT* first, const CharT* last, NPref n_pref,
+                                         const fmt_state& fmt) {
+    basic_unlimbuf_appender<CharT> appender(s.reserve_at_curr(fmt.width));
     return s.setcurr(fmt_num_adjusted(appender, first, last, n_pref, fmt).curr());
-}
-
-template<typename CharT>
-basic_limbuf_appender<CharT>& fmt_num_adjusted(basic_limbuf_appender<CharT>& s, const CharT* first, const CharT* last,
-                                               NPref n_pref, const fmt_state& fmt) {
-    if (static_cast<size_t>(s.last() - s.curr()) >= fmt.width) {
-        basic_unlimbuf_appender<CharT> appender(s.curr());
-        return s.setcurr(fmt_num_adjusted(appender, first, last, n_pref, fmt).curr());
-    }
-    basic_dynbuf_appender<CharT> appender;
-    fmt_num_adjusted(appender, first, last, n_pref, fmt);
-    return s.append(appender.data(), appender.curr());
 }
 
 // ---- binary
@@ -500,25 +514,13 @@ StrTy& fmt_float_adjusted_finite(StrTy& s, const fp10_t& fp10, char sign, bool i
 }
 
 template<typename CharT>
-basic_dynbuf_appender<CharT>& fmt_float_adjusted_finite(basic_dynbuf_appender<CharT>& s, const fp10_t& fp10, char sign,
-                                                        bool is_fixed, int prec, unsigned len, const fmt_state& fmt) {
-    basic_unlimbuf_appender<CharT> appender(s.reserve(fmt.width));
+basic_dynbuffer<CharT>& fmt_float_adjusted_finite(basic_dynbuffer<CharT>& s, const fp10_t& fp10, char sign,
+                                                  bool is_fixed, int prec, unsigned len, const fmt_state& fmt) {
+    basic_unlimbuf_appender<CharT> appender(s.reserve_at_curr(fmt.width));
     return s.setcurr(fmt_float_adjusted_finite(appender, fp10, sign, is_fixed, prec, len, fmt).curr());
 }
 
-template<typename CharT>
-basic_limbuf_appender<CharT>& fmt_float_adjusted_finite(basic_limbuf_appender<CharT>& s, const fp10_t& fp10, char sign,
-                                                        bool is_fixed, int prec, unsigned len, const fmt_state& fmt) {
-    if (static_cast<size_t>(s.last() - s.curr()) >= fmt.width) {
-        basic_unlimbuf_appender<CharT> appender(s.curr());
-        return s.setcurr(fmt_float_adjusted_finite(appender, fp10, sign, is_fixed, prec, len, fmt).curr());
-    }
-    basic_dynbuf_appender<CharT> appender;
-    fmt_float_adjusted_finite(appender, fp10, sign, is_fixed, prec, len, fmt);
-    return s.append(appender.data(), appender.curr());
-}
-
-UTIL_EXPORT fp10_t fp_exp2_to_exp10(dynbuf_appender& digs, fp_m64_t fp2, fmt_flags& flags, int& prec, bool alternate,
+UTIL_EXPORT fp10_t fp_exp2_to_exp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& flags, int& prec, bool alternate,
                                     unsigned bpm, const int exp_bias);
 
 template<typename StrTy>
@@ -554,7 +556,7 @@ StrTy& fmt_float_common(StrTy& s, uint64_t u64, const fmt_state& fmt, const unsi
         return s.append(p0, p);
     }
 
-    dynbuf_appender digs;
+    dynbuffer digs;
     int prec = fmt.prec;
     fmt_flags flags = fmt.flags & fmt_flags::kFloatField;
     const bool alternate = !!(fmt.flags & fmt_flags::kAlternate);
@@ -582,27 +584,27 @@ StrTy& fmt_float(StrTy& s, Ty val, const fmt_state& fmt) {
     size_t string_converter<ty>::from_string(std::basic_string_view<CharT> s, ty& val) { \
         const CharT* last = s.data() + s.size(); \
         const CharT* first = scvt::skip_spaces(s.data(), last); \
-        auto t = scvt::from_string_func(first, last, last); \
+        auto t = scvt::from_string_func<ty>(first, last, last); \
         if (last == first) { return 0; } \
-        val = static_cast<ty>(t); \
+        val = t; \
         return static_cast<size_t>(last - s.data()); \
     } \
     template<typename StrTy> \
     StrTy& string_converter<ty>::to_string(StrTy& s, ty val, const fmt_state& fmt) { \
-        return scvt::to_string_func(s, val, fmt); \
+        return scvt::to_string_func<StrTy, scvt::type_substitution<ty>::type>(s, val, fmt); \
     }
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int8_t, to_integer<uint32_t>, fmt_signed<StrTy COMMA int32_t>)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int16_t, to_integer<uint32_t>, fmt_signed<StrTy COMMA int32_t>)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int32_t, to_integer<uint32_t>, fmt_signed)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int64_t, to_integer<uint64_t>, fmt_signed)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint8_t, to_integer<uint32_t>, fmt_unsigned<StrTy COMMA uint32_t>)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint16_t, to_integer<uint32_t>, fmt_unsigned<StrTy COMMA uint32_t>)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint32_t, to_integer<uint32_t>, fmt_unsigned)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint64_t, to_integer<uint64_t>, fmt_unsigned)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(char, to_char<char>, fmt_char)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(wchar_t, to_char<wchar_t>, fmt_char)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(float, to_float<float>, fmt_float)
-SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(double, to_float<double>, fmt_float)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int8_t, to_integer, fmt_signed)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int16_t, to_integer, fmt_signed)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int32_t, to_integer, fmt_signed)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int64_t, to_integer, fmt_signed)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint8_t, to_integer, fmt_unsigned)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint16_t, to_integer, fmt_unsigned)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint32_t, to_integer, fmt_unsigned)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(uint64_t, to_integer, fmt_unsigned)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(char, to_char, fmt_char)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(wchar_t, to_char, fmt_char)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(float, to_float, fmt_float)
+SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(double, to_float, fmt_float)
 #undef SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER
 
 template<typename CharT>
@@ -647,30 +649,6 @@ StrTy& string_converter<bool>::to_string(StrTy& s, bool val, const fmt_state& fm
     }
     if (fmt.width > static_cast<unsigned>(p - p0)) { return scvt::fmt_adjusted(s, p0, p, fmt); }
     return s.append(p0, p);
-}
-
-// ---- dynamic buffer implementation
-
-template<typename CharT>
-basic_dynbuf_appender<CharT>::~basic_dynbuf_appender() {
-    if (first_ != buf_) { std::allocator<CharT>().deallocate(first_, last_ - first_); }
-}
-
-template<typename CharT>
-void basic_dynbuf_appender<CharT>::grow(size_t extra) {
-    size_t sz = dst_ - first_, delta_sz = std::max(extra, sz >> 1);
-    using alloc_traits = std::allocator_traits<std::allocator<CharT>>;
-    if (delta_sz > alloc_traits::max_size(std::allocator<CharT>()) - sz) {
-        if (extra > alloc_traits::max_size(std::allocator<CharT>()) - sz) {
-            throw std::length_error("too much to reserve");
-        }
-        delta_sz = extra;
-    }
-    sz += delta_sz;
-    CharT* first = std::allocator<CharT>().allocate(sz);
-    dst_ = std::copy(first_, dst_, first);
-    if (first_ != buf_) { std::allocator<CharT>().deallocate(first_, last_ - first_); }
-    first_ = first, last_ = first + sz;
 }
 
 }  // namespace util

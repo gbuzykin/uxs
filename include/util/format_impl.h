@@ -295,8 +295,8 @@ StrTy& fmt_append_string(StrTy& s, std::basic_string_view<typename StrTy::value_
 }  // namespace detail
 
 template<typename StrTy>
-StrTy& basic_format(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
-                    span<const detail::fmt_arg_list_item<StrTy>> args) {
+StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
+                     span<const detail::fmt_arg_list_item<StrTy>> args) {
     size_t n = 0;
     auto check_arg_idx = [&args](size_t idx) {
         if (idx >= args.size()) { throw format_error("out of argument list"); }

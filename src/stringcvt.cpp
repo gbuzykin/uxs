@@ -442,7 +442,7 @@ inline int remove_trailing_zeros(uint64_t& n) {
     return s;
 }
 
-fp10_t fp_exp2_to_exp10(dynbuf_appender& digs, fp_m64_t fp2, fmt_flags& flags, int& prec, bool alternate, unsigned bpm,
+fp10_t fp_exp2_to_exp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& flags, int& prec, bool alternate, unsigned bpm,
                         const int exp_bias) {
     if (fp2.m != 0 || fp2.exp > 0) {
         bool optimal = false;
@@ -484,7 +484,7 @@ fp10_t fp_exp2_to_exp10(dynbuf_appender& digs, fp_m64_t fp2, fmt_flags& flags, i
             // Reserve space for digits. For scientific format decimal point (+1), sign (+1), and exponent (+5) are
             // added inplace, so reserve additional space for them. Note: the first digit can belong [1, 20) range,
             // reserve space (+1) for it
-            char *p0 = digs.reserve(n_digs + 8) + 2, *p1 = p0;  // left margin for decimal point and sign
+            char *p0 = digs.reserve_at_curr(n_digs + 8) + 2, *p1 = p0;  // left margin for decimal point and sign
 
             uint64_t* num = &buf[0];  // numerator
             unsigned sz = 1;
@@ -727,7 +727,7 @@ fp10_t fp_exp2_to_exp10(dynbuf_appender& digs, fp_m64_t fp2, fmt_flags& flags, i
 
                 // 32 chars are enough for sure. Start from the midpoint to reserve place
                 // for decimal point, sign, and exponent
-                char *p0 = digs.reserve(32) + 24, *p = gen_digits(p0, fp10.m);
+                char *p0 = digs.reserve_at_curr(32) + 24, *p = gen_digits(p0, fp10.m);
                 return fp10_t{p, static_cast<unsigned>(p0 - p), fp10.exp};
             }
         }
@@ -744,7 +744,7 @@ fp10_t fp_exp2_to_exp10(dynbuf_appender& digs, fp_m64_t fp2, fmt_flags& flags, i
     // Reserve space for zeroes. For scientific format decimal point (+1), sign (+1), and exponent (+5) are
     // added inplace, so reserve additional space for them.
     unsigned n_digs = static_cast<unsigned>(1 + prec);
-    char* p = digs.reserve(n_digs + 7) + 2;  // left margin for decimal point and sign
+    char* p = digs.reserve_at_curr(n_digs + 7) + 2;  // left margin for decimal point and sign
     std::fill_n(p, n_digs, '0');
     return fp10_t{p, static_cast<unsigned>(n_digs), 0};
 }
@@ -755,7 +755,7 @@ fp10_t fp_exp2_to_exp10(dynbuf_appender& digs, fp_m64_t fp2, fmt_flags& flags, i
     template size_t string_converter<ty>::from_string(std::string_view s, ty& val); \
     template unlimbuf_appender& string_converter<ty>::to_string(unlimbuf_appender& s, ty val, const fmt_state& fmt); \
     template limbuf_appender& string_converter<ty>::to_string(limbuf_appender& s, ty val, const fmt_state& fmt); \
-    template dynbuf_appender& string_converter<ty>::to_string(dynbuf_appender& s, ty val, const fmt_state& fmt);
+    template dynbuffer& string_converter<ty>::to_string(dynbuffer& s, ty val, const fmt_state& fmt);
 SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int8_t)
 SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int16_t)
 SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int32_t)
@@ -774,7 +774,7 @@ SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(bool)
     template size_t string_converter<ty>::from_string(std::wstring_view s, ty& val); \
     template wunlimbuf_appender& string_converter<ty>::to_string(wunlimbuf_appender& s, ty val, const fmt_state& fmt); \
     template wlimbuf_appender& string_converter<ty>::to_string(wlimbuf_appender& s, ty val, const fmt_state& fmt); \
-    template wdynbuf_appender& string_converter<ty>::to_string(wdynbuf_appender& s, ty val, const fmt_state& fmt);
+    template wdynbuffer& string_converter<ty>::to_string(wdynbuffer& s, ty val, const fmt_state& fmt);
 SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int8_t)
 SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int16_t)
 SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int32_t)
@@ -788,8 +788,5 @@ SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(double)
 SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(wchar_t)
 SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(bool)
 #undef SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER
-
-template class basic_dynbuf_appender<char>;
-template class basic_dynbuf_appender<wchar_t>;
 
 }  // namespace util

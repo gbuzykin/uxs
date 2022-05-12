@@ -70,9 +70,9 @@ int64_t rawfile::seek(int64_t off, seekdir dir) {
 
 int rawfile::ctrlesc_color(span<uint8_t> v) {
     using namespace std::placeholders;
-    util::dynbuf_appender buf;
+    util::dynbuffer buf;
     buf += "\033[";
-    basic_join_strings(buf, v, ';', std::bind(basic_to_string<util::dynbuf_appender, uint8_t>, _1, _2, fmt_state()));
+    basic_join_strings(buf, v, ';', std::bind(basic_to_string<util::dynbuffer, uint8_t>, _1, _2, fmt_state()));
     buf += 'm';
     return ::write(fd_, buf.data(), buf.size()) < 0 ? -1 : 0;
 }
