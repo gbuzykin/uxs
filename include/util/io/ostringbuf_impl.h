@@ -30,8 +30,7 @@ basic_ostringbuf<CharT>& basic_ostringbuf<CharT>::operator=(basic_ostringbuf&& o
 template<typename CharT>
 int basic_ostringbuf<CharT>::overflow(char_type ch) {
     grow(1);
-    *this->curr() = ch;
-    this->bump(1);
+    this->putcurr(ch);
     return 0;
 }
 

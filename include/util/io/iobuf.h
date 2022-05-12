@@ -8,6 +8,8 @@ namespace util {
 
 template<typename CharT>
 class UTIL_EXPORT basic_iobuf : public iostate {
+    static_assert(std::is_integral<CharT>::value, "util::basic_iobuf must have integral character type");
+
  public:
     using char_type = CharT;
     using traits_type = std::char_traits<CharT>;
@@ -26,6 +28,9 @@ class UTIL_EXPORT basic_iobuf : public iostate {
     basic_iobuf& operator=(basic_iobuf&& other) NOEXCEPT;
 
     size_type in_avail() const { return last_ - curr_; }
+    bool in_avail_empty() const { return curr_ == last_; }
+    const char_type* in_avail_first() const { return curr_; }
+    const char_type* in_avail_last() const { return last_; }
     span<const char_type> in_avail_view() const { return as_span(curr_, in_avail()); }
 
     int_type peek() {
@@ -44,13 +49,24 @@ class UTIL_EXPORT basic_iobuf : public iostate {
         return traits_type::to_int_type(*curr_++);
     }
 
-    void unget() {
+    basic_iobuf& unget() {
         this->setstate(this->rdstate() & ~iostate_bits::kEof);
-        if (curr_ == first_ && (!this->good() || ungetfail() < 0)) {
-            this->setstate(iostate_bits::kEof | iostate_bits::kFail);
+        if (curr_ == first_) {
+            this->setstate(iostate_bits::kFail);
         } else {
             --curr_;
         }
+        return *this;
+    }
+
+    basic_iobuf& unget(char_type ch) {
+        this->setstate(this->rdstate() & ~iostate_bits::kEof);
+        if (curr_ == first_ && (!this->good() || ungetfail(ch) < 0)) {
+            this->setstate(iostate_bits::kFail);
+        } else {
+            *--curr_ = ch;
+        }
+        return *this;
     }
 
     basic_iobuf& put(char_type ch) {
@@ -59,6 +75,11 @@ class UTIL_EXPORT basic_iobuf : public iostate {
         } else if (!this->good() || overflow(ch) < 0) {
             this->setstate(iostate_bits::kBad);
         }
+        return *this;
+    }
+
+    basic_iobuf& bump(size_type n) {
+        if (n <= static_cast<size_type>(last_ - curr_)) { curr_ += n; }
         return *this;
     }
 
@@ -78,7 +99,7 @@ class UTIL_EXPORT basic_iobuf : public iostate {
 
  protected:
     virtual int underflow();
-    virtual int ungetfail();
+    virtual int ungetfail(char_type ch);
     virtual int overflow(char_type ch);
     virtual pos_type seekimpl(off_type off, seekdir dir);
     virtual int sync();
@@ -86,8 +107,9 @@ class UTIL_EXPORT basic_iobuf : public iostate {
     char_type* first() const { return first_; }
     char_type* curr() const { return curr_; }
     char_type* last() const { return last_; }
-    void bump(int count) { curr_ += count; }
+
     void setcurr(char_type* curr) { curr_ = curr; }
+    void putcurr(char_type ch) { *curr_++ = ch; }
     void setview(char_type* first, char_type* curr, char_type* last) {
         first_ = first;
         curr_ = curr;
