@@ -21,17 +21,26 @@ template<typename Ty>
 }
 
 template<typename Ty>
-value::dynarray<Ty>* value::dynarray<Ty>::grow(size_t extra) {
-    dynarray* new_arr = alloc(size + std::max(extra, size >> 1));
-    if (size != 0) { std::memcpy(new_arr->data, data, size * sizeof(Ty)); }
-    new_arr->size = size;
-    dealloc();
+/*static*/ value::dynarray<Ty>* value::dynarray<Ty>::grow(dynarray* arr, size_t extra) {
+    size_t delta_sz = std::max(extra, arr->size >> 1);
+    using alloc_traits = std::allocator_traits<std::allocator<dynarray>>;
+    size_t max_size = (alloc_traits::max_size(std::allocator<dynarray>()) * sizeof(dynarray) -
+                       offsetof(dynarray, data[0])) /
+                      sizeof(Ty);
+    if (delta_sz > max_size - arr->size) {
+        if (extra > max_size - arr->size) { throw std::length_error("too much to reserve"); }
+        delta_sz = std::max(extra, (max_size - arr->size) >> 1);
+    }
+    dynarray* new_arr = alloc(arr->size + delta_sz);
+    if (arr->size != 0) { std::memcpy(new_arr->data, arr->data, arr->size * sizeof(Ty)); }
+    new_arr->size = arr->size;
+    dealloc(arr);
     return new_arr;
 }
 
 template<typename Ty>
-void value::dynarray<Ty>::dealloc() {
-    std::allocator<dynarray>().deallocate(this, get_alloc_sz(capacity));
+/*static*/ void value::dynarray<Ty>::dealloc(dynarray* arr) {
+    std::allocator<dynarray>().deallocate(arr, get_alloc_sz(arr->capacity));
 }
 
 // --------------------------
@@ -224,16 +233,22 @@ bool value::as_double(double& res) const {
 bool value::as_string(std::string& res) const {
     switch (type_) {
         case dtype::kNull: res = "null"; return true;
-        case dtype::kBoolean: res = to_string(value_.b); return true;
+        case dtype::kBoolean: res = value_.b ? "true" : "false"; return true;
         case dtype::kInteger: res = to_string(value_.i); return true;
         case dtype::kUInteger: res = to_string(value_.u); return true;
         case dtype::kInteger64: res = to_string(value_.i64); return true;
         case dtype::kUInteger64: res = to_string(value_.u64); return true;
-        case dtype::kDouble: res = to_string(value_.dbl); return true;
+        case dtype::kDouble: res = to_string(value_.dbl, fmt_flags::kAlternate); return true;
         case dtype::kString: res = std::string(str_view()); return true;
         default: break;
     }
     return false;
+}
+
+bool value::as_string_view(std::string_view& res) const {
+    if (type_ != dtype::kString) { return false; }
+    res = str_view();
+    return true;
 }
 
 // --------------------------
@@ -378,41 +393,41 @@ std::vector<std::string_view> value::members() const {
     return names;
 }
 
-span<const value> value::view() const {
-    if (type_ == dtype::kArray) { return arr_view(); }
+span<const value> value::as_array() const {
+    if (type_ == dtype::kArray) { return array_view(); }
     return type_ != dtype::kNull ? as_span(this, 1) : span<value>();
 }
 
-span<value> value::view() {
-    if (type_ == dtype::kArray) { return arr_view(); }
+span<value> value::as_array() {
+    if (type_ == dtype::kArray) { return array_view(); }
     return type_ != dtype::kNull ? as_span(this, 1) : span<value>();
 }
 
-iterator_range<value::record::const_iterator> value::map() const {
+iterator_range<value::const_record_iterator> value::as_map() const {
     if (type_ != dtype::kRecord) { throw exception("not a record"); }
     return util::make_range(value_.rec->cbegin(), value_.rec->cend());
 }
 
-iterator_range<value::record::iterator> value::map() {
+iterator_range<value::record_iterator> value::as_map() {
     if (type_ != dtype::kRecord) { throw exception("not a record"); }
     return util::make_range(value_.rec->begin(), value_.rec->end());
 }
 
 const value& value::operator[](size_t i) const {
-    auto range = view();
+    auto range = as_array();
     if (i >= range.size()) { throw exception("index out of range"); }
     return range[i];
 }
 
 value& value::operator[](size_t i) {
-    auto range = view();
+    auto range = as_array();
     if (i >= range.size()) { throw exception("index out of range"); }
     return range[i];
 }
 
 const value& value::operator[](std::string_view name) const {
     static const value null;
-    if (type_ != dtype::kRecord) { return null; }
+    if (type_ != dtype::kRecord) { throw exception("not a record"); }
     auto it = value_.rec->find(name);
     if (it == value_.rec->end()) { return null; }
     return it->second;
@@ -424,11 +439,7 @@ value& value::operator[](std::string_view name) {
         value_.rec = new record();
         type_ = dtype::kRecord;
     }
-    auto it = value_.rec->lower_bound(name);
-    if (it == value_.rec->end() || name < it->first) {
-        it = value_.rec->emplace_hint(it, std::piecewise_construct, std::make_tuple(name), std::tuple<>());
-    }
-    return it->second;
+    return value_.rec->try_emplace(name).first->second;
 }
 
 const value* value::find(std::string_view name) const {
@@ -446,25 +457,30 @@ void value::clear() {
                 value_.arr->size = 0;
             }
         } break;
-        case dtype::kRecord: value_.rec->size(); break;
+        case dtype::kRecord: value_.rec->clear(); break;
         default: break;
     }
 }
 
 void value::resize(size_t sz) {
     if (type_ != dtype::kArray || !value_.arr) {
-        if (value_.arr && type_ != dtype::kNull) { throw exception("not an array"); }
+        if (type_ != dtype::kArray && type_ != dtype::kNull) { throw exception("not an array"); }
+        if (sz == 0) {
+            value_.arr = nullptr;
+            type_ = dtype::kArray;
+            return;
+        }
         value_.arr = dynarray<value>::alloc(sz);
         value_.arr->size = 0;
         type_ = dtype::kArray;
     } else if (sz > value_.arr->capacity) {
-        value_.arr->grow(sz - value_.arr->size);
+        value_.arr = dynarray<value>::grow(value_.arr, sz - value_.arr->size);
     } else if (sz < value_.arr->size) {
         std::for_each(value_.arr->data + sz, value_.arr->data + value_.arr->size, [](value& v) { v.destroy(); });
         value_.arr->size = sz;
         return;
     }
-    std::for_each(value_.arr->data + value_.arr->size, value_.arr->data + sz, [](value& v) { ::new (&v) value(); });
+    std::for_each(value_.arr->data + value_.arr->size, value_.arr->data + sz, [](value& v) { new (&v) value(); });
     value_.arr->size = sz;
 }
 
@@ -472,7 +488,8 @@ void value::remove(size_t pos) {
     if (type_ != dtype::kArray) { throw exception("not an array"); }
     if (!value_.arr || pos >= value_.arr->size) { throw exception("index out of range"); }
     value* v = value_.arr->data + pos;
-    for (; v != value_.arr->data + pos - 1; ++v) { *v = std::move(*(v + 1)); }
+    value* v_end = value_.arr->data + --value_.arr->size;
+    for (; v != v_end; ++v) { *v = std::move(*(v + 1)); }
     v->destroy();
 }
 
@@ -480,8 +497,9 @@ void value::remove(size_t pos, value& removed) {
     if (type_ != dtype::kArray) { throw exception("not an array"); }
     if (!value_.arr || pos >= value_.arr->size) { throw exception("index out of range"); }
     value* v = value_.arr->data + pos;
+    value* v_end = value_.arr->data + --value_.arr->size;
     removed = std::move(*v);
-    for (; v != value_.arr->data + pos - 1; ++v) { *v = std::move(*(v + 1)); }
+    for (; v != v_end; ++v) { *v = std::move(*(v + 1)); }
     v->destroy();
 }
 
@@ -502,104 +520,134 @@ bool value::remove(std::string_view name, value& removed) {
     return true;
 }
 
+void value::print_scalar(iobuf& out) const {
+    switch (type_) {
+        case value::dtype::kNull: out.write("null"); break;
+        case value::dtype::kBoolean: out.write(value_.b ? "true" : "false"); break;
+        case value::dtype::kInteger: {
+            dynbuffer buf;
+            basic_to_string(buf, value_.i, fmt_state());
+            out.write(as_span(buf.data(), buf.size()));
+        } break;
+        case value::dtype::kUInteger: {
+            dynbuffer buf;
+            basic_to_string(buf, value_.u, fmt_state());
+            out.write(as_span(buf.data(), buf.size()));
+        } break;
+        case value::dtype::kInteger64: {
+            dynbuffer buf;
+            basic_to_string(buf, value_.i64, fmt_state());
+            out.write(as_span(buf.data(), buf.size()));
+        } break;
+        case value::dtype::kUInteger64: {
+            dynbuffer buf;
+            basic_to_string(buf, value_.u64, fmt_state());
+            out.write(as_span(buf.data(), buf.size()));
+        } break;
+        case value::dtype::kDouble: {
+            dynbuffer buf;
+            basic_to_string(buf, value_.dbl, fmt_state(fmt_flags::kAlternate));
+            out.write(as_span(buf.data(), buf.size()));
+        } break;
+        case value::dtype::kString: print_quoted_text(out, str_view()); break;
+        default: break;
+    }
+}
+
 // --------------------------
 
-void value::init_string(span<const char> s) {
-    if (s.size() != 0) {
-        value_.str = dynarray<char>::alloc(s.size());
-        value_.str->size = s.size();
-        std::memcpy(value_.str->data, s.data(), s.size());
-    } else {
-        value_.str = nullptr;
-    }
+/*static*/ value::dynarray<char>* value::copy_string(span<const char> s) {
+    if (s.size() == 0) { return nullptr; }
+    dynarray<char>* str = dynarray<char>::alloc(s.size());
+    str->size = s.size();
+    std::memcpy(str->data, s.data(), s.size());
+    return str;
 }
 
-void value::assign_string(span<const char> s) {
-    if (s.size() != 0) {
-        if (type_ != dtype::kString || !value_.str || s.size() > value_.str->capacity) {
-            dynarray<char>* new_str = dynarray<char>::alloc(s.size());
-            if (type_ != dtype::kNull) { destroy(); }
-            value_.str = new_str;
+/*static*/ value::dynarray<char>* value::assign_string(dynarray<char>* str, span<const char> s) {
+    if (!str || s.size() > str->capacity) {
+        if (s.size() == 0) { return nullptr; }
+        dynarray<char>* new_str = dynarray<char>::alloc(s.size());
+        if (str) { dynarray<char>::dealloc(str); }
+        str = new_str;
+    }
+    str->size = s.size();
+    std::memcpy(str->data, s.data(), s.size());
+    return str;
+}
+
+/*static*/ value::dynarray<value>* value::copy_array(span<const value> v) {
+    if (v.size() == 0) { return nullptr; }
+    dynarray<value>* arr = dynarray<value>::alloc(v.size());
+    try {
+        util::uninitialized_copy(v, arr->data);
+    } catch (...) {
+        dynarray<value>::dealloc(arr);
+        throw;
+    }
+    arr->size = v.size();
+    return arr;
+}
+
+/*static*/ value::dynarray<value>* value::assign_array(dynarray<value>* arr, span<const value> v) {
+    if (arr && v.size() <= arr->capacity) {
+        span<value> v_tgt = arr->view();
+        if (v.size() > v_tgt.size()) {
+            value* p = util::copy(v.subspan(0, v_tgt.size()), v_tgt.data());
+            util::uninitialized_copy(v.subspan(v_tgt.size(), v.size() - v_tgt.size()), p);
+        } else {
+            util::copy(v, v_tgt.data());
+            util::for_each(v_tgt.subspan(v.size(), v_tgt.size() - v.size()), [](value& v) { v.destroy(); });
         }
-        value_.str->size = s.size();
-        std::memcpy(value_.str->data, s.data(), s.size());
-    } else if (type_ != dtype::kNull) {
-        destroy();
-    }
-}
-
-void value::init_array(span<const value> v) {
-    if (v.size() != 0) {
-        value_.arr = dynarray<value>::alloc(v.size());
+    } else if (v.size() != 0) {
+        dynarray<value>* new_arr = dynarray<value>::alloc(v.size());
         try {
-            util::uninitialized_copy(v, value_.arr->data);
+            util::uninitialized_copy(v, new_arr->data);
         } catch (...) {
-            value_.arr->dealloc();
+            dynarray<value>::dealloc(new_arr);
             throw;
         }
-        value_.arr->size = v.size();
-    } else {
-        value_.arr = nullptr;
+        if (arr) { dynarray<value>::dealloc(arr); }
+        arr = new_arr;
     }
-}
-
-void value::assign_array(span<const value> v) {
-    if (v.size() != 0) {
-        if (type_ != dtype::kArray || !value_.arr || v.size() > value_.arr->capacity) {
-            dynarray<value>* new_arr = dynarray<value>::alloc(v.size());
-            try {
-                util::uninitialized_copy(v, new_arr->data);
-            } catch (...) {
-                new_arr->dealloc();
-                throw;
-            }
-            if (type_ != dtype::kNull) { destroy(); }
-            value_.arr = new_arr;
-        } else {
-            span<value> v_tgt = value_.arr->view();
-            if (v.size() > v_tgt.size()) {
-                value* p = util::copy(v.subspan(0, v_tgt.size()), v_tgt.data());
-                util::uninitialized_copy(v.subspan(v_tgt.size(), v.size() - v_tgt.size()), p);
-            } else {
-                util::copy(v, v_tgt.data());
-                util::for_each(v_tgt.subspan(v.size(), v_tgt.size() - v.size()), [](value& v) { v.destroy(); });
-            }
-        }
-        value_.arr->size = v.size();
-    } else if (type_ != dtype::kNull) {
-        destroy();
-    }
+    return arr;
 }
 
 // --------------------------
 
 void value::init_from(const value& other) {
-    switch (type_) {
-        case dtype::kString: init_string(other.str_view()); break;
-        case dtype::kArray: init_array(other.arr_view()); break;
+    switch (other.type_) {
+        case dtype::kString: value_.str = copy_string(other.str_view()); break;
+        case dtype::kArray: value_.arr = copy_array(other.array_view()); break;
         case dtype::kRecord: value_.rec = new record(*other.value_.rec); break;
         default: value_ = other.value_; break;
     }
 }
 
 void value::copy_from(const value& other) {
-    switch (other.type_) {
-        case dtype::kString: assign_string(other.str_view()); break;
-        case dtype::kArray: assign_array(other.arr_view()); break;
-        case dtype::kRecord: *value_.rec = *other.value_.rec; break;
-        default: value_ = other.value_; break;
+    if (type_ != other.type_) {
+        if (type_ != dtype::kNull) { destroy(); }
+        init_from(other);
+    } else {
+        switch (other.type_) {
+            case dtype::kString: value_.str = assign_string(value_.str, other.str_view()); break;
+            case dtype::kArray: value_.arr = assign_array(value_.arr, other.array_view()); break;
+            case dtype::kRecord: *value_.rec = *other.value_.rec; break;
+            default: value_ = other.value_; break;
+        }
     }
+    type_ = other.type_;
 }
 
 void value::destroy() {
     switch (type_) {
         case dtype::kString: {
-            if (value_.str) { value_.str->dealloc(); }
+            if (value_.str) { dynarray<char>::dealloc(value_.str); }
         } break;
         case dtype::kArray: {
             if (value_.arr) {
                 util::for_each(value_.arr->view(), [](value& v) { v.destroy(); });
-                value_.arr->dealloc();
+                dynarray<value>::dealloc(value_.arr);
             }
         } break;
         case dtype::kRecord: delete value_.rec; break;
@@ -609,30 +657,23 @@ void value::destroy() {
 
 // --------------------------
 
-value* value::add_placeholder() {
+void value::reserve_back() {
     if (type_ != dtype::kArray || !value_.arr) {
-        if (value_.arr && type_ != dtype::kNull) { throw exception("not an array"); }
+        if (type_ != dtype::kArray && type_ != dtype::kNull) { throw exception("not an array"); }
         value_.arr = dynarray<value>::alloc(kMinCapacity);
         value_.arr->size = 0;
         type_ = dtype::kArray;
     } else if (value_.arr->size == value_.arr->capacity) {
-        value_.arr = value_.arr->grow(1);
+        value_.arr = dynarray<value>::grow(value_.arr, 1);
     }
-    return &value_.arr->data[value_.arr->size++];
 }
 
-value* value::insert_placeholder(size_t pos) {
-    value* v = add_placeholder();
-    if (pos >= value_.arr->size) {
-        --value_.arr->size;
-        throw exception("index out of range");
-    }
-    if (pos != value_.arr->size - 1) {
-        ::new (v) value(std::move(*(v - 1)));
-        while (--v != value_.arr->data + pos) { *v = std::move(*(v - 1)); }
-        v->destroy();
-    }
-    return v;
+void value::rotate_back(size_t pos) {
+    assert(pos != value_.arr->size - 1);
+    value* v = value_.arr->data + value_.arr->size;
+    value t(std::move(*(v - 1)));
+    while (--v != value_.arr->data + pos) { *v = std::move(*(v - 1)); }
+    *v = std::move(t);
 }
 
 template struct value::dynarray<char>;

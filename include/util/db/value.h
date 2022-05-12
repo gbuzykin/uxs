@@ -1,5 +1,6 @@
 #pragma once
 
+#include "util/io/iobuf.h"
 #include "util/map.h"
 #include "util/span.h"
 #include "util/string_view.h"
@@ -18,9 +19,25 @@ class exception : public std::runtime_error {
 };
 
 class UTIL_EXPORT value {
- public:
+ private:
     using record = util::map<std::string, value, util::less<>>;
 
+    template<typename Ty>
+    struct dynarray {
+        size_t size;
+        size_t capacity;
+        Ty data[1];
+        span<const Ty> view() const { return as_span(data, size); }
+        span<Ty> view() { return as_span(data, size); }
+        static size_t get_alloc_sz(size_t cap) {
+            return (offsetof(dynarray, data[cap]) + sizeof(dynarray) - 1) / sizeof(dynarray);
+        }
+        static dynarray* alloc(size_t cap);
+        static dynarray* grow(dynarray* arr, size_t extra);
+        static void dealloc(dynarray* arr);
+    };
+
+ public:
     enum class dtype {
         kNull = 0,
         kBoolean,
@@ -34,14 +51,32 @@ class UTIL_EXPORT value {
         kRecord,
     };
 
+    using record_iterator = record::iterator;
+    using const_record_iterator = record::const_iterator;
+
     value() : type_(dtype::kNull) { value_.i64 = 0; }
-    explicit value(bool b) : type_(dtype::kBoolean) { value_.b = b; }
-    explicit value(int32_t i) : type_(dtype::kInteger) { value_.i = i; }
-    explicit value(uint32_t u) : type_(dtype::kUInteger) { value_.u = u; }
-    explicit value(int64_t i) : type_(dtype::kInteger64) { value_.i64 = i; }
-    explicit value(uint64_t u) : type_(dtype::kUInteger64) { value_.u64 = u; }
-    explicit value(double d) : type_(dtype::kDouble) { value_.dbl = d; }
-    explicit value(std::string_view s) : type_(dtype::kString) { init_string(s); }
+    value(bool b) : type_(dtype::kBoolean) { value_.b = b; }
+    value(int32_t i) : type_(dtype::kInteger) { value_.i = i; }
+    value(uint32_t u) : type_(dtype::kUInteger) { value_.u = u; }
+    value(int64_t i) : type_(dtype::kInteger64) { value_.i64 = i; }
+    value(uint64_t u) : type_(dtype::kUInteger64) { value_.u64 = u; }
+    value(double d) : type_(dtype::kDouble) { value_.dbl = d; }
+    value(std::string_view s) : type_(dtype::kString) { value_.str = copy_string(s); }
+    value(const char* cstr) : type_(dtype::kString) { value_.str = copy_string(std::string_view(cstr)); }
+
+    static value make_empty_array() {
+        value v;
+        v.value_.arr = nullptr;
+        v.type_ = dtype::kArray;
+        return v;
+    }
+
+    static value make_empty_record() {
+        value v;
+        v.value_.rec = new record();
+        v.type_ = dtype::kRecord;
+        return v;
+    }
 
     ~value() {
         if (type_ != dtype::kNull) { destroy(); }
@@ -58,7 +93,6 @@ class UTIL_EXPORT value {
     value& operator=(const value& other) {
         if (&other == this) { return *this; }
         copy_from(other);
-        type_ = other.type_;
         return *this;
     }
 
@@ -77,10 +111,17 @@ class UTIL_EXPORT value {
 #undef PARSER_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT
 
     value& operator=(std::string_view s) {
-        assign_string(s);
+        if (type_ != dtype::kString) {
+            if (type_ != dtype::kNull) { destroy(); }
+            value_.str = copy_string(s);
+        } else {
+            value_.str = assign_string(value_.str, s);
+        }
         type_ = dtype::kString;
         return *this;
     }
+
+    value& operator=(const char* cstr) { return (*this = std::string_view(cstr)); }
 
     dtype type() const { return type_; }
 
@@ -118,8 +159,7 @@ class UTIL_EXPORT value {
     bool as_float(float& res) const;
     bool as_double(double& res) const;
     bool as_string(std::string& res) const;
-
-    bool convert(dtype type);
+    bool as_string_view(std::string_view& res) const;
 
     bool as_bool() const;
     int32_t as_int() const;
@@ -129,6 +169,10 @@ class UTIL_EXPORT value {
     float as_float() const;
     double as_double() const;
     std::string as_string() const;
+    std::string_view as_string_view() const;
+
+    bool convert(dtype type);
+    void print_scalar(iobuf& out) const;
 
     size_t size() const;
     bool empty() const;
@@ -136,11 +180,11 @@ class UTIL_EXPORT value {
     std::vector<std::string_view> members() const;
     explicit operator bool() const { return !is_null(); }
 
-    span<const value> view() const;
-    span<value> view();
+    span<const value> as_array() const;
+    span<value> as_array();
 
-    iterator_range<record::const_iterator> map() const;
-    iterator_range<record::iterator> map();
+    iterator_range<const_record_iterator> as_map() const;
+    iterator_range<record_iterator> as_map();
 
     const value& operator[](size_t i) const;
     value& operator[](size_t i);
@@ -153,20 +197,26 @@ class UTIL_EXPORT value {
 
     void clear();
     void resize(size_t sz);
+    void nullify() {
+        if (type_ == dtype::kNull) { return; }
+        destroy();
+        type_ = dtype::kNull;
+    }
 
     template<typename... Args>
-    value& emplace_back(Args&&... args) {
-        return *::new (add_placeholder()) value(std::forward<Args>(args)...);
-    }
+    value& emplace_back(Args&&... args);
     void push_back(const value& v) { emplace_back(v); }
     void push_back(value&& v) { emplace_back(std::move(v)); }
 
     template<typename... Args>
-    value& emplace(size_t pos, Args&&... args) {
-        return *::new (insert_placeholder(pos)) value(std::forward<Args>(args)...);
-    }
+    value& emplace(size_t pos, Args&&... args);
     void insert(size_t pos, const value& v) { emplace(pos, v); }
     void insert(size_t pos, value&& v) { emplace(pos, std::move(v)); }
+
+    template<typename... Args>
+    value& emplace(std::string name, Args&&... args);
+    void insert(std::string name, const value& v) { emplace(std::move(name), v); }
+    void insert(std::string name, value&& v) { emplace(std::move(name), std::move(v)); }
 
     void remove(size_t pos);
     void remove(size_t pos, value& removed);
@@ -175,21 +225,6 @@ class UTIL_EXPORT value {
 
  private:
     enum : unsigned { kMinCapacity = 8 };
-
-    template<typename Ty>
-    struct dynarray {
-        size_t size;
-        size_t capacity;
-        Ty data[1];
-        span<const Ty> view() const { return as_span(data, size); }
-        span<Ty> view() { return as_span(data, size); }
-        static size_t get_alloc_sz(size_t cap) {
-            return (offsetof(dynarray, data[cap]) + sizeof(dynarray) - 1) / sizeof(dynarray);
-        }
-        static dynarray* alloc(size_t cap);
-        dynarray* grow(size_t extra);
-        void dealloc();
-    };
 
     dtype type_;
 
@@ -208,28 +243,70 @@ class UTIL_EXPORT value {
     std::string_view str_view() const {
         return value_.str ? std::string_view(value_.str->data, value_.str->size) : std::string_view();
     }
-    span<const value> arr_view() const { return value_.arr ? value_.arr->view() : span<value>(); }
-    span<value> arr_view() { return value_.arr ? value_.arr->view() : span<value>(); }
+    span<const value> array_view() const { return value_.arr ? value_.arr->view() : span<value>(); }
+    span<value> array_view() { return value_.arr ? value_.arr->view() : span<value>(); }
 
-    void init_string(span<const char> s);
-    void assign_string(span<const char> s);
+    static dynarray<char>* copy_string(span<const char> s);
+    static dynarray<char>* assign_string(dynarray<char>* str, span<const char> s);
 
-    void init_array(span<const value> v);
-    void assign_array(span<const value> v);
+    static dynarray<value>* copy_array(span<const value> v);
+    static dynarray<value>* assign_array(dynarray<value>* arr, span<const value> v);
 
     void init_from(const value& other);
     void copy_from(const value& other);
     void destroy();
 
-    value* add_placeholder();
-    value* insert_placeholder(size_t pos);
+    void reserve_back();
+    void rotate_back(size_t pos);
 };
 
-#define PARSER_VALUE_IMPLEMENT_SCALAR_IS_AS_GET(ty, is_func, as_func) \
+template<typename... Args>
+value& value::emplace_back(Args&&... args) {
+    if (type_ != dtype::kArray || !value_.arr || value_.arr->size == value_.arr->capacity) { reserve_back(); }
+    value& v = *new (&value_.arr->data[value_.arr->size]) value(std::forward<Args>(args)...);
+    ++value_.arr->size;
+    return v;
+}
+
+template<typename... Args>
+value& value::emplace(size_t pos, Args&&... args) {
+    if (type_ != dtype::kArray || !value_.arr || value_.arr->size == value_.arr->capacity) { reserve_back(); }
+    if (pos > value_.arr->size) { throw exception("index out of range"); }
+    value& v = *new (&value_.arr->data[value_.arr->size]) value(std::forward<Args>(args)...);
+    ++value_.arr->size;
+    if (pos != value_.arr->size - 1) { rotate_back(pos); }
+    return v;
+}
+
+template<typename... Args>
+value& value::emplace(std::string name, Args&&... args) {
+    if (type_ != dtype::kRecord) {
+        if (type_ != dtype::kNull) { throw exception("not a record"); }
+        value_.rec = new record();
+        type_ = dtype::kRecord;
+    }
+    return value_.rec
+        ->emplace(std::piecewise_construct, std::forward_as_tuple(std::move(name)),
+                  std::forward_as_tuple(std::forward<Args>(args)...))
+        .first->second;
+}
+
+#define PARSER_VALUE_IMPLEMENT_SCALAR_IS_GET(ty, is_func) \
     template<> \
     inline bool value::is<ty>() const { \
         return this->is_func(); \
-    } \
+    }
+PARSER_VALUE_IMPLEMENT_SCALAR_IS_GET(bool, is_bool)
+PARSER_VALUE_IMPLEMENT_SCALAR_IS_GET(int32_t, is_int)
+PARSER_VALUE_IMPLEMENT_SCALAR_IS_GET(uint32_t, is_uint)
+PARSER_VALUE_IMPLEMENT_SCALAR_IS_GET(int64_t, is_int64)
+PARSER_VALUE_IMPLEMENT_SCALAR_IS_GET(uint64_t, is_uint64)
+PARSER_VALUE_IMPLEMENT_SCALAR_IS_GET(float, is_float)
+PARSER_VALUE_IMPLEMENT_SCALAR_IS_GET(double, is_double)
+PARSER_VALUE_IMPLEMENT_SCALAR_IS_GET(std::string, is_string)
+#undef PARSER_VALUE_IMPLEMENT_SCALAR_IS_GET
+
+#define PARSER_VALUE_IMPLEMENT_SCALAR_AS_GET(ty, as_func) \
     inline ty value::as_func() const { \
         ty res; \
         if (!this->as_func(res)) { throw exception("not convertible to " #ty); } \
@@ -252,15 +329,16 @@ class UTIL_EXPORT value {
         return res; \
     }
 
-PARSER_VALUE_IMPLEMENT_SCALAR_IS_AS_GET(bool, is_bool, as_bool)
-PARSER_VALUE_IMPLEMENT_SCALAR_IS_AS_GET(int32_t, is_int, as_int)
-PARSER_VALUE_IMPLEMENT_SCALAR_IS_AS_GET(uint32_t, is_uint, as_uint)
-PARSER_VALUE_IMPLEMENT_SCALAR_IS_AS_GET(int64_t, is_int64, as_int64)
-PARSER_VALUE_IMPLEMENT_SCALAR_IS_AS_GET(uint64_t, is_uint64, as_uint64)
-PARSER_VALUE_IMPLEMENT_SCALAR_IS_AS_GET(float, is_float, as_float)
-PARSER_VALUE_IMPLEMENT_SCALAR_IS_AS_GET(double, is_double, as_double)
-PARSER_VALUE_IMPLEMENT_SCALAR_IS_AS_GET(std::string, is_string, as_string)
-#undef PARSER_VALUE_IMPLEMENT_SCALAR_IS_AS_GET
+PARSER_VALUE_IMPLEMENT_SCALAR_AS_GET(bool, as_bool)
+PARSER_VALUE_IMPLEMENT_SCALAR_AS_GET(int32_t, as_int)
+PARSER_VALUE_IMPLEMENT_SCALAR_AS_GET(uint32_t, as_uint)
+PARSER_VALUE_IMPLEMENT_SCALAR_AS_GET(int64_t, as_int64)
+PARSER_VALUE_IMPLEMENT_SCALAR_AS_GET(uint64_t, as_uint64)
+PARSER_VALUE_IMPLEMENT_SCALAR_AS_GET(float, as_float)
+PARSER_VALUE_IMPLEMENT_SCALAR_AS_GET(double, as_double)
+PARSER_VALUE_IMPLEMENT_SCALAR_AS_GET(std::string, as_string)
+PARSER_VALUE_IMPLEMENT_SCALAR_AS_GET(std::string_view, as_string_view)
+#undef PARSER_VALUE_IMPLEMENT_SCALAR_AS_GET
 
 }  // namespace db
 }  // namespace util
