@@ -242,7 +242,7 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
     friend class array_iterator;
 
     array_iterator() NOEXCEPT {}
-    ~array_iterator() {}
+    ~array_iterator() {}  // explicit destructor is required by standard
 
     void increment() {
         iterator_assert(ptr_ < end_);
@@ -284,6 +284,7 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
 
     pointer ptr() const { return ptr_; }
 
+    // explicit non-trivial copy operations are required by standard
 #if _ITERATOR_DEBUG_LEVEL != 0
     explicit array_iterator(pointer ptr, pointer begin, pointer end) NOEXCEPT : ptr_(ptr), begin_(begin), end_(end) {}
     array_iterator(const array_iterator& it) NOEXCEPT : ptr_(it.ptr_), begin_(it.begin_), end_(it.end_) {}
@@ -348,13 +349,9 @@ class list_iterator : public container_iterator_facade<Traits, list_iterator<Tra
 
     list_iterator() NOEXCEPT {}
     explicit list_iterator(node_type* node) NOEXCEPT : node_(node) {}
-    ~list_iterator() {}
 
-    list_iterator(const list_iterator& it) NOEXCEPT : node_(it.node_) {}
-    list_iterator& operator=(const list_iterator& it) NOEXCEPT {
-        node_ = it.node_;
-        return *this;
-    }
+    // this iterator consists of one natural pointer,
+    // so explicit copy constructor and operator are not needed
 
     template<bool Const_ = Const>
     list_iterator(const std::enable_if_t<Const_, list_iterator<Traits, NodeTraits, false>>& it) NOEXCEPT
