@@ -128,6 +128,11 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
         return try_emplace_impl(std::move(key), std::forward<Args>(args)...);
     }
 
+    template<typename Key2, typename Comp_ = key_compare, typename... Args>
+    type_identity_t<std::pair<iterator, bool>, typename Comp_::is_transparent> try_emplace(Key2&& key, Args&&... args) {
+        return try_emplace_impl(std::forward<Key2>(key), std::forward<Args>(args)...);
+    }
+
     template<typename... Args>
     iterator try_emplace(const_iterator hint, const key_type& key, Args&&... args) {
         return try_emplace_hint_impl(hint, key, std::forward<Args>(args)...).first;
@@ -136,6 +141,12 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
     template<typename... Args>
     iterator try_emplace(const_iterator hint, key_type&& key, Args&&... args) {
         return try_emplace_hint_impl(hint, std::move(key), std::forward<Args>(args)...).first;
+    }
+
+    template<typename Key2, typename Comp_ = key_compare, typename... Args>
+    type_identity_t<iterator, typename Comp_::is_transparent> try_emplace_hint(const_iterator hint, Key2&& key,
+                                                                               Args&&... args) {
+        return try_emplace_hint_impl(hint, std::forward<Key2>(key), std::forward<Args>(args)...).first;
     }
 
     template<typename Ty2>
@@ -152,6 +163,13 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
         return result;
     }
 
+    template<typename Key2, typename Ty2, typename Comp_ = key_compare>
+    type_identity_t<std::pair<iterator, bool>, typename Comp_::is_transparent> insert_or_assign(Key2&& key, Ty2&& obj) {
+        auto result = try_emplace_impl(std::forward<Key2>(key), std::forward<Ty2>(obj));
+        if (!result.second) { result.first->second = std::forward<Ty2>(obj); }
+        return result;
+    }
+
     template<typename Ty2>
     iterator insert_or_assign(const_iterator hint, const key_type& key, Ty2&& obj) {
         auto result = try_emplace_hint_impl(hint, key, std::forward<Ty2>(obj));
@@ -162,6 +180,14 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
     template<typename Ty2>
     iterator insert_or_assign(const_iterator hint, key_type&& key, Ty2&& obj) {
         auto result = try_emplace_hint_impl(hint, std::move(key), std::forward<Ty2>(obj));
+        if (!result.second) { result.first->second = std::forward<Ty2>(obj); }
+        return result.first;
+    }
+
+    template<typename Key2, typename Ty2, typename Comp_ = key_compare>
+    type_identity_t<iterator, typename Comp_::is_transparent> insert_or_assign(const_iterator hint, Key2&& key,
+                                                                               Ty2&& obj) {
+        auto result = try_emplace_hint_impl(hint, std::forward<Key2>(key), std::forward<Ty2>(obj));
         if (!result.second) { result.first->second = std::forward<Ty2>(obj); }
         return result.first;
     }
@@ -183,7 +209,7 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
         this->merge_impl(std::move(other));
     }
 
- protected:
+ private:
     template<typename Key2, typename... Args>
     std::pair<iterator, bool> try_emplace_impl(Key2&& key, Args&&... args) {
         auto result = rbtree_find_insert_unique_pos<node_traits>(std::addressof(this->head_), key, this->get_compare());
@@ -197,7 +223,7 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
     }
 
     template<typename Key2, typename... Args>
-    std::pair<iterator, bool> try_emplace_hint_impl(const_iterator hint, Key2&& key, Args&&... args) {
+    iterator try_emplace_hint_impl(const_iterator hint, Key2&& key, Args&&... args) {
         auto result = rbtree_find_insert_unique_pos<node_traits>(std::addressof(this->head_), this->to_ptr(hint), key,
                                                                  this->get_compare());
         if (result.second == 0) { return std::make_pair(iterator(result.first), false); }
