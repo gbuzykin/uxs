@@ -1,7 +1,7 @@
 #pragma once
 
+#include "util/dllist.h"
 #include "util/io/iobuf.h"
-#include "util/map.h"
 #include "util/span.h"
 #include "util/string_view.h"
 
@@ -20,8 +20,6 @@ class exception : public std::runtime_error {
 
 class UTIL_EXPORT value {
  private:
-    using record = util::map<std::string, value, util::less<>>;
-
     template<typename Ty>
     struct dynarray {
         size_t size;
@@ -35,6 +33,57 @@ class UTIL_EXPORT value {
         static dynarray* alloc(size_t cap);
         static dynarray* grow(dynarray* arr, size_t extra);
         static void dealloc(dynarray* arr);
+    };
+
+#if _ITERATOR_DEBUG_LEVEL != 0
+    struct list_links_type {
+        list_links_type* next;
+        list_links_type* prev;
+        list_links_type* head;
+    };
+#else   // _ITERATOR_DEBUG_LEVEL != 0
+    using list_links_type = dllist_node_t;
+#endif  // _ITERATOR_DEBUG_LEVEL != 0
+
+    struct list_node_type;
+    struct list_node_traits;
+
+    using map_value = std::pair<const std::string, value>;
+
+    struct record {
+        using value_type = map_value;
+        using size_type = size_t;
+        using difference_type = std::ptrdiff_t;
+        using pointer = value_type*;
+        using const_pointer = const value_type*;
+        using reference = value_type&;
+        using const_reference = const value_type&;
+
+        list_links_type head;
+        size_t size;
+        size_t bucket_count;
+        list_links_type* hashtbl[1];
+        void init();
+        void destroy(list_links_type* node);
+        void clear() {
+            destroy(head.next);
+            init();
+        }
+        list_links_type* find(std::string_view s, size_t hash_code) const;
+        void add_to_hash(list_links_type* node, size_t hash_code);
+        template<typename... Args>
+        list_links_type* insert(size_t hash_code, Args&&... args);
+        list_links_type* erase(std::string_view s);
+        record* copy() const;
+        static record* assign(record* rec, const record* src);
+        static size_t get_alloc_sz(size_t bckt_cnt) {
+            return (offsetof(record, hashtbl[bckt_cnt]) + sizeof(record) - 1) / sizeof(record);
+        }
+        static size_t bucket_next_count(size_t sz);
+        static record* alloc(size_t bckt_cnt);
+        static record* rehash(record* rec, size_t bckt_cnt);
+        static void dealloc(record* rec);
+        static size_t calc_hash_code(std::string_view s);
     };
 
  public:
@@ -51,8 +100,8 @@ class UTIL_EXPORT value {
         kRecord,
     };
 
-    using record_iterator = record::iterator;
-    using const_record_iterator = record::const_iterator;
+    using record_iterator = list_iterator<record, list_node_traits, false>;
+    using const_record_iterator = list_iterator<record, list_node_traits, true>;
 
     value() : type_(dtype::kNull) { value_.i64 = 0; }
     value(bool b) : type_(dtype::kBoolean) { value_.b = b; }
@@ -73,7 +122,8 @@ class UTIL_EXPORT value {
 
     static value make_empty_record() {
         value v;
-        v.value_.rec = new record();
+        v.value_.rec = record::alloc(1);
+        v.value_.rec->init();
         v.type_ = dtype::kRecord;
         return v;
     }
@@ -206,6 +256,12 @@ class UTIL_EXPORT value {
         type_ = dtype::kNull;
     }
 
+    void rehash() {
+        if (type_ == dtype::kRecord && value_.rec->size > value_.rec->bucket_count) {
+            value_.rec = record::rehash(value_.rec, value_.rec->size);
+        }
+    }
+
     value& append(std::string_view s);
     void push_back(char ch);
 
@@ -230,7 +286,7 @@ class UTIL_EXPORT value {
     bool remove(std::string_view name, value& removed);
 
  private:
-    enum : unsigned { kMinCapacity = 8 };
+    enum : unsigned { kMinCapacity = 8, kMinBucketCountInc = 12 };
 
     dtype type_;
 
@@ -266,6 +322,27 @@ class UTIL_EXPORT value {
     void rotate_back(size_t pos);
 };
 
+struct value::list_node_type : list_links_type {
+    list_links_type* bucket_next;
+    size_t hash_code;
+    map_value v;
+};
+
+struct value::list_node_traits {
+    using iterator_node_t = list_links_type;
+    using node_t = list_node_type;
+    static list_links_type* get_next(list_links_type* node) { return node->next; }
+    static list_links_type* get_prev(list_links_type* node) { return node->prev; }
+#if _ITERATOR_DEBUG_LEVEL != 0
+    static void set_head(list_links_type* node, list_links_type* head) { node->head = head; }
+    static list_links_type* get_head(list_links_type* node) { return node->head; }
+    static list_links_type* get_front(list_links_type* head) { return head->next; }
+#else   // _ITERATOR_DEBUG_LEVEL != 0
+    static void set_head(list_links_type* node, list_links_type* head) {}
+#endif  // _ITERATOR_DEBUG_LEVEL != 0
+    static map_value& get_value(list_links_type* node) { return static_cast<node_t*>(node)->v; }
+};
+
 template<typename... Args>
 value& value::emplace_back(Args&&... args) {
     if (type_ != dtype::kArray || !value_.arr || value_.arr->size == value_.arr->capacity) { reserve_back(); }
@@ -284,17 +361,41 @@ value& value::emplace(size_t pos, Args&&... args) {
     return v;
 }
 
+inline void value::record::add_to_hash(list_links_type* node, size_t hash_code) {
+    list_links_type** slot = &hashtbl[hash_code % bucket_count];
+    static_cast<list_node_type*>(node)->bucket_next = *slot;
+    *slot = node;
+}
+
+template<typename... Args>
+value::list_links_type* value::record::insert(size_t hash_code, Args&&... args) {
+    list_links_type* new_node = std::allocator<list_node_type>().allocate(1);
+    list_node_traits::set_head(new_node, &head);
+    try {
+        new (&list_node_traits::get_value(new_node)) map_value(std::forward<Args>(args)...);
+    } catch (...) {
+        std::allocator<list_node_type>().deallocate(static_cast<list_node_type*>(new_node), 1);
+        throw;
+    }
+    static_cast<list_node_type*>(new_node)->hash_code = hash_code;
+    add_to_hash(new_node, hash_code);
+    dllist_insert_before(&head, new_node);
+    ++size;
+    return new_node;
+}
+
 template<typename... Args>
 value& value::emplace(std::string name, Args&&... args) {
     if (type_ != dtype::kRecord) {
         if (type_ != dtype::kNull) { throw exception("not a record"); }
-        value_.rec = new record();
+        value_.rec = record::alloc(1);
+        value_.rec->init();
         type_ = dtype::kRecord;
     }
-    return value_.rec
-        ->emplace(std::piecewise_construct, std::forward_as_tuple(std::move(name)),
-                  std::forward_as_tuple(std::forward<Args>(args)...))
-        .first->second;
+    list_links_type* node = value_.rec->insert(record::calc_hash_code(name), std::piecewise_construct,
+                                               std::forward_as_tuple(std::move(name)),
+                                               std::forward_as_tuple(std::forward<Args>(args)...));
+    return list_node_traits::get_value(node).second;
 }
 
 #define PARSER_VALUE_IMPLEMENT_SCALAR_IS_GET(ty, is_func) \
