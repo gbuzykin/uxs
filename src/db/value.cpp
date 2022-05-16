@@ -30,7 +30,10 @@ bool operator==(const value& lhs, const value& rhs) {
             auto range1 = lhs.as_array(), range2 = rhs.as_array();
             return range1.size() == range2.size() && util::equal(range1, range2.begin());
         } break;
-        case value::dtype::kRecord: return *lhs.value_.rec == *rhs.value_.rec;
+        case value::dtype::kRecord: {
+            if (lhs.value_.rec->size != rhs.value_.rec->size) { return false; }
+            return util::equal(lhs.as_map(), rhs.as_map().begin());
+        } break;
         default: break;
     }
     return false;
@@ -42,8 +45,9 @@ bool operator==(const value& lhs, const value& rhs) {
 
 template<typename Ty>
 /*static*/ value::dynarray<Ty>* value::dynarray<Ty>::alloc(size_t cap) {
-    dynarray* new_arr = std::allocator<dynarray>().allocate(get_alloc_sz(cap));
-    new_arr->capacity = cap;
+    size_t alloc_sz = get_alloc_sz(cap);
+    dynarray* new_arr = std::allocator<dynarray>().allocate(alloc_sz);
+    new_arr->capacity = (alloc_sz * sizeof(dynarray) - offsetof(dynarray, data[0])) / sizeof(Ty);
     return new_arr;
 }
 
@@ -68,6 +72,181 @@ template<typename Ty>
 template<typename Ty>
 /*static*/ void value::dynarray<Ty>::dealloc(dynarray* arr) {
     std::allocator<dynarray>().deallocate(arr, get_alloc_sz(arr->capacity));
+}
+
+// --------------------------
+
+void value::record::init() {
+    dllist_make_cycle(&head);
+    list_node_traits::set_head(&head, &head);
+    for (auto& item : as_span(hashtbl, bucket_count)) { item = nullptr; }
+    size = 0;
+}
+
+void value::record::destroy(list_links_type* node) {
+    while (node != &head) {
+        list_links_type* next = node->next;
+        list_node_traits::get_value(node).~map_value();
+        std::allocator<list_node_type>().deallocate(static_cast<list_node_type*>(node), 1);
+        node = next;
+    }
+}
+
+value::list_links_type* value::record::find(std::string_view s, size_t hash_code) const {
+    list_links_type* bucket_next = hashtbl[hash_code % bucket_count];
+    while (bucket_next != nullptr) {
+        if (static_cast<list_node_type*>(bucket_next)->hash_code == hash_code &&
+            list_node_traits::get_value(bucket_next).first == s) {
+            return bucket_next;
+        }
+        bucket_next = static_cast<list_node_type*>(bucket_next)->bucket_next;
+    }
+    return nullptr;
+}
+
+/*static*/ size_t value::record::calc_hash_code(std::string_view s) {
+    // Implementation of Murmur hash for 64-bit size_t is taken from GNU libstdc++
+    const size_t seed = 0xc70f6907;
+#if UINTPTR_MAX == 0xffffffffffffffff
+    const size_t mul = 0xc6a4a7935bd1e995ull;
+    const char* end0 = s.data() + (s.size() & ~7);
+    size_t hash = seed ^ (s.size() * mul);
+    auto shift_mix = [](size_t v) { return v ^ (v >> 47); };
+    for (const char* p = s.data(); p != end0; p += 8) {
+        size_t data;
+        std::memcpy(&data, p, 8);  // unaligned load
+        hash ^= shift_mix(data * mul) * mul;
+        hash *= mul;
+    }
+    if ((s.size() & 7) != 0) {
+        size_t data = 0;
+        const char* end = s.data() + s.size();
+        do { data = (data << 8) + static_cast<unsigned char>(*--end); } while (end != end0);
+        hash ^= data;
+        hash *= mul;
+    }
+    hash = shift_mix(shift_mix(hash) * mul);
+#else
+    size_t hash = seed;
+    for (char ch : s) { hash = (hash * 131) + static_cast<unsigned char>(ch); }
+#endif
+    return hash;
+}
+
+value::list_links_type* value::record::erase(std::string_view s) {
+    size_t hash_code = calc_hash_code(s);
+    list_links_type** p_bucket_next = &hashtbl[hash_code % bucket_count];
+    while (*p_bucket_next != nullptr) {
+        if (static_cast<list_node_type*>(*p_bucket_next)->hash_code == hash_code &&
+            list_node_traits::get_value(*p_bucket_next).first == s) {
+            list_links_type* erased_node = *p_bucket_next;
+            *p_bucket_next = static_cast<list_node_type*>(*p_bucket_next)->bucket_next;
+            dllist_remove(erased_node);
+            return erased_node;
+        }
+        p_bucket_next = &static_cast<list_node_type*>(*p_bucket_next)->bucket_next;
+    }
+    return nullptr;
+}
+
+value::record* value::record::copy() const {
+    record* new_rec = record::alloc(size);
+    new_rec->init();
+    try {
+        list_links_type* node = head.next;
+        while (node != &head) {
+            new_rec->insert(static_cast<list_node_type*>(node)->hash_code, list_node_traits::get_value(node));
+            node = node->next;
+        }
+    } catch (...) {
+        new_rec->destroy(new_rec->head.next);
+        record::dealloc(new_rec);
+        throw;
+    }
+    return new_rec;
+}
+
+/*static*/ value::record* value::record::assign(record* rec, const record* src) {
+    list_links_type* reuse = rec->head.next;
+    if (rec->bucket_count < src->size) {
+        record* new_rec = record::alloc(src->size);
+        // fix reuse list sentinel
+        if (reuse != &rec->head) {
+            reuse->prev->next = &new_rec->head;
+        } else {
+            reuse = &new_rec->head;
+        }
+        record::dealloc(rec);
+        rec = new_rec;
+    }
+    rec->init();
+    list_links_type* node = src->head.next;
+    try {
+        while (reuse != &rec->head && node != &src->head) {
+            list_links_type* reuse_next = reuse->next;
+            const_cast<std::string&>(list_node_traits::get_value(reuse).first) = list_node_traits::get_value(node).first;
+            list_node_traits::get_value(reuse).second = list_node_traits::get_value(node).second;
+            list_node_traits::set_head(reuse, &rec->head);
+            size_t hash_code = static_cast<list_node_type*>(node)->hash_code;
+            static_cast<list_node_type*>(reuse)->hash_code = hash_code;
+            rec->add_to_hash(reuse, hash_code);
+            dllist_insert_before(&rec->head, reuse);
+            ++rec->size;
+            reuse = reuse_next, node = node->next;
+        }
+    } catch (...) {
+        rec->destroy(reuse);
+        throw;
+    }
+    while (node != &src->head) {
+        rec->insert(static_cast<list_node_type*>(node)->hash_code, list_node_traits::get_value(node));
+        node = node->next;
+    }
+    rec->destroy(reuse);
+    return rec;
+}
+
+/*static*/ value::record* value::record::alloc(size_t bckt_cnt) {
+    size_t alloc_sz = get_alloc_sz(bckt_cnt);
+    record* new_rec = std::allocator<record>().allocate(alloc_sz);
+    new_rec->bucket_count = (alloc_sz * sizeof(record) - offsetof(record, hashtbl[0])) / sizeof(list_links_type*);
+    return new_rec;
+}
+
+inline size_t value::record::bucket_next_count(size_t sz) {
+    size_t delta_sz = std::max<size_t>(kMinBucketCountInc, sz >> 1);
+    using alloc_traits = std::allocator_traits<std::allocator<record>>;
+    size_t max_size = (alloc_traits::max_size(std::allocator<record>()) * sizeof(record) -
+                       offsetof(record, hashtbl[0])) /
+                      sizeof(list_links_type*);
+    if (delta_sz > max_size - sz) {
+        if (sz == max_size) { return sz; }
+        delta_sz = std::max<size_t>(1, (max_size - sz) >> 1);
+    }
+    return sz + delta_sz;
+}
+
+/*static*/ value::record* value::record::rehash(record* rec, size_t bckt_cnt) {
+    if (bckt_cnt <= rec->bucket_count) { return rec; }  // do not rehash
+    record* new_rec = record::alloc(bckt_cnt);
+    new_rec->head = rec->head;
+    new_rec->size = rec->size;
+    record::dealloc(rec);
+    list_node_traits::set_head(&new_rec->head, &new_rec->head);
+    for (auto& item : as_span(new_rec->hashtbl, new_rec->bucket_count)) { item = nullptr; }
+    list_links_type* node = new_rec->head.next;
+    node->prev = &new_rec->head;
+    new_rec->head.prev->next = &new_rec->head;
+    while (node != &new_rec->head) {
+        list_node_traits::set_head(node, &new_rec->head);
+        new_rec->add_to_hash(node, static_cast<list_node_type*>(node)->hash_code);
+        node = node->next;
+    }
+    return new_rec;
+}
+
+/*static*/ void value::record::dealloc(record* rec) {
+    std::allocator<record>().deallocate(rec, get_alloc_sz(rec->bucket_count));
 }
 
 // --------------------------
@@ -379,7 +558,8 @@ bool value::convert(dtype type) {
         } break;
         case dtype::kRecord: {
             if (type_ != dtype::kNull) { return false; }
-            value_.rec = new record();
+            value_.rec = record::alloc(1);
+            value_.rec->init();
             type_ = dtype::kRecord;
         } break;
         default: break;
@@ -391,7 +571,7 @@ size_t value::size() const {
     switch (type_) {
         case dtype::kNull: return 0;
         case dtype::kArray: return value_.arr ? value_.arr->size : 0;
-        case dtype::kRecord: return value_.rec->size();
+        case dtype::kRecord: return value_.rec->size;
         default: break;
     }
     return 1;
@@ -401,7 +581,7 @@ bool value::empty() const {
     switch (type_) {
         case dtype::kNull: return true;
         case dtype::kArray: return !value_.arr || value_.arr->size == 0;
-        case dtype::kRecord: return value_.rec->empty();
+        case dtype::kRecord: return value_.rec->size == 0;
         default: break;
     }
     return false;
@@ -409,14 +589,14 @@ bool value::empty() const {
 
 bool value::contains(std::string_view name) const {
     if (type_ != dtype::kRecord) { return false; }
-    return value_.rec->contains(name);
+    return value_.rec->find(name, record::calc_hash_code(name)) != nullptr;
 }
 
 std::vector<std::string_view> value::members() const {
     if (type_ != dtype::kRecord) { return {}; }
-    std::vector<std::string_view> names(value_.rec->size());
+    std::vector<std::string_view> names(value_.rec->size);
     auto p = names.begin();
-    for (const auto& item : *value_.rec) { *p++ = item.first; }
+    for (const auto& item : as_map()) { *p++ = item.first; }
     return names;
 }
 
@@ -432,12 +612,12 @@ span<value> value::as_array() {
 
 iterator_range<value::const_record_iterator> value::as_map() const {
     if (type_ != dtype::kRecord) { throw exception("not a record"); }
-    return util::make_range(value_.rec->cbegin(), value_.rec->cend());
+    return util::make_range(const_record_iterator(value_.rec->head.next), const_record_iterator(&value_.rec->head));
 }
 
 iterator_range<value::record_iterator> value::as_map() {
     if (type_ != dtype::kRecord) { throw exception("not a record"); }
-    return util::make_range(value_.rec->begin(), value_.rec->end());
+    return util::make_range(record_iterator(value_.rec->head.next), record_iterator(&value_.rec->head));
 }
 
 const value& value::operator[](size_t i) const {
@@ -455,25 +635,32 @@ value& value::operator[](size_t i) {
 const value& value::operator[](std::string_view name) const {
     static const value null;
     if (type_ != dtype::kRecord) { throw exception("not a record"); }
-    auto it = value_.rec->find(name);
-    if (it == value_.rec->end()) { return null; }
-    return it->second;
+    list_links_type* node = value_.rec->find(name, record::calc_hash_code(name));
+    return node != nullptr ? list_node_traits::get_value(node).second : null;
 }
 
 value& value::operator[](std::string_view name) {
     if (type_ != dtype::kRecord) {
         if (type_ != dtype::kNull) { throw exception("not a record"); }
-        value_.rec = new record();
+        value_.rec = record::alloc(1);
+        value_.rec->init();
         type_ = dtype::kRecord;
     }
-    return value_.rec->try_emplace(name).first->second;
+    size_t hash_code = record::calc_hash_code(name);
+    if (value_.rec->size >= value_.rec->bucket_count) {
+        value_.rec = record::rehash(value_.rec, record::bucket_next_count(value_.rec->size));
+    }
+    list_links_type* node = value_.rec->find(name, hash_code);
+    if (!node) {
+        node = value_.rec->insert(hash_code, std::piecewise_construct, std::make_tuple(name), std::tuple<>());
+    }
+    return list_node_traits::get_value(node).second;
 }
 
 const value* value::find(std::string_view name) const {
     if (type_ != dtype::kRecord) { return nullptr; }
-    auto it = value_.rec->find(name);
-    if (it == value_.rec->end()) { return nullptr; }
-    return &it->second;
+    list_links_type* node = value_.rec->find(name, record::calc_hash_code(name));
+    return node != nullptr ? &list_node_traits::get_value(node).second : nullptr;
 }
 
 void value::clear() {
@@ -556,18 +743,20 @@ void value::remove(size_t pos, value& removed) {
 
 bool value::remove(std::string_view name) {
     if (type_ != dtype::kRecord) { throw exception("not a record"); }
-    auto it = value_.rec->find(name);
-    if (it == value_.rec->end()) { return false; }
-    value_.rec->erase(it);
+    list_links_type* node = value_.rec->erase(name);
+    if (!node) { return false; }
+    list_node_traits::get_value(node).~map_value();
+    std::allocator<list_node_type>().deallocate(static_cast<list_node_type*>(node), 1);
     return true;
 }
 
 bool value::remove(std::string_view name, value& removed) {
     if (type_ != dtype::kRecord) { throw exception("not a record"); }
-    auto it = value_.rec->find(name);
-    if (it == value_.rec->end()) { return false; }
-    removed = std::move(it->second);
-    value_.rec->erase(it);
+    list_links_type* node = value_.rec->erase(name);
+    if (!node) { return false; }
+    removed = std::move(list_node_traits::get_value(node).second);
+    list_node_traits::get_value(node).~map_value();
+    std::allocator<list_node_type>().deallocate(static_cast<list_node_type*>(node), 1);
     return true;
 }
 
@@ -670,7 +859,7 @@ void value::init_from(const value& other) {
     switch (other.type_) {
         case dtype::kString: value_.str = copy_string(other.str_view()); break;
         case dtype::kArray: value_.arr = copy_array(other.array_view()); break;
-        case dtype::kRecord: value_.rec = new record(*other.value_.rec); break;
+        case dtype::kRecord: value_.rec = other.value_.rec->copy(); break;
         default: value_ = other.value_; break;
     }
 }
@@ -683,7 +872,7 @@ void value::copy_from(const value& other) {
         switch (other.type_) {
             case dtype::kString: value_.str = assign_string(value_.str, other.str_view()); break;
             case dtype::kArray: value_.arr = assign_array(value_.arr, other.array_view()); break;
-            case dtype::kRecord: *value_.rec = *other.value_.rec; break;
+            case dtype::kRecord: value_.rec = record::assign(value_.rec, other.value_.rec); break;
             default: value_ = other.value_; break;
         }
     }
@@ -701,7 +890,10 @@ void value::destroy() {
                 dynarray<value>::dealloc(value_.arr);
             }
         } break;
-        case dtype::kRecord: delete value_.rec; break;
+        case dtype::kRecord: {
+            value_.rec->destroy(value_.rec->head.next);
+            record::dealloc(value_.rec);
+        } break;
         default: break;
     }
 }
