@@ -76,7 +76,7 @@ void basic_ostringbuf<CharT>::grow(size_type extra) {
         if (extra > alloc_traits::max_size(std::allocator<char_type>()) - sz) {
             throw std::length_error("too much to reserve");
         }
-        delta_sz = extra;
+        delta_sz = std::max(extra, (alloc_traits::max_size(std::allocator<char_type>()) - sz) >> 1);
     }
     sz = std::max<size_type>(sz + delta_sz, kMinBufSize);
     char_type* first = std::allocator<char_type>().allocate(sz);
