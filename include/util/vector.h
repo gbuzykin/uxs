@@ -352,7 +352,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         size_t sz = size(), delta_sz = std::max(extra, sz >> 1);
         if (delta_sz > alloc_traits::max_size(*this) - sz) {
             if (extra > alloc_traits::max_size(*this) - sz) { throw std::length_error("too much to reserve"); }
-            delta_sz = extra;
+            delta_sz = std::max(extra, (alloc_traits::max_size(*this) - sz) >> 1);
         }
         return std::max<size_type>(sz + delta_sz, kStartCapacity);
     }
