@@ -16,12 +16,9 @@ using namespace util::db;
 // --------------------------
 
 value json::reader::read() {
-    auto error = [&ln = n_ln_]() { throw exception(format("parsing error on line {}", ln)); };
+    if (input_.peek() == iobuf::traits_type::eof()) { throw exception("empty input"); }
 
-    n_ln_ = 1;
-    if (input_.peek() == iobuf::traits_type::eof()) { error(); }
-
-    auto token_to_value = [&error](int tk, std::string_view lval) -> value {
+    auto token_to_value = [this](int tk, std::string_view lval) -> value {
         switch (tk) {
             case '[': return value::make_empty_array();
             case '{': return value::make_empty_record();
@@ -50,13 +47,13 @@ value json::reader::read() {
             case kDouble: return from_string<double>(lval);
             case kString: return lval;
         }
-        error();
-        return {};
+        throw exception(format("{}: invalid value or unexpected character", n_ln_));
     };
 
     std::string_view lval;
     basic_dynbuffer<value*, 32> stack;
 
+    n_ln_ = 1;
     state_stack_.clear();
     state_stack_.push_back(lex_detail::sc_initial);
 
@@ -80,16 +77,16 @@ loop:
                     goto loop;
                 }
                 if (tk == ']') { break; }
-                if (tk != ',') { error(); }
+                if (tk != ',') { throw exception(format("{}: expected `,` or `]`", n_ln_)); }
                 tk = parse_token(lval);
             }
         }
     } else if (comma || tk != '}') {
         while (true) {
-            if (tk != kString) { error(); }
+            if (tk != kString) { throw exception(format("{}: expected valid string", n_ln_)); }
             std::string name(lval);
             tk = parse_token(lval);
-            if (tk != ':') { error(); }
+            if (tk != ':') { throw exception(format("{}: expected `:`", n_ln_)); }
             tk = parse_token(lval);
             value& el = top->emplace(std::move(name), token_to_value(tk, lval));
             tk = parse_token(lval);
@@ -99,7 +96,7 @@ loop:
                 goto loop;
             }
             if (tk == '}') { break; }
-            if (tk != ',') { error(); }
+            if (tk != ',') { throw exception(format("{}: expected `,` or `}}`", n_ln_)); }
             tk = parse_token(lval);
         }
     }
@@ -108,8 +105,9 @@ loop:
         top = stack.back();
         stack.pop_back();
         tk = parse_token(lval);
-        if (tk != (top->is_array() ? ']' : '}')) {
-            if (tk != ',') { error(); }
+        char close_char = top->is_array() ? ']' : '}';
+        if (tk != close_char) {
+            if (tk != ',') { throw exception(format("{}: expected `,` or `{}`", n_ln_, close_char)); }
             tk = parse_token(lval), comma = true;
             goto loop;
         }
@@ -163,7 +161,7 @@ int json::reader::parse_token(std::string_view& lval) {
             for (const char* p = stash_.last(); p != stash_.curr(); --p) { input_.unget(*(p - 1)); }
             lexeme = stash_.data();
         }
-        switch (pat) {
+        switch (static_cast<uint8_t>(pat)) {
             // ------ escape sequences
             case lex_detail::pat_escape_quot: str_.push_back('\"'); break;
             case lex_detail::pat_escape_rev_sol: str_.push_back('\\'); break;
