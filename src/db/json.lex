@@ -30,6 +30,7 @@ real     (-|\+)?({dec}(\.{dig}+)?((e|E)(\+|-)?{dig}+)?)
 
 # Other
 comment          "//"
+c_comment        "/*"
 whitespace       [ \t\r]+
 
 %%

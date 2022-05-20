@@ -1,5 +1,6 @@
 #include "util/db/json.h"
 
+#include "util/format.h"
 #include "util/utf.h"
 
 namespace lex_detail {
@@ -15,9 +16,10 @@ using namespace util::db;
 // --------------------------
 
 value json::reader::read() {
-    auto error = []() { throw exception("parsing error"); };
+    auto error = [&ln = n_ln_]() { throw exception(format("parsing error on line {}", ln)); };
 
-    if (input_.peek() == iobuf::traits_type::eof()) { return {}; }
+    n_ln_ = 1;
+    if (input_.peek() == iobuf::traits_type::eof()) { error(); }
 
     auto token_to_value = [&error](int tk, std::string_view lval) -> value {
         switch (tk) {
@@ -208,7 +210,23 @@ int json::reader::parse_token(std::string_view& lval) {
 
             case lex_detail::pat_whitespace: break;
             case lex_detail::pat_comment: {  // skip till end of line or stream
-                while (input_ && input_.get() != '\n') {}
+                int ch = input_.get();
+                while (input_ && ch != '\n') {
+                    if (ch == '\0') { return kEof; }
+                    ch = input_.get();
+                }
+                ++n_ln_;
+            } break;
+            case lex_detail::pat_c_comment: {  // skip till `*/`
+                int ch = input_.get();
+                do {
+                    while (input_ && ch != '*') {
+                        if (ch == '\n') { ++n_ln_; }
+                        if (ch == '\0') { return kEof; }
+                        ch = input_.get();
+                    }
+                    ch = input_.get();
+                } while (input_ && ch != '/');
             } break;
 
             default: {
@@ -217,8 +235,9 @@ int json::reader::parse_token(std::string_view& lval) {
                 } else if (lexeme[0] == '\"') {
                     str_.clear();
                     state_stack_.push_back(lex_detail::sc_string);
-                } else if (state_stack_.back() == lex_detail::sc_string) {
-                    return kEof;
+                } else {
+                    if (state_stack_.back() == lex_detail::sc_string) { return kEof; }
+                    ++n_ln_;
                 }
             } break;
         }
