@@ -14,6 +14,7 @@ class reader {
 
  private:
     iobuf& input_;
+    int n_ln_ = 0;
     dynbuffer str_;
     dynbuffer stash_;
     basic_dynbuffer<int8_t> state_stack_;
