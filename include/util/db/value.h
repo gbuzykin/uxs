@@ -123,6 +123,9 @@ class UTIL_EXPORT value {
 
     value& operator=(const char* cstr) { return (*this = std::string_view(cstr)); }
 
+    friend bool operator==(const value& lhs, const value& rhs);
+    friend bool operator!=(const value& lhs, const value& rhs) { return !(lhs == rhs); }
+
     dtype type() const { return type_; }
 
     template<typename Ty>
