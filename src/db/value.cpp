@@ -13,6 +13,33 @@ using namespace util::db;
 
 // --------------------------
 
+namespace util {
+namespace db {
+bool operator==(const value& lhs, const value& rhs) {
+    if (lhs.type_ != rhs.type_) { return false; }
+    switch (lhs.type_) {
+        case value::dtype::kNull: return true;
+        case value::dtype::kBoolean: return lhs.value_.b == rhs.value_.b;
+        case value::dtype::kInteger: return lhs.value_.i == rhs.value_.i;
+        case value::dtype::kUInteger: return lhs.value_.u == rhs.value_.u;
+        case value::dtype::kInteger64: return lhs.value_.i64 == rhs.value_.i64;
+        case value::dtype::kUInteger64: return lhs.value_.u64 == rhs.value_.u64;
+        case value::dtype::kDouble: return lhs.value_.dbl == rhs.value_.dbl;
+        case value::dtype::kString: return lhs.str_view() == rhs.str_view();
+        case value::dtype::kArray: {
+            auto range1 = lhs.as_array(), range2 = rhs.as_array();
+            return range1.size() == range2.size() && util::equal(range1, range2.begin());
+        } break;
+        case value::dtype::kRecord: return *lhs.value_.rec == *rhs.value_.rec;
+        default: break;
+    }
+    return false;
+}
+}  // namespace db
+}  // namespace util
+
+// --------------------------
+
 template<typename Ty>
 /*static*/ value::dynarray<Ty>* value::dynarray<Ty>::alloc(size_t cap) {
     dynarray* new_arr = std::allocator<dynarray>().allocate(get_alloc_sz(cap));
