@@ -203,6 +203,9 @@ class UTIL_EXPORT value {
         type_ = dtype::kNull;
     }
 
+    value& append(std::string_view s);
+    void push_back(char ch);
+
     template<typename... Args>
     value& emplace_back(Args&&... args);
     void push_back(const value& v) { emplace_back(v); }

@@ -493,6 +493,30 @@ void value::remove(size_t pos) {
     v->destroy();
 }
 
+value& value::append(std::string_view s) {
+    if (type_ != dtype::kString) { throw exception("not a string"); }
+    if (!value_.str) {
+        value_.str = dynarray<char>::alloc(s.size());
+        value_.str->size = 0;
+    } else if (s.size() > value_.str->capacity - value_.str->size) {
+        value_.str = dynarray<char>::grow(value_.str, s.size());
+    }
+    std::copy_n(s.data(), s.size(), &value_.str->data[value_.str->size]);
+    value_.str->size += s.size();
+    return *this;
+}
+
+void value::push_back(char ch) {
+    if (type_ != dtype::kString) { throw exception("not a string"); }
+    if (!value_.str) {
+        value_.str = dynarray<char>::alloc(1);
+        value_.str->size = 0;
+    } else if (value_.str->size == value_.str->capacity) {
+        value_.str = dynarray<char>::grow(value_.str, 1);
+    }
+    value_.str->data[value_.str->size++] = ch;
+}
+
 void value::remove(size_t pos, value& removed) {
     if (type_ != dtype::kArray) { throw exception("not an array"); }
     if (!value_.arr || pos >= value_.arr->size) { throw exception("index out of range"); }
