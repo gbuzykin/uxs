@@ -10,16 +10,17 @@ using file_desc_t = void*;
 using file_desc_t = int;
 #endif
 
-class UTIL_EXPORT rawfile : public iodevice {
+class UTIL_EXPORT sysfile : public iodevice {
  public:
     using size_type = iodevice::size_type;
 
-    rawfile();
-    explicit rawfile(file_desc_t fd);
-    rawfile(const char* fname, iomode mode) : rawfile() { open(fname, mode); }
-    ~rawfile() override;
-    rawfile(rawfile&& other) NOEXCEPT : fd_(other.detach()) {}
-    rawfile& operator=(rawfile&& other) {
+    sysfile();
+    explicit sysfile(file_desc_t fd);
+    sysfile(const char* fname, iomode mode) : sysfile() { open(fname, mode); }
+    sysfile(const wchar_t* fname, iomode mode) : sysfile() { open(fname, mode); }
+    ~sysfile() override;
+    sysfile(sysfile&& other) NOEXCEPT : fd_(other.detach()) {}
+    sysfile& operator=(sysfile&& other) {
         attach(other.detach());
         return *this;
     }
@@ -29,6 +30,7 @@ class UTIL_EXPORT rawfile : public iodevice {
     file_desc_t detach();
 
     bool open(const char* fname, iomode mode);
+    bool open(const wchar_t* fname, iomode mode);
     void close();
 
     int read(void* buf, size_type sz, size_type& n_read) override;
@@ -36,6 +38,9 @@ class UTIL_EXPORT rawfile : public iodevice {
     int64_t seek(int64_t off, seekdir dir) override;
     int ctrlesc_color(span<uint8_t> v) override;
     int flush() override;
+
+    static bool remove(const char* fname);
+    static bool remove(const wchar_t* fname);
 
  private:
     file_desc_t fd_;

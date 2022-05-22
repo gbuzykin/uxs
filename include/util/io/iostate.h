@@ -4,23 +4,24 @@
 
 namespace util {
 
-enum class iomode : unsigned {
+enum class iomode : uint16_t {
     kNone = 0,
     kIn = 1,
     kOut = 2,
-    kCreate = 4,
+    kTruncate = 4,
     kAppend = 8,
-    kExcl = 0x10,
-    kCrLf = 0x20,
+    kCreate = 0x10,
+    kExcl = 0x20,
+    kCrLf = 0x80,
 #if defined(WIN32)
     kText = kCrLf,
 #else   // defined(WIN32)
     kText = 0,
 #endif  // defined(WIN32)
-    kCtrlEsc = 0x40,
-    kSkipCtrlEsc = 0xc0,
+    kCtrlEsc = 0x100,
+    kSkipCtrlEsc = 0x300,
 };
-UTIL_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iomode, uint8_t);
+UTIL_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iomode, uint16_t);
 
 enum class iostate_bits : uint8_t { kGood = 0, kBad = 1, kFail = 2, kEof = 4 };
 UTIL_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iostate_bits, uint8_t);
