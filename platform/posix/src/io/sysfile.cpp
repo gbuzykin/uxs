@@ -1,4 +1,4 @@
-#include "util/io/rawfile.h"
+#include "util/io/sysfile.h"
 
 #include "util/stringalg.h"
 #include "util/stringcvt.h"
@@ -10,54 +10,63 @@
 
 using namespace util;
 
-rawfile::rawfile() : fd_(-1) {}
-rawfile::rawfile(file_desc_t fd) : fd_(fd) {}
-rawfile::~rawfile() {
+sysfile::sysfile() : fd_(-1) {}
+sysfile::sysfile(file_desc_t fd) : fd_(fd) {}
+sysfile::~sysfile() {
     if (fd_ >= 0) { ::close(fd_); }
 }
 
-bool rawfile::valid() const { return fd_ >= 0; }
+bool sysfile::valid() const { return fd_ >= 0; }
 
-void rawfile::attach(file_desc_t fd) {
+void sysfile::attach(file_desc_t fd) {
     if (fd == fd_) { return; }
     if (fd_ >= 0) { ::close(fd_); }
     fd_ = fd;
 }
 
-file_desc_t rawfile::detach() {
+file_desc_t sysfile::detach() {
     file_desc_t fd = fd_;
     fd_ = -1;
     return fd;
 }
 
-bool rawfile::open(const char* fname, iomode mode) {
+bool sysfile::open(const char* fname, iomode mode) {
     int oflag = O_RDONLY;
     if (!!(mode & iomode::kOut)) {
         oflag = !!(mode & iomode::kIn) ? O_RDWR : O_WRONLY;
-        if (!!(mode & iomode::kCreate)) { oflag |= !!(mode & iomode::kExcl) ? O_CREAT | O_EXCL : O_CREAT; }
-        oflag |= !!(mode & iomode::kAppend) ? O_APPEND : O_TRUNC;
+        if (!!(mode & iomode::kTruncate)) {
+            oflag |= O_TRUNC;
+        } else if (!!(mode & iomode::kAppend)) {
+            oflag |= O_APPEND;
+        }
+        if (!!(mode & iomode::kCreate)) {
+            oflag |= O_CREAT;
+            if (!!(mode & iomode::kExcl)) { oflag = (oflag & ~(O_TRUNC | O_APPEND)) | O_EXCL; }
+        }
     }
     attach(::open(fname, O_LARGEFILE | oflag, S_IREAD | S_IWRITE));
     return fd_ >= 0;
 }
 
-void rawfile::close() { ::close(detach()); }
+bool sysfile::open(const wchar_t* fname, iomode mode) { return open(from_wide_to_utf8(fname).c_str(), mode); }
 
-int rawfile::read(void* data, size_type sz, size_type& n_read) {
+void sysfile::close() { ::close(detach()); }
+
+int sysfile::read(void* data, size_type sz, size_type& n_read) {
     ssize_t result = ::read(fd_, data, sz);
     if (result < 0) { return -1; }
     n_read = static_cast<size_type>(result);
     return 0;
 }
 
-int rawfile::write(const void* data, size_type sz, size_type& n_written) {
+int sysfile::write(const void* data, size_type sz, size_type& n_written) {
     ssize_t result = ::write(fd_, data, sz);
     if (result < 0) { return -1; }
     n_written = static_cast<size_type>(result);
     return 0;
 }
 
-int64_t rawfile::seek(int64_t off, seekdir dir) {
+int64_t sysfile::seek(int64_t off, seekdir dir) {
     int whence = SEEK_SET;
     switch (dir) {
         case seekdir::kCurr: whence = SEEK_CUR; break;
@@ -68,7 +77,7 @@ int64_t rawfile::seek(int64_t off, seekdir dir) {
     return result < 0 ? -1 : result;
 }
 
-int rawfile::ctrlesc_color(span<uint8_t> v) {
+int sysfile::ctrlesc_color(span<uint8_t> v) {
     using namespace std::placeholders;
     util::dynbuffer buf;
     buf += "\033[";
@@ -77,4 +86,7 @@ int rawfile::ctrlesc_color(span<uint8_t> v) {
     return ::write(fd_, buf.data(), buf.size()) < 0 ? -1 : 0;
 }
 
-int rawfile::flush() { return 0; }
+int sysfile::flush() { return 0; }
+
+/*static*/ bool sysfile::remove(const char* fname) { return ::unlink(fname) == 0; }
+/*static*/ bool sysfile::remove(const wchar_t* fname) { return remove(from_wide_to_utf8(fname).c_str()); }

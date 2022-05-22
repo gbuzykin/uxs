@@ -1,4 +1,4 @@
-#include "util/io/rawfile.h"
+#include "util/io/sysfile.h"
 
 #include "util/stringalg.h"
 
@@ -8,57 +8,76 @@
 
 using namespace util;
 
-rawfile::rawfile() : fd_(INVALID_HANDLE_VALUE) {}
-rawfile::rawfile(file_desc_t fd) : fd_(fd) {}
-rawfile::~rawfile() {
+sysfile::sysfile() : fd_(INVALID_HANDLE_VALUE) {}
+sysfile::sysfile(file_desc_t fd) : fd_(fd) {}
+sysfile::~sysfile() {
     if (fd_ != INVALID_HANDLE_VALUE) { ::CloseHandle(fd_); }
 }
 
-bool rawfile::valid() const { return fd_ != INVALID_HANDLE_VALUE; }
+bool sysfile::valid() const { return fd_ != INVALID_HANDLE_VALUE; }
 
-void rawfile::attach(file_desc_t fd) {
+void sysfile::attach(file_desc_t fd) {
     if (fd == fd_) { return; }
     if (fd_ != INVALID_HANDLE_VALUE) { ::CloseHandle(fd_); }
     fd_ = fd;
 }
 
-file_desc_t rawfile::detach() {
+file_desc_t sysfile::detach() {
     file_desc_t fd = fd_;
     fd_ = INVALID_HANDLE_VALUE;
     return fd;
 }
 
-bool rawfile::open(const char* fname, iomode mode) {
+bool sysfile::open(const wchar_t* fname, iomode mode) {
     DWORD access = GENERIC_READ, creat_disp = OPEN_EXISTING;
     if (!!(mode & iomode::kOut)) {
         access |= GENERIC_WRITE;
-        if (!!(mode & iomode::kCreate)) { creat_disp = !!(mode & iomode::kExcl) ? CREATE_NEW : CREATE_ALWAYS; }
-        if (!!(mode & iomode::kAppend)) { access |= FILE_APPEND_DATA; }
+        if (!!(mode & iomode::kCreate)) {
+            if (!!(mode & iomode::kExcl)) {
+                creat_disp = CREATE_NEW;
+            } else if (!!(mode & iomode::kTruncate)) {
+                creat_disp = CREATE_ALWAYS;
+            } else {
+                creat_disp = OPEN_ALWAYS;
+            }
+        } else if (!!(mode & iomode::kTruncate)) {
+            creat_disp = TRUNCATE_EXISTING;
+        }
     }
     OFSTRUCT of;
     std::memset(&of, 0, sizeof(of));
-    attach(::CreateFileW(from_utf8_to_wide(fname).c_str(), access, FILE_SHARE_READ, NULL, creat_disp,
-                         FILE_ATTRIBUTE_NORMAL, NULL));
-    return fd_ != INVALID_HANDLE_VALUE;
+    attach(::CreateFileW(fname, access, FILE_SHARE_READ, NULL, creat_disp, FILE_ATTRIBUTE_NORMAL, NULL));
+    if (fd_ != INVALID_HANDLE_VALUE) {
+        if (!!(mode & iomode::kAppend)) {
+            if (::SetFilePointer(fd_, 0, NULL, FILE_END) == INVALID_SET_FILE_POINTER) {
+                ::CloseHandle(detach());
+                return false;
+            }
+        }
+        return true;
+    }
+    return false;
 }
 
-void rawfile::close() { ::CloseHandle(detach()); }
+bool sysfile::open(const char* fname, iomode mode) { return open(from_utf8_to_wide(fname).c_str(), mode); }
 
-int rawfile::read(void* data, size_type sz, size_type& n_read) {
+void sysfile::close() { ::CloseHandle(detach()); }
+
+int sysfile::read(void* data, size_type sz, size_type& n_read) {
     DWORD n_read_native = 0;
     if (!::ReadFile(fd_, data, static_cast<DWORD>(sz), &n_read_native, NULL)) { return -1; }
     n_read = static_cast<size_type>(n_read_native);
     return 0;
 }
 
-int rawfile::write(const void* data, size_type sz, size_type& n_written) {
+int sysfile::write(const void* data, size_type sz, size_type& n_written) {
     DWORD n_written_native = 0;
     if (!::WriteFile(fd_, data, static_cast<DWORD>(sz), &n_written_native, NULL)) { return -1; }
     n_written = static_cast<size_type>(n_written_native);
     return 0;
 }
 
-int rawfile::ctrlesc_color(span<uint8_t> v) {
+int sysfile::ctrlesc_color(span<uint8_t> v) {
     CONSOLE_SCREEN_BUFFER_INFO info;
     std::memset(&info, 0, sizeof(info));
     if (!::GetConsoleScreenBufferInfo(fd_, &info)) { return -1; }
@@ -118,7 +137,7 @@ int rawfile::ctrlesc_color(span<uint8_t> v) {
     return 0;
 }
 
-int64_t rawfile::seek(int64_t off, seekdir dir) {
+int64_t sysfile::seek(int64_t off, seekdir dir) {
     DWORD method = FILE_BEGIN;
     LONG pos_hi = static_cast<long>(off >> 32);
     switch (dir) {
@@ -131,4 +150,7 @@ int64_t rawfile::seek(int64_t off, seekdir dir) {
     return (static_cast<int64_t>(pos_hi) << 32) | pos_lo;
 }
 
-int rawfile::flush() { return 0; }
+int sysfile::flush() { return 0; }
+
+/*static*/ bool sysfile::remove(const wchar_t* fname) { return !!::DeleteFileW(fname); }
+/*static*/ bool sysfile::remove(const char* fname) { return remove(from_utf8_to_wide(fname).c_str()); }
