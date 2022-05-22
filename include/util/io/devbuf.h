@@ -37,13 +37,13 @@ class UTIL_EXPORT basic_devbuf : public basic_iobuf<CharT> {
 
  private:
     enum : unsigned {
-#if defined(NDEBUG)
-        kMinBufSize = 16384,
+#if defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
+        kMinBufSize = 16384 / sizeof(char_type),
         kCrReserveRatio = 16
-#else   // defined(NDEBUG)
+#else   // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
         kMinBufSize = 13,
         kCrReserveRatio = 7
-#endif  // defined(NDEBUG)
+#endif  // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
     };
     iodevice* dev_ = nullptr;
     size_type bufsz_ = 0;

@@ -35,11 +35,11 @@ class UTIL_EXPORT basic_ostringbuf : public basic_iobuf<CharT> {
 
  private:
     enum : unsigned {
-#if defined(NDEBUG)
+#if defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
         kMinBufSize = 512 / sizeof(char_type)
-#else   // defined(NDEBUG)
-        kMinBufSize = 7 / sizeof(char_type)
-#endif  // defined(NDEBUG)
+#else   // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
+        kMinBufSize = 7
+#endif  // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
     };
     char_type* top_ = nullptr;
 
