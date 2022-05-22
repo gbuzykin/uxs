@@ -199,11 +199,11 @@ class basic_dynbuffer : public basic_appender_mixin<Ty, basic_dynbuffer<Ty>> {
 
  private:
     enum : unsigned {
-#if defined(NDEBUG)
+#if defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
         kInlineBufSize = InlineBufSize != 0 ? InlineBufSize : 256 / sizeof(Ty)
-#else   // defined(NDEBUG)
+#else   // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
         kInlineBufSize = 7
-#endif  // defined(NDEBUG)
+#endif  // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
     };
     Ty *first_, *curr_, *last_;
     typename std::aligned_storage<sizeof(Ty), std::alignment_of<Ty>::value>::type buf_[kInlineBufSize];
