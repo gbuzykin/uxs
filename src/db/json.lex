@@ -20,13 +20,15 @@ escape_unicode  <string> \\u{hdig}{4}
 escape_other    <string> \\.
 string_seq      <string> [^"\\\n]+
 string_close    <string> [^"\\\n]*\"
+string_nl       <string> \n
 
 # Other literals
-null     "null"
-true     "true"
-false    "false"
-decimal  (-|\+)?{dec}
-real     (-|\+)?({dec}(\.{dig}+)?((e|E)(\+|-)?{dig}+)?)
+null           "null"
+true           "true"
+false          "false"
+decimal        {dec}
+neg_decimal    -{dec}
+real           -?({dec}(\.{dig}+)?((e|E)(\+|-)?{dig}+)?)
 
 # Other
 comment          "//"

@@ -5,6 +5,7 @@
 #include "util/span.h"
 #include "util/string_view.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <stdexcept>
 #include <vector>
@@ -18,6 +19,17 @@ class exception : public std::runtime_error {
     explicit exception(const std::string& message) : std::runtime_error(message) {}
 };
 
+struct empty_array_t {};
+struct empty_record_t {};
+
+#if !defined(_MSC_VER) || _MSC_VER >= 1920
+constexpr empty_array_t empty_array{};
+constexpr empty_record_t empty_record{};
+#else   // !defined(_MSC_VER) || _MSC_VER >= 1920
+const empty_array_t empty_array{};
+const empty_record_t empty_record{};
+#endif  // !defined(_MSC_VER) || _MSC_VER >= 1920
+
 class UTIL_EXPORT value {
  private:
     template<typename Ty>
@@ -25,11 +37,17 @@ class UTIL_EXPORT value {
         size_t size;
         size_t capacity;
         Ty data[1];
+
+        dynarray(const dynarray&) = delete;
+        dynarray& operator=(const dynarray&) = delete;
+
         span<const Ty> view() const { return as_span(data, size); }
         span<Ty> view() { return as_span(data, size); }
+
         static size_t get_alloc_sz(size_t cap) {
             return (offsetof(dynarray, data[cap]) + sizeof(dynarray) - 1) / sizeof(dynarray);
         }
+
         static dynarray* alloc(size_t cap);
         static dynarray* grow(dynarray* arr, size_t extra);
         static void dealloc(dynarray* arr);
@@ -47,8 +65,7 @@ class UTIL_EXPORT value {
 
     struct list_node_type;
     struct list_node_traits;
-
-    using map_value = std::pair<const std::string, value>;
+    class map_value;
 
     struct record {
         using value_type = map_value;
@@ -63,27 +80,38 @@ class UTIL_EXPORT value {
         size_t size;
         size_t bucket_count;
         list_links_type* hashtbl[1];
+
+        record(const record&) = delete;
+        record& operator=(const record&) = delete;
+
         void init();
         void destroy(list_links_type* node);
+
+        list_links_type* find(std::string_view name, size_t hash_code) const;
+
+        record* copy() const;
+        static record* assign(record* rec, const record* src);
+
         void clear() {
             destroy(head.next);
             init();
         }
-        list_links_type* find(std::string_view s, size_t hash_code) const;
-        void add_to_hash(list_links_type* node, size_t hash_code);
+
         template<typename... Args>
-        list_links_type* insert(size_t hash_code, Args&&... args);
-        list_links_type* erase(std::string_view s);
-        record* copy() const;
-        static record* assign(record* rec, const record* src);
+        list_links_type* new_node(std::string_view name, Args&&... args);
+        static void delete_node(list_links_type* node);
+        static size_t calc_hash_code(std::string_view name);
+        void insert(size_t hash_code, list_links_type* node);
+        void add_to_hash(list_links_type* node, size_t hash_code);
+        list_links_type* erase(std::string_view name);
+
         static size_t get_alloc_sz(size_t bckt_cnt) {
             return (offsetof(record, hashtbl[bckt_cnt]) + sizeof(record) - 1) / sizeof(record);
         }
-        static size_t bucket_next_count(size_t sz);
+        static size_t next_bucket_count(size_t sz);
         static record* alloc(size_t bckt_cnt);
         static record* rehash(record* rec, size_t bckt_cnt);
         static void dealloc(record* rec);
-        static size_t calc_hash_code(std::string_view s);
     };
 
  public:
@@ -104,6 +132,11 @@ class UTIL_EXPORT value {
     using const_record_iterator = list_iterator<record, list_node_traits, true>;
 
     value() : type_(dtype::kNull) { value_.i64 = 0; }
+    value(empty_array_t) : type_(dtype::kArray) { value_.arr = nullptr; }
+    value(empty_record_t) : type_(dtype::kRecord) {
+        value_.rec = record::alloc(1);
+        value_.rec->init();
+    }
     value(bool b) : type_(dtype::kBoolean) { value_.b = b; }
     value(int32_t i) : type_(dtype::kInteger) { value_.i = i; }
     value(uint32_t u) : type_(dtype::kUInteger) { value_.u = u; }
@@ -112,21 +145,6 @@ class UTIL_EXPORT value {
     value(double d) : type_(dtype::kDouble) { value_.dbl = d; }
     value(std::string_view s) : type_(dtype::kString) { value_.str = copy_string(s); }
     value(const char* cstr) : type_(dtype::kString) { value_.str = copy_string(std::string_view(cstr)); }
-
-    static value make_empty_array() {
-        value v;
-        v.value_.arr = nullptr;
-        v.type_ = dtype::kArray;
-        return v;
-    }
-
-    static value make_empty_record() {
-        value v;
-        v.value_.rec = record::alloc(1);
-        v.value_.rec->init();
-        v.type_ = dtype::kRecord;
-        return v;
-    }
 
     ~value() {
         if (type_ != dtype::kNull) { destroy(); }
@@ -276,9 +294,9 @@ class UTIL_EXPORT value {
     void insert(size_t pos, value&& v) { emplace(pos, std::move(v)); }
 
     template<typename... Args>
-    value& emplace(std::string name, Args&&... args);
-    void insert(std::string name, const value& v) { emplace(std::move(name), v); }
-    void insert(std::string name, value&& v) { emplace(std::move(name), std::move(v)); }
+    value& emplace(std::string_view name, Args&&... args);
+    void insert(std::string_view name, const value& v) { emplace(name, v); }
+    void insert(std::string_view name, value&& v) { emplace(name, std::move(v)); }
 
     void remove(size_t pos);
     void remove(size_t pos, value& removed);
@@ -322,6 +340,34 @@ class UTIL_EXPORT value {
     void rotate_back(size_t pos);
 };
 
+class value::map_value {
+ public:
+    template<typename... Args>
+    explicit map_value(std::string_view name, Args&&... args) : name_sz_(name.size()), v_(std::forward<Args>(args)...) {
+        std::copy_n(name.data(), name.size(), name_);
+    }
+    map_value(const map_value&) = delete;
+    map_value& operator=(const map_value&) = delete;
+    std::string_view name() const { return std::string_view(name_, name_sz_); }
+    const value& val() const { return v_; }
+    value& val() { return v_; }
+
+    friend bool operator==(const map_value& lhs, const map_value& rhs) {
+        return lhs.name() == rhs.name() && lhs.val() == rhs.val();
+    }
+    friend bool operator!=(const map_value& lhs, const map_value& rhs) { return !(lhs == rhs); }
+
+ private:
+    friend struct value::record;
+    size_t name_sz_;
+    value v_;
+    char name_[1];
+
+    static size_t get_alloc_sz(size_t name_sz) {
+        return (offsetof(map_value, name_[name_sz]) + sizeof(map_value) - 1) / sizeof(map_value);
+    }
+};
+
 struct value::list_node_type : list_links_type {
     list_links_type* bucket_next;
     size_t hash_code;
@@ -361,6 +407,26 @@ value& value::emplace(size_t pos, Args&&... args) {
     return v;
 }
 
+template<typename... Args>
+value::list_links_type* value::record::new_node(std::string_view name, Args&&... args) {
+    size_t alloc_sz = map_value::get_alloc_sz(name.size());
+    list_links_type* node = std::allocator<list_node_type>().allocate(alloc_sz);
+    list_node_traits::set_head(node, &head);
+    try {
+        new (&list_node_traits::get_value(node)) map_value(name, std::forward<Args>(args)...);
+    } catch (...) {
+        std::allocator<list_node_type>().deallocate(static_cast<list_node_type*>(node), alloc_sz);
+        throw;
+    }
+    return node;
+}
+
+/*static*/ inline void value::record::delete_node(list_links_type* node) {
+    map_value& v = list_node_traits::get_value(node);
+    v.val().~value();
+    std::allocator<list_node_type>().deallocate(static_cast<list_node_type*>(node), map_value::get_alloc_sz(v.name_sz_));
+}
+
 inline void value::record::add_to_hash(list_links_type* node, size_t hash_code) {
     list_links_type** slot = &hashtbl[hash_code % bucket_count];
     static_cast<list_node_type*>(node)->bucket_next = *slot;
@@ -368,34 +434,16 @@ inline void value::record::add_to_hash(list_links_type* node, size_t hash_code) 
 }
 
 template<typename... Args>
-value::list_links_type* value::record::insert(size_t hash_code, Args&&... args) {
-    list_links_type* new_node = std::allocator<list_node_type>().allocate(1);
-    list_node_traits::set_head(new_node, &head);
-    try {
-        new (&list_node_traits::get_value(new_node)) map_value(std::forward<Args>(args)...);
-    } catch (...) {
-        std::allocator<list_node_type>().deallocate(static_cast<list_node_type*>(new_node), 1);
-        throw;
-    }
-    static_cast<list_node_type*>(new_node)->hash_code = hash_code;
-    add_to_hash(new_node, hash_code);
-    dllist_insert_before(&head, new_node);
-    ++size;
-    return new_node;
-}
-
-template<typename... Args>
-value& value::emplace(std::string name, Args&&... args) {
+value& value::emplace(std::string_view name, Args&&... args) {
     if (type_ != dtype::kRecord) {
         if (type_ != dtype::kNull) { throw exception("not a record"); }
         value_.rec = record::alloc(1);
         value_.rec->init();
         type_ = dtype::kRecord;
     }
-    list_links_type* node = value_.rec->insert(record::calc_hash_code(name), std::piecewise_construct,
-                                               std::forward_as_tuple(std::move(name)),
-                                               std::forward_as_tuple(std::forward<Args>(args)...));
-    return list_node_traits::get_value(node).second;
+    list_links_type* node = value_.rec->new_node(name, std::forward<Args>(args)...);
+    value_.rec->insert(record::calc_hash_code(name), node);
+    return list_node_traits::get_value(node).val();
 }
 
 #define PARSER_VALUE_IMPLEMENT_SCALAR_IS_GET(ty, is_func) \
