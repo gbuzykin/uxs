@@ -18,6 +18,14 @@
     CONSTEXPR ty& operator|=(ty& lhs, ty rhs) { return lhs = lhs | rhs; } \
     static_assert(true, "")
 
+#if defined(_MSC_VER)
+#    define UNREACHABLE_CODE __assume(false)
+#elif defined(__GNUC__)
+#    define UNREACHABLE_CODE __builtin_unreachable()
+#else
+#    define UNREACHABLE_CODE
+#endif
+
 namespace util {
 template<typename Ty, typename TestTy = void>
 struct type_identity {
