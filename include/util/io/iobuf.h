@@ -79,7 +79,8 @@ class UTIL_EXPORT basic_iobuf : public iostate {
     }
 
     basic_iobuf& bump(size_type n) {
-        if (n <= static_cast<size_type>(last_ - curr_)) { curr_ += n; }
+        assert(n <= static_cast<size_type>(last_ - curr_));
+        curr_ += n;
         return *this;
     }
 
