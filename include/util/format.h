@@ -107,15 +107,15 @@ StrTy& basic_format(StrTy& s, std::basic_string_view<typename StrTy::value_type>
 
 template<typename... Ts>
 std::string format(std::string_view fmt, const Ts&... args) {
-    dynbuffer buf;
-    basic_format(buf, fmt, args...);
+    inline_dynbuffer buf;
+    basic_format(buf.base(), fmt, args...);
     return std::string(buf.data(), buf.size());
 }
 
 template<typename... Ts>
 std::wstring format(std::wstring_view fmt, const Ts&... args) {
-    wdynbuffer buf;
-    basic_format(buf, fmt, args...);
+    inline_wdynbuffer buf;
+    basic_format(buf.base(), fmt, args...);
     return std::wstring(buf.data(), buf.size());
 }
 
@@ -145,30 +145,30 @@ wchar_t* format_to_n(wchar_t* buf, size_t n, std::wstring_view fmt, const Ts&...
 
 template<typename... Ts>
 iobuf& fprint(iobuf& out, std::string_view fmt, const Ts&... args) {
-    dynbuffer buf;
-    basic_format(buf, fmt, args...);
+    inline_dynbuffer buf;
+    basic_format(buf.base(), fmt, args...);
     return out.write(as_span(buf.data(), buf.size()));
 }
 
 template<typename... Ts>
 wiobuf& fprint(wiobuf& out, std::wstring_view fmt, const Ts&... args) {
-    wdynbuffer buf;
-    basic_format(buf, fmt, args...);
+    inline_wdynbuffer buf;
+    basic_format(buf.base(), fmt, args...);
     return out.write(as_span(buf.data(), buf.size()));
 }
 
 template<typename... Ts>
 iobuf& fprintln(iobuf& out, std::string_view fmt, const Ts&... args) {
-    dynbuffer buf;
-    basic_format(buf, fmt, args...);
+    inline_dynbuffer buf;
+    basic_format(buf.base(), fmt, args...);
     buf.push_back('\n');
     return out.write(as_span(buf.data(), buf.size())).flush();
 }
 
 template<typename... Ts>
 wiobuf& fprintln(wiobuf& out, std::wstring_view fmt, const Ts&... args) {
-    wdynbuffer buf;
-    basic_format(buf, fmt, args...);
+    inline_wdynbuffer buf;
+    basic_format(buf.base(), fmt, args...);
     buf.push_back('\n');
     return out.write(as_span(buf.data(), buf.size())).flush();
 }

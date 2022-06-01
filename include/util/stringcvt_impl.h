@@ -263,12 +263,6 @@ inline StrTy& fmt_adjusted(StrTy& s, Func fn, unsigned len, const fmt_state& fmt
     return fn(s).append(right, fmt.fill);
 }
 
-template<typename CharT, typename Func>
-inline basic_dynbuffer<CharT>& fmt_adjusted(basic_dynbuffer<CharT>& s, Func fn, unsigned len, const fmt_state& fmt) {
-    basic_unlimbuf_appender<CharT> appender(s.reserve_at_curr(fmt.width));
-    return s.setcurr(fmt_adjusted(appender, fn, len, fmt).curr());
-}
-
 // --------------------------
 
 template<typename StrTy, typename Func>
@@ -293,13 +287,6 @@ inline StrTy& fmt_num_adjusted(StrTy& s, Func fn, unsigned len, unsigned n_prefi
         *(&s.back() - len + n_prefix) = '0';
     }
     return s;
-}
-
-template<typename CharT, typename Func>
-inline basic_dynbuffer<CharT>& fmt_num_adjusted(basic_dynbuffer<CharT>& s, Func fn, unsigned len, unsigned n_prefix,
-                                                const fmt_state& fmt) {
-    basic_unlimbuf_appender<CharT> appender(s.reserve_at_curr(fmt.width));
-    return s.setcurr(fmt_num_adjusted(appender, fn, len, n_prefix, fmt).curr());
 }
 
 // ---- binary
@@ -628,7 +615,7 @@ StrTy& fmt_float_common(StrTy& s, uint64_t u64, const fmt_state& fmt, const unsi
         return fmt.width > len ? fmt_adjusted(s, fn, len, fmt) : fn(s);
     }
 
-    dynbuffer digs;
+    inline_dynbuffer digs;
     int prec = fmt.prec;
     fmt_flags flags = fmt.flags & fmt_flags::kFloatField;
     const bool alternate = !!(fmt.flags & fmt_flags::kAlternate);

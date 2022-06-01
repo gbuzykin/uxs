@@ -150,20 +150,20 @@ class basic_limbuf_appender : public basic_appender_mixin<CharT, basic_limbuf_ap
 using limbuf_appender = basic_limbuf_appender<char>;
 using wlimbuf_appender = basic_limbuf_appender<wchar_t>;
 
-template<typename Ty, size_t InlineBufSize = 0>
+template<typename Ty>
 class basic_dynbuffer : public basic_appender_mixin<Ty, basic_dynbuffer<Ty>> {
     static_assert(std::is_trivially_copyable<Ty>::value && std::is_trivially_destructible<Ty>::value,
                   "util::basic_dynbuffer must have trivially copyable and destructible value type");
 
  public:
-    basic_dynbuffer()
-        : first_(reinterpret_cast<Ty*>(&buf_)), curr_(reinterpret_cast<Ty*>(&buf_)),
-          last_(reinterpret_cast<Ty*>(&buf_[kInlineBufSize])) {}
+    basic_dynbuffer(Ty* first, Ty* last, bool is_inline)
+        : curr_(first), first_(first), last_(last), is_inline_(is_inline) {}
     ~basic_dynbuffer() {
-        if (first_ != reinterpret_cast<Ty*>(&buf_)) { std::allocator<Ty>().deallocate(first_, last_ - first_); }
+        if (!is_inline_) { std::allocator<Ty>().deallocate(first_, last_ - first_); }
     }
     basic_dynbuffer(const basic_dynbuffer&) = delete;
     basic_dynbuffer& operator=(const basic_dynbuffer&) = delete;
+
     bool empty() const { return first_ == curr_; }
     size_t size() const { return curr_ - first_; }
     size_t avail() const { return last_ - curr_; }
@@ -215,21 +215,14 @@ class basic_dynbuffer : public basic_appender_mixin<Ty, basic_dynbuffer<Ty>> {
     }
 
  private:
-    enum : unsigned {
-#if defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
-        kInlineBufSize = InlineBufSize != 0 ? InlineBufSize : 256 / sizeof(Ty)
-#else   // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
-        kInlineBufSize = 7
-#endif  // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
-    };
-    Ty *first_, *curr_, *last_;
-    typename std::aligned_storage<sizeof(Ty), std::alignment_of<Ty>::value>::type buf_[kInlineBufSize];
+    Ty *curr_, *first_, *last_;
+    bool is_inline_;
 
     void grow(size_t extra);
 };
 
-template<typename Ty, size_t InlineBufSize>
-void basic_dynbuffer<Ty, InlineBufSize>::grow(size_t extra) {
+template<typename Ty>
+void basic_dynbuffer<Ty>::grow(size_t extra) {
     size_t sz = curr_ - first_, delta_sz = std::max(extra, sz >> 1);
     using alloc_traits = std::allocator_traits<std::allocator<Ty>>;
     if (delta_sz > alloc_traits::max_size(std::allocator<Ty>()) - sz) {
@@ -241,12 +234,33 @@ void basic_dynbuffer<Ty, InlineBufSize>::grow(size_t extra) {
     sz += delta_sz;
     Ty* first = std::allocator<Ty>().allocate(sz);
     curr_ = std::uninitialized_copy(first_, curr_, first);
-    if (first_ != reinterpret_cast<Ty*>(buf_)) { std::allocator<Ty>().deallocate(first_, last_ - first_); }
-    first_ = first, last_ = first + sz;
+    if (!is_inline_) { std::allocator<Ty>().deallocate(first_, last_ - first_); }
+    first_ = first, last_ = first + sz, is_inline_ = false;
 }
 
-using dynbuffer = basic_dynbuffer<char, 256>;
-using wdynbuffer = basic_dynbuffer<wchar_t, 256 / sizeof(wchar_t)>;
+using dynbuffer = basic_dynbuffer<char>;
+using wdynbuffer = basic_dynbuffer<wchar_t>;
+
+template<typename Ty, size_t InlineBufSize = 0>
+class basic_inline_dynbuffer : public basic_dynbuffer<Ty> {
+ public:
+    basic_inline_dynbuffer()
+        : basic_dynbuffer<Ty>(reinterpret_cast<Ty*>(&buf_), reinterpret_cast<Ty*>(&buf_[kInlineBufSize]), true) {}
+    basic_dynbuffer<Ty>& base() { return *this; }
+
+ private:
+    enum : unsigned {
+#if defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
+        kInlineBufSize = InlineBufSize != 0 ? InlineBufSize : 256 / sizeof(Ty)
+#else   // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
+        kInlineBufSize = 7
+#endif  // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
+    };
+    typename std::aligned_storage<sizeof(Ty), std::alignment_of<Ty>::value>::type buf_[kInlineBufSize];
+};
+
+using inline_dynbuffer = basic_inline_dynbuffer<char>;
+using inline_wdynbuffer = basic_inline_dynbuffer<wchar_t>;
 
 template<typename Ty>
 struct string_converter;
@@ -325,15 +339,15 @@ StrTy& basic_to_string(StrTy& s, const Ty& val, const fmt_state& fmt) {
 
 template<typename Ty, typename... Args>
 std::string to_string(const Ty& val, Args&&... args) {
-    dynbuffer buf;
-    basic_to_string(buf, val, fmt_state(std::forward<Args>(args)...));
+    inline_dynbuffer buf;
+    basic_to_string(buf.base(), val, fmt_state(std::forward<Args>(args)...));
     return std::string(buf.data(), buf.size());
 }
 
 template<typename Ty, typename... Args>
 std::wstring to_wstring(const Ty& val, Args&&... args) {
-    wdynbuffer buf;
-    basic_to_string(buf, val, fmt_state(std::forward<Args>(args)...));
+    inline_wdynbuffer buf;
+    basic_to_string(buf.base(), val, fmt_state(std::forward<Args>(args)...));
     return std::wstring(buf.data(), buf.size());
 }
 
