@@ -46,9 +46,10 @@ bool operator==(const value& lhs, const value& rhs) {
 template<typename Ty>
 /*static*/ value::dynarray<Ty>* value::dynarray<Ty>::alloc(size_t cap) {
     size_t alloc_sz = get_alloc_sz(cap);
-    dynarray* new_arr = std::allocator<dynarray>().allocate(alloc_sz);
-    new_arr->capacity = (alloc_sz * sizeof(dynarray) - offsetof(dynarray, data[0])) / sizeof(Ty);
-    return new_arr;
+    dynarray* arr = std::allocator<dynarray>().allocate(alloc_sz);
+    arr->capacity = (alloc_sz * sizeof(dynarray) - offsetof(dynarray, data[0])) / sizeof(Ty);
+    assert(arr->capacity >= cap && get_alloc_sz(arr->capacity) == alloc_sz);
+    return arr;
 }
 
 template<typename Ty>
@@ -86,8 +87,7 @@ void value::record::init() {
 void value::record::destroy(list_links_type* node) {
     while (node != &head) {
         list_links_type* next = node->next;
-        list_node_traits::get_value(node).~map_value();
-        std::allocator<list_node_type>().deallocate(static_cast<list_node_type*>(node), 1);
+        delete_node(node);
         node = next;
     }
 }
@@ -96,12 +96,41 @@ value::list_links_type* value::record::find(std::string_view s, size_t hash_code
     list_links_type* bucket_next = hashtbl[hash_code % bucket_count];
     while (bucket_next != nullptr) {
         if (static_cast<list_node_type*>(bucket_next)->hash_code == hash_code &&
-            list_node_traits::get_value(bucket_next).first == s) {
+            list_node_traits::get_value(bucket_next).name() == s) {
             return bucket_next;
         }
         bucket_next = static_cast<list_node_type*>(bucket_next)->bucket_next;
     }
     return nullptr;
+}
+
+value::record* value::record::copy() const {
+    record* rec = alloc(size);
+    rec->init();
+    try {
+        list_links_type* node = head.next;
+        while (node != &head) {
+            const map_value& v = list_node_traits::get_value(node);
+            rec->insert(static_cast<list_node_type*>(node)->hash_code, rec->new_node(v.name(), v.val()));
+            node = node->next;
+        }
+    } catch (...) {
+        rec->destroy(rec->head.next);
+        dealloc(rec);
+        throw;
+    }
+    return rec;
+}
+
+/*static*/ value::record* value::record::assign(record* rec, const record* src) {
+    rec->clear();
+    list_links_type* node = src->head.next;
+    while (node != &src->head) {
+        const map_value& v = list_node_traits::get_value(node);
+        rec->insert(static_cast<list_node_type*>(node)->hash_code, rec->new_node(v.name(), v.val()));
+        node = node->next;
+    }
+    return rec;
 }
 
 /*static*/ size_t value::record::calc_hash_code(std::string_view s) {
@@ -133,15 +162,23 @@ value::list_links_type* value::record::find(std::string_view s, size_t hash_code
     return hash;
 }
 
+void value::record::insert(size_t hash_code, list_links_type* node) {
+    static_cast<list_node_type*>(node)->hash_code = hash_code;
+    add_to_hash(node, hash_code);
+    dllist_insert_before(&head, node);
+    ++size;
+}
+
 value::list_links_type* value::record::erase(std::string_view s) {
     size_t hash_code = calc_hash_code(s);
     list_links_type** p_bucket_next = &hashtbl[hash_code % bucket_count];
     while (*p_bucket_next != nullptr) {
         if (static_cast<list_node_type*>(*p_bucket_next)->hash_code == hash_code &&
-            list_node_traits::get_value(*p_bucket_next).first == s) {
+            list_node_traits::get_value(*p_bucket_next).name() == s) {
             list_links_type* erased_node = *p_bucket_next;
             *p_bucket_next = static_cast<list_node_type*>(*p_bucket_next)->bucket_next;
             dllist_remove(erased_node);
+            --size;
             return erased_node;
         }
         p_bucket_next = &static_cast<list_node_type*>(*p_bucket_next)->bucket_next;
@@ -149,71 +186,7 @@ value::list_links_type* value::record::erase(std::string_view s) {
     return nullptr;
 }
 
-value::record* value::record::copy() const {
-    record* new_rec = record::alloc(size);
-    new_rec->init();
-    try {
-        list_links_type* node = head.next;
-        while (node != &head) {
-            new_rec->insert(static_cast<list_node_type*>(node)->hash_code, list_node_traits::get_value(node));
-            node = node->next;
-        }
-    } catch (...) {
-        new_rec->destroy(new_rec->head.next);
-        record::dealloc(new_rec);
-        throw;
-    }
-    return new_rec;
-}
-
-/*static*/ value::record* value::record::assign(record* rec, const record* src) {
-    list_links_type* reuse = rec->head.next;
-    if (rec->bucket_count < src->size) {
-        record* new_rec = record::alloc(src->size);
-        // fix reuse list sentinel
-        if (reuse != &rec->head) {
-            reuse->prev->next = &new_rec->head;
-        } else {
-            reuse = &new_rec->head;
-        }
-        record::dealloc(rec);
-        rec = new_rec;
-    }
-    rec->init();
-    list_links_type* node = src->head.next;
-    try {
-        while (reuse != &rec->head && node != &src->head) {
-            list_links_type* reuse_next = reuse->next;
-            const_cast<std::string&>(list_node_traits::get_value(reuse).first) = list_node_traits::get_value(node).first;
-            list_node_traits::get_value(reuse).second = list_node_traits::get_value(node).second;
-            list_node_traits::set_head(reuse, &rec->head);
-            size_t hash_code = static_cast<list_node_type*>(node)->hash_code;
-            static_cast<list_node_type*>(reuse)->hash_code = hash_code;
-            rec->add_to_hash(reuse, hash_code);
-            dllist_insert_before(&rec->head, reuse);
-            ++rec->size;
-            reuse = reuse_next, node = node->next;
-        }
-    } catch (...) {
-        rec->destroy(reuse);
-        throw;
-    }
-    while (node != &src->head) {
-        rec->insert(static_cast<list_node_type*>(node)->hash_code, list_node_traits::get_value(node));
-        node = node->next;
-    }
-    rec->destroy(reuse);
-    return rec;
-}
-
-/*static*/ value::record* value::record::alloc(size_t bckt_cnt) {
-    size_t alloc_sz = get_alloc_sz(bckt_cnt);
-    record* new_rec = std::allocator<record>().allocate(alloc_sz);
-    new_rec->bucket_count = (alloc_sz * sizeof(record) - offsetof(record, hashtbl[0])) / sizeof(list_links_type*);
-    return new_rec;
-}
-
-inline size_t value::record::bucket_next_count(size_t sz) {
+size_t value::record::next_bucket_count(size_t sz) {
     size_t delta_sz = std::max<size_t>(kMinBucketCountInc, sz >> 1);
     using alloc_traits = std::allocator_traits<std::allocator<record>>;
     size_t max_size = (alloc_traits::max_size(std::allocator<record>()) * sizeof(record) -
@@ -226,12 +199,20 @@ inline size_t value::record::bucket_next_count(size_t sz) {
     return sz + delta_sz;
 }
 
+/*static*/ value::record* value::record::alloc(size_t bckt_cnt) {
+    size_t alloc_sz = get_alloc_sz(bckt_cnt);
+    record* rec = std::allocator<record>().allocate(alloc_sz);
+    rec->bucket_count = (alloc_sz * sizeof(record) - offsetof(record, hashtbl[0])) / sizeof(list_links_type*);
+    assert(rec->bucket_count >= bckt_cnt && get_alloc_sz(rec->bucket_count) == alloc_sz);
+    return rec;
+}
+
 /*static*/ value::record* value::record::rehash(record* rec, size_t bckt_cnt) {
     if (bckt_cnt <= rec->bucket_count) { return rec; }  // do not rehash
-    record* new_rec = record::alloc(bckt_cnt);
+    record* new_rec = alloc(bckt_cnt);
     new_rec->head = rec->head;
     new_rec->size = rec->size;
-    record::dealloc(rec);
+    dealloc(rec);
     list_node_traits::set_head(&new_rec->head, &new_rec->head);
     for (auto& item : as_span(new_rec->hashtbl, new_rec->bucket_count)) { item = nullptr; }
     list_links_type* node = new_rec->head.next;
@@ -258,22 +239,23 @@ inline bool is_integral(double d) {
 
 bool value::as_bool(bool& res) const {
     switch (type_) {
+        case dtype::kNull: return false;
         case dtype::kBoolean: res = value_.b; return true;
         case dtype::kInteger: res = !!value_.i; return true;
         case dtype::kUInteger: res = !!value_.u; return true;
         case dtype::kInteger64: res = !!value_.i64; return true;
         case dtype::kUInteger64: res = !!value_.u64; return true;
         case dtype::kDouble: res = value_.dbl != 0.; return true;
-        case dtype::kString: {
-            if (stoval(str_view(), res) != 0) { return true; }
-        } break;
-        default: break;
+        case dtype::kString: return stoval(str_view(), res) != 0;
+        case dtype::kArray: return false;
+        case dtype::kRecord: return false;
+        default: UNREACHABLE_CODE;
     }
-    return false;
 }
 
 bool value::as_int(int32_t& res) const {
     switch (type_) {
+        case dtype::kNull: return false;
         case dtype::kBoolean: res = value_.b ? 1 : 0; return true;
         case dtype::kInteger: res = value_.i; return true;
         case dtype::kUInteger: {
@@ -300,16 +282,17 @@ bool value::as_int(int32_t& res) const {
                 return true;
             }
         } break;
-        case dtype::kString: {
-            if (stoval(str_view(), res) != 0) { return true; }
-        } break;
-        default: break;
+        case dtype::kString: return stoval(str_view(), res) != 0;
+        case dtype::kArray: return false;
+        case dtype::kRecord: return false;
+        default: UNREACHABLE_CODE;
     }
     return false;
 }
 
 bool value::as_uint(uint32_t& res) const {
     switch (type_) {
+        case dtype::kNull: return false;
         case dtype::kBoolean: res = value_.b ? 1 : 0; return true;
         case dtype::kInteger: {
             if (value_.i >= 0) {
@@ -336,16 +319,17 @@ bool value::as_uint(uint32_t& res) const {
                 return true;
             }
         } break;
-        case dtype::kString: {
-            if (stoval(str_view(), res) != 0) { return true; }
-        } break;
-        default: break;
+        case dtype::kString: return stoval(str_view(), res) != 0;
+        case dtype::kArray: return false;
+        case dtype::kRecord: return false;
+        default: UNREACHABLE_CODE;
     }
     return false;
 }
 
 bool value::as_int64(int64_t& res) const {
     switch (type_) {
+        case dtype::kNull: return false;
         case dtype::kBoolean: res = value_.b ? 1 : 0; return true;
         case dtype::kInteger: res = value_.i; return true;
         case dtype::kUInteger: res = static_cast<int64_t>(value_.u); return true;
@@ -364,16 +348,17 @@ bool value::as_int64(int64_t& res) const {
                 return true;
             }
         } break;
-        case dtype::kString: {
-            if (stoval(str_view(), res) != 0) { return true; }
-        } break;
-        default: break;
+        case dtype::kString: return stoval(str_view(), res) != 0;
+        case dtype::kArray: return false;
+        case dtype::kRecord: return false;
+        default: UNREACHABLE_CODE;
     }
     return false;
 }
 
 bool value::as_uint64(uint64_t& res) const {
     switch (type_) {
+        case dtype::kNull: return false;
         case dtype::kBoolean: res = value_.b ? 1 : 0; return true;
         case dtype::kInteger: {
             if (value_.i >= 0) {
@@ -396,44 +381,44 @@ bool value::as_uint64(uint64_t& res) const {
                 return true;
             }
         } break;
-        case dtype::kString: {
-            if (stoval(str_view(), res) != 0) { return true; }
-        } break;
-        default: break;
+        case dtype::kString: return stoval(str_view(), res) != 0;
+        case dtype::kArray: return false;
+        case dtype::kRecord: return false;
+        default: UNREACHABLE_CODE;
     }
     return false;
 }
 
 bool value::as_float(float& res) const {
     switch (type_) {
+        case dtype::kNull: return false;
         case dtype::kBoolean: res = value_.b ? 1.f : 0.f; return true;
         case dtype::kInteger: res = static_cast<float>(value_.i); return true;
         case dtype::kUInteger: res = static_cast<float>(value_.u); return true;
         case dtype::kInteger64: res = static_cast<float>(value_.i64); return true;
         case dtype::kUInteger64: res = static_cast<float>(value_.u64); return true;
         case dtype::kDouble: res = static_cast<float>(value_.dbl); return true;
-        case dtype::kString: {
-            if (stoval(str_view(), res) != 0) { return true; }
-        } break;
-        default: break;
+        case dtype::kString: return stoval(str_view(), res) != 0;
+        case dtype::kArray: return false;
+        case dtype::kRecord: return false;
+        default: UNREACHABLE_CODE;
     }
-    return false;
 }
 
 bool value::as_double(double& res) const {
     switch (type_) {
+        case dtype::kNull: return false;
         case dtype::kBoolean: res = value_.b ? 1. : 0.; return true;
         case dtype::kInteger: res = static_cast<double>(value_.i); return true;
         case dtype::kUInteger: res = static_cast<double>(value_.u); return true;
         case dtype::kInteger64: res = static_cast<double>(value_.i64); return true;
         case dtype::kUInteger64: res = static_cast<double>(value_.u64); return true;
         case dtype::kDouble: res = value_.dbl; return true;
-        case dtype::kString: {
-            if (stoval(str_view(), res) != 0) { return true; }
-        } break;
-        default: break;
+        case dtype::kString: return stoval(str_view(), res) != 0;
+        case dtype::kArray: return false;
+        case dtype::kRecord: return false;
+        default: UNREACHABLE_CODE;
     }
-    return false;
 }
 
 bool value::as_string(std::string& res) const {
@@ -446,9 +431,10 @@ bool value::as_string(std::string& res) const {
         case dtype::kUInteger64: res = to_string(value_.u64); return true;
         case dtype::kDouble: res = to_string(value_.dbl, fmt_flags::kAlternate); return true;
         case dtype::kString: res = std::string(str_view()); return true;
-        default: break;
+        case dtype::kArray: return false;
+        case dtype::kRecord: return false;
+        default: UNREACHABLE_CODE;
     }
-    return false;
 }
 
 bool value::as_string_view(std::string_view& res) const {
@@ -562,7 +548,7 @@ bool value::convert(dtype type) {
             value_.rec->init();
             type_ = dtype::kRecord;
         } break;
-        default: break;
+        default: UNREACHABLE_CODE;
     }
     return true;
 }
@@ -596,7 +582,7 @@ std::vector<std::string_view> value::members() const {
     if (type_ != dtype::kRecord) { return {}; }
     std::vector<std::string_view> names(value_.rec->size);
     auto p = names.begin();
-    for (const auto& item : as_map()) { *p++ = item.first; }
+    for (const auto& item : as_map()) { *p++ = item.name(); }
     return names;
 }
 
@@ -636,7 +622,7 @@ const value& value::operator[](std::string_view name) const {
     static const value null;
     if (type_ != dtype::kRecord) { throw exception("not a record"); }
     list_links_type* node = value_.rec->find(name, record::calc_hash_code(name));
-    return node != nullptr ? list_node_traits::get_value(node).second : null;
+    return node != nullptr ? list_node_traits::get_value(node).val() : null;
 }
 
 value& value::operator[](std::string_view name) {
@@ -648,31 +634,28 @@ value& value::operator[](std::string_view name) {
     }
     size_t hash_code = record::calc_hash_code(name);
     if (value_.rec->size >= value_.rec->bucket_count) {
-        value_.rec = record::rehash(value_.rec, record::bucket_next_count(value_.rec->size));
+        value_.rec = record::rehash(value_.rec, record::next_bucket_count(value_.rec->size));
     }
     list_links_type* node = value_.rec->find(name, hash_code);
     if (!node) {
-        node = value_.rec->insert(hash_code, std::piecewise_construct, std::make_tuple(name), std::tuple<>());
+        node = value_.rec->new_node(name);
+        value_.rec->insert(hash_code, node);
     }
-    return list_node_traits::get_value(node).second;
+    return list_node_traits::get_value(node).val();
 }
 
 const value* value::find(std::string_view name) const {
     if (type_ != dtype::kRecord) { return nullptr; }
     list_links_type* node = value_.rec->find(name, record::calc_hash_code(name));
-    return node != nullptr ? &list_node_traits::get_value(node).second : nullptr;
+    return node != nullptr ? &list_node_traits::get_value(node).val() : nullptr;
 }
 
 void value::clear() {
-    switch (type_) {
-        case dtype::kArray: {
-            if (value_.arr) {
-                util::for_each(value_.arr->view(), [](value& v) { v.destroy(); });
-                value_.arr->size = 0;
-            }
-        } break;
-        case dtype::kRecord: value_.rec->clear(); break;
-        default: break;
+    if (type_ == dtype::kRecord) {
+        value_.rec->clear();
+    } else if (value_.arr) {
+        util::for_each(value_.arr->view(), [](value& v) { v.destroy(); });
+        value_.arr->size = 0;
     }
 }
 
@@ -696,15 +679,6 @@ void value::resize(size_t sz) {
     }
     std::for_each(value_.arr->data + value_.arr->size, value_.arr->data + sz, [](value& v) { new (&v) value(); });
     value_.arr->size = sz;
-}
-
-void value::remove(size_t pos) {
-    if (type_ != dtype::kArray) { throw exception("not an array"); }
-    if (!value_.arr || pos >= value_.arr->size) { throw exception("index out of range"); }
-    value* v = value_.arr->data + pos;
-    value* v_end = value_.arr->data + --value_.arr->size;
-    for (; v != v_end; ++v) { *v = std::move(*(v + 1)); }
-    v->destroy();
 }
 
 value& value::append(std::string_view s) {
@@ -731,6 +705,15 @@ void value::push_back(char ch) {
     value_.str->data[value_.str->size++] = ch;
 }
 
+void value::remove(size_t pos) {
+    if (type_ != dtype::kArray) { throw exception("not an array"); }
+    if (!value_.arr || pos >= value_.arr->size) { throw exception("index out of range"); }
+    value* v = value_.arr->data + pos;
+    value* v_end = value_.arr->data + --value_.arr->size;
+    for (; v != v_end; ++v) { *v = std::move(*(v + 1)); }
+    v->~value();
+}
+
 void value::remove(size_t pos, value& removed) {
     if (type_ != dtype::kArray) { throw exception("not an array"); }
     if (!value_.arr || pos >= value_.arr->size) { throw exception("index out of range"); }
@@ -738,15 +721,14 @@ void value::remove(size_t pos, value& removed) {
     value* v_end = value_.arr->data + --value_.arr->size;
     removed = std::move(*v);
     for (; v != v_end; ++v) { *v = std::move(*(v + 1)); }
-    v->destroy();
+    v->~value();
 }
 
 bool value::remove(std::string_view name) {
     if (type_ != dtype::kRecord) { throw exception("not a record"); }
     list_links_type* node = value_.rec->erase(name);
     if (!node) { return false; }
-    list_node_traits::get_value(node).~map_value();
-    std::allocator<list_node_type>().deallocate(static_cast<list_node_type*>(node), 1);
+    record::delete_node(node);
     return true;
 }
 
@@ -754,9 +736,8 @@ bool value::remove(std::string_view name, value& removed) {
     if (type_ != dtype::kRecord) { throw exception("not a record"); }
     list_links_type* node = value_.rec->erase(name);
     if (!node) { return false; }
-    removed = std::move(list_node_traits::get_value(node).second);
-    list_node_traits::get_value(node).~map_value();
-    std::allocator<list_node_type>().deallocate(static_cast<list_node_type*>(node), 1);
+    removed = std::move(list_node_traits::get_value(node).val());
+    record::delete_node(node);
     return true;
 }
 
@@ -790,7 +771,9 @@ void value::print_scalar(iobuf& out) const {
             out.write(as_span(buf.data(), buf.size()));
         } break;
         case value::dtype::kString: print_quoted_text(out, str_view()); break;
-        default: break;
+        case value::dtype::kArray: break;
+        case value::dtype::kRecord: break;
+        default: UNREACHABLE_CODE;
     }
 }
 
@@ -886,7 +869,7 @@ void value::destroy() {
         } break;
         case dtype::kArray: {
             if (value_.arr) {
-                util::for_each(value_.arr->view(), [](value& v) { v.destroy(); });
+                util::for_each(value_.arr->view(), [](value& v) { v.~value(); });
                 dynarray<value>::dealloc(value_.arr);
             }
         } break;

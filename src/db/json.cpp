@@ -20,26 +20,33 @@ value json::reader::read() {
 
     auto token_to_value = [this](int tk, std::string_view lval) -> value {
         switch (tk) {
-            case '[': return value::make_empty_array();
-            case '{': return value::make_empty_record();
+            case '[': return value(empty_array);
+            case '{': return value(empty_record);
             case kNull: return {};
             case kTrue: return true;
             case kFalse: return false;
             case kInteger: {
                 uint64_t u64 = 0;
                 if (stoval(lval, u64) != 0) {
-                    if (lval[0] == '-') {
-                        int64_t i64 = static_cast<int64_t>(u64);
-                        if (i64 >= std::numeric_limits<int32_t>::min() && i64 <= std::numeric_limits<int32_t>::max()) {
-                            return static_cast<int32_t>(i64);
-                        }
-                        return i64;
-                    } else if (u64 <= static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
+                    if (u64 <= static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
                         return static_cast<int32_t>(u64);
+                    } else if (u64 <= static_cast<uint64_t>(std::numeric_limits<uint32_t>::max())) {
+                        return static_cast<uint32_t>(u64);
                     } else if (u64 <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
                         return static_cast<int64_t>(u64);
                     }
                     return u64;
+                }
+                // too big integer - treat as double
+                return from_string<double>(lval);
+            } break;
+            case kNegInteger: {
+                int64_t i64 = 0;
+                if (stoval(lval, i64) != 0) {
+                    if (i64 >= static_cast<int64_t>(std::numeric_limits<int32_t>::min())) {
+                        return static_cast<int32_t>(i64);
+                    }
+                    return i64;
                 }
                 // too big integer - treat as double
                 return from_string<double>(lval);
@@ -54,6 +61,8 @@ value json::reader::read() {
     basic_inline_dynbuffer<value*, 32> stack;
 
     n_ln_ = 1;
+    str_.clear();
+    stash_.clear();
     state_stack_.clear();
     state_stack_.push_back(lex_detail::sc_initial);
 
@@ -84,11 +93,11 @@ loop:
     } else if (comma || tk != '}') {
         while (true) {
             if (tk != kString) { throw exception(format("{}: expected valid string", n_ln_)); }
-            std::string name(lval);
+            value& el = top->emplace(lval);
             tk = parse_token(lval);
             if (tk != ':') { throw exception(format("{}: expected `:`", n_ln_)); }
             tk = parse_token(lval);
-            value& el = top->emplace(std::move(name), token_to_value(tk, lval));
+            el = token_to_value(tk, lval);
             tk = parse_token(lval);
             if (el.is_array() || el.is_record()) {
                 stack.push_back(top);
@@ -149,19 +158,20 @@ int json::reader::parse_token(std::string_view& lval) {
         const char* lexeme = input_.in_avail_first();
         if (stash_.empty()) {  // the stash is empty
             input_.bump(llen);
-        } else if (llen >= stash_.size()) {  // all characters in stash buffer are used
-            // concatenate full lexeme in stash
-            size_t len_rest = llen - stash_.size();
-            stash_.append(input_.in_avail_first(), input_.in_avail_first() + len_rest);
-            input_.bump(len_rest);
+        } else {
+            if (llen >= stash_.size()) {  // all characters in stash buffer are used
+                // concatenate full lexeme in stash
+                size_t len_rest = llen - stash_.size();
+                stash_.append(input_.in_avail_first(), input_.in_avail_first() + len_rest);
+                input_.bump(len_rest);
+            } else {  // at least one character in stash is yet unused
+                      // put unused chars back to `iobuf`
+                for (const char* p = stash_.last(); p != stash_.curr(); --p) { input_.unget(*(p - 1)); }
+            }
+            lexeme = stash_.data();
             stash_.clear();  // it resets end pointer, but retains the contents
-            lexeme = stash_.data();
-        } else {  // at least one character in stash is yet unused
-                  // put unused chars back to `iobuf`
-            for (const char* p = stash_.last(); p != stash_.curr(); --p) { input_.unget(*(p - 1)); }
-            lexeme = stash_.data();
         }
-        switch (static_cast<uint8_t>(pat)) {
+        switch (pat) {
             // ------ escape sequences
             case lex_detail::pat_escape_quot: str_.push_back('\"'); break;
             case lex_detail::pat_escape_rev_sol: str_.push_back('\\'); break;
@@ -186,6 +196,7 @@ int json::reader::parse_token(std::string_view& lval) {
             } break;
 
             // ------ strings
+            case lex_detail::pat_string_nl: return kEof;
             case lex_detail::pat_string_seq: {
                 str_.append(lexeme, lexeme + llen);
             } break;
@@ -195,6 +206,7 @@ int json::reader::parse_token(std::string_view& lval) {
                 } else {
                     str_.append(lexeme, lexeme + llen - 1);
                     lval = std::string_view(str_.data(), str_.size());
+                    str_.clear();  // it resets end pointer, but retains the contents
                 }
                 state_stack_.pop_back();
                 return kString;
@@ -204,6 +216,7 @@ int json::reader::parse_token(std::string_view& lval) {
             case lex_detail::pat_true: return kTrue;
             case lex_detail::pat_false: return kFalse;
             case lex_detail::pat_decimal: lval = std::string_view(lexeme, llen); return kInteger;
+            case lex_detail::pat_neg_decimal: lval = std::string_view(lexeme, llen); return kNegInteger;
             case lex_detail::pat_real: lval = std::string_view(lexeme, llen); return kDouble;
 
             case lex_detail::pat_whitespace: break;
@@ -219,29 +232,25 @@ int json::reader::parse_token(std::string_view& lval) {
                 int ch = input_.get();
                 do {
                     while (input_ && ch != '*') {
-                        if (ch == '\n') { ++n_ln_; }
                         if (ch == '\0') { return kEof; }
+                        if (ch == '\n') { ++n_ln_; }
                         ch = input_.get();
                     }
                     ch = input_.get();
                 } while (input_ && ch != '/');
             } break;
 
-            default: {
-                if (lexeme[0] != '\n' && lexeme[0] != '\"') {
-                    return lexeme[0];
-                } else if (lexeme[0] == '\"') {
-                    str_.clear();
-                    state_stack_.push_back(lex_detail::sc_string);
-                } else {
-                    if (state_stack_.back() == lex_detail::sc_string) { return kEof; }
-                    ++n_ln_;
+            case lex_detail::predef_pat_default: {
+                switch (lexeme[0]) {
+                    case '\n': ++n_ln_; break;
+                    case '\"': state_stack_.push_back(lex_detail::sc_string); break;
+                    default: return lexeme[0];
                 }
             } break;
+
+            default: UNREACHABLE_CODE;
         }
     }
-
-    return kEof;
 }
 
 // --------------------------
@@ -268,21 +277,19 @@ void json::writer::write(const value& v) {
     basic_inline_dynbuffer<writer_stack_item_t, 32> stack;
 
     auto write_value = [this, &stack, &indent](const value& v) {
-        switch (v.type()) {
-            case value::dtype::kArray: {
-                output_.put('[');
-                stack.emplace_back(&v, v.as_array().data());
-                return true;
-            } break;
-            case value::dtype::kRecord: {
-                output_.put('{');
-                indent += indent_size_;
-                stack.emplace_back(&v, v.as_map().begin());
-                return true;
-            } break;
-            default: v.print_scalar(output_); break;
+        if (v.type() < value::dtype::kArray) {
+            v.print_scalar(output_);
+            return false;
         }
-        return false;
+        if (v.type() == value::dtype::kArray) {
+            output_.put('[');
+            stack.emplace_back(&v, v.as_array().data());
+            return true;
+        }
+        output_.put('{');
+        indent += indent_size_;
+        stack.emplace_back(&v, v.as_map().begin());
+        return true;
     };
 
     if (!write_value(v)) { return; }
@@ -307,9 +314,9 @@ loop:
             if (el != range.begin()) { output_.put(','); }
             output_.put('\n');
             output_.fill_n(indent, indent_char_);
-            print_quoted_text<char>(output_, el->first);
+            print_quoted_text<char>(output_, el->name());
             output_.put(':').put(' ');
-            if (write_value((el++)->second)) {
+            if (write_value((el++)->val())) {
                 (stack.curr() - 2)->record_element = el;
                 goto loop;
             }

@@ -19,7 +19,7 @@ class reader {
     inline_dynbuffer stash_;
     basic_inline_dynbuffer<int8_t> state_stack_;
 
-    enum { kEof = 0, kNull = 1000, kTrue, kFalse, kInteger, kDouble, kString };
+    enum { kEof = 0, kNull = 256, kTrue, kFalse, kInteger, kNegInteger, kDouble, kString };
 
     int parse_token(std::string_view& lval);
 };
