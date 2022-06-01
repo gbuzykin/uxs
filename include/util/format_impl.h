@@ -19,167 +19,228 @@ UTIL_IMPLEMENT_BITWISE_OPS_FOR_ENUM(fmt_parse_flags, unsigned);
 struct fmt_arg_specs {
     fmt_state fmt;
     fmt_parse_flags flags = fmt_parse_flags::kDefault;
-    size_t n_arg = 0;
-    size_t n_width_arg = 0;
-    size_t n_prec_arg = 0;
+    unsigned n_arg = 0;
+    unsigned n_width_arg = 0;
+    unsigned n_prec_arg = 0;
 };
 
-template<typename CharT>
-const CharT* fmt_parse_adjustment(const CharT* p, fmt_state& fmt) {
-    switch (*p) {
-        case '<': fmt.flags |= fmt_flags::kLeft; return p + 1;
-        case '^': fmt.flags |= fmt_flags::kInternal; return p + 1;
-        case '>': return p + 1;
-        default: {
-            switch (*(p + 1)) {
-                case '<': fmt.fill = *p, fmt.flags |= fmt_flags::kLeft; return p + 2;
-                case '^': fmt.fill = *p, fmt.flags |= fmt_flags::kInternal; return p + 2;
-                case '>': fmt.fill = *p; return p + 2;
-                default: break;
-            }
-        } break;
+struct fmt_meta_tbl_t {
+    enum code_t {
+        kDefault = 0,
+        kLeft,
+        kMid,
+        kRight,
+        kOpenBr,
+        kCloseBr,
+        kDot,
+        kDig19,
+        kPlus,
+        kSpace,
+        kMinus,
+        kSharp,
+        kZero,
+        kDec,
+        kBin,
+        kBinCap,
+        kOct,
+        kHex,
+        kHexCap,
+        kFloat,
+        kFloatCap,
+        kSci,
+        kSciCap,
+        kGen,
+        kGenCap,
+        kPtr,
+        kPtrCap,
+        kStr,
+        kChar
+    };
+    std::array<uint8_t, 128> tbl{};
+    CONSTEXPR fmt_meta_tbl_t() {
+        for (unsigned ch = 0; ch < tbl.size(); ++ch) { tbl[ch] = code_t::kDefault; }
+        tbl['<'] = code_t::kLeft, tbl['^'] = code_t::kMid, tbl['>'] = code_t::kRight;
+        tbl['{'] = code_t::kOpenBr, tbl['}'] = code_t::kCloseBr, tbl['.'] = code_t::kDot;
+        for (unsigned ch = '1'; ch <= '9'; ++ch) { tbl[ch] = code_t::kDig19; }
+        tbl['+'] = code_t::kPlus, tbl[' '] = code_t::kSpace, tbl['-'] = code_t::kMinus;
+        tbl['#'] = code_t::kSharp, tbl['0'] = code_t::kZero;
+        tbl['d'] = code_t::kDec, tbl['b'] = code_t::kBin, tbl['o'] = code_t::kOct, tbl['x'] = code_t::kHex;
+        tbl['B'] = code_t::kBinCap, tbl['X'] = code_t::kHexCap;
+        tbl['f'] = code_t::kFloat, tbl['e'] = code_t::kSci, tbl['g'] = code_t::kGen;
+        tbl['F'] = code_t::kFloatCap, tbl['E'] = code_t::kSciCap, tbl['G'] = code_t::kGenCap;
+        tbl['s'] = code_t::kStr, tbl['c'] = code_t::kChar, tbl['p'] = code_t::kPtr, tbl['P'] = code_t::kPtrCap;
     }
-    return p;
-}
+};
 
-template<typename CharT>
-const CharT* fmt_parse_sign(const CharT* p, fmt_state& fmt) {
-    switch (*p) {
-        case '+': fmt.flags |= fmt_flags::kSignPos; return p + 1;
-        case ' ': fmt.flags |= fmt_flags::kSignAlign; return p + 1;
-        case '-': return p + 1;
-        default: break;
-    }
-    return p;
-}
-
-template<typename CharT>
-const CharT* fmt_parse_alternate(const CharT* p, fmt_state& fmt) {
-    if (*p == '#') {
-        fmt.flags |= fmt_flags::kAlternate;
-        return p + 1;
-    }
-    return p;
-}
-
-template<typename CharT>
-const CharT* fmt_parse_leading_zeroes(const CharT* p, fmt_state& fmt) {
-    if (*p == '0') {
-        fmt.flags |= fmt_flags::kLeadingZeroes;
-        return p + 1;
-    }
-    return p;
-}
+#if __cplusplus < 201703L
+static const fmt_meta_tbl_t g_meta_tbl;
+#else   // __cplusplus < 201703L
+static constexpr fmt_meta_tbl_t g_meta_tbl{};
+#endif  // __cplusplus < 201703L
 
 template<typename CharT, typename Ty>
-const CharT* fmt_parse_num(const CharT* p, Ty& num) {
-    while (is_digit(*p)) { num = 10 * num + static_cast<Ty>(*p++ - '0'); }
+const CharT* fmt_accum_num(const CharT* p, const CharT* last, Ty& num) {
+    while (p != last && is_digit(*p)) { num = 10 * num + static_cast<Ty>(*p++ - '0'); }
     return p;
 }
 
 template<typename CharT>
-const CharT* fmt_parse_width(const CharT* p, detail::fmt_arg_specs& specs) {
-    if (is_digit(*p)) {
-        specs.fmt.width = static_cast<unsigned>(*p++ - '0');
-        p = fmt_parse_num(p, specs.fmt.width);
-    } else if (*p == '{') {
-        specs.flags |= detail::fmt_parse_flags::kDynamicWidth;
-        if (*++p == '}') { return p + 1; }
-        if (is_digit(*p)) {
-            specs.flags |= detail::fmt_parse_flags::kWidthArgNumSpecified;
-            specs.n_width_arg = static_cast<size_t>(*p++ - '0');
-            p = fmt_parse_num(p, specs.n_width_arg);
-        }
-        while (*p++ != '}') {}
-    }
-    return p;
-}
+const CharT* fmt_parse_arg_spec(const CharT* p, const CharT* last, fmt_arg_specs& specs) {
+    assert(p != last);
 
-template<typename CharT>
-const CharT* fmt_parse_precision(const CharT* p, detail::fmt_arg_specs& specs) {
-    if (*p != '.') { return p; }
-    if (is_digit(*++p)) {
-        specs.fmt.prec = static_cast<int>(*p++ - '0');
-        p = fmt_parse_num(p, specs.fmt.prec);
-    } else if (*p == '{') {
-        specs.flags |= detail::fmt_parse_flags::kDynamicPrec;
-        if (*++p == '}') { return p + 1; }
-        if (is_digit(*p)) {
-            specs.flags |= detail::fmt_parse_flags::kPrecArgNumSpecified;
-            specs.n_prec_arg = static_cast<size_t>(*p++ - '0');
-            p = fmt_parse_num(p, specs.n_prec_arg);
-        }
-        while (*p++ != '}') {}
-    }
-    return p;
-}
-
-template<typename CharT>
-const CharT* fmt_parse_type(const CharT* p, fmt_state& fmt) {
-    switch (*p++) {
-        case 's': return p;
-        case 'c': return p;
-        case 'b': fmt.flags |= fmt_flags::kBin; return p;
-        case 'B': fmt.flags |= fmt_flags::kBin | fmt_flags::kUpperCase; return p;
-        case 'o': fmt.flags |= fmt_flags::kOct; return p;
-        case 'd': return p;
-        case 'x': fmt.flags |= fmt_flags::kHex; return p;
-        case 'X': fmt.flags |= fmt_flags::kHex | fmt_flags::kUpperCase; return p;
-        case 'p': return p;
-        case 'P': fmt.flags |= fmt_flags::kUpperCase; return p;
-        case 'f': {
-            fmt.flags |= fmt_flags::kFixed;
-            if (fmt.prec < 0) { fmt.prec = 6; }
-            return p;
-        } break;
-        case 'F': {
-            fmt.flags |= fmt_flags::kFixed | fmt_flags::kUpperCase;
-            if (fmt.prec < 0) { fmt.prec = 6; }
-            return p;
-        } break;
-        case 'e': {
-            fmt.flags |= fmt_flags::kScientific;
-            if (fmt.prec < 0) { fmt.prec = 6; }
-            return p;
-        } break;
-        case 'E': {
-            fmt.flags |= fmt_flags::kScientific | fmt_flags::kUpperCase;
-            if (fmt.prec < 0) { fmt.prec = 6; }
-            return p;
-        } break;
-        case 'g': {
-            if (fmt.prec < 0) { fmt.prec = 6; }
-            return p;
-        } break;
-        case 'G': {
-            fmt.flags |= fmt_flags::kUpperCase;
-            if (fmt.prec < 0) { fmt.prec = 6; }
-            return p;
-        } break;
-        default: break;
-    }
-    return p - 1;
-}
-
-template<typename CharT>
-void fmt_parse_arg_spec(const CharT* p, fmt_arg_specs& specs) {
-    specs.fmt = fmt_state();
-    specs.flags = fmt_parse_flags::kDefault;
-    if (*p == '}') { return; }
     if (is_digit(*p)) {
         specs.flags |= fmt_parse_flags::kArgNumSpecified;
         specs.n_arg = static_cast<size_t>(*p++ - '0');
-        p = fmt_parse_num(p, specs.n_arg);
+        p = fmt_accum_num(p, last, specs.n_arg);
+        if (p == last) { return nullptr; }
+        if (*p == '}') { return p + 1; }
     }
-    if (*p++ == ':') {
-        p = fmt_parse_adjustment(p, specs.fmt);
-        p = fmt_parse_sign(p, specs.fmt);
-        p = fmt_parse_alternate(p, specs.fmt);
-        p = fmt_parse_leading_zeroes(p, specs.fmt);
-        p = fmt_parse_width(p, specs);
-        p = fmt_parse_precision(p, specs);
-        fmt_parse_type(p, specs.fmt);
+    if (*p != ':' || ++p == last) { return nullptr; }
+
+    if (p + 1 != last) {
+        switch (*(p + 1)) {  // adjustment with fill character
+            case '<': specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::kLeft, p += 2; break;
+            case '^': specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::kInternal, p += 2; break;
+            case '>': specs.fmt.fill = *p, p += 2; break;
+            default: break;
+        }
     }
+
+    enum class state_t { kStart = 0, kSign, kAlternate, kLeadingZeroes, kWidth, kPrecision, kType, kFinish };
+
+    state_t state = state_t::kStart;
+    while (p != last) {
+        auto ch = static_cast<typename std::make_unsigned<CharT>::type>(*p++);
+        if (ch >= g_meta_tbl.tbl.size()) { return nullptr; }
+        switch (g_meta_tbl.tbl[ch]) {
+            // end of format specifier
+            case fmt_meta_tbl_t::kDefault: return nullptr;
+            case fmt_meta_tbl_t::kCloseBr: return p;
+
+#define FMT_PARSE_SPECIFIER_CASE(next_state, action) \
+    if (state < state_t::next_state) { \
+        state = state_t::next_state; \
+        action; \
+        break; \
+    } \
+    return nullptr;
+
+            // adjustment
+            case fmt_meta_tbl_t::kLeft: FMT_PARSE_SPECIFIER_CASE(kSign, specs.fmt.flags |= fmt_flags::kLeft);
+            case fmt_meta_tbl_t::kMid: FMT_PARSE_SPECIFIER_CASE(kSign, specs.fmt.flags |= fmt_flags::kInternal);
+            case fmt_meta_tbl_t::kRight: FMT_PARSE_SPECIFIER_CASE(kSign, {});
+
+            // sign specifiers
+            case fmt_meta_tbl_t::kPlus: FMT_PARSE_SPECIFIER_CASE(kAlternate, specs.fmt.flags |= fmt_flags::kSignPos);
+            case fmt_meta_tbl_t::kSpace: FMT_PARSE_SPECIFIER_CASE(kAlternate, specs.fmt.flags |= fmt_flags::kSignAlign);
+            case fmt_meta_tbl_t::kMinus: FMT_PARSE_SPECIFIER_CASE(kAlternate, {});
+
+            // alternate
+            case fmt_meta_tbl_t::kSharp:
+                FMT_PARSE_SPECIFIER_CASE(kLeadingZeroes, specs.fmt.flags |= fmt_flags::kAlternate);
+
+            // leading zeroes
+            case fmt_meta_tbl_t::kZero: FMT_PARSE_SPECIFIER_CASE(kWidth, specs.fmt.flags |= fmt_flags::kLeadingZeroes);
+
+            // width
+            case fmt_meta_tbl_t::kOpenBr:
+                FMT_PARSE_SPECIFIER_CASE(kPrecision, {
+                    if (p == last) { return nullptr; }
+                    specs.flags |= detail::fmt_parse_flags::kDynamicWidth;
+                    if (*p == '}') {
+                        ++p;
+                        break;
+                    } else if (is_digit(*p)) {
+                        specs.flags |= detail::fmt_parse_flags::kWidthArgNumSpecified;
+                        specs.n_width_arg = static_cast<unsigned>(*p++ - '0');
+                        p = fmt_accum_num(p, last, specs.n_width_arg);
+                        if (p != last && *p++ == '}') { break; }
+                    }
+                    return nullptr;
+                });
+            case fmt_meta_tbl_t::kDig19:
+                FMT_PARSE_SPECIFIER_CASE(kPrecision, {
+                    specs.fmt.width = static_cast<unsigned>(*(p - 1) - '0');
+                    p = fmt_accum_num(p, last, specs.fmt.width);
+                });
+
+            // precision
+            case fmt_meta_tbl_t::kDot:
+                FMT_PARSE_SPECIFIER_CASE(kType, {
+                    if (p == last) { return nullptr; }
+                    if (is_digit(*p)) {
+                        specs.fmt.prec = static_cast<int>(*p++ - '0');
+                        p = fmt_accum_num(p, last, specs.fmt.prec);
+                        break;
+                    } else if (*p == '{' && ++p != last) {
+                        specs.flags |= detail::fmt_parse_flags::kDynamicPrec;
+                        if (*p == '}') {
+                            ++p;
+                            break;
+                        } else if (is_digit(*p)) {
+                            specs.flags |= detail::fmt_parse_flags::kPrecArgNumSpecified;
+                            specs.n_prec_arg = static_cast<unsigned>(*p++ - '0');
+                            p = fmt_accum_num(p, last, specs.n_prec_arg);
+                            if (p != last && *p++ == '}') { break; }
+                        }
+                    }
+                    return nullptr;
+                });
+
+            // types
+            case fmt_meta_tbl_t::kBin: FMT_PARSE_SPECIFIER_CASE(kFinish, specs.fmt.flags |= fmt_flags::kBin);
+            case fmt_meta_tbl_t::kOct: FMT_PARSE_SPECIFIER_CASE(kFinish, specs.fmt.flags |= fmt_flags::kOct);
+            case fmt_meta_tbl_t::kHex: FMT_PARSE_SPECIFIER_CASE(kFinish, specs.fmt.flags |= fmt_flags::kHex);
+
+            case fmt_meta_tbl_t::kBinCap:
+                FMT_PARSE_SPECIFIER_CASE(kFinish, specs.fmt.flags |= fmt_flags::kBin | fmt_flags::kUpperCase);
+            case fmt_meta_tbl_t::kHexCap:
+                FMT_PARSE_SPECIFIER_CASE(kFinish, specs.fmt.flags |= fmt_flags::kHex | fmt_flags::kUpperCase);
+
+            case fmt_meta_tbl_t::kFloat:
+                FMT_PARSE_SPECIFIER_CASE(kFinish, {
+                    specs.fmt.flags |= fmt_flags::kFixed;
+                    if (specs.fmt.prec < 0) { specs.fmt.prec = 6; }
+                });
+            case fmt_meta_tbl_t::kFloatCap:
+                FMT_PARSE_SPECIFIER_CASE(kFinish, {
+                    specs.fmt.flags |= fmt_flags::kFixed | fmt_flags::kUpperCase;
+                    if (specs.fmt.prec < 0) { specs.fmt.prec = 6; }
+                });
+
+            case fmt_meta_tbl_t::kSci:
+                FMT_PARSE_SPECIFIER_CASE(kFinish, {
+                    specs.fmt.flags |= fmt_flags::kScientific;
+                    if (specs.fmt.prec < 0) { specs.fmt.prec = 6; }
+                });
+            case fmt_meta_tbl_t::kSciCap:
+                FMT_PARSE_SPECIFIER_CASE(kFinish, {
+                    specs.fmt.flags |= fmt_flags::kScientific | fmt_flags::kUpperCase;
+                    if (specs.fmt.prec < 0) { specs.fmt.prec = 6; }
+                });
+
+            case fmt_meta_tbl_t::kGen:
+                FMT_PARSE_SPECIFIER_CASE(kFinish, {
+                    if (specs.fmt.prec < 0) { specs.fmt.prec = 6; }
+                });
+            case fmt_meta_tbl_t::kGenCap:
+                FMT_PARSE_SPECIFIER_CASE(kFinish, {
+                    specs.fmt.flags |= fmt_flags::kUpperCase;
+                    if (specs.fmt.prec < 0) { specs.fmt.prec = 6; }
+                });
+
+            case fmt_meta_tbl_t::kDec:
+            case fmt_meta_tbl_t::kStr:
+            case fmt_meta_tbl_t::kChar:
+            case fmt_meta_tbl_t::kPtr: FMT_PARSE_SPECIFIER_CASE(kFinish, {});
+            case fmt_meta_tbl_t::kPtrCap: FMT_PARSE_SPECIFIER_CASE(kFinish, specs.fmt.flags |= fmt_flags::kUpperCase);
+
+            default: UNREACHABLE_CODE;
+#undef FMT_PARSE_SPECIFIER_CASE
+        }
+    }
+
+    return nullptr;
 }
 
 template<typename StrTy, typename CharT>
@@ -190,17 +251,15 @@ std::pair<const CharT*, bool> fmt_parse_next(StrTy& s, const CharT* p, const Cha
             s.append(p0, p);
             p0 = ++p;
             if (p == last) { break; }
-            int balance = 1;
             if (*(p - 1) == '{' && *p != '{') {
-                do {
-                    if (*p == '}' && --balance == 0) {
-                        fmt_parse_arg_spec(p0, specs);
-                        return {++p, true};
-                    } else if (*p == '{') {
-                        ++balance;
-                    }
-                } while (++p != last);
-                return {p, false};
+                specs.fmt = fmt_state();
+                specs.flags = fmt_parse_flags::kDefault;
+                if (*p == '}') {
+                    ++p;
+                } else if (!(p = fmt_parse_arg_spec(p, last, specs))) {
+                    throw format_error("invalid format specifier");
+                }
+                return {p, true};
             }
         }
     } while (++p != last);
@@ -297,8 +356,8 @@ StrTy& fmt_append_string(StrTy& s, std::basic_string_view<typename StrTy::value_
 template<typename StrTy>
 StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
                      span<const detail::fmt_arg_list_item<StrTy>> args) {
-    size_t n = 0;
-    auto check_arg_idx = [&args](size_t idx) {
+    unsigned n = 0;
+    auto check_arg_idx = [&args](unsigned idx) {
         if (idx >= args.size()) { throw format_error("out of argument list"); }
     };
     detail::fmt_arg_specs specs;
