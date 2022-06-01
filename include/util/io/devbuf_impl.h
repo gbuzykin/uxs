@@ -231,6 +231,7 @@ typename basic_devbuf<CharT>::pos_type basic_devbuf<CharT>::seekimpl(off_type of
             return pos;
         }
     }
+    if (!!(this->mode() & iomode::kAppend)) { return pos_; }
     int64_t abs_off = dev_->seek(off * sizeof(char_type), dir);
     if (abs_off < 0) { return -1; }
     pos_ = abs_off / sizeof(char_type);
