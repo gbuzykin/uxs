@@ -51,7 +51,7 @@ value json::reader::read() {
     };
 
     std::string_view lval;
-    basic_dynbuffer<value*, 32> stack;
+    basic_inline_dynbuffer<value*, 32> stack;
 
     n_ln_ = 1;
     state_stack_.clear();
@@ -247,6 +247,7 @@ int json::reader::parse_token(std::string_view& lval) {
 // --------------------------
 
 struct writer_stack_item_t {
+    writer_stack_item_t() {}
     writer_stack_item_t(const value* p, const value* el) : v(p), array_element(el) {}
     writer_stack_item_t(const value* p, value::const_record_iterator el) : v(p), record_element(el) {}
     const value* v;
@@ -264,7 +265,7 @@ struct writer_stack_item_t {
 
 void json::writer::write(const value& v) {
     unsigned indent = 0;
-    basic_dynbuffer<writer_stack_item_t, 32> stack;
+    basic_inline_dynbuffer<writer_stack_item_t, 32> stack;
 
     auto write_value = [this, &stack, &indent](const value& v) {
         switch (v.type()) {

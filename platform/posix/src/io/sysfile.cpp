@@ -79,7 +79,7 @@ int64_t sysfile::seek(int64_t off, seekdir dir) {
 
 int sysfile::ctrlesc_color(span<uint8_t> v) {
     using namespace std::placeholders;
-    util::dynbuffer buf;
+    util::inline_dynbuffer buf;
     buf += "\033[";
     basic_join_strings(buf, v, ';', std::bind(basic_to_string<util::dynbuffer, uint8_t>, _1, _2, fmt_state()));
     buf += 'm';

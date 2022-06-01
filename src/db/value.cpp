@@ -765,28 +765,28 @@ void value::print_scalar(iobuf& out) const {
         case value::dtype::kNull: out.write("null"); break;
         case value::dtype::kBoolean: out.write(value_.b ? "true" : "false"); break;
         case value::dtype::kInteger: {
-            dynbuffer buf;
-            basic_to_string(buf, value_.i, fmt_state());
+            inline_dynbuffer buf;
+            basic_to_string(buf.base(), value_.i, fmt_state());
             out.write(as_span(buf.data(), buf.size()));
         } break;
         case value::dtype::kUInteger: {
-            dynbuffer buf;
-            basic_to_string(buf, value_.u, fmt_state());
+            inline_dynbuffer buf;
+            basic_to_string(buf.base(), value_.u, fmt_state());
             out.write(as_span(buf.data(), buf.size()));
         } break;
         case value::dtype::kInteger64: {
-            dynbuffer buf;
-            basic_to_string(buf, value_.i64, fmt_state());
+            inline_dynbuffer buf;
+            basic_to_string(buf.base(), value_.i64, fmt_state());
             out.write(as_span(buf.data(), buf.size()));
         } break;
         case value::dtype::kUInteger64: {
-            dynbuffer buf;
-            basic_to_string(buf, value_.u64, fmt_state());
+            inline_dynbuffer buf;
+            basic_to_string(buf.base(), value_.u64, fmt_state());
             out.write(as_span(buf.data(), buf.size()));
         } break;
         case value::dtype::kDouble: {
-            dynbuffer buf;
-            basic_to_string(buf, value_.dbl, fmt_state(fmt_flags::kAlternate));
+            inline_dynbuffer buf;
+            basic_to_string(buf.base(), value_.dbl, fmt_state(fmt_flags::kAlternate));
             out.write(as_span(buf.data(), buf.size()));
         } break;
         case value::dtype::kString: print_quoted_text(out, str_view()); break;
