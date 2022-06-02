@@ -23,8 +23,6 @@ bool ziparch::open(const char* name, iomode mode) {
     return (zip_ = zip_open(name, oflag, &ziperr)) != nullptr;
 }
 
-bool ziparch::open(const wchar_t* name, iomode mode) { return open(util::from_wide_to_utf8(name).c_str(), mode); }
-
 void ziparch::close() {
     if (!zip_) { return; }
     zip_close(reinterpret_cast<zip_t*>(zip_));
@@ -49,6 +47,16 @@ bool ziparch::stat_crc(const char* fname, uint32_t& crc) {
     return true;
 }
 
+#else  // defined(UTIL_USE_LIBZIP)
+
+using namespace util;
+bool ziparch::open(const char* name, iomode mode) { return false; }
+void ziparch::close() {}
+bool ziparch::stat_size(const char* fname, size_t& sz) { return false; }
+bool ziparch::stat_crc(const char* fname, uint32_t& crc) { return false; }
+
+#endif  // defined(UTIL_USE_LIBZIP)
+
 bool ziparch::stat_size(const wchar_t* fname, size_t& sz) {
     return stat_size(util::from_wide_to_utf8(fname).c_str(), sz);
 }
@@ -56,4 +64,4 @@ bool ziparch::stat_crc(const wchar_t* fname, uint32_t& crc) {
     return stat_crc(util::from_wide_to_utf8(fname).c_str(), crc);
 }
 
-#endif  // defined(UTIL_USE_LIBZIP)
+bool ziparch::open(const wchar_t* name, iomode mode) { return open(util::from_wide_to_utf8(name).c_str(), mode); }
