@@ -13,13 +13,14 @@ class UTIL_EXPORT zipfile : public iodevice {
     ~zipfile() { close(); }
     zipfile(zipfile&& other) NOEXCEPT : zip_fd_(other.zip_fd_) { other.zip_fd_ = nullptr; }
     zipfile& operator=(zipfile&& other) {
+        if (&other == this) { return *this; }
         zip_fd_ = other.zip_fd_;
         other.zip_fd_ = nullptr;
         return *this;
     }
 
-    bool valid() const { return zip_fd_ != nullptr; }
-    explicit operator bool() const { return zip_fd_ != nullptr; }
+    bool valid() const { return !!zip_fd_; }
+    explicit operator bool() const { return !!zip_fd_; }
 
     bool open(ziparch& arch, const char* fname);
     bool open(ziparch& arch, const wchar_t* fname);

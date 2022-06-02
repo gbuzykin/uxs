@@ -21,6 +21,7 @@ class UTIL_EXPORT sysfile : public iodevice {
     ~sysfile() override;
     sysfile(sysfile&& other) NOEXCEPT : fd_(other.detach()) {}
     sysfile& operator=(sysfile&& other) {
+        if (&other == this) { return *this; }
         attach(other.detach());
         return *this;
     }

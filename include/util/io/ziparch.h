@@ -16,13 +16,14 @@ class UTIL_EXPORT ziparch {
     ~ziparch() { close(); }
     ziparch(ziparch&& other) NOEXCEPT : zip_(other.zip_) { other.zip_ = nullptr; }
     ziparch& operator=(ziparch&& other) {
+        if (&other == this) { return *this; }
         zip_ = other.zip_;
         other.zip_ = nullptr;
         return *this;
     }
 
-    bool valid() const { return zip_ != nullptr; }
-    explicit operator bool() const { return zip_ != nullptr; }
+    bool valid() const { return !!zip_; }
+    explicit operator bool() const { return !!zip_; }
 
     bool open(const char* name, iomode mode);
     bool open(const wchar_t* name, iomode mode);
