@@ -1,6 +1,6 @@
-#include "util/pool_allocator.h"
+#include "uxs/pool_allocator.h"
 
-using namespace util;
+using namespace uxs;
 
 /*static*/ pool pool::global_pool_;
 

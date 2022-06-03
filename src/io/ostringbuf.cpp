@@ -1,6 +1,6 @@
-#include "util/io/ostringbuf_impl.h"
+#include "uxs/io/ostringbuf_impl.h"
 
-namespace util {
+namespace uxs {
 template class basic_ostringbuf<char>;
 template class basic_ostringbuf<wchar_t>;
-}  // namespace util
+}  // namespace uxs

@@ -1,7 +1,7 @@
-#include "util/io/filebuf_impl.h"
+#include "uxs/io/filebuf_impl.h"
 
-namespace util {
+namespace uxs {
 template class basic_filebuf<char>;
 template class basic_filebuf<wchar_t>;
 template class basic_filebuf<uint8_t>;
-}  // namespace util
+}  // namespace uxs

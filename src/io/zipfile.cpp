@@ -1,12 +1,12 @@
-#include "util/io/zipfile.h"
+#include "uxs/io/zipfile.h"
 
-#include "util/stringalg.h"
+#include "uxs/stringalg.h"
 
-#if defined(UTIL_USE_LIBZIP)
+#if defined(UXS_USE_LIBZIP)
 
 #    include <zip.h>
 
-using namespace util;
+using namespace uxs;
 
 bool zipfile::open(ziparch& arch, const char* fname) {
     if (!arch.zip_) { return false; }
@@ -28,13 +28,13 @@ int zipfile::read(void* buf, size_type sz, size_type& n_read) {
     return 0;
 }
 
-#else  // defined(UTIL_USE_LIBZIP)
+#else  // defined(UXS_USE_LIBZIP)
 
-using namespace util;
+using namespace uxs;
 bool zipfile::open(ziparch& arch, const char* fname) { return false; }
 void zipfile::close() {}
 int zipfile::read(void* buf, size_type sz, size_type& n_read) { return -1; }
 
-#endif  // defined(UTIL_USE_LIBZIP)
+#endif  // defined(UXS_USE_LIBZIP)
 
-bool zipfile::open(ziparch& arch, const wchar_t* fname) { return open(arch, util::from_wide_to_utf8(fname).c_str()); }
+bool zipfile::open(ziparch& arch, const wchar_t* fname) { return open(arch, uxs::from_wide_to_utf8(fname).c_str()); }

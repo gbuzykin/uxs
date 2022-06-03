@@ -1,8 +1,8 @@
-#include "util/io/filebuf.h"
+#include "uxs/io/filebuf.h"
 
 #include <windows.h>
 
-using namespace util;
+using namespace uxs;
 
 static filebuf g_outbuf(::GetStdHandle(STD_OUTPUT_HANDLE),
                         iomode::kOut | iomode::kAppend | iomode::kCrLf | iomode::kCtrlEsc);

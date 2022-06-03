@@ -1,19 +1,19 @@
-#include "util/db/value.h"
+#include "uxs/db/value.h"
 
-#include "util/algorithm.h"
-#include "util/stringcvt.h"
+#include "uxs/algorithm.h"
+#include "uxs/stringcvt.h"
 
 #include <cmath>
 #include <cstring>
 #include <limits>
 #include <memory>
 
-using namespace util;
-using namespace util::db;
+using namespace uxs;
+using namespace uxs::db;
 
 // --------------------------
 
-namespace util {
+namespace uxs {
 namespace db {
 bool operator==(const value& lhs, const value& rhs) {
     if (lhs.type_ != rhs.type_) { return false; }
@@ -28,18 +28,18 @@ bool operator==(const value& lhs, const value& rhs) {
         case value::dtype::kString: return lhs.str_view() == rhs.str_view();
         case value::dtype::kArray: {
             auto range1 = lhs.as_array(), range2 = rhs.as_array();
-            return range1.size() == range2.size() && util::equal(range1, range2.begin());
+            return range1.size() == range2.size() && uxs::equal(range1, range2.begin());
         } break;
         case value::dtype::kRecord: {
             if (lhs.value_.rec->size != rhs.value_.rec->size) { return false; }
-            return util::equal(lhs.as_map(), rhs.as_map().begin());
+            return uxs::equal(lhs.as_map(), rhs.as_map().begin());
         } break;
         default: break;
     }
     return false;
 }
 }  // namespace db
-}  // namespace util
+}  // namespace uxs
 
 // --------------------------
 
@@ -598,12 +598,12 @@ span<value> value::as_array() {
 
 iterator_range<value::const_record_iterator> value::as_map() const {
     if (type_ != dtype::kRecord) { throw exception("not a record"); }
-    return util::make_range(const_record_iterator(value_.rec->head.next), const_record_iterator(&value_.rec->head));
+    return uxs::make_range(const_record_iterator(value_.rec->head.next), const_record_iterator(&value_.rec->head));
 }
 
 iterator_range<value::record_iterator> value::as_map() {
     if (type_ != dtype::kRecord) { throw exception("not a record"); }
-    return util::make_range(record_iterator(value_.rec->head.next), record_iterator(&value_.rec->head));
+    return uxs::make_range(record_iterator(value_.rec->head.next), record_iterator(&value_.rec->head));
 }
 
 const value& value::operator[](size_t i) const {
@@ -654,7 +654,7 @@ void value::clear() {
     if (type_ == dtype::kRecord) {
         value_.rec->clear();
     } else if (value_.arr) {
-        util::for_each(value_.arr->view(), [](value& v) { v.destroy(); });
+        uxs::for_each(value_.arr->view(), [](value& v) { v.destroy(); });
         value_.arr->size = 0;
     }
 }
@@ -803,7 +803,7 @@ void value::print_scalar(iobuf& out) const {
     if (v.size() == 0) { return nullptr; }
     dynarray<value>* arr = dynarray<value>::alloc(v.size());
     try {
-        util::uninitialized_copy(v, arr->data);
+        uxs::uninitialized_copy(v, arr->data);
     } catch (...) {
         dynarray<value>::dealloc(arr);
         throw;
@@ -816,16 +816,16 @@ void value::print_scalar(iobuf& out) const {
     if (arr && v.size() <= arr->capacity) {
         span<value> v_tgt = arr->view();
         if (v.size() > v_tgt.size()) {
-            value* p = util::copy(v.subspan(0, v_tgt.size()), v_tgt.data());
-            util::uninitialized_copy(v.subspan(v_tgt.size(), v.size() - v_tgt.size()), p);
+            value* p = uxs::copy(v.subspan(0, v_tgt.size()), v_tgt.data());
+            uxs::uninitialized_copy(v.subspan(v_tgt.size(), v.size() - v_tgt.size()), p);
         } else {
-            util::copy(v, v_tgt.data());
-            util::for_each(v_tgt.subspan(v.size(), v_tgt.size() - v.size()), [](value& v) { v.destroy(); });
+            uxs::copy(v, v_tgt.data());
+            uxs::for_each(v_tgt.subspan(v.size(), v_tgt.size() - v.size()), [](value& v) { v.destroy(); });
         }
     } else if (v.size() != 0) {
         dynarray<value>* new_arr = dynarray<value>::alloc(v.size());
         try {
-            util::uninitialized_copy(v, new_arr->data);
+            uxs::uninitialized_copy(v, new_arr->data);
         } catch (...) {
             dynarray<value>::dealloc(new_arr);
             throw;
@@ -869,7 +869,7 @@ void value::destroy() {
         } break;
         case dtype::kArray: {
             if (value_.arr) {
-                util::for_each(value_.arr->view(), [](value& v) { v.~value(); });
+                uxs::for_each(value_.arr->view(), [](value& v) { v.~value(); });
                 dynarray<value>::dealloc(value_.arr);
             }
         } break;

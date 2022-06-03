@@ -1,8 +1,8 @@
-#include "util/io/filebuf.h"
+#include "uxs/io/filebuf.h"
 
 #include <unistd.h>
 
-using namespace util;
+using namespace uxs;
 
 static filebuf g_outbuf(fileno(stdout), iomode::kOut | iomode::kAppend |
                                             (isatty(fileno(stdout)) ? iomode::kNone : iomode::kSkipCtrlEsc));

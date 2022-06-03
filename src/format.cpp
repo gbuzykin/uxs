@@ -1,8 +1,8 @@
-#include "util/format_impl.h"
+#include "uxs/format_impl.h"
 
-using namespace util;
+using namespace uxs;
 
-namespace util {
+namespace uxs {
 namespace detail {
 template unlimbuf_appender& fmt_append_string(unlimbuf_appender&, std::string_view, fmt_state&);
 template limbuf_appender& fmt_append_string(limbuf_appender&, std::string_view, fmt_state&);
@@ -26,4 +26,4 @@ template wunlimbuf_appender& basic_vformat(wunlimbuf_appender&, std::wstring_vie
 template wlimbuf_appender& basic_vformat(wlimbuf_appender&, std::wstring_view,
                                          span<const detail::fmt_arg_list_item<wlimbuf_appender>>);
 template wdynbuffer& basic_vformat(wdynbuffer&, std::wstring_view, span<const detail::fmt_arg_list_item<wdynbuffer>>);
-}  // namespace util
+}  // namespace uxs

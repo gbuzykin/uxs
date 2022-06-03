@@ -1,12 +1,12 @@
-#include "util/io/sysfile.h"
+#include "uxs/io/sysfile.h"
 
-#include "util/stringalg.h"
+#include "uxs/stringalg.h"
 
 #include <windows.h>
 
 #include <cstring>
 
-using namespace util;
+using namespace uxs;
 
 sysfile::sysfile() : fd_(INVALID_HANDLE_VALUE) {}
 sysfile::sysfile(file_desc_t fd) : fd_(fd) {}

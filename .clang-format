@@ -65,30 +65,24 @@ ForEachMacros:
   - BOOST_FOREACH
 IncludeBlocks:   Regroup
 IncludeCategories:
-  - Regex:           '^"interfaces/[^/]*\.h"'
-    Priority:        10
-  - Regex:           '^"interfaces/.*\.h"'
-    Priority:        11
-  - Regex:           '^"core/.*\.h"'
+  - Regex:           '^"uxs/.*"'
     Priority:        20
+  - Regex:           '^<uxs/.*>'
+    Priority:        21
   - Regex:           '^".*\.hpp"'
-    Priority:        30
+    Priority:        10
   - Regex:           '^".*\.hxx"'
-    Priority:        31
+    Priority:        11
   - Regex:           '^".*\.h"'
-    Priority:        32
+    Priority:        12
   - Regex:           '^<.*\.hpp>'
-    Priority:        40
+    Priority:        30
   - Regex:           '^<.*\.hxx>'
-    Priority:        41
+    Priority:        31
   - Regex:           '^<.*\.h>'
-    Priority:        42
-  - Regex:           '^<osg.*>'
-    Priority:        60
-  - Regex:           '^<([a-pr-z].*)|(queue)>'
-    Priority:        61
-  - Regex:           '^<q.*>'
-    Priority:        50
+    Priority:        32
+  - Regex:           '^<.*>'
+    Priority:        40
 IncludeIsMainRegex: '([-_](test|unittest))?$'
 IndentCaseLabels: true
 IndentPPDirectives: AfterHash
@@ -161,7 +155,7 @@ SpacesInContainerLiterals: true
 SpacesInCStyleCastParentheses: false
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
-Standard:        Cpp11
+Standard:        Latest
 StatementMacros:
   - Q_UNUSED
   - QT_REQUIRE_VERSION
