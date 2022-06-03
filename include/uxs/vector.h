@@ -36,64 +36,32 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
     vector() NOEXCEPT_IF(std::is_nothrow_default_constructible<alloc_type>::value) : alloc_type(allocator_type()) {}
     explicit vector(const allocator_type& alloc) NOEXCEPT : alloc_type(alloc) {}
     explicit vector(size_type sz, const allocator_type& alloc = allocator_type()) : alloc_type(alloc) {
-        try {
-            init_default(sz);
-        } catch (...) {
-            tidy();
-            throw;
-        }
+        init_default(sz);
     }
 
     vector(size_type sz, const value_type& val, const allocator_type& alloc = allocator_type()) : alloc_type(alloc) {
-        try {
-            init(sz, const_value(val));
-        } catch (...) {
-            tidy();
-            throw;
-        }
+        init(sz, const_value(val));
     }
 
     vector(std::initializer_list<value_type> l, const allocator_type& alloc = allocator_type()) : alloc_type(alloc) {
-        try {
-            init(l.size(), l.begin());
-        } catch (...) {
-            tidy();
-            throw;
-        }
+        init(l.size(), l.begin());
     }
 
     vector& operator=(std::initializer_list<value_type> l) {
-        assign_impl(l.size(), l.begin(), std::is_copy_assignable<Ty>());
+        assign_impl(l.size(), l.begin());
         return *this;
     }
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     vector(InputIt first, InputIt last, const allocator_type& alloc = allocator_type()) : alloc_type(alloc) {
-        try {
-            init_from_range(first, last, is_random_access_iterator<InputIt>());
-        } catch (...) {
-            tidy();
-            throw;
-        }
+        init_from_range(first, last, is_random_access_iterator<InputIt>());
     }
 
     vector(const vector& other) : alloc_type(alloc_traits::select_on_container_copy_construction(other)) {
-        try {
-            init(other.size(), other.begin());
-        } catch (...) {
-            tidy();
-            throw;
-        }
+        init(other.size(), other.begin());
     }
 
-    vector(const vector& other, const allocator_type& alloc) : alloc_type(alloc) {
-        try {
-            init(other.size(), other.begin());
-        } catch (...) {
-            tidy();
-            throw;
-        }
-    }
+    vector(const vector& other, const allocator_type& alloc) : alloc_type(alloc) { init(other.size(), other.begin()); }
 
     vector& operator=(const vector& other) {
         if (std::addressof(other) == this) { return *this; }
@@ -127,7 +95,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         swap_impl(other, typename alloc_traits::propagate_on_container_swap());
     }
 
-    allocator_type get_allocator() const { return static_cast<const alloc_type&>(*this); }
+    allocator_type get_allocator() const { return allocator_type(*this); }
 
     bool empty() const NOEXCEPT { return v_.end == v_.begin; }
     size_type size() const NOEXCEPT { return static_cast<size_type>(v_.end - v_.begin); }
@@ -189,26 +157,21 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         return *rbegin();
     }
 
-    void assign(size_type sz, const value_type& val) {
-        assign_impl(sz, const_value(val), std::is_copy_assignable<Ty>());
-    }
+    void assign(size_type sz, const value_type& val) { assign_impl(sz, const_value(val)); }
 
-    void assign(std::initializer_list<value_type> l) {
-        assign_impl(l.size(), l.begin(), std::is_copy_assignable<Ty>());
-    }
+    void assign(std::initializer_list<value_type> l) { assign_impl(l.size(), l.begin()); }
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     void assign(InputIt first, InputIt last) {
-        assign_from_range(first, last, is_random_access_iterator<InputIt>(),
-                          std::is_assignable<Ty&, decltype(*first)>());
+        assign_range(first, last, is_random_access_iterator<InputIt>());
     }
 
-    void clear() NOEXCEPT { helpers::truncate(*this, v_.begin, v_.end, std::is_trivially_destructible<value_type>()); }
+    void clear() NOEXCEPT { v_.end = helpers::truncate(*this, v_.begin, v_.end); }
 
     void reserve(size_type reserve_sz) {
         if (reserve_sz <= capacity()) { return; }
-        auto v = alloc_new(reserve_sz);
-        relocate_to(v, std::is_nothrow_move_constructible<Ty>());
+        auto v = alloc_new_checked(reserve_sz);
+        relocate(v, std::is_nothrow_move_constructible<Ty>());
         reset(v);
     }
 
@@ -217,57 +180,54 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         vector_ptrs_t v;
         if (v_.begin != v_.end) {
             v = alloc_new(size());
-            relocate_to(v, std::is_nothrow_move_constructible<Ty>());
+            relocate(v, std::is_nothrow_move_constructible<Ty>());
         }
         reset(v);
     }
 
     void resize(size_type sz) {
-        if (sz > size()) {
-            size_type count = sz - size();
-            if (count > static_cast<size_type>(v_.boundary - v_.end)) {
-                auto v = alloc_new(grow_capacity(count));
-                relocate_to_and_append_default(v, count, std::is_nothrow_move_constructible<Ty>(),
-                                               std::is_nothrow_default_constructible<Ty>());
-                reset(v);
-            } else {
-                helpers::append_default(*this, v_.end, v_.end + count);
-            }
+        if (sz <= size()) {
+            v_.end = helpers::truncate(*this, v_.begin + sz, v_.end);
         } else {
-            helpers::truncate(*this, v_.begin + sz, v_.end, std::is_trivially_destructible<value_type>());
+            size_type count = sz - size();
+            if (sz <= capacity()) {
+                v_.end = helpers::construct_default(*this, v_.end, count);
+            } else {
+                auto v = alloc_new(grow_capacity(count));
+                resize_relocate_default(v, count, std::is_nothrow_move_constructible<Ty>());
+                reset(v);
+            }
         }
     }
 
     void resize(size_type sz, const value_type& val) {
-        if (sz > size()) {
-            size_type count = sz - size();
-            if (count > static_cast<size_type>(v_.boundary - v_.end)) {
-                auto v = alloc_new(grow_capacity(count));
-                relocate_to_and_append(v, count, val, std::is_nothrow_move_constructible<Ty>(),
-                                       std::is_nothrow_copy_constructible<Ty>());
-                reset(v);
-            } else {
-                helpers::append_copy(*this, v_.end, v_.end + count, const_value(val));
-            }
+        if (sz <= size()) {
+            v_.end = helpers::truncate(*this, v_.begin + sz, v_.end);
         } else {
-            helpers::truncate(*this, v_.begin + sz, v_.end, std::is_trivially_destructible<value_type>());
+            size_type count = sz - size();
+            if (sz <= capacity()) {
+                v_.end = helpers::construct_copy(*this, v_.end, count, const_value(val));
+            } else {
+                auto v = alloc_new(grow_capacity(count));
+                resize_relocate_fill(v, count, val, std::is_nothrow_move_constructible<Ty>());
+                reset(v);
+            }
         }
     }
 
     iterator insert(const_iterator pos, size_type count, const value_type& val) {
-        auto p = insert_from_const(to_ptr(pos), count, val, std::is_copy_assignable<Ty>());
+        auto p = insert_fill(to_ptr(pos), count, val);
         return iterator(p, v_.begin, v_.end);
     }
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     iterator insert(const_iterator pos, InputIt first, InputIt last) {
-        auto p = insert_from_range(to_ptr(pos), first, last, is_random_access_iterator<InputIt>(),
-                                   std::is_assignable<Ty&, decltype(*first)>());
+        auto p = insert_range(to_ptr(pos), first, last, is_random_access_iterator<InputIt>());
         return iterator(p, v_.begin, v_.end);
     }
 
     iterator insert(const_iterator pos, std::initializer_list<value_type> l) {
-        auto p = insert_impl(to_ptr(pos), l.size(), l.begin(), std::is_copy_assignable<Ty>());
+        auto p = insert_copy(to_ptr(pos), l.size(), l.begin(), std::is_copy_assignable<Ty>());
         return iterator(p, v_.begin, v_.end);
     }
 
@@ -276,16 +236,17 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
     template<typename... Args>
     iterator emplace(const_iterator pos, Args&&... args) {
         auto p = to_ptr(pos);
-        if (v_.end == v_.boundary) {
-            auto v = alloc_new(grow_capacity(1));
-            p = relocate_to_and_emplace(v, p, std::is_nothrow_move_constructible<Ty>(),
-                                        std::is_nothrow_constructible<Ty, Args...>(), std::forward<Args>(args)...);
-            reset(v);
-        } else if (p != v_.end) {
-            helpers::emplace(*this, p, v_.end, std::forward<Args>(args)...);
-        } else {
-            helpers::append(*this, v_.end, std::forward<Args>(args)...);
+        if (v_.end != v_.boundary) {
+            if (p == v_.end) {
+                alloc_traits::construct(*this, std::addressof(*v_.end), std::forward<Args>(args)...);
+            } else {
+                helpers::emplace(*this, p, v_.end, std::forward<Args>(args)...);
+            }
+            return iterator(p, v_.begin, ++v_.end);
         }
+        auto v = alloc_new(grow_capacity(1));
+        p = emplace_relocate(v, p, std::is_nothrow_move_constructible<Ty>(), std::forward<Args>(args)...);
+        reset(v);
         return iterator(p, v_.begin, v_.end);
     }
 
@@ -293,26 +254,26 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
     void push_back(value_type&& val) { emplace_back(std::move(val)); }
     template<typename... Args>
     reference emplace_back(Args&&... args) {
-        if (v_.end == v_.boundary) {
-            auto v = alloc_new(grow_capacity(1));
-            relocate_to_and_append(v, std::is_nothrow_move_constructible<Ty>(),
-                                   std::is_nothrow_constructible<Ty, Args...>(), std::forward<Args>(args)...);
-            reset(v);
-        } else {
-            helpers::append(*this, v_.end, std::forward<Args>(args)...);
+        if (v_.end != v_.boundary) {
+            alloc_traits::construct(*this, std::addressof(*v_.end), std::forward<Args>(args)...);
+            return *v_.end++;
         }
+        auto v = alloc_new(grow_capacity(1));
+        emplace_back_relocate(v, std::is_nothrow_move_constructible<Ty>(), std::forward<Args>(args)...);
+        reset(v);
         return *(v_.end - 1);
     }
 
     void pop_back() {
         assert(v_.begin != v_.end);
-        helpers::truncate(*this, v_.end);
+        alloc_traits::destroy(*this, std::addressof(*(--v_.end)));
     }
 
     iterator erase(const_iterator pos) {
         auto p = to_ptr(pos);
         assert(p != v_.end);
-        helpers::erase(*this, p, v_.end);
+        std::move(p + 1, v_.end--, p);
+        alloc_traits::destroy(*this, std::addressof(*v_.end));
         return iterator(p, v_.begin, v_.end);
     }
 
@@ -321,7 +282,10 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         auto p_last = to_ptr(last);
         assert(v_.begin <= p_first && p_first <= p_last && p_last <= v_.end);
         size_type count = static_cast<size_type>(p_last - p_first);
-        if (count) { helpers::erase(*this, p_first, v_.end - count, v_.end); }
+        if (count) {
+            std::move(p_first + count, v_.end, p_first);
+            v_.end = helpers::truncate(*this, v_.end - count, v_.end);
+        }
         return iterator(p_first, v_.begin, v_.end);
     }
 
@@ -349,12 +313,17 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
     }
 
     size_type grow_capacity(size_type extra) const {
-        size_t sz = size(), delta_sz = std::max(extra, sz >> 1);
+        size_type sz = size(), delta_sz = std::max(extra, sz >> 1);
         if (delta_sz > alloc_traits::max_size(*this) - sz) {
             if (extra > alloc_traits::max_size(*this) - sz) { throw std::length_error("too much to reserve"); }
             delta_sz = std::max(extra, (alloc_traits::max_size(*this) - sz) >> 1);
         }
         return std::max<size_type>(sz + delta_sz, kStartCapacity);
+    }
+
+    vector_ptrs_t alloc_new_checked(size_type sz) {
+        if (sz > alloc_traits::max_size(*this)) { throw std::length_error("too much to reserve"); }
+        return alloc_new(sz);
     }
 
     vector_ptrs_t alloc_new(size_type sz) {
@@ -373,7 +342,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
     }
     void tidy(vector_ptrs_t& v) {
         assert(v.begin != v.boundary);
-        helpers::truncate(*this, v.begin, v.end, std::is_trivially_destructible<Ty>());
+        v.end = helpers::truncate(*this, v.begin, v.end);
         alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
     }
 
@@ -387,22 +356,15 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
             v_ = other.v_;
             other.v_.nullify();
         } else {
-            try {
-                init(other.size(), std::make_move_iterator(other.begin()));
-            } catch (...) {
-                tidy();
-                throw;
-            }
+            init(other.size(), std::make_move_iterator(other.begin()));
         }
     }
 
-    void assign_impl(const vector& other, std::true_type) {
-        assign_impl(other.size(), other.begin(), std::is_copy_assignable<Ty>());
-    }
+    void assign_impl(const vector& other, std::true_type) { assign_impl(other.size(), other.begin()); }
 
     void assign_impl(const vector& other, std::false_type) {
         if (is_same_alloc(other)) {
-            assign_impl(other.size(), other.begin(), std::is_copy_assignable<Ty>());
+            assign_impl(other.size(), other.begin());
         } else {
             tidy();
             alloc_type::operator=(other);
@@ -421,7 +383,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
             reset(other.v_);
             other.v_.nullify();
         } else {
-            assign_impl(other.size(), std::make_move_iterator(other.begin()), std::is_move_assignable<Ty>());
+            assign_impl(other.size(), std::make_move_iterator(other.begin()));
         }
     }
 
@@ -434,16 +396,26 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
     void init_default(size_type sz) {
         assert(v_.begin == nullptr);
         if (!sz) { return; }
-        v_ = alloc_new(sz);
-        helpers::append_default(*this, v_.end, v_.end + sz);
+        v_ = alloc_new_checked(sz);
+        try {
+            v_.end = helpers::construct_default(*this, v_.end, sz);
+        } catch (...) {
+            alloc_traits::deallocate(*this, v_.begin, capacity());
+            throw;
+        }
     }
 
     template<typename RandIt>
     void init(size_type sz, RandIt src) {
         assert(v_.begin == nullptr);
         if (!sz) { return; }
-        v_ = alloc_new(sz);
-        helpers::append_copy(*this, v_.end, v_.end + sz, src);
+        v_ = alloc_new_checked(sz);
+        try {
+            v_.end = helpers::construct_copy(*this, v_.end, sz, src);
+        } catch (...) {
+            alloc_traits::deallocate(*this, v_.begin, capacity());
+            throw;
+        }
     }
 
     template<typename RandIt>
@@ -455,459 +427,386 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
     template<typename InputIt>
     void init_from_range(InputIt first, InputIt last, std::false_type /* random access iterator */) {
         assert(v_.begin == nullptr);
-        for (; first != last; ++first) { emplace_back(*first); }
-    }
-
-    void relocate_to(vector_ptrs_t& v, std::true_type /* nothrow move constructible */) NOEXCEPT {
-        helpers::append_relocate(*this, v.end, v_.begin, v_.end);
-    }
-
-    void relocate_to(vector_ptrs_t& v, std::false_type /* nothrow move constructible */) {
         try {
-            helpers::append_relocate(*this, v.end, v_.begin, v_.end, std::is_copy_constructible<Ty>());
+            for (; first != last; ++first) { emplace_back(*first); }
         } catch (...) {
-            tidy(v);
+            tidy(v_);
             throw;
         }
-    }
-
-    void relocate_to_and_append_default(vector_ptrs_t& v, size_type count,
-                                        std::true_type /* nothrow move constructible */,
-                                        std::true_type /* nothrow default constructible */) NOEXCEPT {
-        helpers::append_relocate(*this, v.end, v_.begin, v_.end);
-        helpers::append_default(*this, v.end, v.end + count);
-    }
-
-    void relocate_to_and_append_default(vector_ptrs_t& v, size_type count,
-                                        std::true_type /* nothrow move constructible */,
-                                        std::false_type /* nothrow default constructible */
-    ) {
-        auto end = v.begin + size();
-        try {
-            helpers::append_default(*this, end, end + count);
-        } catch (...) {
-            helpers::truncate(*this, v.begin + size(), end, std::is_trivially_destructible<Ty>());
-            alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
-            throw;
-        }
-        helpers::append_relocate(*this, v.end, v_.begin, v_.end);
-        v.end = end;
-    }
-
-    template<typename Bool>
-    void relocate_to_and_append_default(vector_ptrs_t& v, size_type count,
-                                        std::false_type /* nothrow move constructible */,
-                                        Bool /* nothrow default constructible */) {
-        try {
-            helpers::append_relocate(*this, v.end, v_.begin, v_.end, std::is_copy_constructible<Ty>());
-            helpers::append_default(*this, v.end, v.end + count);
-        } catch (...) {
-            tidy(v);
-            throw;
-        }
-    }
-
-    void relocate_to_and_append(vector_ptrs_t& v, size_type count, const value_type& val,
-                                std::true_type /* nothrow move constructible */,
-                                std::true_type /* nothrow copy constructible */) NOEXCEPT {
-        helpers::append_relocate(*this, v.end, v_.begin, v_.end);
-        helpers::append_copy(*this, v.end, v.end + count, const_value(val));
-    }
-
-    void relocate_to_and_append(vector_ptrs_t& v, size_type count, const value_type& val,
-                                std::true_type /* nothrow move constructible */,
-                                std::false_type /* nothrow copy constructible */) {
-        auto end = v.begin + size();
-        try {
-            helpers::append_copy(*this, end, end + count, const_value(val));
-        } catch (...) {
-            helpers::truncate(*this, v.begin + size(), end, std::is_trivially_destructible<Ty>());
-            alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
-            throw;
-        }
-        helpers::append_relocate(*this, v.end, v_.begin, v_.end);
-        v.end = end;
-    }
-
-    template<typename Bool>
-    void relocate_to_and_append(vector_ptrs_t& v, size_type count, const value_type& val,
-                                std::false_type /* nothrow move constructible */,
-                                Bool /* nothrow copy constructible */) {
-        try {
-            helpers::append_relocate(*this, v.end, v_.begin, v_.end, std::is_copy_constructible<Ty>());
-            helpers::append_copy(*this, v.end, v.end + count, const_value(val));
-        } catch (...) {
-            tidy(v);
-            throw;
-        }
-    }
-
-    template<typename... Args>
-    void relocate_to_and_append(vector_ptrs_t& v, std::true_type /* nothrow move constructible */,
-                                std::true_type /* nothrow constructible */, Args&&... args) NOEXCEPT {
-        helpers::append_relocate(*this, v.end, v_.begin, v_.end);
-        helpers::append(*this, v.end, std::forward<Args>(args)...);
-    }
-
-    template<typename... Args>
-    void relocate_to_and_append(vector_ptrs_t& v, std::true_type /* nothrow move constructible */,
-                                std::false_type /* nothrow constructible */, Args&&... args) {
-        auto end = v.begin + size();
-        try {
-            helpers::append(*this, end, std::forward<Args>(args)...);
-        } catch (...) {
-            alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
-            throw;
-        }
-        helpers::append_relocate(*this, v.end, v_.begin, v_.end);
-        v.end = end;
-    }
-
-    template<typename Bool, typename... Args>
-    void relocate_to_and_append(vector_ptrs_t& v, std::false_type /* nothrow move constructible */,
-                                Bool /* nothrow constructible */, Args&&... args) {
-        try {
-            helpers::append_relocate(*this, v.end, v_.begin, v_.end, std::is_copy_constructible<Ty>());
-            helpers::append(*this, v.end, std::forward<Args>(args)...);
-        } catch (...) {
-            tidy(v);
-            throw;
-        }
-    }
-
-    template<typename... Args>
-    pointer relocate_to_and_emplace(vector_ptrs_t& v, pointer p, std::true_type /* nothrow move constructible */,
-                                    std::true_type /* nothrow constructible */, Args&&... args) NOEXCEPT {
-        helpers::append_relocate(*this, v.end, v_.begin, p);
-        helpers::append(*this, v.end, std::forward<Args>(args)...);
-        helpers::append_relocate(*this, v.end, p, v_.end);
-        return v.begin + static_cast<size_type>(p - v_.begin);
-    }
-
-    template<typename... Args>
-    pointer relocate_to_and_emplace(vector_ptrs_t& v, pointer p, std::true_type /* nothrow move constructible */,
-                                    std::false_type /* nothrow constructible */, Args&&... args) {
-        size_type n = static_cast<size_type>(p - v_.begin);
-        auto mid = v.begin + n;
-        try {
-            helpers::append(*this, mid, std::forward<Args>(args)...);
-        } catch (...) {
-            alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
-            throw;
-        }
-        helpers::append_relocate(*this, v.end, v_.begin, p);
-        helpers::append_relocate(*this, mid, p, v_.end);
-        v.end = mid;
-        return v.begin + n;
-    }
-
-    template<typename Bool, typename... Args>
-    pointer relocate_to_and_emplace(vector_ptrs_t& v, pointer p, std::false_type /* nothrow move constructible */,
-                                    Bool /* nothrow constructible */, Args&&... args) {
-        try {
-            helpers::append_relocate(*this, v.end, v_.begin, p, std::is_copy_constructible<Ty>());
-            helpers::append(*this, v.end, std::forward<Args>(args)...);
-            helpers::append_relocate(*this, v.end, p, v_.end, std::is_copy_constructible<Ty>());
-        } catch (...) {
-            tidy(v);
-            throw;
-        }
-        return v.begin + static_cast<size_type>(p - v_.begin);
     }
 
     template<typename RandIt>
-    void assign_impl(size_type sz, RandIt src, std::true_type /* assignable */) {
-        if (sz > capacity()) {
-            assign_relocate(sz, src, std::is_nothrow_constructible<Ty, decltype(*src)>());
-        } else if (sz > size()) {
-            for (auto p = v_.begin; p != v_.end; ++src) { *p++ = *src; }
-            helpers::append_copy(*this, v_.end, v_.begin + sz, src);
+    void assign_impl(size_type sz, RandIt src) {
+        if (sz <= size()) {
+            v_.end = helpers::truncate(*this, sz ? std::copy_n(src, sz, v_.begin) : v_.begin, v_.end);
+        } else if (sz <= capacity()) {
+            size_type old_sz = size();
+            std::copy_n(src, old_sz, v_.begin);
+            v_.end = helpers::construct_copy(*this, v_.end, sz - old_sz, src + old_sz);
         } else {
-            auto end_new = v_.begin + sz;
-            for (auto p = v_.begin; p != end_new; ++src) { *p++ = *src; }
-            helpers::truncate(*this, end_new, v_.end, std::is_trivially_destructible<Ty>());
+            assign_relocate(sz, src);
         }
     }
 
     template<typename RandIt>
-    void assign_impl(size_type sz, RandIt src, std::false_type /* assignable */) {
-        if (sz > capacity()) {
-            assign_relocate(sz, src, std::is_nothrow_constructible<Ty, decltype(*src)>());
-        } else {
-            helpers::truncate(*this, v_.begin, v_.end, std::is_trivially_destructible<Ty>());
-            helpers::append_copy(*this, v_.end, v_.end + sz, src);
-        }
-    }
-
-    template<typename RandIt>
-    void assign_relocate(size_type sz, RandIt src, std::true_type /* nothrow constructible */) NOEXCEPT {
-        auto v = alloc_new(sz);
-        helpers::append_copy(*this, v.end, v.end + sz, src);
-        reset(v);
-    }
-
-    template<typename RandIt>
-    void assign_relocate(size_type sz, RandIt src, std::false_type /* nothrow constructible */) {
-        auto v = alloc_new(sz);
+    void assign_relocate(size_type sz, RandIt src) {
+        auto v = alloc_new_checked(sz);
         try {
-            helpers::append_copy(*this, v.end, v.end + sz, src);
+            v.end = helpers::construct_copy(*this, v.end, sz, src);
+            reset(v);
         } catch (...) {
-            tidy(v);
+            alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
             throw;
         }
-        reset(v);
     }
 
-    template<typename RandIt, typename Bool>
-    void assign_from_range(RandIt first, RandIt last, std::true_type /* random access iterator */,
-                           Bool /* assignable */) {
+    template<typename RandIt>
+    void assign_range(RandIt first, RandIt last, std::true_type /* random access iterator */) {
         assert(first <= last);
-        assign_impl(static_cast<size_type>(last - first), first, Bool());
+        assign_impl(static_cast<size_type>(last - first), first);
     }
 
     template<typename InputIt>
-    void assign_from_range(InputIt first, InputIt last, std::false_type /* random access iterator */,
-                           std::true_type /* assignable */) {
+    void assign_range(InputIt first, InputIt last, std::false_type /* random access iterator */) {
         auto end_new = v_.begin;
         for (; end_new != v_.end && first != last; ++first) { *end_new++ = *first; }
         if (end_new != v_.end) {
-            helpers::truncate(*this, end_new, v_.end, std::is_trivially_destructible<Ty>());
+            v_.end = helpers::truncate(*this, end_new, v_.end);
         } else {
             for (; first != last; ++first) { emplace_back(*first); }
         }
     }
 
-    template<typename InputIt>
-    void assign_from_range(InputIt first, InputIt last, std::false_type /* random access iterator */,
-                           std::false_type /* assignable */) {
-        helpers::truncate(*this, v_.begin, v_.end, std::is_trivially_destructible<Ty>());
-        for (; first != last; ++first) { emplace_back(*first); }
+    void relocate(vector_ptrs_t& v, std::true_type /* nothrow move */) NOEXCEPT {
+        v.end = helpers::construct_relocate(*this, v.end, v_.begin, v_.end);
     }
 
-    template<typename RandIt, typename Bool>
-    pointer insert_impl(pointer p, size_type count, RandIt src, Bool /* assignable */) {
-        if (count > static_cast<size_type>(v_.boundary - v_.end)) {
-            return insert_relocate(p, count, src, std::is_nothrow_move_constructible<Ty>(),
-                                   std::is_nothrow_constructible<Ty, decltype(*src)>());
-        } else if (count) {
-            insert_no_relocate(p, count, src, Bool());
-        }
-        return p;
-    }
-
-    template<typename Bool>
-    pointer insert_from_const(pointer p, size_type count, const value_type& val, Bool /* assignable */) {
-        if (count > static_cast<size_type>(v_.boundary - v_.end)) {
-            return insert_relocate(p, count, const_value(val), std::is_nothrow_move_constructible<Ty>(),
-                                   std::is_nothrow_copy_constructible<Ty>());
-        } else if (count) {
-            typename std::aligned_storage<sizeof(Ty), std::alignment_of<Ty>::value>::type buf;
-            auto* val_copy = reinterpret_cast<value_type*>(std::addressof(buf));
-            alloc_traits::construct(*this, val_copy, val);
-            try {
-                insert_no_relocate(p, count, const_value(*val_copy), Bool());
-            } catch (...) {
-                alloc_traits::destroy(*this, val_copy);
-                throw;
-            }
-            alloc_traits::destroy(*this, val_copy);
-        }
-        return p;
-    }
-
-    template<typename RandIt>
-    pointer insert_relocate(pointer p, size_type count, RandIt src, std::true_type /* nothrow move constructible */,
-                            std::true_type /* nothrow constructible */) {
-        size_type n = static_cast<size_type>(p - v_.begin);
-        auto v = alloc_new(grow_capacity(count));
-        helpers::append_relocate(*this, v.end, v_.begin, p);
-        helpers::append_copy(*this, v.end, v.end + count, src);
-        helpers::append_relocate(*this, v.end, p, v_.end);
-        reset(v);
-        return v_.begin + n;
-    }
-
-    template<typename RandIt>
-    pointer insert_relocate(pointer p, size_type count, RandIt src, std::true_type /* nothrow move constructible */,
-                            std::false_type /* nothrow constructible */) {
-        size_type n = static_cast<size_type>(p - v_.begin);
-        auto v = alloc_new(grow_capacity(count));
-        auto mid = v.begin + n;
+    void relocate(vector_ptrs_t& v, std::false_type /* nothrow move */) {
         try {
-            helpers::append_copy(*this, mid, mid + count, src);
+            v.end = helpers::construct_relocate_copy(*this, v.end, v_.begin, v_.end);
         } catch (...) {
-            helpers::truncate(*this, v.begin + n, mid, std::is_trivially_destructible<Ty>());
             alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
             throw;
         }
-        helpers::append_relocate(*this, v.end, v_.begin, p);
-        helpers::append_relocate(*this, mid, p, v_.end);
-        v.end = mid;
-        reset(v);
-        return v_.begin + n;
     }
 
-    template<typename RandIt, typename Bool>
-    pointer insert_relocate(pointer p, size_type count, RandIt src, std::false_type /* nothrow move constructible */,
-                            Bool /* nothrow constructible */) {
-        size_type n = static_cast<size_type>(p - v_.begin);
-        auto v = alloc_new(grow_capacity(count));
+    void resize_relocate_default(vector_ptrs_t& v, size_type count, std::true_type /* nothrow move */) {
         try {
-            helpers::append_relocate(*this, v.end, v_.begin, p, std::is_copy_constructible<Ty>());
-            helpers::append_copy(*this, v.end, v.end + count, src);
-            helpers::append_relocate(*this, v.end, p, v_.end, std::is_copy_constructible<Ty>());
+            v.end = helpers::construct_default(*this, v.begin + size(), count);
+            helpers::construct_relocate(*this, v.begin, v_.begin, v_.end);
+        } catch (...) {
+            alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
+            throw;
+        }
+    }
+
+    void resize_relocate_default(vector_ptrs_t& v, size_type count, std::false_type /* nothrow move */) {
+        try {
+            v.end = helpers::construct_relocate_copy(*this, v.end, v_.begin, v_.end);
+            v.end = helpers::construct_default(*this, v.end, count);
         } catch (...) {
             tidy(v);
             throw;
         }
+    }
+
+    void resize_relocate_fill(vector_ptrs_t& v, size_type count, const value_type& val,
+                              std::true_type /* nothrow move */) {
+        try {
+            v.end = helpers::construct_copy(*this, v.begin + size(), count, const_value(val));
+            helpers::construct_relocate(*this, v.begin, v_.begin, v_.end);
+        } catch (...) {
+            alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
+            throw;
+        }
+    }
+
+    void resize_relocate_fill(vector_ptrs_t& v, size_type count, const value_type& val,
+                              std::false_type /* nothrow move */) {
+        try {
+            v.end = helpers::construct_relocate_copy(*this, v.end, v_.begin, v_.end);
+            v.end = helpers::construct_copy(*this, v.end, count, const_value(val));
+        } catch (...) {
+            tidy(v);
+            throw;
+        }
+    }
+
+    template<typename... Args>
+    pointer emplace_relocate(vector_ptrs_t& v, pointer p, std::true_type /* nothrow move */, Args&&... args) {
+        try {
+            size_type n = static_cast<size_type>(p - v_.begin);
+            auto mid = v.begin + n;
+            alloc_traits::construct(*this, std::addressof(*mid), std::forward<Args>(args)...);
+            helpers::construct_relocate(*this, v.begin, v_.begin, p);
+            v.end = helpers::construct_relocate(*this, mid + 1, p, v_.end);
+            return mid;
+        } catch (...) {
+            alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
+            throw;
+        }
+    }
+
+    template<typename... Args>
+    pointer emplace_relocate(vector_ptrs_t& v, pointer p, std::false_type /* nothrow move */, Args&&... args) {
+        try {
+            size_type n = static_cast<size_type>(p - v_.begin);
+            v.end = helpers::construct_relocate_copy(*this, v.end, v_.begin, p);
+            alloc_traits::construct(*this, std::addressof(*v.end), std::forward<Args>(args)...);
+            v.end = helpers::construct_relocate_copy(*this, ++v.end, p, v_.end);
+            return v.begin + n;
+        } catch (...) {
+            tidy(v);
+            throw;
+        }
+    }
+
+    template<typename... Args>
+    void emplace_back_relocate(vector_ptrs_t& v, std::true_type /* nothrow move */, Args&&... args) {
+        try {
+            v.end = v.begin + size();
+            alloc_traits::construct(*this, std::addressof(*v.end), std::forward<Args>(args)...);
+            helpers::construct_relocate(*this, v.begin, v_.begin, v_.end);
+            ++v.end;
+        } catch (...) {
+            alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
+            throw;
+        }
+    }
+
+    template<typename... Args>
+    void emplace_back_relocate(vector_ptrs_t& v, std::false_type /* nothrow move */, Args&&... args) {
+        try {
+            v.end = helpers::construct_relocate_copy(*this, v.end, v_.begin, v_.end);
+            alloc_traits::construct(*this, std::addressof(*v.end), std::forward<Args>(args)...);
+            ++v.end;
+        } catch (...) {
+            tidy(v);
+            throw;
+        }
+    }
+
+    template<typename RandIt, typename Bool>
+    pointer insert_copy(pointer p, size_type count, RandIt src, Bool /* assignable */) {
+        if (count <= static_cast<size_type>(v_.boundary - v_.end)) {
+            if (count) { insert_no_relocate(p, count, src, Bool()); }
+            return p;
+        }
+        auto v = alloc_new(grow_capacity(count));
+        p = insert_relocate(v, p, count, src, std::is_nothrow_move_constructible<Ty>());
         reset(v);
-        return v_.begin + n;
+        return p;
+    }
+
+    pointer insert_fill(pointer p, size_type count, const value_type& val) {
+        if (count <= static_cast<size_type>(v_.boundary - v_.end)) {
+            if (!count) { return p; }
+            typename std::aligned_storage<sizeof(Ty), std::alignment_of<Ty>::value>::type buf;
+            auto* val_copy = reinterpret_cast<value_type*>(std::addressof(buf));
+            alloc_traits::construct(*this, val_copy, val);
+            try {
+                insert_no_relocate(p, count, const_value(*val_copy), std::is_copy_assignable<Ty>());
+                alloc_traits::destroy(*this, val_copy);
+                return p;
+            } catch (...) {
+                alloc_traits::destroy(*this, val_copy);
+                throw;
+            }
+        }
+        auto v = alloc_new(grow_capacity(count));
+        p = insert_relocate(v, p, count, const_value(val), std::is_nothrow_move_constructible<Ty>());
+        reset(v);
+        return p;
+    }
+
+    template<typename RandIt>
+    pointer insert_relocate(vector_ptrs_t& v, pointer p, size_type count, RandIt src,
+                            std::true_type /* nothrow move */) {
+        try {
+            size_type n = static_cast<size_type>(p - v_.begin);
+            auto mid = helpers::construct_copy(*this, v.begin + n, count, src);
+            helpers::construct_relocate(*this, v.begin, v_.begin, p);
+            v.end = helpers::construct_relocate(*this, mid, p, v_.end);
+            return v.begin + n;
+        } catch (...) {
+            alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
+            throw;
+        }
+    }
+
+    template<typename RandIt>
+    pointer insert_relocate(vector_ptrs_t& v, pointer p, size_type count, RandIt src,
+                            std::false_type /* nothrow move */) {
+        try {
+            size_type n = static_cast<size_type>(p - v_.begin);
+            v.end = helpers::construct_relocate_copy(*this, v.end, v_.begin, p);
+            v.end = helpers::construct_copy(*this, v.end, count, src);
+            v.end = helpers::construct_relocate_copy(*this, v.end, p, v_.end);
+            return v.begin + n;
+        } catch (...) {
+            alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
+            throw;
+        }
     }
 
     template<typename RandIt>
     void insert_no_relocate(pointer p, size_type count, RandIt src, std::true_type /* assignable */) {
-        if (p != v_.end) {
-            helpers::insert_copy(*this, p, v_.end, v_.end + count, src);
+        size_type tail = static_cast<size_type>(v_.end - p);
+        if (tail == 0) {
+            v_.end = helpers::construct_copy(*this, v_.end, count, src);
+        } else if (count > tail) {
+            v_.end = helpers::construct_copy(
+                *this, v_.end, count - tail,
+                src + static_cast<typename std::iterator_traits<RandIt>::difference_type>(tail));
+            v_.end = helpers::construct_relocate(*this, v_.end, p, p + tail);
+            std::copy_n(src, tail, p);
         } else {
-            helpers::append_copy(*this, v_.end, v_.end + count, src);
+            helpers::construct_relocate(*this, v_.end, v_.end - count, v_.end);
+            std::move_backward(p, v_.end - count, v_.end);
+            std::copy_n(src, count, p);
+            v_.end += count;
         }
     }
 
     template<typename RandIt>
     void insert_no_relocate(pointer p, size_type count, RandIt src, std::false_type /* assignable */) {
-        helpers::append_copy(*this, v_.end, v_.end + count, src);
+        v_.end = helpers::construct_copy(*this, v_.end, count, src);
         std::rotate(p, v_.end - count, v_.end);
     }
 
-    template<typename RandIt, typename Bool>
-    pointer insert_from_range(pointer p, RandIt first, RandIt last, std::true_type /* random access iterator */,
-                              Bool /* assignable */) {
+    template<typename RandIt>
+    pointer insert_range(pointer p, RandIt first, RandIt last, std::true_type /* random access iterator */) {
         assert(first <= last);
-        return insert_impl(p, static_cast<size_type>(last - first), first, Bool());
+        return insert_copy(p, static_cast<size_type>(last - first), first, std::is_assignable<Ty&, decltype(*first)>());
     }
 
-    template<typename InputIt, typename Bool>
-    pointer insert_from_range(pointer p, InputIt first, InputIt last, std::false_type /* random access iterator */,
-                              Bool /* assignable */) {
-        size_type count = 0;
-        size_type n = static_cast<size_type>(p - v_.begin);
-        for (; first != last; ++first) {
-            emplace_back(*first);
-            ++count;
-        }
+    template<typename InputIt>
+    pointer insert_range(pointer p, InputIt first, InputIt last, std::false_type /* random access iterator */) {
+        size_type old_sz = size(), n = static_cast<size_type>(p - v_.begin);
+        for (; first != last; ++first) { emplace_back(*first); }
+        size_type count = size() - old_sz;
         std::rotate(v_.begin + n, v_.end - count, v_.end);
         return v_.begin + n;
     }
 
     struct helpers {
-        template<typename... Args>
-        static void append(alloc_type& alloc, pointer& end, Args&&... args)
-            NOEXCEPT_IF((std::is_nothrow_constructible<Ty, Args...>::value)) {
-            alloc_traits::construct(alloc, std::addressof(*end), std::forward<Args>(args)...);
-            ++end;
-        }
-
-        static void append_default(alloc_type& alloc, pointer& end, pointer end_new)
-            NOEXCEPT_IF(std::is_nothrow_default_constructible<Ty>::value) {
-            for (; end != end_new; ++end) { alloc_traits::construct(alloc, std::addressof(*end)); }
+        static pointer construct_default(alloc_type& alloc, pointer first, size_type n) {
+            pointer p = first, last = first + n;
+            try {
+                for (; p != last; ++p) { alloc_traits::construct(alloc, std::addressof(*p)); }
+                return last;
+            } catch (...) {
+                helpers::truncate(alloc, first, p);
+                throw;
+            }
         }
 
         template<typename InputIt>
-        static void append_copy(alloc_type& alloc, pointer& end, pointer end_new, InputIt src)
-            NOEXCEPT_IF((std::is_nothrow_constructible<Ty, decltype(*src)>::value)) {
-            for (; end != end_new; ++end) {
-                alloc_traits::construct(alloc, std::addressof(*end), *src);
-                ++src;
+        static pointer construct_copy(std::allocator<Ty>& alloc, pointer first, size_type n, InputIt src) {
+            std::uninitialized_copy_n(src, n, first);
+            return first + n;
+        }
+
+        template<typename Ty_ = Ty, typename InputIt>
+        static pointer construct_copy(
+            std::enable_if_t<!std::is_same<alloc_type, std::allocator<Ty_>>::value, alloc_type>& alloc, pointer first,
+            size_type n, InputIt src) {
+            pointer p = first, last = first + n;
+            try {
+                for (; p != last; ++p) {
+                    alloc_traits::construct(alloc, std::addressof(*p), *src);
+                    ++src;
+                }
+                return last;
+            } catch (...) {
+                helpers::truncate(alloc, first, p);
+                throw;
             }
         }
 
-        static void append_relocate(alloc_type& alloc, pointer& end, pointer src_first, pointer src_last,
-                                    std::false_type = std::false_type() /* use copy constructor */)
-            NOEXCEPT_IF(std::is_nothrow_move_constructible<Ty>::value) {
-            for (; src_first != src_last; ++end, ++src_first) {
-                alloc_traits::construct(alloc, std::addressof(*end), std::move(*src_first));
+        template<typename Ty_ = Ty>
+        static pointer construct_relocate(std::allocator<Ty_>& alloc, pointer dst, pointer first, pointer last) {
+            return std::uninitialized_copy(std::make_move_iterator(first), std::make_move_iterator(last), dst);
+        }
+
+        template<typename Ty_ = Ty>
+        static pointer construct_relocate(
+            std::enable_if_t<!std::is_same<alloc_type, std::allocator<Ty_>>::value, alloc_type>& alloc, pointer dst,
+            pointer first, pointer last) {
+            pointer p = first;
+            try {
+                for (; p != last; ++dst, ++p) { alloc_traits::construct(alloc, std::addressof(*dst), std::move(*p)); }
+                return dst;
+            } catch (...) {
+                helpers::truncate(alloc, first, p);
+                throw;
             }
         }
 
-        static void append_relocate(alloc_type& alloc, pointer& end, pointer src_first, pointer src_last,
-                                    std::true_type /* use copy constructor */)
-            NOEXCEPT_IF(std::is_nothrow_copy_constructible<Ty>::value) {
-            for (; src_first != src_last; ++end, ++src_first) {
-                alloc_traits::construct(alloc, std::addressof(*end), static_cast<const value_type&>(*src_first));
+        static pointer construct_relocate_copy(alloc_type& alloc, pointer dst, pointer first, pointer last) {
+            return helpers::construct_relocate_copy_impl(alloc, dst, first, last, std::is_copy_constructible<Ty>());
+        }
+
+        static pointer construct_relocate_copy_impl(alloc_type& alloc, pointer dst, pointer first, pointer last,
+                                                    std::true_type /* use copy constructor */) {
+            pointer p = first;
+            try {
+                for (; p != last; ++dst, ++p) {
+                    alloc_traits::construct(alloc, std::addressof(*dst), static_cast<const Ty&>(*p));
+                }
+                return dst;
+            } catch (...) {
+                helpers::truncate(alloc, first, p);
+                throw;
             }
         }
 
-        static void truncate(alloc_type& alloc, pointer& end) {
-            alloc_traits::destroy(alloc, std::addressof(*(--end)));
+        static pointer construct_relocate_copy_impl(alloc_type& alloc, pointer dst, pointer first, pointer last,
+                                                    std::false_type /* use copy constructor */) {
+            return helpers::construct_relocate(alloc, dst, first, last);
         }
 
-        static void truncate(std::allocator<Ty>& alloc, pointer end_new, pointer& end,
-                             std::true_type /* trivially destructible */) {
-            end = end_new;
+        static pointer truncate(alloc_type& alloc, pointer first, pointer last) {
+            return helpers::truncate_impl(alloc, first, last, std::is_trivially_destructible<Ty>());
         }
 
-        template<typename Alloc_ = alloc_type>
-        static void truncate(std::enable_if_t<!std::is_same<Alloc_, std::allocator<Ty>>::value, alloc_type>& alloc,
-                             pointer end_new, pointer& end, std::true_type /* trivially destructible */) {
-            helpers::truncate(alloc, end_new, end, std::false_type());
+        static pointer truncate_impl(std::allocator<Ty>& alloc, pointer first, pointer last,
+                                     std::true_type /* trivially destructible */) {
+            return first;
         }
 
-        static void truncate(alloc_type& alloc, pointer end_new, pointer& end,
-                             std::false_type /* trivially destructible */) {
-            for (auto p = end_new; p != end; ++p) { alloc_traits::destroy(alloc, std::addressof(*p)); }
-            end = end_new;
+        template<typename Ty_ = Ty>
+        static pointer truncate_impl(
+            std::enable_if_t<!std::is_same<alloc_type, std::allocator<Ty_>>::value, alloc_type>& alloc, pointer first,
+            pointer last, std::true_type /* trivially destructible */) {
+            return helpers::truncate_impl(alloc, first, last, std::false_type());
         }
 
-        static void emplace(alloc_type& alloc, pointer pos, pointer& end, value_type&& val) {
+        static pointer truncate_impl(alloc_type& alloc, pointer first, pointer last,
+                                     std::false_type /* trivially destructible */) {
+            for (auto p = first; p != last; ++p) { alloc_traits::destroy(alloc, std::addressof(*p)); }
+            return first;
+        }
+
+        static void emplace(alloc_type& alloc, pointer pos, pointer end, Ty&& val) {
             assert(pos != end);
-            helpers::append(alloc, end, std::move(*(end - 1)));
-            for (auto p = end - 2; pos != p; --p) { *p = std::move(*(p - 1)); }
+            alloc_traits::construct(alloc, std::addressof(*end), std::move(*(end - 1)));
+            std::move_backward(pos, end - 1, end);
             *pos = std::move(val);
         }
 
         template<typename... Args>
-        static void emplace(alloc_type& alloc, pointer pos, pointer& end, Args&&... args) {
+        static void emplace(alloc_type& alloc, pointer pos, pointer end, Args&&... args) {
             typename std::aligned_storage<sizeof(Ty), std::alignment_of<Ty>::value>::type buf;
-            auto* val = reinterpret_cast<value_type*>(std::addressof(buf));
+            auto* val = reinterpret_cast<Ty*>(std::addressof(buf));
             alloc_traits::construct(alloc, val, std::forward<Args>(args)...);
             try {
                 helpers::emplace(alloc, pos, end, std::move(*val));
+                alloc_traits::destroy(alloc, val);
             } catch (...) {
                 alloc_traits::destroy(alloc, val);
                 throw;
             }
-            alloc_traits::destroy(alloc, val);
-        }
-
-        template<typename RandIt>
-        static void insert_copy(alloc_type& alloc, pointer pos, pointer& end, pointer end_new, RandIt src) {
-            assert(pos != end && end != end_new);
-            size_type count = static_cast<size_type>(end_new - end);
-            size_type tail = static_cast<size_type>(end - pos);
-            if (count > tail) {
-                auto p = end;
-                helpers::append_copy(alloc, end, end + count - tail,
-                                     src + static_cast<typename std::iterator_traits<RandIt>::difference_type>(tail));
-                helpers::append_relocate(alloc, end, p - tail, p);
-                for (p = pos; p != pos + tail; ++src) { *p++ = *src; };
-            } else {
-                auto p = end - count;
-                helpers::append_relocate(alloc, end, end - count, end);
-                for (; pos != p; --p) { *(p + count - 1) = std::move(*(p - 1)); }
-                for (; p != pos + count; ++src) { *p++ = *src; };
-            }
-        }
-
-        static void erase(alloc_type& alloc, pointer p, pointer& end) {
-            for (; p != end - 1; ++p) { *p = std::move(*(p + 1)); }
-            helpers::truncate(alloc, end);
-        }
-
-        static void erase(alloc_type& alloc, pointer p, pointer end_new, pointer& end) {
-            assert(end_new != end);
-            size_type count = static_cast<size_type>(end - end_new);
-            for (; p != end_new; ++p) { *p = std::move(*(p + count)); }
-            helpers::truncate(alloc, end_new, end, std::is_trivially_destructible<Ty>());
         }
     };
 };
