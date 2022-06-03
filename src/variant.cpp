@@ -1,8 +1,8 @@
-#include "util/variant.h"
+#include "uxs/variant.h"
 
 #include <cstring>
 
-using namespace util;
+using namespace uxs;
 
 static variant_type_impl<bool> g_bool_variant_type;
 static variant_type_impl<int> g_int_variant_type;

@@ -1,6 +1,6 @@
-#include "util/io/iobuf_impl.h"
+#include "uxs/io/iobuf_impl.h"
 
-namespace util {
+namespace uxs {
 iomode detail::iomode_from_str(const char* mode, iomode def) {
     iomode result = def;
     while (*mode) {
@@ -30,4 +30,4 @@ iomode detail::iomode_from_str(const char* mode, iomode def) {
 template class basic_iobuf<char>;
 template class basic_iobuf<wchar_t>;
 template class basic_iobuf<uint8_t>;
-}  // namespace util
+}  // namespace uxs

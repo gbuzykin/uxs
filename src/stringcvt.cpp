@@ -1,6 +1,6 @@
-#include "util/stringcvt_impl.h"
+#include "uxs/stringcvt_impl.h"
 
-namespace util {
+namespace uxs {
 namespace scvt {
 
 const uint64_t msb64 = 1ull << 63;
@@ -303,11 +303,11 @@ const unsigned g_exp2_digs[] = {1,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  
                                 7,  7,  8,  8,  8,  9,  9,  9,  10, 10, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 13, 13,
                                 14, 14, 14, 15, 15, 15, 16, 16, 16, 16, 17, 17, 17, 18, 18, 18, 19, 19, 19, 19, 20};
 
-#define SCVT_POWERS_OF_10(base) \
+#define UXS_SCVT_POWERS_OF_10(base) \
     base, (base)*10, (base)*100, (base)*1000, (base)*10000, (base)*100000, (base)*1000000, (base)*10000000, \
         (base)*100000000, (base)*1000000000
 // powers of ten 10^N, N = 0, 1, 2, ...
-const uint64_t g_ten_pows[] = {SCVT_POWERS_OF_10(1ull), SCVT_POWERS_OF_10(10000000000ull)};
+const uint64_t g_ten_pows[] = {UXS_SCVT_POWERS_OF_10(1ull), UXS_SCVT_POWERS_OF_10(10000000000ull)};
 
 const char g_digits[][2] = {
     {'0', '0'}, {'0', '1'}, {'0', '2'}, {'0', '3'}, {'0', '4'}, {'0', '5'}, {'0', '6'}, {'0', '7'}, {'0', '8'},
@@ -495,7 +495,7 @@ fp10_t fp2_to_fp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& fp_fmt, int& prec, 
     if (n_digs < 0) { return fp10_t{0, &zero, 0, prec}; }
 
     if (n_digs > pow_table_t::kShortMantissaLimit) {  // Long decimal mantissa
-        static std::array<unsigned, 10> dig_base = {SCVT_POWERS_OF_10(1)};
+        static std::array<unsigned, 10> dig_base = {UXS_SCVT_POWERS_OF_10(1)};
 
         // 12 uint64-s are enough to hold all (normalized!) 10^n, n <= 324, +1 to multiply by uint64
         std::array<uint64_t, 16> buf;  // so, 16 are enough for sure
@@ -763,42 +763,42 @@ fp10_t fp2_to_fp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& fp_fmt, int& prec, 
 
 }  // namespace scvt
 
-#define SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(ty) \
+#define UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(ty) \
     template size_t string_converter<ty>::from_string(std::string_view s, ty& val); \
     template unlimbuf_appender& string_converter<ty>::to_string(unlimbuf_appender& s, ty val, const fmt_state& fmt); \
     template limbuf_appender& string_converter<ty>::to_string(limbuf_appender& s, ty val, const fmt_state& fmt); \
     template dynbuffer& string_converter<ty>::to_string(dynbuffer& s, ty val, const fmt_state& fmt);
-SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int8_t)
-SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int16_t)
-SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int32_t)
-SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int64_t)
-SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(uint8_t)
-SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(uint16_t)
-SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(uint32_t)
-SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(uint64_t)
-SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(float)
-SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(double)
-SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(char)
-SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(bool)
-#undef SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER
+UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int8_t)
+UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int16_t)
+UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int32_t)
+UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int64_t)
+UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(uint8_t)
+UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(uint16_t)
+UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(uint32_t)
+UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(uint64_t)
+UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(float)
+UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(double)
+UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(char)
+UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(bool)
+#undef UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER
 
-#define SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(ty) \
+#define UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(ty) \
     template size_t string_converter<ty>::from_string(std::wstring_view s, ty& val); \
     template wunlimbuf_appender& string_converter<ty>::to_string(wunlimbuf_appender& s, ty val, const fmt_state& fmt); \
     template wlimbuf_appender& string_converter<ty>::to_string(wlimbuf_appender& s, ty val, const fmt_state& fmt); \
     template wdynbuffer& string_converter<ty>::to_string(wdynbuffer& s, ty val, const fmt_state& fmt);
-SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int8_t)
-SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int16_t)
-SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int32_t)
-SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int64_t)
-SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(uint8_t)
-SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(uint16_t)
-SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(uint32_t)
-SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(uint64_t)
-SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(float)
-SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(double)
-SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(wchar_t)
-SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(bool)
-#undef SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER
+UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int8_t)
+UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int16_t)
+UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int32_t)
+UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int64_t)
+UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(uint8_t)
+UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(uint16_t)
+UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(uint32_t)
+UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(uint64_t)
+UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(float)
+UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(double)
+UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(wchar_t)
+UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(bool)
+#undef UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER
 
-}  // namespace util
+}  // namespace uxs

@@ -1,14 +1,14 @@
-#include "util/io/sysfile.h"
+#include "uxs/io/sysfile.h"
 
-#include "util/stringalg.h"
-#include "util/stringcvt.h"
+#include "uxs/stringalg.h"
+#include "uxs/stringcvt.h"
 
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
-using namespace util;
+using namespace uxs;
 
 sysfile::sysfile() : fd_(-1) {}
 sysfile::sysfile(file_desc_t fd) : fd_(fd) {}
@@ -79,9 +79,9 @@ int64_t sysfile::seek(int64_t off, seekdir dir) {
 
 int sysfile::ctrlesc_color(span<uint8_t> v) {
     using namespace std::placeholders;
-    util::inline_dynbuffer buf;
+    uxs::inline_dynbuffer buf;
     buf += "\033[";
-    basic_join_strings(buf, v, ';', std::bind(basic_to_string<util::dynbuffer, uint8_t>, _1, _2, fmt_state()));
+    basic_join_strings(buf, v, ';', std::bind(basic_to_string<uxs::dynbuffer, uint8_t>, _1, _2, fmt_state()));
     buf += 'm';
     return ::write(fd_, buf.data(), buf.size()) < 0 ? -1 : 0;
 }

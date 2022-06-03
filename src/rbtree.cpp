@@ -1,6 +1,6 @@
-#include "util/rbtree.h"
+#include "uxs/rbtree.h"
 
-using namespace util;
+using namespace uxs;
 
 inline void rbtree_rotate_left(rbtree_node_t* node) {
     auto* right = node->right;
@@ -30,7 +30,7 @@ inline void rbtree_rotate_right(rbtree_node_t* node) {
     node->parent = left;
 }
 
-void util::rbtree_insert(rbtree_node_t* head, rbtree_node_t* node, rbtree_node_t* pos, bool left) {
+void uxs::rbtree_insert(rbtree_node_t* head, rbtree_node_t* node, rbtree_node_t* pos, bool left) {
     node->left = nullptr;
     node->right = nullptr;
     node->parent = pos;
@@ -90,7 +90,7 @@ void util::rbtree_insert(rbtree_node_t* head, rbtree_node_t* node, rbtree_node_t
     head->left->color = rbtree_node_t::color_t::kBlack;
 }
 
-rbtree_node_t* util::rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos) {
+rbtree_node_t* uxs::rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos) {
     auto* fix = pos->right;
     auto* parent = pos->parent;
     rbtree_node_t::color_t color = pos->color;

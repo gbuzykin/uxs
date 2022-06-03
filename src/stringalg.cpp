@@ -1,6 +1,6 @@
-#include "util/stringalg.h"
+#include "uxs/stringalg.h"
 
-namespace util {
+namespace uxs {
 
 std::wstring from_utf8_to_wide(std::string_view s) {
     uint32_t code;
@@ -217,4 +217,4 @@ std::wstring to_upper(std::wstring_view s) {
     return upper;
 }
 
-}  // namespace util
+}  // namespace uxs

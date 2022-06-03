@@ -70,6 +70,8 @@ IncludeCategories:
   - Regex:           '^"interfaces/.*\.h"'
     Priority:        11
   - Regex:           '^"core/.*\.h"'
+    Priority:        12
+  - Regex:           '^"uxs/.*\.h"'
     Priority:        20
   - Regex:           '^".*\.hpp"'
     Priority:        30

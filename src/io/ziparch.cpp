@@ -1,12 +1,12 @@
-#include "util/io/ziparch.h"
+#include "uxs/io/ziparch.h"
 
-#include "util/stringalg.h"
+#include "uxs/stringalg.h"
 
-#if defined(UTIL_USE_LIBZIP)
+#if defined(UXS_USE_LIBZIP)
 
 #    include <zip.h>
 
-using namespace util;
+using namespace uxs;
 
 bool ziparch::open(const char* name, iomode mode) {
     int ziperr = 0;
@@ -47,21 +47,21 @@ bool ziparch::stat_crc(const char* fname, uint32_t& crc) {
     return true;
 }
 
-#else  // defined(UTIL_USE_LIBZIP)
+#else  // defined(UXS_USE_LIBZIP)
 
-using namespace util;
+using namespace uxs;
 bool ziparch::open(const char* name, iomode mode) { return false; }
 void ziparch::close() {}
 bool ziparch::stat_size(const char* fname, size_t& sz) { return false; }
 bool ziparch::stat_crc(const char* fname, uint32_t& crc) { return false; }
 
-#endif  // defined(UTIL_USE_LIBZIP)
+#endif  // defined(UXS_USE_LIBZIP)
 
 bool ziparch::stat_size(const wchar_t* fname, size_t& sz) {
-    return stat_size(util::from_wide_to_utf8(fname).c_str(), sz);
+    return stat_size(uxs::from_wide_to_utf8(fname).c_str(), sz);
 }
 bool ziparch::stat_crc(const wchar_t* fname, uint32_t& crc) {
-    return stat_crc(util::from_wide_to_utf8(fname).c_str(), crc);
+    return stat_crc(uxs::from_wide_to_utf8(fname).c_str(), crc);
 }
 
-bool ziparch::open(const wchar_t* name, iomode mode) { return open(util::from_wide_to_utf8(name).c_str(), mode); }
+bool ziparch::open(const wchar_t* name, iomode mode) { return open(uxs::from_wide_to_utf8(name).c_str(), mode); }

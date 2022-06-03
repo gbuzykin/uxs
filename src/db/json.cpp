@@ -1,7 +1,7 @@
-#include "util/db/json.h"
+#include "uxs/db/json.h"
 
-#include "util/format.h"
-#include "util/utf.h"
+#include "uxs/format.h"
+#include "uxs/utf.h"
 
 namespace lex_detail {
 #include "lex_defs.h"
@@ -10,8 +10,8 @@ namespace lex_detail {
 #include "lex_analyzer.inl"
 }
 
-using namespace util;
-using namespace util::db;
+using namespace uxs;
+using namespace uxs::db;
 
 // --------------------------
 
@@ -183,8 +183,8 @@ int json::reader::parse_token(std::string_view& lval) {
             case lex_detail::pat_escape_t: str_.push_back('\t'); break;
             case lex_detail::pat_escape_other: return kEof;
             case lex_detail::pat_escape_unicode: {
-                unsigned unicode = (util::dig_v<16>(lexeme[2]) << 12) | (util::dig_v<16>(lexeme[3]) << 8) |
-                                   (util::dig_v<16>(lexeme[4]) << 4) | util::dig_v<16>(lexeme[5]);
+                unsigned unicode = (uxs::dig_v<16>(lexeme[2]) << 12) | (uxs::dig_v<16>(lexeme[3]) << 8) |
+                                   (uxs::dig_v<16>(lexeme[4]) << 4) | uxs::dig_v<16>(lexeme[5]);
                 if (surrogate != 0) {
                     unicode = 0x10000 + (((surrogate & 0x3ff) << 10) | (unicode & 0x3ff));
                     surrogate = 0;
