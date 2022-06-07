@@ -2,8 +2,26 @@
 
 using namespace uxs;
 
-inline void rbtree_rotate_left(rbtree_node_t* node) {
-    auto* right = node->right;
+inline rbtree_node_t* rbtree_right_parent(rbtree_node_t* node) NOEXCEPT {
+    rbtree_node_t* parent = node->parent;
+    while (node != parent->left) {
+        node = parent;
+        parent = node->parent;
+    }
+    return parent;
+}
+
+inline rbtree_node_t* rbtree_left_parent(rbtree_node_t* node) NOEXCEPT {
+    rbtree_node_t* parent = node->parent;
+    while (node == parent->left) {
+        node = parent;
+        parent = node->parent;
+    }
+    return parent;
+}
+
+inline void rbtree_rotate_left(rbtree_node_t* node) NOEXCEPT {
+    rbtree_node_t* right = node->right;
     node->right = right->left;
     right->parent = node->parent;
     if (right->left) { right->left->parent = node; }
@@ -16,8 +34,8 @@ inline void rbtree_rotate_left(rbtree_node_t* node) {
     node->parent = right;
 }
 
-inline void rbtree_rotate_right(rbtree_node_t* node) {
-    auto* left = node->left;
+inline void rbtree_rotate_right(rbtree_node_t* node) NOEXCEPT {
+    rbtree_node_t* left = node->left;
     node->left = left->right;
     left->parent = node->parent;
     if (left->right) { left->right->parent = node; }
@@ -30,30 +48,34 @@ inline void rbtree_rotate_right(rbtree_node_t* node) {
     node->parent = left;
 }
 
-void uxs::rbtree_insert(rbtree_node_t* head, rbtree_node_t* node, rbtree_node_t* pos, bool left) {
-    node->left = nullptr;
-    node->right = nullptr;
+NOALIAS rbtree_node_t* uxs::rbtree_next(rbtree_node_t* node) NOEXCEPT {
+    if (node->right) { return rbtree_left_bound(node->right); }
+    return rbtree_right_parent(node);
+}
+
+NOALIAS rbtree_node_t* uxs::rbtree_prev(rbtree_node_t* node) NOEXCEPT {
+    if (node->left) { return rbtree_right_bound(node->left); }
+    return rbtree_left_parent(node);
+}
+
+void uxs::rbtree_insert(rbtree_node_t* head, rbtree_node_t* node, rbtree_node_t* pos, int dir) NOEXCEPT {
+    node->left = node->right = nullptr;
     node->parent = pos;
-    if (pos == head) {
-        head->left = node;
-        head->parent = node;
-        head->right = node;
-        node->color = rbtree_node_t::color_t::kBlack;
-        return;
-    }
-
-    if (left) {
-        if (pos == head->parent) { head->parent = node; }
-        pos->left = node;
-    } else {
-        if (pos == head->right) { head->right = node; }
-        pos->right = node;
-    }
     node->color = rbtree_node_t::color_t::kRed;
-    if (pos->color == rbtree_node_t::color_t::kBlack) { return; }
 
-    do {
-        auto* parent = pos->parent;
+    if (dir < 0) {
+        pos->left = node;
+        if (pos == head->parent) {
+            head->parent = node;
+            if (pos == head) { head->right = node; }
+        }
+    } else {
+        pos->right = node;
+        if (pos == head->right) { head->right = node; }
+    }
+
+    while (pos->color != rbtree_node_t::color_t::kBlack) {
+        rbtree_node_t* parent = pos->parent;
         parent->color = rbtree_node_t::color_t::kRed;
 
         if (parent->left == pos) {
@@ -66,37 +88,34 @@ void uxs::rbtree_insert(rbtree_node_t* head, rbtree_node_t* node, rbtree_node_t*
                 pos->color = rbtree_node_t::color_t::kBlack;
                 return;
             }
-
             parent->right->color = rbtree_node_t::color_t::kBlack;
-        } else {
-            if (!parent->left || parent->left->color == rbtree_node_t::color_t::kBlack) {
-                if (node == pos->left) {
-                    rbtree_rotate_right(pos);
-                    pos = node;
-                }
-                rbtree_rotate_left(parent);
-                pos->color = rbtree_node_t::color_t::kBlack;
-                return;
+        } else if (!parent->left || parent->left->color == rbtree_node_t::color_t::kBlack) {
+            if (node == pos->left) {
+                rbtree_rotate_right(pos);
+                pos = node;
             }
-
+            rbtree_rotate_left(parent);
+            pos->color = rbtree_node_t::color_t::kBlack;
+            return;
+        } else {
             parent->left->color = rbtree_node_t::color_t::kBlack;
         }
 
         pos->color = rbtree_node_t::color_t::kBlack;
         node = parent;
         pos = parent->parent;
-    } while (pos->color != rbtree_node_t::color_t::kBlack);
+    }
 
     head->left->color = rbtree_node_t::color_t::kBlack;
 }
 
-rbtree_node_t* uxs::rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos) {
-    auto* fix = pos->right;
-    auto* parent = pos->parent;
+rbtree_node_t* uxs::rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos) NOEXCEPT {
+    rbtree_node_t* fix = pos->right;
+    rbtree_node_t* parent = pos->parent;
     rbtree_node_t::color_t color = pos->color;
 
     if (fix) {
-        auto* next = rbtree_left_bound(fix);
+        rbtree_node_t* next = rbtree_left_bound(fix);
 
         if (pos->left) {
             std::swap(color, next->color);
@@ -176,7 +195,7 @@ rbtree_node_t* uxs::rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos) {
 
     while (!fix || (parent != head && fix->color == rbtree_node_t::color_t::kBlack)) {
         if (parent->left == fix) {
-            auto* node = parent->right;
+            rbtree_node_t* node = parent->right;
 
             if (node->color != rbtree_node_t::color_t::kBlack) {
                 node->color = rbtree_node_t::color_t::kBlack;
@@ -203,7 +222,7 @@ rbtree_node_t* uxs::rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos) {
 
             node->color = rbtree_node_t::color_t::kRed;
         } else {
-            auto* node = parent->left;
+            rbtree_node_t* node = parent->left;
 
             if (node->color != rbtree_node_t::color_t::kBlack) {
                 node->color = rbtree_node_t::color_t::kBlack;

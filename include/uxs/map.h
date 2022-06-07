@@ -66,7 +66,7 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
     }
 
     map& operator=(std::initializer_list<value_type> l) {
-        this->assign_impl(l.begin(), l.end(), std::is_copy_assignable<typename node_traits::writable_value_t>());
+        this->assign_range(l.begin(), l.end(), std::is_copy_assignable<typename node_traits::writable_value_t>());
         return *this;
     }
 
@@ -213,26 +213,28 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
     template<typename Key2, typename... Args>
     std::pair<iterator, bool> try_emplace_impl(Key2&& key, Args&&... args) {
         auto result = rbtree_find_insert_unique_pos<node_traits>(std::addressof(this->head_), key, this->get_compare());
-        if (result.second == 0) { return std::make_pair(iterator(result.first), false); }
-        auto* node = this->new_node(std::piecewise_construct, std::forward_as_tuple(std::forward<Key2>(key)),
-                                    std::forward_as_tuple(std::forward<Args>(args)...));
-        node_traits::set_head(node, std::addressof(this->head_));
-        ++this->size_;
-        rbtree_insert(std::addressof(this->head_), node, result.first, result.second < 0);
-        return std::make_pair(iterator(node), true);
+        if (result.second) {
+            auto* node = this->new_node(std::piecewise_construct, std::forward_as_tuple(std::forward<Key2>(key)),
+                                        std::forward_as_tuple(std::forward<Args>(args)...));
+            rbtree_insert(std::addressof(this->head_), node, result.first, result.second);
+            ++this->size_;
+            return std::make_pair(iterator(node), true);
+        }
+        return std::make_pair(iterator(result.first), false);
     }
 
     template<typename Key2, typename... Args>
     iterator try_emplace_hint_impl(const_iterator hint, Key2&& key, Args&&... args) {
         auto result = rbtree_find_insert_unique_pos<node_traits>(std::addressof(this->head_), this->to_ptr(hint), key,
                                                                  this->get_compare());
-        if (result.second == 0) { return std::make_pair(iterator(result.first), false); }
-        auto* node = this->new_node(std::piecewise_construct, std::forward_as_tuple(std::forward<Key2>(key)),
-                                    std::forward_as_tuple(std::forward<Args>(args)...));
-        node_traits::set_head(node, std::addressof(this->head_));
-        ++this->size_;
-        rbtree_insert(std::addressof(this->head_), node, result.first, result.second < 0);
-        return std::make_pair(iterator(node), true);
+        if (result.second) {
+            auto* node = this->new_node(std::piecewise_construct, std::forward_as_tuple(std::forward<Key2>(key)),
+                                        std::forward_as_tuple(std::forward<Args>(args)...));
+            rbtree_insert(std::addressof(this->head_), node, result.first, result.second);
+            ++this->size_;
+            return std::make_pair(iterator(node), true);
+        }
+        return std::make_pair(iterator(result.first), false);
     }
 };
 

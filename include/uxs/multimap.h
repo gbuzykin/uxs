@@ -65,7 +65,7 @@ class multimap : public detail::rbtree_multi<detail::map_node_traits<Key, Ty>, A
     }
 
     multimap& operator=(std::initializer_list<value_type> l) {
-        this->assign_impl(l.begin(), l.end(), std::is_copy_assignable<typename node_traits::writable_value_t>());
+        this->assign_range(l.begin(), l.end(), std::is_copy_assignable<typename node_traits::writable_value_t>());
         return *this;
     }
 
