@@ -60,15 +60,16 @@ class rbtree_node_handle_getters<NodeTraits, Alloc, NodeHandle, std::void_t<type
     mapped_type& mapped() const { return node_traits::get_value(static_cast<const NodeHandle*>(this)->node_).second; }
 };
 
-template<typename Traits, typename NodeTraits>
-class rbtree_node_handle : public rbtree_node_handle_getters<NodeTraits, typename Traits::allocator_type,
-                                                             rbtree_node_handle<Traits, NodeTraits>> {
+template<typename NodeTraits, typename Alloc>
+class rbtree_node_handle : public rbtree_node_handle_getters<NodeTraits, Alloc, rbtree_node_handle<NodeTraits, Alloc>> {
  private:
-    using super = rbtree_node_handle_getters<NodeTraits, typename Traits::allocator_type, rbtree_node_handle>;
+    using super = rbtree_node_handle_getters<NodeTraits, Alloc, rbtree_node_handle>;
+    using node_traits = NodeTraits;
     using alloc_type = typename super::alloc_type;
+    using alloc_traits = std::allocator_traits<alloc_type>;
 
  public:
-    using allocator_type = typename Traits::allocator_type;
+    using allocator_type = Alloc;
 
     rbtree_node_handle() NOEXCEPT_IF(noexcept(super())) : super() {}
     rbtree_node_handle(rbtree_node_handle&& nh) NOEXCEPT : super(std::move(nh)) {
@@ -79,7 +80,7 @@ class rbtree_node_handle : public rbtree_node_handle_getters<NodeTraits, typenam
     rbtree_node_handle& operator=(rbtree_node_handle&& nh) NOEXCEPT {
         assert(std::addressof(nh) != this);
         if (std::addressof(nh) == this) { return *this; }
-        if (node_) { Traits::helpers::delete_node(*this, node_); }
+        if (node_) { tidy(); }
         super::operator=(std::move(nh));
         node_ = nh.node_;
         nh.node_ = nullptr;
@@ -87,10 +88,10 @@ class rbtree_node_handle : public rbtree_node_handle_getters<NodeTraits, typenam
     }
 
     ~rbtree_node_handle() {
-        if (node_) { Traits::helpers::delete_node(*this, node_); }
+        if (node_) { tidy(); }
     }
 
-    allocator_type get_allocator() const { return static_cast<const alloc_type&>(*this); }
+    allocator_type get_allocator() const { return allocator_type(*this); }
     bool empty() const NOEXCEPT { return node_ == nullptr; }
     explicit operator bool() const NOEXCEPT { return node_ != nullptr; }
     void swap(rbtree_node_handle& nh) NOEXCEPT {
@@ -113,6 +114,11 @@ class rbtree_node_handle : public rbtree_node_handle_getters<NodeTraits, typenam
 
     explicit rbtree_node_handle(const alloc_type& alloc) NOEXCEPT : super(alloc) {}
     rbtree_node_handle(const alloc_type& alloc, rbtree_node_t* node) NOEXCEPT : super(alloc), node_(node) {}
+
+    void tidy() {
+        alloc_traits::destroy(*this, std::addressof(node_traits::get_value(node_)));
+        alloc_traits::deallocate(*this, static_cast<typename node_traits::node_t*>(node_), 1);
+    }
 };
 
 }  // namespace detail
@@ -120,9 +126,9 @@ class rbtree_node_handle : public rbtree_node_handle_getters<NodeTraits, typenam
 }  // namespace uxs
 
 namespace std {
-template<typename Traits, typename NodeTraits>
-void swap(uxs::detail::rbtree_node_handle<Traits, NodeTraits>& nh1,
-          uxs::detail::rbtree_node_handle<Traits, NodeTraits>& nh2) NOEXCEPT_IF(NOEXCEPT_IF(nh1.swap(nh2))) {
+template<typename NodeTraits, typename Alloc>
+void swap(uxs::detail::rbtree_node_handle<NodeTraits, Alloc>& nh1,
+          uxs::detail::rbtree_node_handle<NodeTraits, Alloc>& nh2) NOEXCEPT_IF(NOEXCEPT_IF(nh1.swap(nh2))) {
     nh1.swap(nh2);
 }
 }  // namespace std

@@ -161,7 +161,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     using const_iterator = uxs::list_iterator<rbtree_base, node_traits, true>;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
-    using node_type = rbtree_node_handle<rbtree_base, node_traits>;
+    using node_type = rbtree_node_handle<node_traits, Alloc>;
 
     rbtree_base() NOEXCEPT_IF(noexcept(super())) : super() { init(); }
     explicit rbtree_base(const allocator_type& alloc) NOEXCEPT_IF(noexcept(super(alloc))) : super(alloc) { init(); }
@@ -169,13 +169,11 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
 
     rbtree_base(const rbtree_base& other)
         : super(alloc_traits::select_on_container_copy_construction(other), other.get_compare()) {
-        init();
-        init_from(other, copy_value);
+        init_impl(other, copy_value);
     }
 
     rbtree_base(const rbtree_base& other, const allocator_type& alloc) : super(alloc, other.get_compare()) {
-        init();
-        init_from(other, copy_value);
+        init_impl(other, copy_value);
     }
 
     rbtree_base& operator=(const rbtree_base& other) {
@@ -209,7 +207,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
 
     ~rbtree_base() { tidy(); }
 
-    allocator_type get_allocator() const { return static_cast<const alloc_type&>(*this); }
+    allocator_type get_allocator() const { return allocator_type(*this); }
     key_compare key_comp() const { return this->get_compare(); }
 
     bool empty() const NOEXCEPT { return size_ == 0; }
@@ -394,9 +392,9 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     iterator erase(const_iterator pos) {
         auto* p = to_ptr(pos);
         assert(p != std::addressof(head_));
-        --size_;
         auto* next = rbtree_remove(std::addressof(head_), p);
-        helpers::delete_node(*this, p);
+        this->delete_node(p);
+        --size_;
         return iterator(next);
     }
 
@@ -422,9 +420,9 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     node_type extract(const_iterator pos) {
         auto* p = to_ptr(pos);
         assert(p != std::addressof(head_));
-        --size_;
         rbtree_remove(std::addressof(head_), p);
         node_traits::set_head(p, nullptr);
+        --size_;
         return node_type(*this, p);
     }
 
@@ -433,9 +431,9 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
         if (p == std::addressof(head_) || this->get_compare()(key, node_traits::get_key(node_traits::get_value(p)))) {
             return node_type(*this);
         }
-        --size_;
         rbtree_remove(std::addressof(head_), p);
         node_traits::set_head(p, nullptr);
+        --size_;
         return node_type(*this, p);
     }
 
@@ -497,9 +495,31 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
 
     template<typename... Args>
     rbtree_node_t* new_node(Args&&... args) {
-        return helpers::new_node(*this,
-                                 std::is_nothrow_constructible<typename node_traits::writable_value_t, Args...>(),
-                                 std::forward<Args>(args)...);
+        auto* node = static_cast<rbtree_node_t*>(std::addressof(*alloc_traits::allocate(*this, 1)));
+        try {
+            alloc_traits::construct(*this, std::addressof(node_traits::get_value(node)), std::forward<Args>(args)...);
+            node_traits::set_head(node, std::addressof(head_));
+            return node;
+        } catch (...) {
+            alloc_traits::deallocate(*this, static_cast<typename node_traits::node_t*>(node), 1);
+            throw;
+        }
+    }
+
+    template<typename... Args>
+    void reconstruct_node(rbtree_node_t* node, Args&&... args) {
+        alloc_traits::destroy(*this, std::addressof(node_traits::get_value(node)));
+        try {
+            alloc_traits::construct(*this, std::addressof(node_traits::get_value(node)), std::forward<Args>(args)...);
+        } catch (...) {
+            alloc_traits::deallocate(*this, static_cast<typename node_traits::node_t*>(node), 1);
+            throw;
+        }
+    }
+
+    void delete_node(rbtree_node_t* node) {
+        alloc_traits::destroy(*this, std::addressof(node_traits::get_value(node)));
+        alloc_traits::deallocate(*this, static_cast<typename node_traits::node_t*>(node), 1);
     }
 
     void init() {
@@ -508,41 +528,42 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     }
 
     void reset() {
-        size_ = 0;
         head_.left = nullptr;
         head_.right = head_.parent = std::addressof(head_);
+        size_ = 0;
     }
 
     void delete_recursive(rbtree_node_t* node) {
         if (node->left) { delete_recursive(node->left); }
         if (node->right) { delete_recursive(node->right); }
-        helpers::delete_node(*this, node);
+        this->delete_node(node);
     }
 
     void delete_node_chain(rbtree_node_t* node) {
         while (node != std::addressof(head_)) {
             auto* next = reuse_next(node);
-            helpers::delete_node(*this, node);
+            this->delete_node(node);
             node = next;
         }
     }
 
     void tidy() {
         if (!size_) { return; }
-        delete_recursive(head_.left);
+        auto* root = head_.left;
         reset();
+        delete_recursive(root);
     }
 
     void steal_data(rbtree_base& other) {
         if (!other.size_) { return; }
-        size_ = other.size_;
-        other.size_ = 0;
         head_.left = other.head_.left;
         other.head_.left = nullptr;
         head_.right = other.head_.right;
         head_.parent = other.head_.parent;
         head_.left->parent = std::addressof(head_);
         other.head_.right = other.head_.parent = std::addressof(other.head_);
+        size_ = other.size_;
+        other.size_ = 0;
         node_traits::set_head(head_.parent, std::addressof(head_), std::addressof(head_));
     }
 
@@ -552,25 +573,25 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     }
 
     void construct_impl(rbtree_base&& other, const allocator_type& alloc, std::false_type) {
-        init();
         if (is_same_alloc(other)) {
+            init();
             steal_data(other);
         } else {
-            init_from(other, move_value);
+            init_impl(other, move_value);
         }
     }
 
     void assign_impl(const rbtree_base& other, std::true_type) {
-        assign_from(other, copy_value, std::is_copy_assignable<typename node_traits::writable_value_t>());
+        assign_impl(other, copy_value, std::is_copy_assignable<typename node_traits::writable_value_t>());
     }
 
     void assign_impl(const rbtree_base& other, std::false_type) {
         if (is_same_alloc(other)) {
-            assign_from(other, copy_value, std::is_copy_assignable<typename node_traits::writable_value_t>());
+            assign_impl(other, copy_value, std::is_copy_assignable<typename node_traits::writable_value_t>());
         } else {
             tidy();
             alloc_type::operator=(other);
-            init_from(other, copy_value);
+            init_impl(other, copy_value);
         }
     }
 
@@ -585,7 +606,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
             tidy();
             steal_data(other);
         } else {
-            assign_from(other, move_value, std::is_move_assignable<typename node_traits::writable_value_t>());
+            assign_impl(other, move_value, std::is_move_assignable<typename node_traits::writable_value_t>());
         }
     }
 
@@ -600,28 +621,28 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
             steal_data(other);
             return;
         } else if (other.size_) {
-            std::swap(size_, other.size_);
             std::swap(head_.left, other.head_.left);
             std::swap(head_.right, other.head_.right);
             std::swap(head_.parent, other.head_.parent);
             std::swap(head_.left->parent, other.head_.left->parent);
+            std::swap(size_, other.size_);
             node_traits::set_head(head_.parent, std::addressof(head_), std::addressof(head_));
         } else {
-            other.size_ = size_;
-            size_ = 0;
             other.head_.left = head_.left;
             head_.left = nullptr;
             other.head_.right = head_.right;
             other.head_.parent = head_.parent;
             other.head_.left->parent = std::addressof(other.head_);
             head_.right = head_.parent = std::addressof(head_);
+            other.size_ = size_;
+            size_ = 0;
         }
         node_traits::set_head(other.head_.parent, std::addressof(other.head_), std::addressof(other.head_));
     }
 
     template<typename CopyFunc>
-    void init_from(const rbtree_base& other, CopyFunc fn) {
-        assert(!size_);
+    void init_impl(const rbtree_base& other, CopyFunc fn) {
+        init();
         if (!other.size_) { return; }
         try {
             head_.left = this->new_node(fn(other.head_.left));
@@ -637,43 +658,53 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     }
 
     template<typename CopyFunc, typename Bool>
-    void assign_from(const rbtree_base& other, CopyFunc fn, Bool) {
-        if (!size_) {
-            init_from(other, fn);
-            return;
-        } else if (!other.size_) {
-            clear();
-            return;
-        }
-        auto* reuse = reuse_first(head_.parent);
-        reset();
-        try {
-            head_.left = reuse_node(other.head_.left, fn, reuse, Bool());
-            head_.left->parent = std::addressof(head_);
-            copy_node_reuse(head_.left, other.head_.left, fn, reuse, Bool());
-        } catch (...) {
-            tidy();
+    void assign_impl(const rbtree_base& other, CopyFunc fn, Bool /* assignable */) {
+        if (size_) {
+            auto* reuse = reuse_first(head_.parent);
+            reset();
+            if (other.size_) {
+                try {
+                    head_.left = reuse_node(other.head_.left, fn, reuse, Bool());
+                    head_.left->parent = std::addressof(head_);
+                    copy_node_reuse(head_.left, other.head_.left, fn, reuse, Bool());
+                } catch (...) {
+                    delete_node_chain(reuse);
+                    tidy();
+                    throw;
+                }
+            }
             delete_node_chain(reuse);
-            throw;
+        } else if (other.size_) {
+            try {
+                head_.left = this->new_node(fn(other.head_.left));
+                head_.left->parent = std::addressof(head_);
+                copy_node(head_.left, other.head_.left, fn);
+            } catch (...) {
+                tidy();
+                throw;
+            }
         }
-        delete_node_chain(reuse);
-        head_.parent = rbtree_left_bound(head_.left);
-        head_.right = rbtree_right_bound(head_.left);
+        if (other.size_) {
+            head_.parent = rbtree_left_bound(head_.left);
+            head_.right = rbtree_right_bound(head_.left);
+        } else {
+            head_.parent = head_.right = std::addressof(head_);
+        }
         size_ = other.size_;
     }
 
     void erase_impl(rbtree_node_t* first, rbtree_node_t* last) {
         do {
             assert(first != std::addressof(head_));
-            --size_;
             auto* next = rbtree_remove(std::addressof(head_), first);
-            helpers::delete_node(*this, first);
-            first = next;
+            this->delete_node(first);
+            --size_, first = next;
         } while (first != last);
     }
 
     template<typename CopyFunc>
-    rbtree_node_t* reuse_node(rbtree_node_t* src_node, CopyFunc fn, rbtree_node_t*& reuse, std::true_type) {
+    rbtree_node_t* reuse_node(rbtree_node_t* src_node, CopyFunc fn, rbtree_node_t*& reuse,
+                              std::true_type /* assignable */) {
         auto* node = reuse;
         node_traits::get_writable_value(node) = fn(src_node);
         reuse = reuse_next(reuse);
@@ -681,15 +712,11 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     }
 
     template<typename CopyFunc>
-    rbtree_node_t* reuse_node(rbtree_node_t* src_node, CopyFunc fn, rbtree_node_t*& reuse, std::false_type) {
+    rbtree_node_t* reuse_node(rbtree_node_t* src_node, CopyFunc fn, rbtree_node_t*& reuse,
+                              std::false_type /* assignable */) {
         auto* node = reuse;
         reuse = reuse_next(reuse);
-        try {
-            helpers::reconstruct_node(*this, node, fn(src_node));
-        } catch (...) {
-            alloc_traits::deallocate(*this, static_cast<typename node_traits::node_t*>(node), 1);
-            throw;
-        }
+        this->reconstruct_node(node, fn(src_node));
         return node;
     }
 
@@ -697,50 +724,14 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     void copy_node_reuse(rbtree_node_t* node, rbtree_node_t* src_node, CopyFunc fn, rbtree_node_t*& reuse, Bool);
     template<typename CopyFunc>
     void copy_node(rbtree_node_t* node, rbtree_node_t* src_node, CopyFunc fn);
-
-    struct helpers {
-        template<typename... Args>
-        static rbtree_node_t* new_node(alloc_type& alloc, std::true_type /* nothrow constructible */,
-                                       Args&&... args) NOEXCEPT {
-            auto* node = static_cast<rbtree_node_t*>(std::addressof(*alloc_traits::allocate(alloc, 1)));
-            alloc_traits::construct(alloc, std::addressof(node_traits::get_value(node)), std::forward<Args>(args)...);
-            return node;
-        }
-
-        template<typename... Args>
-        static rbtree_node_t* new_node(alloc_type& alloc, std::false_type /* nothrow constructible */, Args&&... args) {
-            auto* node = static_cast<rbtree_node_t*>(std::addressof(*alloc_traits::allocate(alloc, 1)));
-            try {
-                alloc_traits::construct(alloc, std::addressof(node_traits::get_value(node)),
-                                        std::forward<Args>(args)...);
-            } catch (...) {
-                alloc_traits::deallocate(alloc, static_cast<typename node_traits::node_t*>(node), 1);
-                throw;
-            }
-            return node;
-        }
-
-        template<typename... Args>
-        static rbtree_node_t* reconstruct_node(alloc_type& alloc, rbtree_node_t* node, Args&&... args) {
-            alloc_traits::destroy(alloc, std::addressof(node_traits::get_value(node)));
-            alloc_traits::construct(alloc, std::addressof(node_traits::get_value(node)), std::forward<Args>(args)...);
-            return node;
-        }
-
-        static void delete_node(alloc_type& alloc, rbtree_node_t* node) {
-            alloc_traits::destroy(alloc, std::addressof(node_traits::get_value(node)));
-            alloc_traits::deallocate(alloc, static_cast<typename node_traits::node_t*>(node), 1);
-        }
-    };
 };
 
 template<typename NodeTraits, typename Alloc, typename Comp>
 template<typename CopyFunc, typename Bool>
 void rbtree_base<NodeTraits, Alloc, Comp>::copy_node_reuse(rbtree_node_t* node, rbtree_node_t* src_node, CopyFunc fn,
-                                                           rbtree_node_t*& reuse, Bool) {
+                                                           rbtree_node_t*& reuse, Bool /* assignable */) {
+    node->left = node->right = nullptr;
     node->color = src_node->color;
-    node->left = nullptr;
-    node->right = nullptr;
     if (src_node->left) {
         if (reuse != std::addressof(head_)) {
             node->left = reuse_node(src_node->left, fn, reuse, Bool());
@@ -768,10 +759,8 @@ void rbtree_base<NodeTraits, Alloc, Comp>::copy_node_reuse(rbtree_node_t* node, 
 template<typename NodeTraits, typename Alloc, typename Comp>
 template<typename CopyFunc>
 void rbtree_base<NodeTraits, Alloc, Comp>::copy_node(rbtree_node_t* node, rbtree_node_t* src_node, CopyFunc fn) {
+    node->left = node->right = nullptr;
     node->color = src_node->color;
-    node->left = nullptr;
-    node->right = nullptr;
-    node_traits::set_head(node, std::addressof(this->head_));
     if (src_node->left) {
         node->left = this->new_node(fn(src_node->left));
         node->left->parent = node;

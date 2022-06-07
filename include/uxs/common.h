@@ -19,3 +19,19 @@
 #else  // __cplusplus < 201703L
 #    define CONSTEXPR constexpr
 #endif  // __cplusplus < 201703L
+
+#if defined(_MSC_VER)
+#    define UNREACHABLE_CODE __assume(false)
+#elif defined(__GNUC__)
+#    define UNREACHABLE_CODE __builtin_unreachable()
+#else
+#    define UNREACHABLE_CODE
+#endif
+
+#if defined(_MSC_VER)
+#    define NOALIAS __declspec(noalias)
+#elif defined(__GNUC__)
+#    define NOALIAS __attribute__((pure))
+#else
+#    define NOALIAS
+#endif

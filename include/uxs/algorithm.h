@@ -183,10 +183,9 @@ auto erase_at(Container& c, size_t i) -> std::void_t<decltype(std::begin(c) + i)
 
 // ---- sorted range lower bound, upper bound & equal range
 
-template<typename Range, typename Key, typename KeyFn = key>
-auto lower_bound(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::begin(r) + 1) {
-    auto first = std::begin(r);
-    size_t count = static_cast<size_t>(std::distance(first, std::end(r)));
+namespace detail {
+template<typename Iter, typename Key, typename KeyFn = key>
+Iter lower_bound(Iter first, size_t count, const Key& k, KeyFn fn = KeyFn{}) {
     while (count > 0) {
         size_t count2 = count / 2;
         auto mid = std::next(first, count2);
@@ -199,11 +198,8 @@ auto lower_bound(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::b
     }
     return first;
 }
-
-template<typename Range, typename Key, typename KeyFn = key>
-auto upper_bound(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::begin(r) + 1) {
-    auto first = std::begin(r);
-    size_t count = static_cast<size_t>(std::distance(first, std::end(r)));
+template<typename Iter, typename Key, typename KeyFn = key>
+Iter upper_bound(Iter first, size_t count, const Key& k, KeyFn fn = KeyFn{}) {
     while (count > 0) {
         size_t count2 = count / 2;
         auto mid = std::next(first, count2);
@@ -216,11 +212,22 @@ auto upper_bound(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::b
     }
     return first;
 }
+}  // namespace detail
+
+template<typename Range, typename Key, typename KeyFn = key>
+auto lower_bound(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::begin(r) + 1) {
+    return detail::lower_bound(std::begin(r), static_cast<size_t>(std::end(r) - std::begin(r)), k, fn);
+}
+
+template<typename Range, typename Key, typename KeyFn = key>
+auto upper_bound(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::begin(r) + 1) {
+    return detail::upper_bound(std::begin(r), static_cast<size_t>(std::end(r) - std::begin(r)), k, fn);
+}
 
 template<typename Range, typename Key, typename KeyFn = key>
 auto equal_range(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> iterator_range<decltype(std::begin(r) + 1)> {
     auto first = std::begin(r);
-    size_t count = static_cast<size_t>(std::distance(first, std::end(r)));
+    size_t count = static_cast<size_t>(std::end(r) - first);
     while (count > 0) {
         size_t count2 = count / 2;
         auto mid = std::next(first, count2);
@@ -230,31 +237,8 @@ auto equal_range(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> iterator_range<
         } else if (k < fn(*mid)) {
             count = count2;
         } else {
-            size_t count_lower = count2;
-            auto lower = first;
-            first = ++mid;
-            count -= count2 + 1;
-            while (count_lower > 0) {
-                count2 = count_lower / 2;
-                mid = std::next(lower, count2);
-                if (fn(*mid) < k) {
-                    lower = ++mid;
-                    count_lower -= count2 + 1;
-                } else {
-                    count_lower = count2;
-                }
-            }
-            while (count > 0) {
-                count2 = count / 2;
-                mid = std::next(first, count2);
-                if (!(k < fn(*mid))) {
-                    first = ++mid;
-                    count -= count2 + 1;
-                } else {
-                    count = count2;
-                }
-            }
-            return make_range(lower, first);
+            return make_range(detail::lower_bound(first, count2, k, fn),
+                              detail::upper_bound(++mid, count - count2 - 1, k, fn));
         }
     }
     return make_range(first, first);
