@@ -34,11 +34,9 @@ auto dllist_remove(Ty* node) -> decltype(node->next) {
 }
 
 template<typename Ty>
-auto dllist_remove(Ty* first, Ty* last) -> decltype(last->prev) {
-    auto* pre_last = last->prev;
+void dllist_remove(Ty* first, Ty* last) {
     first->prev->next = last;
     last->prev = first->prev;
-    return pre_last;
 }
 
 template<typename Ty>
