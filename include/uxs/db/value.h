@@ -344,7 +344,7 @@ class value::map_value {
  public:
     template<typename... Args>
     explicit map_value(std::string_view name, Args&&... args) : name_sz_(name.size()), v_(std::forward<Args>(args)...) {
-        std::copy_n(name.data(), name.size(), name_);
+        std::copy_n(name.data(), name.size(), static_cast<char*>(name_));
     }
     map_value(const map_value&) = delete;
     map_value& operator=(const map_value&) = delete;

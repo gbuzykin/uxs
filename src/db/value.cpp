@@ -673,11 +673,11 @@ void value::resize(size_t sz) {
     } else if (sz > value_.arr->capacity) {
         value_.arr = dynarray<value>::grow(value_.arr, sz - value_.arr->size);
     } else if (sz < value_.arr->size) {
-        std::for_each(value_.arr->data + sz, value_.arr->data + value_.arr->size, [](value& v) { v.destroy(); });
+        std::for_each(&value_.arr->data[sz], &value_.arr->data[value_.arr->size], [](value& v) { v.destroy(); });
         value_.arr->size = sz;
         return;
     }
-    std::for_each(value_.arr->data + value_.arr->size, value_.arr->data + sz, [](value& v) { new (&v) value(); });
+    std::for_each(&value_.arr->data[value_.arr->size], &value_.arr->data[sz], [](value& v) { new (&v) value(); });
     value_.arr->size = sz;
 }
 
@@ -708,8 +708,8 @@ void value::push_back(char ch) {
 void value::remove(size_t pos) {
     if (type_ != dtype::kArray) { throw exception("not an array"); }
     if (!value_.arr || pos >= value_.arr->size) { throw exception("index out of range"); }
-    value* v = value_.arr->data + pos;
-    value* v_end = value_.arr->data + --value_.arr->size;
+    value* v = &value_.arr->data[pos];
+    value* v_end = &value_.arr->data[--value_.arr->size];
     for (; v != v_end; ++v) { *v = std::move(*(v + 1)); }
     v->~value();
 }
@@ -717,8 +717,8 @@ void value::remove(size_t pos) {
 void value::remove(size_t pos, value& removed) {
     if (type_ != dtype::kArray) { throw exception("not an array"); }
     if (!value_.arr || pos >= value_.arr->size) { throw exception("index out of range"); }
-    value* v = value_.arr->data + pos;
-    value* v_end = value_.arr->data + --value_.arr->size;
+    value* v = &value_.arr->data[pos];
+    value* v_end = &value_.arr->data[--value_.arr->size];
     removed = std::move(*v);
     for (; v != v_end; ++v) { *v = std::move(*(v + 1)); }
     v->~value();
@@ -803,7 +803,7 @@ void value::print_scalar(iobuf& out) const {
     if (v.size() == 0) { return nullptr; }
     dynarray<value>* arr = dynarray<value>::alloc(v.size());
     try {
-        uxs::uninitialized_copy(v, arr->data);
+        uxs::uninitialized_copy(v, static_cast<value*>(arr->data));
     } catch (...) {
         dynarray<value>::dealloc(arr);
         throw;
@@ -825,7 +825,7 @@ void value::print_scalar(iobuf& out) const {
     } else if (v.size() != 0) {
         dynarray<value>* new_arr = dynarray<value>::alloc(v.size());
         try {
-            uxs::uninitialized_copy(v, new_arr->data);
+            uxs::uninitialized_copy(v, static_cast<value*>(new_arr->data));
         } catch (...) {
             dynarray<value>::dealloc(new_arr);
             throw;
@@ -896,9 +896,9 @@ void value::reserve_back() {
 
 void value::rotate_back(size_t pos) {
     assert(pos != value_.arr->size - 1);
-    value* v = value_.arr->data + value_.arr->size;
+    value* v = &value_.arr->data[value_.arr->size];
     value t(std::move(*(v - 1)));
-    while (--v != value_.arr->data + pos) { *v = std::move(*(v - 1)); }
+    while (--v != &value_.arr->data[pos]) { *v = std::move(*(v - 1)); }
     *v = std::move(t);
 }
 
