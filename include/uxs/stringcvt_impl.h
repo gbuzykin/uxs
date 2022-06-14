@@ -555,7 +555,6 @@ inline unsigned fmt_float_len(int exp, char sign, bool is_fixed, bool alternate,
            (prec > 0 || alternate ? prec + 1 : 0);
 }
 
-#if 0
 template<typename CharT>
 CharT* fmt_gen_float(CharT* p, const fp10_t& fp10, char sign, bool is_fixed, fmt_flags flags, int prec) {
     const char dot_symb = '.';
@@ -647,7 +646,6 @@ basic_dynbuffer<CharT>& fmt_gen_float(basic_dynbuffer<CharT>& s, const fp10_t& f
                                       unsigned len, fmt_flags flags, int prec) {
     return s.setcurr(fmt_gen_float(s.reserve_at_curr(len), fp10, sign, is_fixed, flags, prec));
 }
-#endif
 
 template<typename StrTy>
 StrTy& fmt_gen_float(StrTy& s, const fp10_t& fp10, char sign, bool is_fixed, unsigned len, fmt_flags flags, int prec) {
