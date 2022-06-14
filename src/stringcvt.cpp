@@ -688,6 +688,8 @@ fp10_t fp2_to_fp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& fp_fmt, int& prec, 
                 // Remove one excess digit for scientific format
                 // Note: `fp10.m` is exact power of 10 in this case
                 fp10.m /= 10u;
+            } else {
+                ++n_digs;
             }
         }
     }
@@ -733,7 +735,10 @@ fp10_t fp2_to_fp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& fp_fmt, int& prec, 
         }
 
         prec -= remove_trailing_zeros(fp10.m);
-        if (prec0 - prec == n_digs) { ++fp10.exp, ++prec; }  // overflow while rounding
+        if (n_digs + prec == prec0) {  // overflow while rounding
+            ++fp10.exp;
+            if (fp_fmt != fmt_flags::kFixed) { ++prec; }
+        }
 
         if (prec >= 0) {
         } else if (prec >= -4) {
