@@ -26,8 +26,8 @@ class UXS_EXPORT zipfile : public iodevice {
     bool open(ziparch& arch, const wchar_t* fname);
     void close();
 
-    int read(void* buf, size_type sz, size_type& n_read) override;
-    int write(const void* data, size_type sz, size_type& n_written) override { return -1; }
+    int read(void* buf, size_t sz, size_t& n_read) override;
+    int write(const void* data, size_t sz, size_t& n_written) override { return -1; }
     int flush() override { return -1; }
 
  private:

@@ -59,8 +59,8 @@ basic_iobuf<CharT>& basic_iobuf<CharT>::write(span<const char_type> s) {
     if (s.empty()) { return *this; }
     auto p = s.begin();
     for (std::ptrdiff_t n_free = last_ - curr_; s.end() - p > n_free; n_free = last_ - curr_) {
-        if (n_free != 0) { curr_ = std::copy_n(p, n_free, curr_), p += n_free; }
-        if (!this->good() || overflow(*p++) < 0) {
+        if (n_free) { curr_ = std::copy_n(p, n_free, curr_), p += n_free; }
+        if (!this->good() || overflow() < 0) {
             this->setstate(iostate_bits::kBad);
             return *this;
         }
@@ -71,10 +71,10 @@ basic_iobuf<CharT>& basic_iobuf<CharT>::write(span<const char_type> s) {
 
 template<typename CharT>
 basic_iobuf<CharT>& basic_iobuf<CharT>::fill_n(size_type n, char_type ch) {
-    if (n == 0) { return *this; }
-    for (size_type n_free = last_ - curr_; n > n_free; n_free = last_ - curr_, --n) {
-        if (n_free != 0) { curr_ = std::fill_n(curr_, n_free, ch), n -= n_free; }
-        if (!this->good() || overflow(ch) < 0) {
+    if (!n) { return *this; }
+    for (size_type n_free = last_ - curr_; n > n_free; n_free = last_ - curr_) {
+        if (n_free) { curr_ = std::fill_n(curr_, n_free, ch), n -= n_free; }
+        if (!this->good() || overflow() < 0) {
             this->setstate(iostate_bits::kBad);
             return *this;
         }
@@ -98,7 +98,7 @@ typename basic_iobuf<CharT>::pos_type basic_iobuf<CharT>::seek(off_type off, see
         return -1;
     }
     pos_type pos = seekimpl(off, dir);
-    if (pos == pos_type(-1)) { this->setstate(iostate_bits::kFail); }
+    if (pos < 0) { this->setstate(iostate_bits::kFail); }
     return pos;
 }
 
@@ -108,12 +108,12 @@ int basic_iobuf<CharT>::underflow() {
 }
 
 template<typename CharT>
-int basic_iobuf<CharT>::ungetfail(char_type ch) {
+int basic_iobuf<CharT>::ungetfail() {
     return -1;
 }
 
 template<typename CharT>
-int basic_iobuf<CharT>::overflow(char_type ch) {
+int basic_iobuf<CharT>::overflow() {
     return -1;
 }
 

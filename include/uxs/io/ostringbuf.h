@@ -29,7 +29,7 @@ class UXS_EXPORT basic_ostringbuf : public basic_iobuf<CharT> {
     }
 
  protected:
-    int overflow(char_type ch) override;
+    int overflow() override;
     int sync() override;
     pos_type seekimpl(off_type off, seekdir dir) override;
 

@@ -63,17 +63,17 @@ bool sysfile::open(const char* fname, iomode mode) { return open(from_utf8_to_wi
 
 void sysfile::close() { ::CloseHandle(detach()); }
 
-int sysfile::read(void* data, size_type sz, size_type& n_read) {
+int sysfile::read(void* data, size_t sz, size_t& n_read) {
     DWORD n_read_native = 0;
     if (!::ReadFile(fd_, data, static_cast<DWORD>(sz), &n_read_native, NULL)) { return -1; }
-    n_read = static_cast<size_type>(n_read_native);
+    n_read = static_cast<size_t>(n_read_native);
     return 0;
 }
 
-int sysfile::write(const void* data, size_type sz, size_type& n_written) {
+int sysfile::write(const void* data, size_t sz, size_t& n_written) {
     DWORD n_written_native = 0;
     if (!::WriteFile(fd_, data, static_cast<DWORD>(sz), &n_written_native, NULL)) { return -1; }
-    n_written = static_cast<size_type>(n_written_native);
+    n_written = static_cast<size_t>(n_written_native);
     return 0;
 }
 
