@@ -44,26 +44,26 @@ bool operator==(const value& lhs, const value& rhs) {
 // --------------------------
 
 template<typename Ty>
-/*static*/ value::dynarray<Ty>* value::dynarray<Ty>::alloc(size_t cap) {
+/*static*/ value::flexarray<Ty>* value::flexarray<Ty>::alloc(size_t cap) {
     size_t alloc_sz = get_alloc_sz(cap);
-    dynarray* arr = std::allocator<dynarray>().allocate(alloc_sz);
-    arr->capacity = (alloc_sz * sizeof(dynarray) - offsetof(dynarray, data[0])) / sizeof(Ty);
+    flexarray* arr = std::allocator<flexarray>().allocate(alloc_sz);
+    arr->capacity = (alloc_sz * sizeof(flexarray) - offsetof(flexarray, data[0])) / sizeof(Ty);
     assert(arr->capacity >= cap && get_alloc_sz(arr->capacity) == alloc_sz);
     return arr;
 }
 
 template<typename Ty>
-/*static*/ value::dynarray<Ty>* value::dynarray<Ty>::grow(dynarray* arr, size_t extra) {
+/*static*/ value::flexarray<Ty>* value::flexarray<Ty>::grow(flexarray* arr, size_t extra) {
     size_t delta_sz = std::max(extra, arr->size >> 1);
-    using alloc_traits = std::allocator_traits<std::allocator<dynarray>>;
-    size_t max_size = (alloc_traits::max_size(std::allocator<dynarray>()) * sizeof(dynarray) -
-                       offsetof(dynarray, data[0])) /
+    using alloc_traits = std::allocator_traits<std::allocator<flexarray>>;
+    size_t max_size = (alloc_traits::max_size(std::allocator<flexarray>()) * sizeof(flexarray) -
+                       offsetof(flexarray, data[0])) /
                       sizeof(Ty);
     if (delta_sz > max_size - arr->size) {
         if (extra > max_size - arr->size) { throw std::length_error("too much to reserve"); }
         delta_sz = std::max(extra, (max_size - arr->size) >> 1);
     }
-    dynarray* new_arr = alloc(arr->size + delta_sz);
+    flexarray* new_arr = alloc(arr->size + delta_sz);
     if (arr->size != 0) { std::memcpy(new_arr->data, arr->data, arr->size * sizeof(Ty)); }
     new_arr->size = arr->size;
     dealloc(arr);
@@ -71,8 +71,8 @@ template<typename Ty>
 }
 
 template<typename Ty>
-/*static*/ void value::dynarray<Ty>::dealloc(dynarray* arr) {
-    std::allocator<dynarray>().deallocate(arr, get_alloc_sz(arr->capacity));
+/*static*/ void value::flexarray<Ty>::dealloc(flexarray* arr) {
+    std::allocator<flexarray>().deallocate(arr, get_alloc_sz(arr->capacity));
 }
 
 // --------------------------
@@ -533,7 +533,7 @@ bool value::convert(dtype type) {
         case dtype::kString: *this = as_string(); break;
         case dtype::kArray: {
             if (type_ != dtype::kNull) {
-                dynarray<value>* arr = dynarray<value>::alloc(kMinCapacity);
+                flexarray<value>* arr = flexarray<value>::alloc(kMinCapacity);
                 arr->data[0] = std::move(*this);
                 arr->size = 1;
                 value_.arr = arr;
@@ -667,11 +667,11 @@ void value::resize(size_t sz) {
             type_ = dtype::kArray;
             return;
         }
-        value_.arr = dynarray<value>::alloc(sz);
+        value_.arr = flexarray<value>::alloc(sz);
         value_.arr->size = 0;
         type_ = dtype::kArray;
     } else if (sz > value_.arr->capacity) {
-        value_.arr = dynarray<value>::grow(value_.arr, sz - value_.arr->size);
+        value_.arr = flexarray<value>::grow(value_.arr, sz - value_.arr->size);
     } else if (sz < value_.arr->size) {
         std::for_each(&value_.arr->data[sz], &value_.arr->data[value_.arr->size], [](value& v) { v.destroy(); });
         value_.arr->size = sz;
@@ -684,10 +684,10 @@ void value::resize(size_t sz) {
 value& value::append(std::string_view s) {
     if (type_ != dtype::kString) { throw exception("not a string"); }
     if (!value_.str) {
-        value_.str = dynarray<char>::alloc(s.size());
+        value_.str = flexarray<char>::alloc(s.size());
         value_.str->size = 0;
     } else if (s.size() > value_.str->capacity - value_.str->size) {
-        value_.str = dynarray<char>::grow(value_.str, s.size());
+        value_.str = flexarray<char>::grow(value_.str, s.size());
     }
     std::copy_n(s.data(), s.size(), &value_.str->data[value_.str->size]);
     value_.str->size += s.size();
@@ -697,10 +697,10 @@ value& value::append(std::string_view s) {
 void value::push_back(char ch) {
     if (type_ != dtype::kString) { throw exception("not a string"); }
     if (!value_.str) {
-        value_.str = dynarray<char>::alloc(1);
+        value_.str = flexarray<char>::alloc(1);
         value_.str->size = 0;
     } else if (value_.str->size == value_.str->capacity) {
-        value_.str = dynarray<char>::grow(value_.str, 1);
+        value_.str = flexarray<char>::grow(value_.str, 1);
     }
     value_.str->data[value_.str->size++] = ch;
 }
@@ -779,19 +779,19 @@ void value::print_scalar(iobuf& out) const {
 
 // --------------------------
 
-/*static*/ value::dynarray<char>* value::copy_string(span<const char> s) {
+/*static*/ value::flexarray<char>* value::copy_string(span<const char> s) {
     if (s.size() == 0) { return nullptr; }
-    dynarray<char>* str = dynarray<char>::alloc(s.size());
+    flexarray<char>* str = flexarray<char>::alloc(s.size());
     str->size = s.size();
     std::memcpy(str->data, s.data(), s.size());
     return str;
 }
 
-/*static*/ value::dynarray<char>* value::assign_string(dynarray<char>* str, span<const char> s) {
+/*static*/ value::flexarray<char>* value::assign_string(flexarray<char>* str, span<const char> s) {
     if (!str || s.size() > str->capacity) {
         if (s.size() == 0) { return nullptr; }
-        dynarray<char>* new_str = dynarray<char>::alloc(s.size());
-        if (str) { dynarray<char>::dealloc(str); }
+        flexarray<char>* new_str = flexarray<char>::alloc(s.size());
+        if (str) { flexarray<char>::dealloc(str); }
         str = new_str;
     }
     str->size = s.size();
@@ -799,20 +799,20 @@ void value::print_scalar(iobuf& out) const {
     return str;
 }
 
-/*static*/ value::dynarray<value>* value::copy_array(span<const value> v) {
+/*static*/ value::flexarray<value>* value::copy_array(span<const value> v) {
     if (v.size() == 0) { return nullptr; }
-    dynarray<value>* arr = dynarray<value>::alloc(v.size());
+    flexarray<value>* arr = flexarray<value>::alloc(v.size());
     try {
         uxs::uninitialized_copy(v, static_cast<value*>(arr->data));
     } catch (...) {
-        dynarray<value>::dealloc(arr);
+        flexarray<value>::dealloc(arr);
         throw;
     }
     arr->size = v.size();
     return arr;
 }
 
-/*static*/ value::dynarray<value>* value::assign_array(dynarray<value>* arr, span<const value> v) {
+/*static*/ value::flexarray<value>* value::assign_array(flexarray<value>* arr, span<const value> v) {
     if (arr && v.size() <= arr->capacity) {
         span<value> v_tgt = arr->view();
         if (v.size() > v_tgt.size()) {
@@ -823,14 +823,14 @@ void value::print_scalar(iobuf& out) const {
             uxs::for_each(v_tgt.subspan(v.size(), v_tgt.size() - v.size()), [](value& v) { v.destroy(); });
         }
     } else if (v.size() != 0) {
-        dynarray<value>* new_arr = dynarray<value>::alloc(v.size());
+        flexarray<value>* new_arr = flexarray<value>::alloc(v.size());
         try {
             uxs::uninitialized_copy(v, static_cast<value*>(new_arr->data));
         } catch (...) {
-            dynarray<value>::dealloc(new_arr);
+            flexarray<value>::dealloc(new_arr);
             throw;
         }
-        if (arr) { dynarray<value>::dealloc(arr); }
+        if (arr) { flexarray<value>::dealloc(arr); }
         arr = new_arr;
     }
     return arr;
@@ -865,12 +865,12 @@ void value::copy_from(const value& other) {
 void value::destroy() {
     switch (type_) {
         case dtype::kString: {
-            if (value_.str) { dynarray<char>::dealloc(value_.str); }
+            if (value_.str) { flexarray<char>::dealloc(value_.str); }
         } break;
         case dtype::kArray: {
             if (value_.arr) {
                 uxs::for_each(value_.arr->view(), [](value& v) { v.~value(); });
-                dynarray<value>::dealloc(value_.arr);
+                flexarray<value>::dealloc(value_.arr);
             }
         } break;
         case dtype::kRecord: {
@@ -886,11 +886,11 @@ void value::destroy() {
 void value::reserve_back() {
     if (type_ != dtype::kArray || !value_.arr) {
         if (type_ != dtype::kArray && type_ != dtype::kNull) { throw exception("not an array"); }
-        value_.arr = dynarray<value>::alloc(kMinCapacity);
+        value_.arr = flexarray<value>::alloc(kMinCapacity);
         value_.arr->size = 0;
         type_ = dtype::kArray;
     } else if (value_.arr->size == value_.arr->capacity) {
-        value_.arr = dynarray<value>::grow(value_.arr, 1);
+        value_.arr = flexarray<value>::grow(value_.arr, 1);
     }
 }
 
@@ -902,5 +902,5 @@ void value::rotate_back(size_t pos) {
     *v = std::move(t);
 }
 
-template struct value::dynarray<char>;
-template struct value::dynarray<value>;
+template struct value::flexarray<char>;
+template struct value::flexarray<value>;
