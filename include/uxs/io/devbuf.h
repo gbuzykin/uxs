@@ -56,6 +56,7 @@ class UXS_EXPORT basic_devbuf : public basic_iobuf<CharT> {
     const char_type* find_end_of_ctrlesc(const char_type* first, const char_type* last);
     int write_buf(const void* data, size_t sz);
     int read_buf(void* data, size_t sz, size_t& n_read);
+    int flush_compressed_buf();
     int write_compressed(const void* data, size_t sz);
     void finish_compressed();
     int read_compressed(void* data, size_t sz, size_t& n_read);
