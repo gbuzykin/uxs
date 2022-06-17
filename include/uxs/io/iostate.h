@@ -12,6 +12,7 @@ enum class iomode : uint16_t {
     kAppend = 8,
     kCreate = 0x10,
     kExcl = 0x20,
+    kZCompr = 0x40,
     kCrLf = 0x80,
 #if defined(WIN32)
     kText = kCrLf,
