@@ -129,10 +129,10 @@ int json::reader::parse_token(std::string_view& lval) {
     while (true) {
         int pat = 0;
         unsigned llen = 0;
-        const char* first = input_.in_avail_first();
+        const char* first = input_.first_avail();
         while (true) {
             bool stack_limitation = false;
-            const char* last = input_.in_avail_last();
+            const char* last = input_.last_avail();
             if (state_stack_.avail() < static_cast<size_t>(last - first)) {
                 last = first + state_stack_.avail();
                 stack_limitation = true;
@@ -147,22 +147,22 @@ int json::reader::parse_token(std::string_view& lval) {
             } else if (!input_) {
                 return kEof;  // end of sequence, first_ == last_
             }
-            if (!input_.in_avail_empty()) {  // append read buffer to stash
-                stash_.append(input_.in_avail_first(), input_.in_avail_last());
-                input_.bump(input_.in_avail());
+            if (input_.avail()) {  // append read buffer to stash
+                stash_.append(input_.first_avail(), input_.last_avail());
+                input_.bump(input_.avail());
             }
             // read more characters from input
             input_.peek();
-            first = input_.in_avail_first();
+            first = input_.first_avail();
         }
-        const char* lexeme = input_.in_avail_first();
+        const char* lexeme = input_.first_avail();
         if (stash_.empty()) {  // the stash is empty
             input_.bump(llen);
         } else {
             if (llen >= stash_.size()) {  // all characters in stash buffer are used
                 // concatenate full lexeme in stash
                 size_t len_rest = llen - stash_.size();
-                stash_.append(input_.in_avail_first(), input_.in_avail_first() + len_rest);
+                stash_.append(input_.first_avail(), input_.first_avail() + len_rest);
                 input_.bump(len_rest);
             } else {  // at least one character in stash is yet unused
                       // put unused chars back to `iobuf`

@@ -35,11 +35,11 @@ void basic_devbuf<CharT>::initbuf(iomode mode, size_type bufsz) {
     if (!(mode & iomode::kIn) && !(mode & iomode::kOut)) { return; }
     if (!!(mode & iomode::kOut)) { mode &= ~iomode::kIn; }
     this->setmode(mode);
-    bufsz = std::max<size_type>(bufsz, kMinBufSize) / sizeof(char_type);
+    bufsz = std::max<size_t>(bufsz, kMinBufSize) / sizeof(char_type);
     char_type* buf = std::allocator<char_type>().allocate(bufsz);
     bufsz_ = bufsz;
     if (!!(mode & iomode::kOut)) {
-        size_type cr_reserve_sz = !!(mode & iomode::kCrLf) ? bufsz / kCrReserveRatio : 0;
+        size_t cr_reserve_sz = !!(mode & iomode::kCrLf) ? bufsz / kCrReserveRatio : 0;
         this->setview(buf + cr_reserve_sz, buf + cr_reserve_sz, buf + bufsz);
     } else {
         *buf = '\0';
@@ -78,12 +78,12 @@ const typename basic_devbuf<CharT>::char_type* basic_devbuf<CharT>::find_end_of_
 }
 
 template<typename CharT>
-int basic_devbuf<CharT>::write_all(const void* data, size_type sz) {
+int basic_devbuf<CharT>::write_all(const void* data, size_t sz) {
     int ret = 0;
-    size_type n_written = sz;
+    size_t n_written = sz;
     sz *= sizeof(char_type);
     do {
-        size_type chunk_sz = 0;
+        size_t chunk_sz = 0;
         if ((ret = dev_->write(data, sz, chunk_sz)) < 0) { return ret; }
         data = reinterpret_cast<const uint8_t*>(data) + chunk_sz, sz -= chunk_sz;
     } while (sz != 0);
@@ -92,12 +92,12 @@ int basic_devbuf<CharT>::write_all(const void* data, size_type sz) {
 }
 
 template<typename CharT>
-int basic_devbuf<CharT>::read_at_least_one(void* data, size_type sz, size_type& n_read) {
+int basic_devbuf<CharT>::read_at_least_one(void* data, size_t sz, size_t& n_read) {
     int ret = 0;
     sz *= sizeof(char_type);
     n_read = 0;
     do {
-        size_type chunk_sz = 0;
+        size_t chunk_sz = 0;
         if ((ret = dev_->read(data, sz, chunk_sz)) < 0) { return ret; }
         if (chunk_sz == 0) { break; }
         data = reinterpret_cast<uint8_t*>(data) + chunk_sz, n_read += chunk_sz;
@@ -166,7 +166,7 @@ int basic_devbuf<CharT>::flush_buffer() {
 }
 
 template<typename CharT>
-typename basic_devbuf<CharT>::size_type basic_devbuf<CharT>::remove_crlf(char_type* dst, size_type count) {
+size_t basic_devbuf<CharT>::remove_crlf(char_type* dst, size_t count) {
     if (count == 0) { return 0; }
     char_type* dst_end = dst + count;
     do {
@@ -178,7 +178,7 @@ typename basic_devbuf<CharT>::size_type basic_devbuf<CharT>::remove_crlf(char_ty
         if (*(dst - 1) != '\r' || *dst != '\n') { ++p; }
         *(p - 1) = *dst;
     }
-    return count - static_cast<size_type>(dst_end - p);
+    return count - static_cast<size_t>(dst_end - p);
 }
 
 template<typename CharT>
@@ -187,9 +187,9 @@ int basic_devbuf<CharT>::underflow() {
     if (!(this->mode() & iomode::kIn)) { return -1; }
     if (tie_buf_) { tie_buf_->flush(); }
     int ret = 0;
-    size_type n_read = 0;
+    size_t n_read = 0;
     if (!!(this->mode() & iomode::kCrLf)) {
-        size_type sz = bufsz_ - 1;
+        size_t sz = bufsz_ - 1;
         char_type* p = this->first();
         if (*this->last() == '\r') { *p++ = '\r', --sz; }
         if ((ret = read_at_least_one(p, sz, n_read)) < 0) { return ret; }
@@ -207,14 +207,11 @@ int basic_devbuf<CharT>::underflow() {
 }
 
 template<typename CharT>
-int basic_devbuf<CharT>::overflow(char_type ch) {
+int basic_devbuf<CharT>::overflow() {
     assert(dev_ && this->first() && this->curr() && this->last());
     if (!(this->mode() & iomode::kOut)) { return -1; }
     if (tie_buf_) { tie_buf_->flush(); }
-    int ret = flush_buffer();
-    if (ret < 0) { return ret; }
-    this->putcurr(ch);
-    return ret;
+    return flush_buffer();
 }
 
 template<typename CharT>

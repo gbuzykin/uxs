@@ -28,54 +28,55 @@ class UXS_EXPORT basic_iobuf : public iostate {
     basic_iobuf(basic_iobuf&& other) NOEXCEPT;
     basic_iobuf& operator=(basic_iobuf&& other) NOEXCEPT;
 
-    size_type in_avail() const { return last_ - curr_; }
-    bool in_avail_empty() const { return curr_ == last_; }
-    const char_type* in_avail_first() const { return curr_; }
-    const char_type* in_avail_last() const { return last_; }
-    span<const char_type> in_avail_view() const { return as_span(curr_, in_avail()); }
+    size_type avail() const { return last_ - curr_; }
+    char_type* first_avail() const { return curr_; }
+    char_type* last_avail() const { return last_; }
+    span<char_type> view_avail() const { return as_span(curr_, avail()); }
 
     int_type peek() {
-        if (curr_ == last_ && (!this->good() || underflow() < 0)) {
-            this->setstate(iostate_bits::kEof | iostate_bits::kFail);
-            return traits_type::eof();
-        }
-        return traits_type::to_int_type(*curr_);
+        if (curr_ != last_ || (this->good() && underflow() >= 0)) { return traits_type::to_int_type(*curr_); }
+        this->setstate(iostate_bits::kEof | iostate_bits::kFail);
+        return traits_type::eof();
     }
 
     int_type get() {
-        if (curr_ == last_ && (!this->good() || underflow() < 0)) {
-            this->setstate(iostate_bits::kEof | iostate_bits::kFail);
-            return traits_type::eof();
-        }
-        return traits_type::to_int_type(*curr_++);
+        if (curr_ != last_ || (this->good() && underflow() >= 0)) { return traits_type::to_int_type(*curr_++); }
+        this->setstate(iostate_bits::kEof | iostate_bits::kFail);
+        return traits_type::eof();
     }
 
     basic_iobuf& unget() {
         this->setstate(this->rdstate() & ~iostate_bits::kEof);
-        if (curr_ == first_) {
-            this->setstate(iostate_bits::kFail);
-        } else {
+        if (curr_ != first_) {
             --curr_;
+            return *this;
         }
+        this->setstate(iostate_bits::kFail);
         return *this;
     }
 
     basic_iobuf& unget(char_type ch) {
         this->setstate(this->rdstate() & ~iostate_bits::kEof);
-        if (curr_ == first_ && (!this->good() || ungetfail(ch) < 0)) {
-            this->setstate(iostate_bits::kFail);
-        } else {
+        if (curr_ != first_ || (this->good() && ungetfail() >= 0)) {
             *--curr_ = ch;
+            return *this;
         }
+        this->setstate(iostate_bits::kFail);
+        return *this;
+    }
+
+    basic_iobuf& reserve() {
+        if (curr_ != last_ || (this->good() && overflow() >= 0)) { return *this; }
+        this->setstate(iostate_bits::kBad);
         return *this;
     }
 
     basic_iobuf& put(char_type ch) {
-        if (curr_ != last_) {
+        if (curr_ != last_ || (this->good() && overflow() >= 0)) {
             *curr_++ = ch;
-        } else if (!this->good() || overflow(ch) < 0) {
-            this->setstate(iostate_bits::kBad);
+            return *this;
         }
+        this->setstate(iostate_bits::kBad);
         return *this;
     }
 
@@ -101,8 +102,8 @@ class UXS_EXPORT basic_iobuf : public iostate {
 
  protected:
     virtual int underflow();
-    virtual int ungetfail(char_type ch);
-    virtual int overflow(char_type ch);
+    virtual int ungetfail();
+    virtual int overflow();
     virtual pos_type seekimpl(off_type off, seekdir dir);
     virtual int sync();
 
@@ -111,7 +112,6 @@ class UXS_EXPORT basic_iobuf : public iostate {
     char_type* last() const { return last_; }
 
     void setcurr(char_type* curr) { curr_ = curr; }
-    void putcurr(char_type ch) { *curr_++ = ch; }
     void setview(char_type* first, char_type* curr, char_type* last) {
         first_ = first;
         curr_ = curr;

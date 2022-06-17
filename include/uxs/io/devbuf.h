@@ -29,7 +29,7 @@ class UXS_EXPORT basic_devbuf : public basic_iobuf<CharT> {
 
  protected:
     int underflow() override;
-    int overflow(char_type ch) override;
+    int overflow() override;
     pos_type seekimpl(off_type off, seekdir dir) override;
     int sync() override;
 
@@ -46,16 +46,16 @@ class UXS_EXPORT basic_devbuf : public basic_iobuf<CharT> {
 #endif  // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
     };
     iodevice* dev_ = nullptr;
-    size_type bufsz_ = 0;
+    size_t bufsz_ = 0;
     pos_type pos_ = 0;
     basic_iobuf<char_type>* tie_buf_ = nullptr;
 
     const char_type* find_end_of_ctrlesc(const char_type* first, const char_type* last);
-    int write_all(const void* data, size_type sz);
-    int read_at_least_one(void* data, size_type sz, size_type& n_read);
+    int write_all(const void* data, size_t sz);
+    int read_at_least_one(void* data, size_t sz, size_t& n_read);
     void parse_ctrlesc(const char_type* first, const char_type* last);
     int flush_buffer();
-    size_type remove_crlf(char_type* dst, size_type count);
+    size_t remove_crlf(char_type* dst, size_t count);
 };
 
 using devbuf = basic_devbuf<char>;

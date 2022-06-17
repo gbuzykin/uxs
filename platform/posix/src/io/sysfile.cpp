@@ -52,17 +52,17 @@ bool sysfile::open(const wchar_t* fname, iomode mode) { return open(from_wide_to
 
 void sysfile::close() { ::close(detach()); }
 
-int sysfile::read(void* data, size_type sz, size_type& n_read) {
+int sysfile::read(void* data, size_t sz, size_t& n_read) {
     ssize_t result = ::read(fd_, data, sz);
     if (result < 0) { return -1; }
-    n_read = static_cast<size_type>(result);
+    n_read = static_cast<size_t>(result);
     return 0;
 }
 
-int sysfile::write(const void* data, size_type sz, size_type& n_written) {
+int sysfile::write(const void* data, size_t sz, size_t& n_written) {
     ssize_t result = ::write(fd_, data, sz);
     if (result < 0) { return -1; }
-    n_written = static_cast<size_type>(result);
+    n_written = static_cast<size_t>(result);
     return 0;
 }
 
