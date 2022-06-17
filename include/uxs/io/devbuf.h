@@ -39,20 +39,26 @@ class UXS_EXPORT basic_devbuf : public basic_iobuf<CharT> {
     enum : unsigned {
 #if defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
         kMinBufSize = 16384 / sizeof(char_type),
-        kCrReserveRatio = 16
+        kCrReserveRatio = 16,
 #else   // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
-        kMinBufSize = 13,
-        kCrReserveRatio = 7
+        kMinBufSize = 15,
+        kCrReserveRatio = 7,
 #endif  // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
+        kMaxBufSize = 1024 * 1024 * 1024 / sizeof(char_type),
     };
+
+    struct flexbuffer;
     iodevice* dev_ = nullptr;
-    size_t bufsz_ = 0;
+    flexbuffer* buf_ = nullptr;
     pos_type pos_ = 0;
     basic_iobuf<char_type>* tie_buf_ = nullptr;
 
     const char_type* find_end_of_ctrlesc(const char_type* first, const char_type* last);
-    int write_all(const void* data, size_t sz);
-    int read_at_least_one(void* data, size_t sz, size_t& n_read);
+    int write_buf(const void* data, size_t sz);
+    int read_buf(void* data, size_t sz, size_t& n_read);
+    int write_compressed(const void* data, size_t sz);
+    void finish_compressed();
+    int read_compressed(void* data, size_t sz, size_t& n_read);
     void parse_ctrlesc(const char_type* first, const char_type* last);
     int flush_buffer();
     size_t remove_crlf(char_type* dst, size_t count);

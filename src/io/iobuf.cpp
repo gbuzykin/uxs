@@ -20,6 +20,7 @@ iomode detail::iomode_from_str(const char* mode, iomode def) {
             case 'x': result |= iomode::kExcl; break;
             case 't': result |= iomode::kText; break;
             case 'b': result &= ~iomode::kText; break;
+            case 'z': result |= iomode::kZCompr; break;
             default: break;
         }
         ++mode;
