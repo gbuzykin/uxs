@@ -33,24 +33,24 @@ const empty_record_t empty_record{};
 class UXS_EXPORT value {
  private:
     template<typename Ty>
-    struct dynarray {
+    struct flexarray {
         size_t size;
         size_t capacity;
         Ty data[1];
 
-        dynarray(const dynarray&) = delete;
-        dynarray& operator=(const dynarray&) = delete;
+        flexarray(const flexarray&) = delete;
+        flexarray& operator=(const flexarray&) = delete;
 
         span<const Ty> view() const { return as_span(data, size); }
         span<Ty> view() { return as_span(data, size); }
 
         static size_t get_alloc_sz(size_t cap) {
-            return (offsetof(dynarray, data[cap]) + sizeof(dynarray) - 1) / sizeof(dynarray);
+            return (offsetof(flexarray, data[cap]) + sizeof(flexarray) - 1) / sizeof(flexarray);
         }
 
-        static dynarray* alloc(size_t cap);
-        static dynarray* grow(dynarray* arr, size_t extra);
-        static void dealloc(dynarray* arr);
+        static flexarray* alloc(size_t cap);
+        static flexarray* grow(flexarray* arr, size_t extra);
+        static void dealloc(flexarray* arr);
     };
 
 #if _ITERATOR_DEBUG_LEVEL != 0
@@ -315,8 +315,8 @@ class UXS_EXPORT value {
         int64_t i64;
         uint64_t u64;
         double dbl;
-        dynarray<char>* str;
-        dynarray<value>* arr;
+        flexarray<char>* str;
+        flexarray<value>* arr;
         record* rec;
     } value_;
 
@@ -326,11 +326,11 @@ class UXS_EXPORT value {
     span<const value> array_view() const { return value_.arr ? value_.arr->view() : span<value>(); }
     span<value> array_view() { return value_.arr ? value_.arr->view() : span<value>(); }
 
-    static dynarray<char>* copy_string(span<const char> s);
-    static dynarray<char>* assign_string(dynarray<char>* str, span<const char> s);
+    static flexarray<char>* copy_string(span<const char> s);
+    static flexarray<char>* assign_string(flexarray<char>* str, span<const char> s);
 
-    static dynarray<value>* copy_array(span<const value> v);
-    static dynarray<value>* assign_array(dynarray<value>* arr, span<const value> v);
+    static flexarray<value>* copy_array(span<const value> v);
+    static flexarray<value>* assign_array(flexarray<value>* arr, span<const value> v);
 
     void init_from(const value& other);
     void copy_from(const value& other);
