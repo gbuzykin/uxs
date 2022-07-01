@@ -29,15 +29,15 @@ class rbtree_multi : public rbtree_base<NodeTraits, Alloc, Comp> {
     explicit rbtree_multi(const key_compare& comp, const allocator_type& alloc) : super(comp, alloc) {}
     rbtree_multi(const rbtree_multi& other, const allocator_type& alloc) : super(other, alloc) {}
     rbtree_multi(rbtree_multi&& other, const allocator_type& alloc)
-        NOEXCEPT_IF(is_alloc_always_equal<alloc_type>::value)
+        NOEXCEPT_IF(noexcept(super(std::move(other), alloc)))
         : super(std::move(other), alloc) {}
 
 #if __cplusplus < 201703L
     ~rbtree_multi() = default;
     rbtree_multi(const rbtree_multi&) = default;
     rbtree_multi& operator=(const rbtree_multi&) = default;
-    rbtree_multi(rbtree_multi&& other) NOEXCEPT : super(std::move(other)) {}
-    rbtree_multi& operator=(rbtree_multi&& other) NOEXCEPT {
+    rbtree_multi(rbtree_multi&& other) NOEXCEPT_IF(noexcept(super(std::move(other)))) : super(std::move(other)) {}
+    rbtree_multi& operator=(rbtree_multi&& other) NOEXCEPT_IF(std::is_nothrow_move_assignable<super>::value) {
         super::operator=(std::move(other));
         return *this;
     }
