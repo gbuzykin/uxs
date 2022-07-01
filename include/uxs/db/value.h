@@ -40,6 +40,10 @@ template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt
 value make_record(InputIt first, InputIt last);
 
 class UXS_EXPORT value {
+ public:
+    template<typename Ty>
+    struct rec_value_proxy;
+
  private:
     template<typename Ty>
     struct flexarray_t {
@@ -73,18 +77,18 @@ class UXS_EXPORT value {
 
     struct list_node_type;
     struct list_node_traits;
-    class map_value;
+    struct rec_value;
 
     struct record_t {
-        using value_type = map_value;
+        using value_type = std::pair<std::string_view, value>;
         using size_type = size_t;
         using difference_type = std::ptrdiff_t;
-        using pointer = value_type*;
-        using const_pointer = const value_type*;
-        using reference = value_type&;
-        using const_reference = const value_type&;
+        using reference = rec_value_proxy<value&>;
+        using const_reference = rec_value_proxy<const value&>;
+        using pointer = reference;
+        using const_pointer = const_reference;
 
-        list_links_type head;
+        mutable list_links_type head;
         size_t size;
         size_t bucket_count;
         list_links_type* hashtbl[1];
@@ -96,6 +100,7 @@ class UXS_EXPORT value {
         void destroy(list_links_type* node);
 
         list_links_type* find(std::string_view name, size_t hash_code) const;
+        size_t count(std::string_view name) const;
 
         static record_t* alloc() {
             record_t* rec = alloc(1);
@@ -120,9 +125,10 @@ class UXS_EXPORT value {
         list_links_type* new_node(std::string_view name, Args&&... args);
         static void delete_node(list_links_type* node);
         static size_t calc_hash_code(std::string_view name);
-        void insert(size_t hash_code, list_links_type* node);
         void add_to_hash(list_links_type* node, size_t hash_code);
-        list_links_type* erase(std::string_view name);
+        void insert(size_t hash_code, list_links_type* node);
+        list_links_type* erase(list_links_type* node);
+        size_t erase(std::string_view name);
 
         static size_t max_size();
         static size_t get_alloc_sz(size_t bckt_cnt);
@@ -274,28 +280,43 @@ class UXS_EXPORT value {
 
     bool convert(dtype type);
 
-    size_t size() const;
-    bool empty() const;
-    bool contains(std::string_view name) const;
+    bool empty() const NOEXCEPT;
+    size_t size() const NOEXCEPT;
     std::vector<std::string_view> members() const;
     explicit operator bool() const { return !is_null(); }
 
-    span<const value> as_array() const;
-    span<value> as_array();
+    span<const value> as_array() const NOEXCEPT;
+    span<value> as_array() NOEXCEPT;
 
-    iterator_range<const_record_iterator> as_map() const;
-    iterator_range<record_iterator> as_map();
+    iterator_range<const_record_iterator> as_record() const;
+    iterator_range<record_iterator> as_record();
 
-    const value& operator[](size_t i) const;
-    value& operator[](size_t i);
+    const value& operator[](size_t i) const { return as_array()[i]; }
+    value& operator[](size_t i) { return as_array()[i]; }
+
+    const value& at(size_t i) const {
+        auto range = as_array();
+        if (i >= range.size()) { throw exception("index out of range"); }
+        return range[i];
+    }
+
+    value& at(size_t i) {
+        auto range = as_array();
+        if (i >= range.size()) { throw exception("index out of range"); }
+        return range[i];
+    }
 
     const value& operator[](std::string_view name) const;
     value& operator[](std::string_view name);
 
-    const value* find(std::string_view name) const;
-    value* find(std::string_view name) { return const_cast<value*>(std::as_const(*this).find(name)); }
+    const_record_iterator find(std::string_view name) const;
+    record_iterator find(std::string_view name);
+    const_record_iterator nil() const NOEXCEPT;
+    record_iterator nil() NOEXCEPT;
+    bool contains(std::string_view name) const;
+    size_t count(std::string_view name) const;
 
-    void clear();
+    void clear() NOEXCEPT;
     void reserve(size_t sz);
     void resize(size_t sz);
 
@@ -331,10 +352,9 @@ class UXS_EXPORT value {
     void insert(InputIt first, InputIt last);
     void insert(std::initializer_list<std::pair<std::string_view, value>> init);
 
-    void remove(size_t pos);
-    void remove(size_t pos, value& removed);
-    bool remove(std::string_view name);
-    bool remove(std::string_view name, value& removed);
+    void erase(size_t pos);
+    record_iterator erase(const_record_iterator it);
+    size_t erase(std::string_view name);
 
  private:
     friend class json::writer;
@@ -429,38 +449,58 @@ class UXS_EXPORT value {
     void rotate_back(size_t pos);
 };
 
-class value::map_value {
- public:
-    template<typename... Args>
-    explicit map_value(std::string_view name, Args&&... args) : name_sz_(name.size()), v_(std::forward<Args>(args)...) {
-        std::copy_n(name.data(), name.size(), static_cast<char*>(name_));
-    }
-    map_value(const map_value&) = delete;
-    map_value& operator=(const map_value&) = delete;
-    std::string_view name() const { return std::string_view(name_, name_sz_); }
-    const value& val() const { return v_; }
-    value& val() { return v_; }
-
-    friend bool operator==(const map_value& lhs, const map_value& rhs) {
-        return lhs.name() == rhs.name() && lhs.val() == rhs.val();
-    }
-    friend bool operator!=(const map_value& lhs, const map_value& rhs) { return !(lhs == rhs); }
-
- private:
-    friend struct value::record_t;
+struct value::rec_value {
     size_t name_sz_;
     value v_;
     char name_[1];
 
-    static size_t get_alloc_sz(size_t name_sz) {
-        return (offsetof(map_value, name_[name_sz]) + sizeof(map_value) - 1) / sizeof(map_value);
+    template<typename... Args>
+    explicit rec_value(std::string_view name, Args&&... args) : name_sz_(name.size()), v_(std::forward<Args>(args)...) {
+        std::copy_n(name.data(), name.size(), static_cast<char*>(name_));
     }
+    rec_value(const rec_value&) = delete;
+    rec_value& operator=(const rec_value&) = delete;
+
+    std::string_view name() const { return std::string_view(name_, name_sz_); }
+    const value& val() const { return v_; }
+    value& val() { return v_; }
+
+    static size_t get_alloc_sz(size_t name_sz) {
+        return (offsetof(rec_value, name_[name_sz]) + sizeof(rec_value) - 1) / sizeof(rec_value);
+    }
+};
+
+template<typename Ty>
+struct value::rec_value_proxy : std::pair<std::string_view, Ty&> {
+    rec_value_proxy(rec_value& v) : std::pair<std::string_view, Ty&>(v.name(), v.val()) {}
+    static rec_value_proxy addressof(const rec_value_proxy& proxy) { return proxy; }
+    const rec_value_proxy* operator->() const { return this; }
+    template<typename Ty1, typename Ty2>
+    friend bool operator==(const rec_value_proxy& lhs, const std::pair<Ty1, Ty2>& rhs) {
+        return lhs.first == rhs.first && lhs.second == rhs.second;
+    }
+    template<typename Ty1, typename Ty2>
+    friend bool operator==(const std::pair<Ty1, Ty2>& lhs, const rec_value_proxy& rhs) {
+        return lhs.first == rhs.first && lhs.second == rhs.second;
+    }
+    template<typename Ty1, typename Ty2>
+    friend bool operator!=(const rec_value_proxy& lhs, const std::pair<Ty1, Ty2>& rhs) {
+        return !(lhs == rhs);
+    }
+    template<typename Ty1, typename Ty2>
+    friend bool operator!=(const std::pair<Ty1, Ty2>& lhs, const rec_value_proxy& rhs) {
+        return !(lhs == rhs);
+    }
+    friend bool operator==(const rec_value_proxy& lhs, const rec_value_proxy& rhs) {
+        return lhs.first == rhs.first && lhs.second == rhs.second;
+    }
+    friend bool operator!=(const rec_value_proxy& lhs, const rec_value_proxy& rhs) { return !(lhs == rhs); }
 };
 
 struct value::list_node_type : list_links_type {
     list_links_type* bucket_next;
     size_t hash_code;
-    map_value v;
+    rec_value v;
 };
 
 struct value::list_node_traits {
@@ -475,7 +515,7 @@ struct value::list_node_traits {
 #else   // _ITERATOR_DEBUG_LEVEL != 0
     static void set_head(list_links_type* node, list_links_type* head) {}
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
-    static map_value& get_value(list_links_type* node) { return static_cast<node_t*>(node)->v; }
+    static rec_value& get_value(list_links_type* node) { return static_cast<node_t*>(node)->v; }
 };
 
 // --------------------------
@@ -547,17 +587,17 @@ value& value::emplace_back(Args&&... args) {
 
 inline void value::pop_back() {
     if (type_ != dtype::kArray) { throw exception("not an array"); }
-    if (!value_.arr || !value_.arr->size) { throw exception("array is empty"); }
+    assert(value_.arr && value_.arr->size);
     value_.arr->data[--value_.arr->size].~value();
 }
 
 template<typename... Args>
 value& value::emplace(size_t pos, Args&&... args) {
     if (type_ != dtype::kArray || !value_.arr || value_.arr->size == value_.arr->capacity) { reserve_back(); }
-    if (pos > value_.arr->size) { throw exception("index out of range"); }
     new (&value_.arr->data[value_.arr->size]) value(std::forward<Args>(args)...);
     ++value_.arr->size;
-    if (pos != value_.arr->size - 1) { rotate_back(pos); }
+    if (pos >= value_.arr->size - 1) { return value_.arr->data[value_.arr->size - 1]; }
+    rotate_back(pos);
     return value_.arr->data[pos];
 }
 
@@ -600,6 +640,51 @@ void value::insert(InputIt first, InputIt last) {
                                value_.rec->new_node(first->first, first->second));
         }
     }
+}
+
+inline span<const value> value::as_array() const NOEXCEPT {
+    if (type_ == dtype::kArray) { return array_view(); }
+    return type_ != dtype::kNull ? as_span(this, 1) : span<value>();
+}
+
+inline span<value> value::as_array() NOEXCEPT {
+    if (type_ == dtype::kArray) { return array_view(); }
+    return type_ != dtype::kNull ? as_span(this, 1) : span<value>();
+}
+
+inline iterator_range<value::const_record_iterator> value::as_record() const {
+    if (type_ != dtype::kRecord) { throw exception("not a record"); }
+    return uxs::make_range(const_record_iterator(value_.rec->head.next), const_record_iterator(&value_.rec->head));
+}
+
+inline iterator_range<value::record_iterator> value::as_record() {
+    if (type_ != dtype::kRecord) { throw exception("not a record"); }
+    return uxs::make_range(record_iterator(value_.rec->head.next), record_iterator(&value_.rec->head));
+}
+
+inline value::const_record_iterator value::find(std::string_view name) const {
+    if (type_ != dtype::kRecord) { throw exception("not a record"); }
+    return const_record_iterator(value_.rec->find(name, record_t::calc_hash_code(name)));
+}
+
+inline value::record_iterator value::find(std::string_view name) {
+    if (type_ != dtype::kRecord) { throw exception("not a record"); }
+    return record_iterator(value_.rec->find(name, record_t::calc_hash_code(name)));
+}
+
+inline value::const_record_iterator value::nil() const NOEXCEPT {
+    return const_record_iterator(type_ == dtype::kRecord ? &value_.rec->head : nullptr);
+}
+
+inline value::record_iterator value::nil() NOEXCEPT {
+    return record_iterator(type_ == dtype::kRecord ? &value_.rec->head : nullptr);
+}
+
+inline bool value::contains(std::string_view name) const { return find(name) != nil(); }
+
+inline size_t value::count(std::string_view name) const {
+    if (type_ != dtype::kRecord) { throw exception("not a record"); }
+    return value_.rec->count(name);
 }
 
 // --------------------------
@@ -749,10 +834,10 @@ template<typename InputIt>
 
 template<typename... Args>
 value::list_links_type* value::record_t::new_node(std::string_view name, Args&&... args) {
-    const size_t alloc_sz = map_value::get_alloc_sz(name.size());
+    const size_t alloc_sz = rec_value::get_alloc_sz(name.size());
     list_links_type* node = std::allocator<list_node_type>().allocate(alloc_sz);
     try {
-        new (&list_node_traits::get_value(node)) map_value(name, std::forward<Args>(args)...);
+        new (&list_node_traits::get_value(node)) rec_value(name, std::forward<Args>(args)...);
         return node;
     } catch (...) {
         std::allocator<list_node_type>().deallocate(static_cast<list_node_type*>(node), alloc_sz);
@@ -761,15 +846,9 @@ value::list_links_type* value::record_t::new_node(std::string_view name, Args&&.
 }
 
 /*static*/ inline void value::record_t::delete_node(list_links_type* node) {
-    map_value& v = list_node_traits::get_value(node);
+    rec_value& v = list_node_traits::get_value(node);
     v.val().~value();
-    std::allocator<list_node_type>().deallocate(static_cast<list_node_type*>(node), map_value::get_alloc_sz(v.name_sz_));
-}
-
-inline void value::record_t::add_to_hash(list_links_type* node, size_t hash_code) {
-    list_links_type** slot = &hashtbl[hash_code % bucket_count];
-    static_cast<list_node_type*>(node)->bucket_next = *slot;
-    *slot = node;
+    std::allocator<list_node_type>().deallocate(static_cast<list_node_type*>(node), rec_value::get_alloc_sz(v.name_sz_));
 }
 
 #define UXS_DB_VALUE_IMPLEMENT_SCALAR_IS_GET(ty, is_func) \
@@ -806,7 +885,8 @@ UXS_DB_VALUE_IMPLEMENT_SCALAR_IS_GET(std::string, is_string)
     template<> \
     inline ty value::get(std::string_view name, ty def) const { \
         ty res(std::move(def)); \
-        if (const value* v = this->find(name)) { v->as_func(res); } \
+        auto it = this->find(name); \
+        if (it != this->nil()) { it->second.as_func(res); } \
         return res; \
     }
 

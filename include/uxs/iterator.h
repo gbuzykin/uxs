@@ -35,9 +35,9 @@ class iterator_range<Iter, std::enable_if_t<is_input_iterator<Iter>::value>> {
  public:
     using iterator = Iter;
     iterator_range(Iter from, Iter to) : from_(from), to_(to) {}
-    Iter begin() const { return from_; }
-    Iter end() const { return to_; }
-    bool empty() const { return from_ == to_; }
+    Iter begin() const NOEXCEPT { return from_; }
+    Iter end() const NOEXCEPT { return to_; }
+    bool empty() const NOEXCEPT { return from_ == to_; }
 
  private:
     Iter from_, to_;
@@ -80,6 +80,17 @@ bool operator!=(const iterator_range<IterL>& lhs, const iterator_range<IterR>& r
 
 //-----------------------------------------------------------------------------
 // Iterator facade
+
+namespace detail {
+template<typename RefTy>
+auto addressof(const RefTy&& r) -> decltype(RefTy::addressof(r)) {
+    return RefTy::addressof(r);  // special implementation for temporary objects
+}
+template<typename RefTy>
+auto addressof(RefTy& r) -> decltype(std::addressof(r)) {
+    return std::addressof(r);  // standard implementation
+}
+}  // namespace detail
 
 template<typename Iter, typename ValTy, typename Tag,  //
          typename RefTy, typename PtrTy, typename DiffTy = std::ptrdiff_t>
@@ -144,7 +155,7 @@ class iterator_facade {
     }
 
     reference operator*() const NOEXCEPT { return static_cast<const Iter&>(*this).dereference(); }
-    pointer operator->() const NOEXCEPT { return std::addressof(**this); }
+    pointer operator->() const NOEXCEPT { return detail::addressof(**this); }
     template<typename Iter_ = Iter>
     auto operator[](difference_type j) const NOEXCEPT
         -> uxs::type_identity_t<reference, decltype(std::declval<Iter_>().advance(j))> {
@@ -374,12 +385,13 @@ class list_iterator : public container_iterator_facade<Traits, list_iterator<Tra
 
     template<bool Const2>
     bool is_equal_to(const list_iterator<Traits, NodeTraits, Const2>& it) const NOEXCEPT {
-        iterator_assert(node_ && it.node_ && (NodeTraits::get_head(node_) == NodeTraits::get_head(it.node_)));
+        iterator_assert((!node_ && !it.node_) ||
+                        (node_ && it.node_ && (NodeTraits::get_head(node_) == NodeTraits::get_head(it.node_))));
         return node_ == it.node_;
     }
 
     reference dereference() const NOEXCEPT {
-        iterator_assert(node_);
+        iterator_assert(node_ && (node_ != NodeTraits::get_head(node_)));
         return NodeTraits::get_value(node_);
     }
 

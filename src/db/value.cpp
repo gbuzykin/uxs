@@ -32,7 +32,7 @@ bool operator==(const value& lhs, const value& rhs) {
         } break;
         case value::dtype::kRecord: {
             if (lhs.value_.rec->size != rhs.value_.rec->size) { return false; }
-            return uxs::equal(lhs.as_map(), rhs.as_map().begin());
+            return uxs::equal(lhs.as_record(), rhs.as_record().begin());
         } break;
         default: break;
     }
@@ -108,16 +108,30 @@ void value::record_t::destroy(list_links_type* node) {
     }
 }
 
-value::list_links_type* value::record_t::find(std::string_view s, size_t hash_code) const {
+value::list_links_type* value::record_t::find(std::string_view name, size_t hash_code) const {
     list_links_type* bucket_next = hashtbl[hash_code % bucket_count];
-    while (bucket_next != nullptr) {
+    while (bucket_next) {
         if (static_cast<list_node_type*>(bucket_next)->hash_code == hash_code &&
-            list_node_traits::get_value(bucket_next).name() == s) {
+            list_node_traits::get_value(bucket_next).name() == name) {
             return bucket_next;
         }
         bucket_next = static_cast<list_node_type*>(bucket_next)->bucket_next;
     }
-    return nullptr;
+    return &head;
+}
+
+size_t value::record_t::count(std::string_view name) const {
+    size_t count = 0;
+    const size_t hash_code = calc_hash_code(name);
+    list_links_type* bucket_next = hashtbl[hash_code % bucket_count];
+    while (bucket_next) {
+        if (static_cast<list_node_type*>(bucket_next)->hash_code == hash_code &&
+            list_node_traits::get_value(bucket_next).name() == name) {
+            ++count;
+        }
+        bucket_next = static_cast<list_node_type*>(bucket_next)->bucket_next;
+    }
+    return count;
 }
 
 /*static*/ value::record_t* value::record_t::alloc(const std::initializer_list<value>& init) {
@@ -155,7 +169,7 @@ value::list_links_type* value::record_t::find(std::string_view s, size_t hash_co
     try {
         list_links_type* node = src.head.next;
         while (node != &src.head) {
-            const map_value& v = list_node_traits::get_value(node);
+            const auto& v = list_node_traits::get_value(node);
             rec->insert(static_cast<list_node_type*>(node)->hash_code, rec->new_node(v.name(), v.val()));
             node = node->next;
         }
@@ -171,29 +185,29 @@ void value::record_t::assign(const record_t& src) {
     clear();
     list_links_type* node = src.head.next;
     while (node != &src.head) {
-        const map_value& v = list_node_traits::get_value(node);
+        const auto& v = list_node_traits::get_value(node);
         insert(static_cast<list_node_type*>(node)->hash_code, new_node(v.name(), v.val()));
         node = node->next;
     }
 }
 
-/*static*/ size_t value::record_t::calc_hash_code(std::string_view s) {
+/*static*/ size_t value::record_t::calc_hash_code(std::string_view name) {
     // Implementation of Murmur hash for 64-bit size_t is taken from GNU libstdc++
     const size_t seed = 0xc70f6907;
 #if UINTPTR_MAX == 0xffffffffffffffff
     const size_t mul = 0xc6a4a7935bd1e995ull;
-    const char* end0 = s.data() + (s.size() & ~7);
-    size_t hash = seed ^ (s.size() * mul);
+    const char* end0 = name.data() + (name.size() & ~7);
+    size_t hash = seed ^ (name.size() * mul);
     auto shift_mix = [](size_t v) { return v ^ (v >> 47); };
-    for (const char* p = s.data(); p != end0; p += 8) {
+    for (const char* p = name.data(); p != end0; p += 8) {
         size_t data;
         std::memcpy(&data, p, 8);  // unaligned load
         hash ^= shift_mix(data * mul) * mul;
         hash *= mul;
     }
-    if (s.size() & 7) {
+    if (name.size() & 7) {
         size_t data = 0;
-        const char* end = s.data() + s.size();
+        const char* end = name.data() + name.size();
         do { data = (data << 8) + static_cast<unsigned char>(*--end); } while (end != end0);
         hash ^= data;
         hash *= mul;
@@ -201,9 +215,15 @@ void value::record_t::assign(const record_t& src) {
     hash = shift_mix(shift_mix(hash) * mul);
 #else
     size_t hash = seed;
-    for (char ch : s) { hash = (hash * 131) + static_cast<unsigned char>(ch); }
+    for (char ch : name) { hash = (hash * 131) + static_cast<unsigned char>(ch); }
 #endif
     return hash;
+}
+
+inline void value::record_t::add_to_hash(list_links_type* node, size_t hash_code) {
+    list_links_type** slot = &hashtbl[hash_code % bucket_count];
+    static_cast<list_node_type*>(node)->bucket_next = *slot;
+    *slot = node;
 }
 
 void value::record_t::insert(size_t hash_code, list_links_type* node) {
@@ -214,21 +234,36 @@ void value::record_t::insert(size_t hash_code, list_links_type* node) {
     ++size;
 }
 
-value::list_links_type* value::record_t::erase(std::string_view s) {
-    size_t hash_code = calc_hash_code(s);
-    list_links_type** p_bucket_next = &hashtbl[hash_code % bucket_count];
-    while (*p_bucket_next != nullptr) {
-        if (static_cast<list_node_type*>(*p_bucket_next)->hash_code == hash_code &&
-            list_node_traits::get_value(*p_bucket_next).name() == s) {
-            list_links_type* erased_node = *p_bucket_next;
-            *p_bucket_next = static_cast<list_node_type*>(*p_bucket_next)->bucket_next;
-            dllist_remove(erased_node);
-            --size;
-            return erased_node;
-        }
+value::list_links_type* value::record_t::erase(list_links_type* node) {
+    list_links_type** p_bucket_next = &hashtbl[static_cast<list_node_type*>(node)->hash_code % bucket_count];
+    while (*p_bucket_next != node) {
+        assert(*p_bucket_next);
         p_bucket_next = &static_cast<list_node_type*>(*p_bucket_next)->bucket_next;
     }
-    return nullptr;
+    *p_bucket_next = static_cast<list_node_type*>(*p_bucket_next)->bucket_next;
+    list_links_type* next = dllist_remove(node);
+    delete_node(node);
+    --size;
+    return next;
+}
+
+size_t value::record_t::erase(std::string_view name) {
+    size_t old_size = size;
+    const size_t hash_code = calc_hash_code(name);
+    list_links_type** p_bucket_next = &hashtbl[hash_code % bucket_count];
+    while (*p_bucket_next) {
+        if (static_cast<list_node_type*>(*p_bucket_next)->hash_code == hash_code &&
+            list_node_traits::get_value(*p_bucket_next).name() == name) {
+            list_links_type* erased_node = *p_bucket_next;
+            *p_bucket_next = static_cast<list_node_type*>(*p_bucket_next)->bucket_next;
+            --size;
+            dllist_remove(erased_node);
+            delete_node(erased_node);
+        } else {
+            p_bucket_next = &static_cast<list_node_type*>(*p_bucket_next)->bucket_next;
+        }
+    }
+    return old_size - size;
 }
 
 /*static*/ inline size_t value::record_t::max_size() {
@@ -660,17 +695,7 @@ bool value::convert(dtype type) {
     return true;
 }
 
-size_t value::size() const {
-    switch (type_) {
-        case dtype::kNull: return 0;
-        case dtype::kArray: return value_.arr ? value_.arr->size : 0;
-        case dtype::kRecord: return value_.rec->size;
-        default: break;
-    }
-    return 1;
-}
-
-bool value::empty() const {
+bool value::empty() const NOEXCEPT {
     switch (type_) {
         case dtype::kNull: return true;
         case dtype::kArray: return !value_.arr || !value_.arr->size;
@@ -680,56 +705,29 @@ bool value::empty() const {
     return false;
 }
 
-bool value::contains(std::string_view name) const {
-    if (type_ != dtype::kRecord) { return false; }
-    return value_.rec->find(name, record_t::calc_hash_code(name)) != nullptr;
+size_t value::size() const NOEXCEPT {
+    switch (type_) {
+        case dtype::kNull: return 0;
+        case dtype::kArray: return value_.arr ? value_.arr->size : 0;
+        case dtype::kRecord: return value_.rec->size;
+        default: break;
+    }
+    return 1;
 }
 
 std::vector<std::string_view> value::members() const {
     if (type_ != dtype::kRecord) { return {}; }
     std::vector<std::string_view> names(value_.rec->size);
     auto p = names.begin();
-    for (const auto& item : as_map()) { *p++ = item.name(); }
+    for (const auto& item : as_record()) { *p++ = item->first; }
     return names;
-}
-
-span<const value> value::as_array() const {
-    if (type_ == dtype::kArray) { return array_view(); }
-    return type_ != dtype::kNull ? as_span(this, 1) : span<value>();
-}
-
-span<value> value::as_array() {
-    if (type_ == dtype::kArray) { return array_view(); }
-    return type_ != dtype::kNull ? as_span(this, 1) : span<value>();
-}
-
-iterator_range<value::const_record_iterator> value::as_map() const {
-    if (type_ != dtype::kRecord) { throw exception("not a record"); }
-    return uxs::make_range(const_record_iterator(value_.rec->head.next), const_record_iterator(&value_.rec->head));
-}
-
-iterator_range<value::record_iterator> value::as_map() {
-    if (type_ != dtype::kRecord) { throw exception("not a record"); }
-    return uxs::make_range(record_iterator(value_.rec->head.next), record_iterator(&value_.rec->head));
-}
-
-const value& value::operator[](size_t i) const {
-    auto range = as_array();
-    if (i >= range.size()) { throw exception("index out of range"); }
-    return range[i];
-}
-
-value& value::operator[](size_t i) {
-    auto range = as_array();
-    if (i >= range.size()) { throw exception("index out of range"); }
-    return range[i];
 }
 
 const value& value::operator[](std::string_view name) const {
     static const value null;
     if (type_ != dtype::kRecord) { throw exception("not a record"); }
     list_links_type* node = value_.rec->find(name, record_t::calc_hash_code(name));
-    return node != nullptr ? list_node_traits::get_value(node).val() : null;
+    return node != &value_.rec->head ? list_node_traits::get_value(node).val() : null;
 }
 
 value& value::operator[](std::string_view name) {
@@ -738,22 +736,16 @@ value& value::operator[](std::string_view name) {
         value_.rec = record_t::alloc();
         type_ = dtype::kRecord;
     }
-    size_t hash_code = record_t::calc_hash_code(name);
+    const size_t hash_code = record_t::calc_hash_code(name);
     list_links_type* node = value_.rec->find(name, hash_code);
-    if (!node) {
+    if (node == &value_.rec->head) {
         node = value_.rec->new_node(name);
         value_.rec->insert(hash_code, node);
     }
     return list_node_traits::get_value(node).val();
 }
 
-const value* value::find(std::string_view name) const {
-    if (type_ != dtype::kRecord) { return nullptr; }
-    list_links_type* node = value_.rec->find(name, record_t::calc_hash_code(name));
-    return node != nullptr ? &list_node_traits::get_value(node).val() : nullptr;
-}
-
-void value::clear() {
+void value::clear() NOEXCEPT {
     if (type_ == dtype::kRecord) {
         value_.rec->clear();
     } else if (type_ == dtype::kArray && value_.arr) {
@@ -789,40 +781,26 @@ void value::resize(size_t sz) {
     value_.arr->size = sz;
 }
 
-void value::remove(size_t pos) {
+void value::erase(size_t pos) {
     if (type_ != dtype::kArray) { throw exception("not an array"); }
-    if (!value_.arr || pos >= value_.arr->size) { throw exception("index out of range"); }
+    assert(value_.arr && pos < value_.arr->size);
     value* v = &value_.arr->data[pos];
     value* v_end = &value_.arr->data[--value_.arr->size];
     for (; v != v_end; ++v) { *v = std::move(*(v + 1)); }
     v->~value();
 }
 
-void value::remove(size_t pos, value& removed) {
-    if (type_ != dtype::kArray) { throw exception("not an array"); }
-    if (!value_.arr || pos >= value_.arr->size) { throw exception("index out of range"); }
-    value* v = &value_.arr->data[pos];
-    value* v_end = &value_.arr->data[--value_.arr->size];
-    removed = std::move(*v);
-    for (; v != v_end; ++v) { *v = std::move(*(v + 1)); }
-    v->~value();
+value::record_iterator value::erase(const_record_iterator it) {
+    if (type_ != dtype::kRecord) { throw exception("not a record"); }
+    list_links_type* node = it.node();
+    iterator_assert(list_node_traits::get_head(node) == &value_.rec->head);
+    assert(node != &value_.rec->head);
+    return record_iterator(value_.rec->erase(node));
 }
 
-bool value::remove(std::string_view name) {
+size_t value::erase(std::string_view name) {
     if (type_ != dtype::kRecord) { throw exception("not a record"); }
-    list_links_type* node = value_.rec->erase(name);
-    if (!node) { return false; }
-    record_t::delete_node(node);
-    return true;
-}
-
-bool value::remove(std::string_view name, value& removed) {
-    if (type_ != dtype::kRecord) { throw exception("not a record"); }
-    list_links_type* node = value_.rec->erase(name);
-    if (!node) { return false; }
-    removed = std::move(list_node_traits::get_value(node).val());
-    record_t::delete_node(node);
-    return true;
+    return value_.rec->erase(name);
 }
 
 // --------------------------
