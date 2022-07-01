@@ -1,7 +1,6 @@
 #pragma once
 
 #include "uxs/dllist.h"
-#include "uxs/io/iobuf.h"
 #include "uxs/span.h"
 #include "uxs/string_view.h"
 
@@ -12,6 +11,9 @@
 
 namespace uxs {
 namespace db {
+namespace json {
+class writer;
+}
 
 class exception : public std::runtime_error {
  public:
@@ -33,24 +35,22 @@ const empty_record_t empty_record{};
 class UXS_EXPORT value {
  private:
     template<typename Ty>
-    struct flexarray {
+    struct flexarray_t {
         size_t size;
         size_t capacity;
         Ty data[1];
 
-        flexarray(const flexarray&) = delete;
-        flexarray& operator=(const flexarray&) = delete;
+        flexarray_t(const flexarray_t&) = delete;
+        flexarray_t& operator=(const flexarray_t&) = delete;
 
         span<const Ty> view() const { return as_span(data, size); }
         span<Ty> view() { return as_span(data, size); }
 
-        static size_t get_alloc_sz(size_t cap) {
-            return (offsetof(flexarray, data[cap]) + sizeof(flexarray) - 1) / sizeof(flexarray);
-        }
-
-        static flexarray* alloc(size_t cap);
-        static flexarray* grow(flexarray* arr, size_t extra);
-        static void dealloc(flexarray* arr);
+        static size_t max_size();
+        static size_t get_alloc_sz(size_t cap);
+        static flexarray_t* alloc(size_t cap);
+        static flexarray_t* grow(flexarray_t* arr, size_t extra);
+        static void dealloc(flexarray_t* arr);
     };
 
 #if _ITERATOR_DEBUG_LEVEL != 0
@@ -67,7 +67,7 @@ class UXS_EXPORT value {
     struct list_node_traits;
     class map_value;
 
-    struct record {
+    struct record_t {
         using value_type = map_value;
         using size_type = size_t;
         using difference_type = std::ptrdiff_t;
@@ -81,21 +81,27 @@ class UXS_EXPORT value {
         size_t bucket_count;
         list_links_type* hashtbl[1];
 
-        record(const record&) = delete;
-        record& operator=(const record&) = delete;
+        record_t(const record_t&) = delete;
+        record_t& operator=(const record_t&) = delete;
 
         void init();
         void destroy(list_links_type* node);
 
         list_links_type* find(std::string_view name, size_t hash_code) const;
 
-        record* copy() const;
-        static record* assign(record* rec, const record* src);
+        static record_t* alloc() {
+            record_t* rec = alloc(1);
+            rec->init();
+            return rec;
+        }
 
         void clear() {
             destroy(head.next);
             init();
         }
+
+        static record_t* alloc(const record_t& src);
+        void assign(const record_t& src);
 
         template<typename... Args>
         list_links_type* new_node(std::string_view name, Args&&... args);
@@ -105,13 +111,11 @@ class UXS_EXPORT value {
         void add_to_hash(list_links_type* node, size_t hash_code);
         list_links_type* erase(std::string_view name);
 
-        static size_t get_alloc_sz(size_t bckt_cnt) {
-            return (offsetof(record, hashtbl[bckt_cnt]) + sizeof(record) - 1) / sizeof(record);
-        }
-        static size_t next_bucket_count(size_t sz);
-        static record* alloc(size_t bckt_cnt);
-        static record* rehash(record* rec, size_t bckt_cnt);
-        static void dealloc(record* rec);
+        static size_t max_size();
+        static size_t get_alloc_sz(size_t bckt_cnt);
+        static record_t* alloc(size_t bckt_cnt);
+        static record_t* rehash(record_t* rec, size_t bckt_cnt);
+        static void dealloc(record_t* rec);
     };
 
  public:
@@ -128,39 +132,38 @@ class UXS_EXPORT value {
         kRecord,
     };
 
-    using record_iterator = list_iterator<record, list_node_traits, false>;
-    using const_record_iterator = list_iterator<record, list_node_traits, true>;
+    using record_iterator = list_iterator<record_t, list_node_traits, false>;
+    using const_record_iterator = list_iterator<record_t, list_node_traits, true>;
 
     value() NOEXCEPT : type_(dtype::kNull) { value_.i64 = 0; }
     value(empty_array_t) : type_(dtype::kArray) { value_.arr = nullptr; }
-    value(empty_record_t) : type_(dtype::kRecord) {
-        value_.rec = record::alloc(1);
-        value_.rec->init();
-    }
+    value(empty_record_t) : type_(dtype::kRecord) { value_.rec = record_t::alloc(); }
     value(bool b) : type_(dtype::kBoolean) { value_.b = b; }
     value(int32_t i) : type_(dtype::kInteger) { value_.i = i; }
     value(uint32_t u) : type_(dtype::kUInteger) { value_.u = u; }
     value(int64_t i) : type_(dtype::kInteger64) { value_.i64 = i; }
     value(uint64_t u) : type_(dtype::kUInteger64) { value_.u64 = u; }
     value(double d) : type_(dtype::kDouble) { value_.dbl = d; }
-    value(std::string_view s) : type_(dtype::kString) { value_.str = copy_string(s); }
-    value(const char* cstr) : type_(dtype::kString) { value_.str = copy_string(std::string_view(cstr)); }
+    value(std::string_view s) : type_(dtype::kString) { value_.str = alloc_string(s); }
+    value(const char* cstr) : type_(dtype::kString) { value_.str = alloc_string(std::string_view(cstr)); }
 
     ~value() {
         if (type_ != dtype::kNull) { destroy(); }
     }
+
+    value(const value& other) : type_(other.type_) { init_from(other); }
+    value& operator=(const value& other) {
+        if (&other == this) { return *this; }
+        assign_impl(other);
+        return *this;
+    }
+
     value(value&& other) NOEXCEPT : type_(other.type_), value_(other.value_) { other.type_ = dtype::kNull; }
     value& operator=(value&& other) NOEXCEPT {
         if (&other == this) { return *this; }
         if (type_ != dtype::kNull) { destroy(); }
         value_ = other.value_, type_ = other.type_;
         other.type_ = dtype::kNull;
-        return *this;
-    }
-    value(const value& other) : type_(other.type_) { init_from(other); }
-    value& operator=(const value& other) {
-        if (&other == this) { return *this; }
-        copy_from(other);
         return *this;
     }
 
@@ -178,18 +181,14 @@ class UXS_EXPORT value {
     UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(double, kDouble, dbl)
 #undef UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT
 
-    value& operator=(std::string_view s) {
-        if (type_ != dtype::kString) {
-            if (type_ != dtype::kNull) { destroy(); }
-            value_.str = copy_string(s);
-            type_ = dtype::kString;
-        } else {
-            value_.str = assign_string(value_.str, s);
-        }
+    value& operator=(std::string_view s);
+    value& operator=(const char* cstr) { return (*this = std::string_view(cstr)); }
+
+    value& operator=(std::nullptr_t) {
+        if (type_ == dtype::kNull) { return *this; }
+        destroy();
         return *this;
     }
-
-    value& operator=(const char* cstr) { return (*this = std::string_view(cstr)); }
 
     friend bool operator==(const value& lhs, const value& rhs);
     friend bool operator!=(const value& lhs, const value& rhs) { return !(lhs == rhs); }
@@ -243,7 +242,6 @@ class UXS_EXPORT value {
     std::string_view as_string_view() const;
 
     bool convert(dtype type);
-    void print_scalar(iobuf& out) const;
 
     size_t size() const;
     bool empty() const;
@@ -268,14 +266,10 @@ class UXS_EXPORT value {
 
     void clear();
     void resize(size_t sz);
-    void nullify() {
-        if (type_ == dtype::kNull) { return; }
-        destroy();
-    }
 
     void rehash() {
         if (type_ == dtype::kRecord && value_.rec->size > value_.rec->bucket_count) {
-            value_.rec = record::rehash(value_.rec, value_.rec->size);
+            value_.rec = record_t::rehash(value_.rec, value_.rec->size);
         }
     }
 
@@ -303,7 +297,8 @@ class UXS_EXPORT value {
     bool remove(std::string_view name, value& removed);
 
  private:
-    enum : unsigned { kMinCapacity = 8, kMinBucketCountInc = 12 };
+    friend class json::writer;
+    enum : unsigned { kMinCapacity = 8 };
 
     dtype type_;
 
@@ -314,9 +309,9 @@ class UXS_EXPORT value {
         int64_t i64;
         uint64_t u64;
         double dbl;
-        flexarray<char>* str;
-        flexarray<value>* arr;
-        record* rec;
+        flexarray_t<char>* str;
+        flexarray_t<value>* arr;
+        record_t* rec;
     } value_;
 
     std::string_view str_view() const {
@@ -325,14 +320,14 @@ class UXS_EXPORT value {
     span<const value> array_view() const { return value_.arr ? value_.arr->view() : span<value>(); }
     span<value> array_view() { return value_.arr ? value_.arr->view() : span<value>(); }
 
-    static flexarray<char>* copy_string(span<const char> s);
-    static flexarray<char>* assign_string(flexarray<char>* str, span<const char> s);
+    static flexarray_t<char>* alloc_string(std::string_view s);
+    static flexarray_t<char>* assign_string(flexarray_t<char>* str, std::string_view s);
 
-    static flexarray<value>* copy_array(span<const value> v);
-    static flexarray<value>* assign_array(flexarray<value>* arr, span<const value> v);
+    static flexarray_t<value>* alloc_array(span<const value> v);
+    static flexarray_t<value>* assign_array(flexarray_t<value>* arr, span<const value> v);
 
     void init_from(const value& other);
-    void copy_from(const value& other);
+    void assign_impl(const value& other);
     void destroy();
 
     void reserve_back();
@@ -357,7 +352,7 @@ class value::map_value {
     friend bool operator!=(const map_value& lhs, const map_value& rhs) { return !(lhs == rhs); }
 
  private:
-    friend struct value::record;
+    friend struct value::record_t;
     size_t name_sz_;
     value v_;
     char name_[1];
@@ -388,6 +383,17 @@ struct value::list_node_traits {
     static map_value& get_value(list_links_type* node) { return static_cast<node_t*>(node)->v; }
 };
 
+inline value& value::operator=(std::string_view s) {
+    if (type_ != dtype::kString) {
+        if (type_ != dtype::kNull) { destroy(); }
+        value_.str = alloc_string(s);
+        type_ = dtype::kString;
+    } else {
+        value_.str = assign_string(value_.str, s);
+    }
+    return *this;
+}
+
 template<typename... Args>
 value& value::emplace_back(Args&&... args) {
     if (type_ != dtype::kArray || !value_.arr || value_.arr->size == value_.arr->capacity) { reserve_back(); }
@@ -407,42 +413,41 @@ value& value::emplace(size_t pos, Args&&... args) {
 }
 
 template<typename... Args>
-value::list_links_type* value::record::new_node(std::string_view name, Args&&... args) {
-    size_t alloc_sz = map_value::get_alloc_sz(name.size());
+value& value::emplace(std::string_view name, Args&&... args) {
+    if (type_ != dtype::kRecord) {
+        if (type_ != dtype::kNull) { throw exception("not a record"); }
+        value_.rec = record_t::alloc();
+        type_ = dtype::kRecord;
+    }
+    list_links_type* node = value_.rec->new_node(name, std::forward<Args>(args)...);
+    value_.rec->insert(record_t::calc_hash_code(name), node);
+    return list_node_traits::get_value(node).val();
+}
+
+template<typename... Args>
+value::list_links_type* value::record_t::new_node(std::string_view name, Args&&... args) {
+    const size_t alloc_sz = map_value::get_alloc_sz(name.size());
     list_links_type* node = std::allocator<list_node_type>().allocate(alloc_sz);
     list_node_traits::set_head(node, &head);
     try {
         new (&list_node_traits::get_value(node)) map_value(name, std::forward<Args>(args)...);
+        return node;
     } catch (...) {
         std::allocator<list_node_type>().deallocate(static_cast<list_node_type*>(node), alloc_sz);
         throw;
     }
-    return node;
 }
 
-/*static*/ inline void value::record::delete_node(list_links_type* node) {
+/*static*/ inline void value::record_t::delete_node(list_links_type* node) {
     map_value& v = list_node_traits::get_value(node);
     v.val().~value();
     std::allocator<list_node_type>().deallocate(static_cast<list_node_type*>(node), map_value::get_alloc_sz(v.name_sz_));
 }
 
-inline void value::record::add_to_hash(list_links_type* node, size_t hash_code) {
+inline void value::record_t::add_to_hash(list_links_type* node, size_t hash_code) {
     list_links_type** slot = &hashtbl[hash_code % bucket_count];
     static_cast<list_node_type*>(node)->bucket_next = *slot;
     *slot = node;
-}
-
-template<typename... Args>
-value& value::emplace(std::string_view name, Args&&... args) {
-    if (type_ != dtype::kRecord) {
-        if (type_ != dtype::kNull) { throw exception("not a record"); }
-        value_.rec = record::alloc(1);
-        value_.rec->init();
-        type_ = dtype::kRecord;
-    }
-    list_links_type* node = value_.rec->new_node(name, std::forward<Args>(args)...);
-    value_.rec->insert(record::calc_hash_code(name), node);
-    return list_node_traits::get_value(node).val();
 }
 
 #define UXS_DB_VALUE_IMPLEMENT_SCALAR_IS_GET(ty, is_func) \
