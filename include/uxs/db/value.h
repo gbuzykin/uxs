@@ -131,7 +131,7 @@ class UXS_EXPORT value {
     using record_iterator = list_iterator<record, list_node_traits, false>;
     using const_record_iterator = list_iterator<record, list_node_traits, true>;
 
-    value() : type_(dtype::kNull) { value_.i64 = 0; }
+    value() NOEXCEPT : type_(dtype::kNull) { value_.i64 = 0; }
     value(empty_array_t) : type_(dtype::kArray) { value_.arr = nullptr; }
     value(empty_record_t) : type_(dtype::kRecord) {
         value_.rec = record::alloc(1);
@@ -149,11 +149,11 @@ class UXS_EXPORT value {
     ~value() {
         if (type_ != dtype::kNull) { destroy(); }
     }
-    value(value&& other) : type_(other.type_), value_(other.value_) { other.type_ = dtype::kNull; }
-    value& operator=(value&& other) {
+    value(value&& other) NOEXCEPT : type_(other.type_), value_(other.value_) { other.type_ = dtype::kNull; }
+    value& operator=(value&& other) NOEXCEPT {
         if (&other == this) { return *this; }
         if (type_ != dtype::kNull) { destroy(); }
-        type_ = other.type_, value_ = other.value_;
+        value_ = other.value_, type_ = other.type_;
         other.type_ = dtype::kNull;
         return *this;
     }
@@ -167,7 +167,7 @@ class UXS_EXPORT value {
 #define UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(ty, id, field) \
     value& operator=(ty v) { \
         if (type_ != dtype::kNull) { destroy(); } \
-        type_ = dtype::id, value_.field = v; \
+        value_.field = v, type_ = dtype::id; \
         return *this; \
     }
     UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(bool, kBoolean, b)
@@ -182,10 +182,10 @@ class UXS_EXPORT value {
         if (type_ != dtype::kString) {
             if (type_ != dtype::kNull) { destroy(); }
             value_.str = copy_string(s);
+            type_ = dtype::kString;
         } else {
             value_.str = assign_string(value_.str, s);
         }
-        type_ = dtype::kString;
         return *this;
     }
 
@@ -271,7 +271,6 @@ class UXS_EXPORT value {
     void nullify() {
         if (type_ == dtype::kNull) { return; }
         destroy();
-        type_ = dtype::kNull;
     }
 
     void rehash() {
@@ -401,10 +400,10 @@ template<typename... Args>
 value& value::emplace(size_t pos, Args&&... args) {
     if (type_ != dtype::kArray || !value_.arr || value_.arr->size == value_.arr->capacity) { reserve_back(); }
     if (pos > value_.arr->size) { throw exception("index out of range"); }
-    value& v = *new (&value_.arr->data[value_.arr->size]) value(std::forward<Args>(args)...);
+    new (&value_.arr->data[value_.arr->size]) value(std::forward<Args>(args)...);
     ++value_.arr->size;
     if (pos != value_.arr->size - 1) { rotate_back(pos); }
-    return v;
+    return value_.arr->data[pos];
 }
 
 template<typename... Args>
