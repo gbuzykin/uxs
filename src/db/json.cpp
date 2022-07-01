@@ -20,8 +20,8 @@ value json::reader::read() {
 
     auto token_to_value = [this](int tk, std::string_view lval) -> value {
         switch (tk) {
-            case '[': return value(empty_array);
-            case '{': return value(empty_record);
+            case '[': return make_array();
+            case '{': return make_record();
             case kNull: return {};
             case kTrue: return true;
             case kFalse: return false;

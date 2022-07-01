@@ -95,6 +95,15 @@ struct remove_const<std::pair<Ty1, Ty2>> {
     using type = std::pair<std::remove_const_t<Ty1>, std::remove_const_t<Ty2>>;
 };
 
+template<typename Ty>
+struct remove_cv : std::remove_cv<Ty> {};
+template<typename Ty>
+using remove_cv_t = typename remove_cv<Ty>::type;
+template<typename Ty1, typename Ty2>
+struct remove_cv<std::pair<Ty1, Ty2>> {
+    using type = std::pair<std::remove_cv_t<Ty1>, std::remove_cv_t<Ty2>>;
+};
+
 namespace detail {
 template<typename Range, typename Ty>
 struct is_contiguous_range {

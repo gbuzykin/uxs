@@ -58,8 +58,7 @@ template<typename Ty>
 
 template<typename Ty>
 /*static*/ value::flexarray_t<Ty>* value::flexarray_t<Ty>::alloc(size_t cap) {
-    const size_t alloc_sz = get_alloc_sz(std::max<size_t>(cap, kMinCapacity));
-    if (cap > max_size()) { throw std::length_error("too much to reserve"); }
+    const size_t alloc_sz = get_alloc_sz(cap);
     flexarray_t* arr = std::allocator<flexarray_t>().allocate(alloc_sz);
     arr->capacity = (alloc_sz * sizeof(flexarray_t) - offsetof(flexarray_t, data[0])) / sizeof(Ty);
     assert(arr->capacity >= cap && get_alloc_sz(arr->capacity) == alloc_sz);
@@ -67,11 +66,20 @@ template<typename Ty>
 }
 
 template<typename Ty>
+/*static*/ value::flexarray_t<Ty>* value::flexarray_t<Ty>::alloc_checked(size_t cap) {
+    if (cap > max_size()) { throw std::length_error("too much to reserve"); }
+    return alloc(cap);
+}
+
+template<typename Ty>
 /*static*/ value::flexarray_t<Ty>* value::flexarray_t<Ty>::grow(flexarray_t* arr, size_t extra) {
     size_t delta_sz = std::max(extra, arr->size >> 1);
     const size_t max_sz = max_size();
-    if (delta_sz > max_sz - arr->size) { delta_sz = std::max(extra, (max_sz - arr->size) >> 1); }
-    flexarray_t* new_arr = alloc(arr->size + delta_sz);
+    if (delta_sz > max_sz - arr->size) {
+        if (extra > max_sz - arr->size) { throw std::length_error("too much to reserve"); }
+        delta_sz = std::max(extra, (max_sz - arr->size) >> 1);
+    }
+    flexarray_t* new_arr = alloc(std::max<size_t>(arr->size + delta_sz, kStartCapacity));
     std::memcpy(new_arr->data, arr->data, arr->size * sizeof(Ty));
     new_arr->size = arr->size;
     dealloc(arr);
@@ -110,6 +118,36 @@ value::list_links_type* value::record_t::find(std::string_view s, size_t hash_co
         bucket_next = static_cast<list_node_type*>(bucket_next)->bucket_next;
     }
     return nullptr;
+}
+
+/*static*/ value::record_t* value::record_t::alloc(const std::initializer_list<value>& init) {
+    record_t* rec = alloc();
+    try {
+        uxs::for_each(init, [rec](const value& v) {
+            std::string_view name = v.value_.arr->data[0].str_view();
+            rec->insert(calc_hash_code(name), rec->new_node(name, v.value_.arr->data[1]));
+        });
+        return rec;
+    } catch (...) {
+        rec->destroy(rec->head.next);
+        dealloc(rec);
+        throw;
+    }
+}
+
+/*static*/ value::record_t* value::record_t::alloc(
+    const std::initializer_list<std::pair<std::string_view, value>>& init) {
+    record_t* rec = alloc();
+    try {
+        uxs::for_each(init, [rec](const std::pair<std::string_view, value>& v) {
+            rec->insert(calc_hash_code(v.first), rec->new_node(v.first, v.second));
+        });
+        return rec;
+    } catch (...) {
+        rec->destroy(rec->head.next);
+        dealloc(rec);
+        throw;
+    }
 }
 
 /*static*/ value::record_t* value::record_t::alloc(const record_t& src) {
@@ -169,6 +207,7 @@ void value::record_t::assign(const record_t& src) {
 }
 
 void value::record_t::insert(size_t hash_code, list_links_type* node) {
+    list_node_traits::set_head(node, &head);
     static_cast<list_node_type*>(node)->hash_code = hash_code;
     add_to_hash(node, hash_code);
     dllist_insert_before(&head, node);
@@ -176,7 +215,7 @@ void value::record_t::insert(size_t hash_code, list_links_type* node) {
 }
 
 value::list_links_type* value::record_t::erase(std::string_view s) {
-    const size_t hash_code = calc_hash_code(s);
+    size_t hash_code = calc_hash_code(s);
     list_links_type** p_bucket_next = &hashtbl[hash_code % bucket_count];
     while (*p_bucket_next != nullptr) {
         if (static_cast<list_node_type*>(*p_bucket_next)->hash_code == hash_code &&
@@ -192,13 +231,13 @@ value::list_links_type* value::record_t::erase(std::string_view s) {
     return nullptr;
 }
 
-inline size_t value::record_t::max_size() {
+/*static*/ inline size_t value::record_t::max_size() {
     using alloc_traits = std::allocator_traits<std::allocator<record_t>>;
     return (alloc_traits::max_size(std::allocator<record_t>()) * sizeof(record_t) - offsetof(record_t, hashtbl[0])) /
            sizeof(list_links_type*);
 }
 
-inline size_t value::record_t::get_alloc_sz(size_t bckt_cnt) {
+/*static*/ inline size_t value::record_t::get_alloc_sz(size_t bckt_cnt) {
     return (offsetof(record_t, hashtbl[bckt_cnt]) + sizeof(record_t) - 1) / sizeof(record_t);
 }
 
@@ -232,6 +271,69 @@ inline size_t value::record_t::get_alloc_sz(size_t bckt_cnt) {
 
 /*static*/ void value::record_t::dealloc(record_t* rec) {
     std::allocator<record_t>().deallocate(rec, get_alloc_sz(rec->bucket_count));
+}
+
+// --------------------------
+
+inline bool is_record(const std::initializer_list<value>& init) {
+    return uxs::all_of(init, [](const value& v) { return v.is_array() && v.size() == 2 && v[0].is_string(); });
+}
+
+value::value(std::initializer_list<value> init) : type_(dtype::kArray) {
+    if (::is_record(init)) {
+        value_.rec = record_t::alloc(init);
+        type_ = dtype::kRecord;
+    } else {
+        value_.arr = alloc_array(init.size(), init.begin());
+    }
+}
+
+void value::assign(std::initializer_list<value> init) {
+    if (::is_record(init)) {
+        if (type_ != dtype::kRecord) {
+            if (type_ != dtype::kNull) { destroy(); }
+            value_.rec = record_t::alloc(init);
+            type_ = dtype::kRecord;
+        } else {
+            value_.rec->clear();
+            uxs::for_each(init, [this](const value& v) {
+                std::string_view name = v.value_.arr->data[0].str_view();
+                value_.rec->insert(record_t::calc_hash_code(name), value_.rec->new_node(name, v.value_.arr->data[1]));
+            });
+        }
+    } else if (type_ != dtype::kArray) {
+        if (type_ != dtype::kNull) { destroy(); }
+        value_.arr = alloc_array(init.size(), init.begin());
+        type_ = dtype::kArray;
+    } else {
+        assign_array(init.size(), init.begin());
+    }
+}
+
+void value::insert(size_t pos, std::initializer_list<value> init) {
+    if (type_ != dtype::kArray) {
+        if (type_ != dtype::kNull) { throw exception("not an array"); }
+        value_.arr = alloc_array(init.size(), init.begin());
+        type_ = dtype::kArray;
+    } else if (init.size()) {
+        append_array(init.size(), init.begin());
+        if (pos < value_.arr->size - init.size()) {
+            std::rotate(&value_.arr->data[pos], &value_.arr->data[value_.arr->size - init.size()],
+                        &value_.arr->data[value_.arr->size]);
+        }
+    }
+}
+
+void value::insert(std::initializer_list<std::pair<std::string_view, value>> init) {
+    if (type_ != dtype::kRecord) {
+        if (type_ != dtype::kNull) { throw exception("not a record"); }
+        value_.rec = record_t::alloc(init);
+        type_ = dtype::kRecord;
+    } else {
+        uxs::for_each(init, [this](const std::pair<std::string_view, value>& v) {
+            value_.rec->insert(record_t::calc_hash_code(v.first), value_.rec->new_node(v.first, v.second));
+        });
+    }
 }
 
 // --------------------------
@@ -524,6 +626,8 @@ bool value::is_integral() const {
     return false;
 }
 
+// --------------------------
+
 bool value::convert(dtype type) {
     if (type == type_) { return true; }
     switch (type) {
@@ -634,7 +738,7 @@ value& value::operator[](std::string_view name) {
         value_.rec = record_t::alloc();
         type_ = dtype::kRecord;
     }
-    const size_t hash_code = record_t::calc_hash_code(name);
+    size_t hash_code = record_t::calc_hash_code(name);
     list_links_type* node = value_.rec->find(name, hash_code);
     if (!node) {
         node = value_.rec->new_node(name);
@@ -653,56 +757,36 @@ void value::clear() {
     if (type_ == dtype::kRecord) {
         value_.rec->clear();
     } else if (type_ == dtype::kArray && value_.arr) {
-        uxs::for_each(value_.arr->view(), [](value& v) { v.destroy(); });
+        uxs::for_each(value_.arr->view(), [](value& v) { v.~value(); });
         value_.arr->size = 0;
+    }
+}
+
+void value::reserve(size_t sz) {
+    if (type_ != dtype::kArray || !value_.arr) {
+        if (type_ != dtype::kArray && type_ != dtype::kNull) { throw exception("not an array"); }
+        if (sz) {
+            value_.arr = flexarray_t<value>::alloc_checked(sz);
+            value_.arr->size = 0;
+        } else {
+            value_.arr = nullptr;
+        }
+        type_ = dtype::kArray;
+    } else if (sz > value_.arr->capacity) {
+        value_.arr = flexarray_t<value>::grow(value_.arr, sz - value_.arr->size);
     }
 }
 
 void value::resize(size_t sz) {
-    if (type_ != dtype::kArray || !value_.arr) {
-        if (type_ != dtype::kArray && type_ != dtype::kNull) { throw exception("not an array"); }
-        if (!sz) {
-            value_.arr = nullptr;
-            type_ = dtype::kArray;
-            return;
-        }
-        value_.arr = flexarray_t<value>::alloc(sz);
-        value_.arr->size = 0;
-        type_ = dtype::kArray;
-    } else if (sz < value_.arr->size) {
-        std::for_each(&value_.arr->data[sz], &value_.arr->data[value_.arr->size], [](value& v) { v.destroy(); });
-        value_.arr->size = sz;
+    reserve(sz);
+    if (!value_.arr) {
         return;
-    } else if (sz > value_.arr->capacity) {
-        value_.arr = flexarray_t<value>::grow(value_.arr, sz - value_.arr->size);
+    } else if (sz <= value_.arr->size) {
+        std::for_each(&value_.arr->data[sz], &value_.arr->data[value_.arr->size], [](value& v) { v.~value(); });
+    } else {
+        std::for_each(&value_.arr->data[value_.arr->size], &value_.arr->data[sz], [](value& v) { new (&v) value(); });
     }
-    std::for_each(&value_.arr->data[value_.arr->size], &value_.arr->data[sz], [](value& v) { new (&v) value(); });
     value_.arr->size = sz;
-}
-
-value& value::append(std::string_view s) {
-    if (type_ != dtype::kString) { throw exception("not a string"); }
-    if (s.empty()) { return *this; }
-    if (!value_.str) {
-        value_.str = flexarray_t<char>::alloc(s.size());
-        value_.str->size = 0;
-    } else if (s.size() > value_.str->capacity - value_.str->size) {
-        value_.str = flexarray_t<char>::grow(value_.str, s.size());
-    }
-    std::copy_n(s.data(), s.size(), &value_.str->data[value_.str->size]);
-    value_.str->size += s.size();
-    return *this;
-}
-
-void value::push_back(char ch) {
-    if (type_ != dtype::kString) { throw exception("not a string"); }
-    if (!value_.str) {
-        value_.str = flexarray_t<char>::alloc(1);
-        value_.str->size = 0;
-    } else if (value_.str->size == value_.str->capacity) {
-        value_.str = flexarray_t<char>::grow(value_.str, 1);
-    }
-    value_.str->data[value_.str->size++] = ch;
 }
 
 void value::remove(size_t pos) {
@@ -751,48 +835,15 @@ bool value::remove(std::string_view name, value& removed) {
     return str;
 }
 
-/*static*/ value::flexarray_t<char>* value::assign_string(flexarray_t<char>* str, std::string_view s) {
-    if (!str || s.size() > str->capacity) {
-        if (!s.size()) { return nullptr; }
+void value::assign_string(std::string_view s) {
+    if (!value_.str || s.size() > value_.str->capacity) {
+        if (!s.size()) { return; }
         flexarray_t<char>* new_str = flexarray_t<char>::alloc(s.size());
-        if (str) { flexarray_t<char>::dealloc(str); }
-        str = new_str;
+        if (value_.str) { flexarray_t<char>::dealloc(value_.str); }
+        value_.str = new_str;
     }
-    str->size = s.size();
-    std::memcpy(str->data, s.data(), s.size());
-    return str;
-}
-
-/*static*/ value::flexarray_t<value>* value::alloc_array(span<const value> v) {
-    if (!v.size()) { return nullptr; }
-    flexarray_t<value>* arr = flexarray_t<value>::alloc(v.size());
-    try {
-        uxs::uninitialized_copy(v, static_cast<value*>(arr->data));
-        arr->size = v.size();
-        return arr;
-    } catch (...) {
-        flexarray_t<value>::dealloc(arr);
-        throw;
-    }
-}
-
-/*static*/ value::flexarray_t<value>* value::assign_array(flexarray_t<value>* arr, span<const value> v) {
-    if (arr && v.size() <= arr->capacity) {
-        span<value> v_tgt = arr->view();
-        if (v.size() > v_tgt.size()) {
-            value* p = uxs::copy(v.subspan(0, v_tgt.size()), v_tgt.data());
-            uxs::uninitialized_copy(v.subspan(v_tgt.size(), v.size() - v_tgt.size()), p);
-        } else {
-            uxs::copy(v, v_tgt.data());
-            uxs::for_each(v_tgt.subspan(v.size(), v_tgt.size() - v.size()), [](value& v) { v.destroy(); });
-        }
-        arr->size = v.size();
-        return arr;
-    }
-    flexarray_t<value>* new_arr = alloc_array(v);
-    if (arr) { flexarray_t<value>::dealloc(arr); }
-    arr = new_arr;
-    return arr;
+    value_.str->size = s.size();
+    std::memcpy(value_.str->data, s.data(), s.size());
 }
 
 // --------------------------
@@ -813,9 +864,9 @@ void value::assign_impl(const value& other) {
         type_ = other.type_;
     } else {
         switch (other.type_) {
-            case dtype::kString: value_.str = assign_string(value_.str, other.str_view()); break;
-            case dtype::kArray: value_.arr = assign_array(value_.arr, other.array_view()); break;
-            case dtype::kRecord: value_.rec->assign(*other.value_.rec); break;
+            case dtype::kString: assign_string(other.str_view()); break;
+            case dtype::kArray: assign_array(other.array_view()); break;
+            case dtype::kRecord: value_.rec->record_t::assign(*other.value_.rec); break;
             default: value_ = other.value_; break;
         }
     }
@@ -844,7 +895,7 @@ void value::destroy() {
 void value::reserve_back() {
     if (type_ != dtype::kArray || !value_.arr) {
         if (type_ != dtype::kArray && type_ != dtype::kNull) { throw exception("not an array"); }
-        value_.arr = flexarray_t<value>::alloc(1);
+        value_.arr = flexarray_t<value>::alloc(kStartCapacity);
         value_.arr->size = 0;
         type_ = dtype::kArray;
     } else {
