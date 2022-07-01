@@ -23,15 +23,11 @@ class basic_ibuf_iterator : public iterator_facade<basic_ibuf_iterator<CharT>, C
 
     void increment() {
         iterator_assert(buf_);
-        buf_->get();
+        buf_->bump(1);
         if ((val_ = buf_->peek()) == traits_type::eof()) { buf_ = nullptr; }
     }
 
-    char_type dereference() const {
-        iterator_assert(buf_);
-        return traits_type::to_char_type(val_);
-    }
-
+    char_type dereference() const { return traits_type::to_char_type(val_); }
     bool is_equal_to(const basic_ibuf_iterator& it) const { return buf_ == it.buf_; }
 
  private:
