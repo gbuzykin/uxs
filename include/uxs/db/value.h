@@ -15,22 +15,29 @@ namespace json {
 class writer;
 }
 
+class value;
+
+namespace detail {
+template<typename Ty, typename = void>
+struct is_record_value : std::false_type {};
+template<typename FirstTy, typename SecondTy>
+struct is_record_value<std::pair<FirstTy, SecondTy>,
+                       std::enable_if_t<std::is_convertible<FirstTy, std::string_view>::value &&
+                                        std::is_convertible<SecondTy, value>::value>> : std::true_type {};
+}  // namespace detail
+
 class exception : public std::runtime_error {
  public:
     explicit exception(const char* message) : std::runtime_error(message) {}
     explicit exception(const std::string& message) : std::runtime_error(message) {}
 };
 
-struct empty_array_t {};
-struct empty_record_t {};
+template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
+value make_array(InputIt first, InputIt last);
 
-#if !defined(_MSC_VER) || _MSC_VER >= 1920
-constexpr empty_array_t empty_array{};
-constexpr empty_record_t empty_record{};
-#else   // !defined(_MSC_VER) || _MSC_VER >= 1920
-const empty_array_t empty_array{};
-const empty_record_t empty_record{};
-#endif  // !defined(_MSC_VER) || _MSC_VER >= 1920
+template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>,
+         typename = std::enable_if_t<detail::is_record_value<typename std::iterator_traits<InputIt>::value_type>::value>>
+value make_record(InputIt first, InputIt last);
 
 class UXS_EXPORT value {
  private:
@@ -49,6 +56,7 @@ class UXS_EXPORT value {
         static size_t max_size();
         static size_t get_alloc_sz(size_t cap);
         static flexarray_t* alloc(size_t cap);
+        static flexarray_t* alloc_checked(size_t cap);
         static flexarray_t* grow(flexarray_t* arr, size_t extra);
         static void dealloc(flexarray_t* arr);
     };
@@ -100,7 +108,12 @@ class UXS_EXPORT value {
             init();
         }
 
+        template<typename InputIt>
+        static record_t* alloc(InputIt first, InputIt last);
+        static record_t* alloc(const std::initializer_list<value>& init);
+        static record_t* alloc(const std::initializer_list<std::pair<std::string_view, value>>& init);
         static record_t* alloc(const record_t& src);
+
         void assign(const record_t& src);
 
         template<typename... Args>
@@ -135,9 +148,7 @@ class UXS_EXPORT value {
     using record_iterator = list_iterator<record_t, list_node_traits, false>;
     using const_record_iterator = list_iterator<record_t, list_node_traits, true>;
 
-    value() NOEXCEPT : type_(dtype::kNull) { value_.i64 = 0; }
-    value(empty_array_t) : type_(dtype::kArray) { value_.arr = nullptr; }
-    value(empty_record_t) : type_(dtype::kRecord) { value_.rec = record_t::alloc(); }
+    value() NOEXCEPT : type_(dtype::kNull) {}
     value(bool b) : type_(dtype::kBoolean) { value_.b = b; }
     value(int32_t i) : type_(dtype::kInteger) { value_.i = i; }
     value(uint32_t u) : type_(dtype::kUInteger) { value_.u = u; }
@@ -146,6 +157,14 @@ class UXS_EXPORT value {
     value(double d) : type_(dtype::kDouble) { value_.dbl = d; }
     value(std::string_view s) : type_(dtype::kString) { value_.str = alloc_string(s); }
     value(const char* cstr) : type_(dtype::kString) { value_.str = alloc_string(std::string_view(cstr)); }
+    value(std::nullptr_t) : type_(dtype::kNull) {}
+
+    template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
+    value(InputIt first, InputIt last) {
+        construct_impl(first, last, detail::is_record_value<typename std::iterator_traits<InputIt>::value_type>());
+    }
+
+    value(std::initializer_list<value> init);
 
     ~value() {
         if (type_ != dtype::kNull) { destroy(); }
@@ -166,6 +185,18 @@ class UXS_EXPORT value {
         other.type_ = dtype::kNull;
         return *this;
     }
+
+    value& operator=(std::initializer_list<value> init) {
+        assign(init);
+        return *this;
+    }
+
+    template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
+    void assign(InputIt first, InputIt last) {
+        assign_impl(first, last, detail::is_record_value<typename std::iterator_traits<InputIt>::value_type>());
+    }
+
+    void assign(std::initializer_list<value> init);
 
 #define UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(ty, id, field) \
     value& operator=(ty v) { \
@@ -265,6 +296,7 @@ class UXS_EXPORT value {
     value* find(std::string_view name) { return const_cast<value*>(std::as_const(*this).find(name)); }
 
     void clear();
+    void reserve(size_t sz);
     void resize(size_t sz);
 
     void rehash() {
@@ -273,13 +305,11 @@ class UXS_EXPORT value {
         }
     }
 
-    value& append(std::string_view s);
-    void push_back(char ch);
-
     template<typename... Args>
     value& emplace_back(Args&&... args);
     void push_back(const value& v) { emplace_back(v); }
     void push_back(value&& v) { emplace_back(std::move(v)); }
+    void pop_back();
 
     template<typename... Args>
     value& emplace(size_t pos, Args&&... args);
@@ -291,6 +321,16 @@ class UXS_EXPORT value {
     void insert(std::string_view name, const value& v) { emplace(name, v); }
     void insert(std::string_view name, value&& v) { emplace(name, std::move(v)); }
 
+    template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
+    void insert(size_t pos, InputIt first, InputIt last);
+    void insert(size_t pos, std::initializer_list<value> init);
+
+    template<
+        typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>,
+        typename = std::enable_if_t<detail::is_record_value<typename std::iterator_traits<InputIt>::value_type>::value>>
+    void insert(InputIt first, InputIt last);
+    void insert(std::initializer_list<std::pair<std::string_view, value>> init);
+
     void remove(size_t pos);
     void remove(size_t pos, value& removed);
     bool remove(std::string_view name);
@@ -298,7 +338,16 @@ class UXS_EXPORT value {
 
  private:
     friend class json::writer;
-    enum : unsigned { kMinCapacity = 8 };
+    friend value make_array();
+    template<typename InputIt, typename>
+    friend value make_array(InputIt, InputIt);
+    friend value make_array(std::initializer_list<value>);
+    friend value make_record();
+    template<typename InputIt, typename, typename>
+    friend value make_record(InputIt, InputIt);
+    friend value make_record(std::initializer_list<std::pair<std::string_view, value>>);
+
+    enum : unsigned { kStartCapacity = 8 };
 
     dtype type_;
 
@@ -321,14 +370,60 @@ class UXS_EXPORT value {
     span<value> array_view() { return value_.arr ? value_.arr->view() : span<value>(); }
 
     static flexarray_t<char>* alloc_string(std::string_view s);
-    static flexarray_t<char>* assign_string(flexarray_t<char>* str, std::string_view s);
+    void assign_string(std::string_view s);
 
-    static flexarray_t<value>* alloc_array(span<const value> v);
-    static flexarray_t<value>* assign_array(flexarray_t<value>* arr, span<const value> v);
+    template<typename RandIt>
+    static flexarray_t<value>* alloc_array(size_t sz, RandIt src);
+    template<typename RandIt>
+    static flexarray_t<value>* alloc_array(RandIt first, RandIt last, std::true_type /* random access iterator */) {
+        return alloc_array(static_cast<size_t>(last - first), first);
+    }
+    template<typename InputIt>
+    static flexarray_t<value>* alloc_array(InputIt first, InputIt last, std::false_type);
+    static flexarray_t<value>* alloc_array(span<const value> v) { return alloc_array(v.size(), v.data()); }
+
+    template<typename RandIt>
+    void assign_array(size_t sz, RandIt src);
+    template<typename RandIt>
+    void assign_array(RandIt first, RandIt last, std::true_type /* random access iterator */) {
+        assign_array(static_cast<size_t>(last - first), first);
+    }
+    template<typename InputIt>
+    void assign_array(InputIt first, InputIt last, std::false_type /* random access iterator */);
+    void assign_array(span<const value> v) { assign_array(v.size(), v.data()); }
+
+    template<typename RandIt>
+    void append_array(size_t sz, RandIt src);
+    template<typename RandIt>
+    size_t append_array(RandIt first, RandIt last, std::true_type /* random access iterator */) {
+        size_t count = static_cast<size_t>(last - first);
+        append_array(count, first);
+        return count;
+    }
+    template<typename InputIt>
+    size_t append_array(InputIt first, InputIt last, std::false_type /* random access iterator */);
 
     void init_from(const value& other);
     void assign_impl(const value& other);
     void destroy();
+
+    template<typename InputIt>
+    void construct_impl(InputIt first, InputIt last, std::true_type /* range of pairs */) {
+        type_ = dtype::kRecord;
+        value_.rec = record_t::alloc(first, last);
+    }
+
+    template<typename InputIt>
+    void construct_impl(InputIt first, InputIt last, std::false_type /* range of pairs */) {
+        type_ = dtype::kArray;
+        value_.arr = alloc_array(first, last, is_random_access_iterator<InputIt>());
+    }
+
+    template<typename InputIt>
+    void assign_impl(InputIt first, InputIt last, std::true_type /* range of pairs */);
+
+    template<typename InputIt>
+    void assign_impl(InputIt first, InputIt last, std::false_type /* range of pairs */);
 
     void reserve_back();
     void rotate_back(size_t pos);
@@ -383,16 +478,64 @@ struct value::list_node_traits {
     static map_value& get_value(list_links_type* node) { return static_cast<node_t*>(node)->v; }
 };
 
+// --------------------------
+
+inline value make_array() {
+    value v;
+    v.value_.arr = nullptr;
+    v.type_ = value::dtype::kArray;
+    return v;
+}
+
+template<typename InputIt, typename>
+value make_array(InputIt first, InputIt last) {
+    value v;
+    v.value_.arr = value::alloc_array(first, last, is_random_access_iterator<InputIt>());
+    v.type_ = value::dtype::kArray;
+    return v;
+}
+
+inline value make_array(std::initializer_list<value> init) {
+    value v;
+    v.value_.arr = value::alloc_array(init.size(), init.begin());
+    v.type_ = value::dtype::kArray;
+    return v;
+}
+
+inline value make_record() {
+    value v;
+    v.value_.rec = value::record_t::alloc();
+    v.type_ = value::dtype::kRecord;
+    return v;
+}
+
+template<typename InputIt, typename, typename>
+value make_record(InputIt first, InputIt last) {
+    value v;
+    v.value_.rec = value::record_t::alloc(first, last);
+    v.type_ = value::dtype::kRecord;
+    return v;
+}
+
+inline value make_record(std::initializer_list<std::pair<std::string_view, value>> init) {
+    value v;
+    v.value_.rec = value::record_t::alloc(init);
+    v.type_ = value::dtype::kRecord;
+    return v;
+}
+
 inline value& value::operator=(std::string_view s) {
     if (type_ != dtype::kString) {
         if (type_ != dtype::kNull) { destroy(); }
         value_.str = alloc_string(s);
         type_ = dtype::kString;
     } else {
-        value_.str = assign_string(value_.str, s);
+        assign_string(s);
     }
     return *this;
 }
+
+// --------------------------
 
 template<typename... Args>
 value& value::emplace_back(Args&&... args) {
@@ -400,6 +543,12 @@ value& value::emplace_back(Args&&... args) {
     value& v = *new (&value_.arr->data[value_.arr->size]) value(std::forward<Args>(args)...);
     ++value_.arr->size;
     return v;
+}
+
+inline void value::pop_back() {
+    if (type_ != dtype::kArray) { throw exception("not an array"); }
+    if (!value_.arr || !value_.arr->size) { throw exception("array is empty"); }
+    value_.arr->data[--value_.arr->size].~value();
 }
 
 template<typename... Args>
@@ -424,11 +573,184 @@ value& value::emplace(std::string_view name, Args&&... args) {
     return list_node_traits::get_value(node).val();
 }
 
+template<typename InputIt, typename>
+void value::insert(size_t pos, InputIt first, InputIt last) {
+    if (type_ != dtype::kArray) {
+        if (type_ != dtype::kNull) { throw exception("not an array"); }
+        value_.arr = alloc_array(first, last, is_random_access_iterator<InputIt>());
+        type_ = dtype::kArray;
+    } else if (first != last) {
+        size_t count = append_array(first, last, is_random_access_iterator<InputIt>());
+        if (pos < value_.arr->size - count) {
+            std::rotate(&value_.arr->data[pos], &value_.arr->data[value_.arr->size - count],
+                        &value_.arr->data[value_.arr->size]);
+        }
+    }
+}
+
+template<typename InputIt, typename, typename>
+void value::insert(InputIt first, InputIt last) {
+    if (type_ != dtype::kRecord) {
+        if (type_ != dtype::kNull) { throw exception("not a record"); }
+        value_.rec = record_t::alloc(first, last);
+        type_ = dtype::kRecord;
+    } else {
+        for (; first != last; ++first) {
+            value_.rec->insert(record_t::calc_hash_code(first->first),
+                               value_.rec->new_node(first->first, first->second));
+        }
+    }
+}
+
+// --------------------------
+
+template<typename RandIt>
+/*static*/ value::flexarray_t<value>* value::alloc_array(size_t sz, RandIt src) {
+    if (!sz) { return nullptr; }
+    flexarray_t<value>* arr = flexarray_t<value>::alloc_checked(sz);
+    try {
+        std::uninitialized_copy_n(src, sz, static_cast<value*>(arr->data));
+        arr->size = sz;
+        return arr;
+    } catch (...) {
+        flexarray_t<value>::dealloc(arr);
+        throw;
+    }
+}
+
+template<typename InputIt>
+/*static*/ value::flexarray_t<value>* value::alloc_array(InputIt first, InputIt last,
+                                                         std::false_type /* random access iterator */) {
+    if (first == last) { return nullptr; }
+    flexarray_t<value>* arr = flexarray_t<value>::alloc(kStartCapacity);
+    arr->size = 0;
+    try {
+        do {
+            if (arr->size == arr->capacity) { arr = flexarray_t<value>::grow(arr, 1); }
+            new (&arr->data[arr->size]) value(*first);
+            ++arr->size;
+            ++first;
+        } while (first != last);
+        return arr;
+    } catch (...) {
+        std::for_each(static_cast<value*>(arr->data), static_cast<value*>(arr->data) + arr->size,
+                      [](value& v) { v.~value(); });
+        flexarray_t<value>::dealloc(arr);
+        throw;
+    }
+}
+
+template<typename RandIt>
+void value::assign_array(size_t sz, RandIt src) {
+    if (value_.arr && sz <= value_.arr->capacity) {
+        if (sz <= value_.arr->size) {
+            value* p = sz ? std::copy_n(src, sz, static_cast<value*>(value_.arr->data)) : value_.arr->data;
+            std::for_each(p, p + static_cast<size_t>(value_.arr->size - sz), [](value& v) { v.~value(); });
+        } else {
+            value* p = std::copy_n(src, value_.arr->size, static_cast<value*>(value_.arr->data));
+            std::uninitialized_copy_n(src + value_.arr->size, sz - value_.arr->size, p);
+        }
+        value_.arr->size = sz;
+    } else {
+        flexarray_t<value>* new_arr = alloc_array(sz, src);
+        if (value_.arr) { flexarray_t<value>::dealloc(value_.arr); }
+        value_.arr = new_arr;
+    }
+}
+
+template<typename InputIt>
+void value::assign_array(InputIt first, InputIt last, std::false_type /* random access iterator */) {
+    if (value_.arr) {
+        value *p0 = value_.arr->data, *p = p0;
+        value* p_end = &value_.arr->data[value_.arr->size];
+        for (; p != p_end && first != last; ++first) { *p++ = *first; }
+        value_.arr->size = p - p0;
+        if (p != p_end) {
+            std::for_each(p, p_end, [](value& v) { v.~value(); });
+        } else {
+            for (; first != last; ++first) {
+                if (value_.arr->size == value_.arr->capacity) { value_.arr = flexarray_t<value>::grow(value_.arr, 1); }
+                new (&value_.arr->data[value_.arr->size]) value(*first);
+                ++value_.arr->size;
+            }
+        }
+    } else {
+        value_.arr = alloc_array(first, last, std::false_type());
+    }
+}
+
+template<typename RandIt>
+void value::append_array(size_t sz, RandIt src) {
+    if (value_.arr) {
+        if (sz > value_.arr->capacity - value_.arr->size) { value_.arr = flexarray_t<value>::grow(value_.arr, sz); }
+        std::uninitialized_copy_n(src, sz, &value_.arr->data[value_.arr->size]);
+        value_.arr->size += sz;
+    } else {
+        value_.arr = alloc_array(sz, src);
+    }
+}
+
+template<typename InputIt>
+size_t value::append_array(InputIt first, InputIt last, std::false_type /* random access iterator */) {
+    if (first == last) { return 0; }
+    if (value_.arr) {
+        size_t old_sz = value_.arr->size;
+        for (; first != last; ++first) {
+            if (value_.arr->size == value_.arr->capacity) { value_.arr = flexarray_t<value>::grow(value_.arr, 1); }
+            new (&value_.arr->data[value_.arr->size]) value(*first);
+            ++value_.arr->size;
+        }
+        return value_.arr->size - old_sz;
+    }
+    value_.arr = alloc_array(first, last, std::false_type());
+    return value_.arr->size;
+}
+
+template<typename InputIt>
+void value::assign_impl(InputIt first, InputIt last, std::true_type /* range of pairs */) {
+    if (type_ != dtype::kRecord) {
+        if (type_ != dtype::kNull) { destroy(); }
+        value_.rec = record_t::alloc(first, last);
+        type_ = dtype::kRecord;
+    } else {
+        value_.rec->clear();
+        for (; first != last; ++first) {
+            value_.rec->insert(record_t::calc_hash_code(first->first),
+                               value_.rec->new_node(first->first, first->second));
+        }
+    }
+}
+
+template<typename InputIt>
+void value::assign_impl(InputIt first, InputIt last, std::false_type /* range of pairs */) {
+    if (type_ != dtype::kArray) {
+        if (type_ != dtype::kNull) { destroy(); }
+        value_.arr = alloc_array(first, last, is_random_access_iterator<InputIt>());
+        type_ = dtype::kArray;
+    } else {
+        assign_array(first, last, is_random_access_iterator<InputIt>());
+    }
+}
+
+template<typename InputIt>
+/*static*/ value::record_t* value::record_t::alloc(InputIt first, InputIt last) {
+    record_t* rec = alloc();
+    try {
+        for (; first != last; ++first) {
+            rec->insert(calc_hash_code(first->first), rec->new_node(first->first, first->second));
+        }
+        return rec;
+    } catch (...) {
+        rec->destroy(rec->head.next);
+        dealloc(rec);
+        throw;
+    }
+}
+
 template<typename... Args>
 value::list_links_type* value::record_t::new_node(std::string_view name, Args&&... args) {
     const size_t alloc_sz = map_value::get_alloc_sz(name.size());
     list_links_type* node = std::allocator<list_node_type>().allocate(alloc_sz);
-    list_node_traits::set_head(node, &head);
     try {
         new (&list_node_traits::get_value(node)) map_value(name, std::forward<Args>(args)...);
         return node;
