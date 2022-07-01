@@ -16,7 +16,7 @@
 namespace uxs {
 
 template<typename CharT>
-struct basic_devbuf<CharT>::flexbuffer {
+struct basic_devbuf<CharT>::flexbuf_t {
     size_t alloc_sz;
     size_t sz;
 #if defined(UXS_USE_ZLIB)
@@ -28,15 +28,15 @@ struct basic_devbuf<CharT>::flexbuffer {
     bool pending_cr;
     char_type data[1];
     static size_t get_alloc_sz(size_t sz) {
-        return (offsetof(flexbuffer, data[sz]) + sizeof(flexbuffer) - 1) / sizeof(flexbuffer);
+        return (offsetof(flexbuf_t, data[sz]) + sizeof(flexbuf_t) - 1) / sizeof(flexbuf_t);
     }
-    static flexbuffer* alloc(size_t sz) {
-        size_t alloc_sz = flexbuffer::get_alloc_sz(sz);
-        flexbuffer* buf = std::allocator<flexbuffer>().allocate(alloc_sz);
-        std::memset(buf, 0, sizeof(flexbuffer));
+    static flexbuf_t* alloc(size_t sz) {
+        const size_t alloc_sz = get_alloc_sz(sz);
+        flexbuf_t* buf = std::allocator<flexbuf_t>().allocate(alloc_sz);
+        std::memset(buf, 0, sizeof(flexbuf_t));
         buf->alloc_sz = alloc_sz;
-        buf->sz = (alloc_sz * sizeof(flexbuffer) - offsetof(flexbuffer, data[0])) / sizeof(char_type);
-        assert(buf->sz >= sz);
+        buf->sz = (alloc_sz * sizeof(flexbuf_t) - offsetof(flexbuf_t, data[0])) / sizeof(char_type);
+        assert(buf->sz >= sz && get_alloc_sz(buf->sz) == alloc_sz);
         return buf;
     }
 };
@@ -71,7 +71,7 @@ void basic_devbuf<CharT>::initbuf(iomode mode, size_type bufsz) {
     if (!!(mode & iomode::kOut)) {
         mode &= ~iomode::kIn;
         if (!mappable || !!(mode & (iomode::kCrLf | iomode::kCtrlEsc | iomode::kZCompr))) {
-            buf_ = flexbuffer::alloc(bufsz);
+            buf_ = flexbuf_t::alloc(bufsz);
 #if defined(UXS_USE_ZLIB)
             if (!!(mode & iomode::kZCompr)) {
                 deflateInit(&buf_->zstr, Z_DEFAULT_COMPRESSION);
@@ -90,7 +90,7 @@ void basic_devbuf<CharT>::initbuf(iomode mode, size_type bufsz) {
             this->setview(&buf_->data[cr_reserve_sz], &buf_->data[cr_reserve_sz], &buf_->data[buf_->sz]);
         }
     } else if (!mappable || !!(mode & (iomode::kCrLf | iomode::kZCompr))) {
-        buf_ = flexbuffer::alloc(bufsz);
+        buf_ = flexbuf_t::alloc(bufsz);
 #if defined(UXS_USE_ZLIB)
         if (!!(mode & iomode::kZCompr)) {
             inflateInit(&buf_->zstr);
@@ -126,7 +126,7 @@ void basic_devbuf<CharT>::freebuf() {
 #endif
     }
     if (buf_) {
-        std::allocator<flexbuffer>().deallocate(buf_, buf_->alloc_sz);
+        std::allocator<flexbuf_t>().deallocate(buf_, buf_->alloc_sz);
         buf_ = nullptr;
     }
     this->setview(nullptr, nullptr, nullptr);

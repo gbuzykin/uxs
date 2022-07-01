@@ -47,9 +47,9 @@ class UXS_EXPORT basic_devbuf : public basic_iobuf<CharT> {
         kMaxBufSize = 1024 * 1024 * 1024 / sizeof(char_type),
     };
 
-    struct flexbuffer;
+    struct flexbuf_t;
     iodevice* dev_ = nullptr;
-    flexbuffer* buf_ = nullptr;
+    flexbuf_t* buf_ = nullptr;
     pos_type pos_ = 0;
     basic_iobuf<char_type>* tie_buf_ = nullptr;
 
