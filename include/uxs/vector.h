@@ -812,11 +812,9 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
 };
 
 #if __cplusplus >= 201703L
-template<typename InputIt, typename Alloc = std::allocator<typename std::iterator_traits<InputIt>::value_type>>
+template<typename InputIt, typename Alloc = std::allocator<typename std::iterator_traits<InputIt>::value_type>,
+         typename = std::enable_if_t<is_allocator<Alloc>::value>>
 vector(InputIt, InputIt, Alloc = Alloc()) -> vector<typename std::iterator_traits<InputIt>::value_type, Alloc>;
-
-template<typename Ty, typename Alloc = std::allocator<Ty>>
-vector(typename vector<Ty>::size_type, Ty, Alloc = Alloc()) -> vector<Ty, Alloc>;
 #endif  // __cplusplus >= 201703L
 
 template<typename Ty, typename Alloc>

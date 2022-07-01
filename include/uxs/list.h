@@ -464,17 +464,6 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
         }
     }
 
-    template<typename... Args>
-    void reconstruct_node(dllist_node_t* node, Args&&... args) {
-        alloc_traits::destroy(*this, std::addressof(node_traits::get_value(node)));
-        try {
-            alloc_traits::construct(*this, std::addressof(node_traits::get_value(node)), std::forward<Args>(args)...);
-        } catch (...) {
-            alloc_traits::deallocate(*this, static_cast<typename node_traits::node_t*>(node), 1);
-            throw;
-        }
-    }
-
     void delete_node(dllist_node_t* node) {
         alloc_traits::destroy(*this, std::addressof(node_traits::get_value(node)));
         alloc_traits::deallocate(*this, static_cast<typename node_traits::node_t*>(node), 1);
@@ -827,10 +816,9 @@ void list<Ty, Alloc>::sort(Comp comp) {
 }
 
 #if __cplusplus >= 201703L
-template<typename InputIt, typename Alloc = std::allocator<typename std::iterator_traits<InputIt>::value_type>>
+template<typename InputIt, typename Alloc = std::allocator<typename std::iterator_traits<InputIt>::value_type>,
+         typename = std::enable_if_t<is_allocator<Alloc>::value>>
 list(InputIt, InputIt, Alloc = Alloc()) -> list<typename std::iterator_traits<InputIt>::value_type, Alloc>;
-template<typename Ty, typename Alloc = std::allocator<Ty>>
-list(typename list<Ty>::size_type, Ty, Alloc = Alloc()) -> list<Ty, Alloc>;
 #endif  // __cplusplus >= 201703L
 
 template<typename Ty, typename Alloc>

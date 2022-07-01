@@ -38,7 +38,7 @@ class multimap : public detail::rbtree_multi<detail::map_node_traits<Key, Ty>, A
     multimap(const multimap&) = default;
     multimap& operator=(const multimap&) = default;
     multimap(multimap&& other) NOEXCEPT : super(std::move(other)) {}
-    multimap& operator=(multimap&& other) NOEXCEPT {
+    multimap& operator=(multimap&& other) {
         super::operator=(std::move(other));
         return *this;
     }
@@ -121,24 +121,22 @@ class multimap : public detail::rbtree_multi<detail::map_node_traits<Key, Ty>, A
 };
 
 #if __cplusplus >= 201703L
-template<typename InputIt,
-         typename Comp = std::less<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>>,
-         typename Alloc =
-             std::allocator<std::pair<std::add_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>,
-                                      typename std::iterator_traits<InputIt>::value_type::second_type>>>
+template<typename InputIt, typename Comp = less<detail::iter_key_t<InputIt>>,
+         typename Alloc = std::allocator<detail::iter_to_alloc_t<InputIt>>,
+         typename = std::enable_if_t<!is_allocator<Comp>::value>, typename = std::enable_if_t<is_allocator<Alloc>::value>>
 multimap(InputIt, InputIt, Comp = Comp(), Alloc = Alloc())
-    -> multimap<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>,
-                typename std::iterator_traits<InputIt>::value_type::second_type, Comp, Alloc>;
-template<typename Key, typename Ty, typename Comp = std::less<Key>,
-         typename Alloc = std::allocator<std::pair<const Key, Ty>>>
-multimap(std::initializer_list<std::pair<Key, Ty>>, Comp = Comp(), Alloc = Alloc()) -> multimap<Key, Ty, Comp, Alloc>;
-template<typename InputIt, typename Alloc>
+    -> multimap<detail::iter_key_t<InputIt>, detail::iter_val_t<InputIt>, Comp, Alloc>;
+template<typename Key, typename Ty, typename Comp = less<remove_const_t<Key>>,
+         typename Alloc = std::allocator<std::pair<const Key, Ty>>,
+         typename = std::enable_if_t<!is_allocator<Comp>::value>, typename = std::enable_if_t<is_allocator<Alloc>::value>>
+multimap(std::initializer_list<std::pair<Key, Ty>>, Comp = Comp(), Alloc = Alloc())
+    -> multimap<remove_const_t<Key>, Ty, Comp, Alloc>;
+template<typename InputIt, typename Alloc, typename = std::enable_if_t<is_allocator<Alloc>::value>>
 multimap(InputIt, InputIt, Alloc)
-    -> multimap<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>,
-                typename std::iterator_traits<InputIt>::value_type::second_type,
-                std::less<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>>, Alloc>;
-template<typename Key, typename Ty, typename Allocator>
-multimap(std::initializer_list<std::pair<Key, Ty>>, Allocator) -> multimap<Key, Ty, std::less<Key>, Allocator>;
+    -> multimap<detail::iter_key_t<InputIt>, detail::iter_val_t<InputIt>, less<detail::iter_key_t<InputIt>>, Alloc>;
+template<typename Key, typename Ty, typename Alloc, typename = std::enable_if_t<is_allocator<Alloc>::value>>
+multimap(std::initializer_list<std::pair<Key, Ty>>, Alloc)
+    -> multimap<remove_const_t<Key>, Ty, std::less<remove_const_t<Key>>, Alloc>;
 #endif  // __cplusplus >= 201703L
 
 template<typename Key, typename Ty, typename Comp, typename Alloc>

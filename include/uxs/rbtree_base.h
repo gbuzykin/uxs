@@ -773,6 +773,15 @@ void rbtree_base<NodeTraits, Alloc, Comp>::copy_node(rbtree_node_t* node, rbtree
     }
 }
 
+#if __cplusplus >= 201703L
+template<typename InputIt>
+using iter_key_t = remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>;
+template<typename InputIt>
+using iter_val_t = typename std::iterator_traits<InputIt>::value_type::second_type;
+template<typename InputIt>
+using iter_to_alloc_t = std::pair<std::add_const_t<iter_key_t<InputIt>>, iter_val_t<InputIt>>;
+#endif  // __cplusplus >= 201703L
+
 }  // namespace detail
 
 }  // namespace uxs
