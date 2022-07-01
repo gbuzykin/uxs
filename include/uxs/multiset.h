@@ -34,7 +34,7 @@ class multiset : public detail::rbtree_multi<detail::set_node_traits<Key>, Alloc
     multiset(const multiset&) = default;
     multiset& operator=(const multiset&) = default;
     multiset(multiset&& other) NOEXCEPT : super(std::move(other)) {}
-    multiset& operator=(multiset&& other) NOEXCEPT {
+    multiset& operator=(multiset&& other) {
         super::operator=(std::move(other));
         return *this;
     }
@@ -118,15 +118,17 @@ class multiset : public detail::rbtree_multi<detail::set_node_traits<Key>, Alloc
 
 #if __cplusplus >= 201703L
 template<typename InputIt, typename Comp = std::less<typename std::iterator_traits<InputIt>::value_type>,
-         typename Alloc = std::allocator<typename std::iterator_traits<InputIt>::value_type>>
+         typename Alloc = std::allocator<typename std::iterator_traits<InputIt>::value_type>,
+         typename = std::enable_if_t<!is_allocator<Comp>::value>, typename = std::enable_if_t<is_allocator<Alloc>::value>>
 multiset(InputIt, InputIt, Comp = Comp(), Alloc = Alloc())
     -> multiset<typename std::iterator_traits<InputIt>::value_type, Comp, Alloc>;
-template<typename Key, typename Comp = std::less<Key>, typename Alloc = std::allocator<Key>>
+template<typename Key, typename Comp = std::less<Key>, typename Alloc = std::allocator<Key>,
+         typename = std::enable_if_t<!is_allocator<Comp>::value>, typename = std::enable_if_t<is_allocator<Alloc>::value>>
 multiset(std::initializer_list<Key>, Comp = Comp(), Alloc = Alloc()) -> multiset<Key, Comp, Alloc>;
-template<typename InputIt, typename Alloc>
+template<typename InputIt, typename Alloc, typename = std::enable_if_t<is_allocator<Alloc>::value>>
 multiset(InputIt, InputIt, Alloc) -> multiset<typename std::iterator_traits<InputIt>::value_type,
                                               std::less<typename std::iterator_traits<InputIt>::value_type>, Alloc>;
-template<typename Key, typename Alloc>
+template<typename Key, typename Alloc, typename = std::enable_if_t<is_allocator<Alloc>::value>>
 multiset(std::initializer_list<Key>, Alloc) -> multiset<Key, std::less<Key>, Alloc>;
 #endif  // __cplusplus >= 201703L
 

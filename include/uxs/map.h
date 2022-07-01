@@ -39,7 +39,7 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
     map(const map&) = default;
     map& operator=(const map&) = default;
     map(map&& other) NOEXCEPT : super(std::move(other)) {}
-    map& operator=(map&& other) NOEXCEPT {
+    map& operator=(map&& other) {
         super::operator=(std::move(other));
         return *this;
     }
@@ -239,24 +239,22 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
 };
 
 #if __cplusplus >= 201703L
-template<typename InputIt,
-         typename Comp = std::less<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>>,
-         typename Alloc =
-             std::allocator<std::pair<std::add_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>,
-                                      typename std::iterator_traits<InputIt>::value_type::second_type>>>
+template<typename InputIt, typename Comp = less<detail::iter_key_t<InputIt>>,
+         typename Alloc = std::allocator<detail::iter_to_alloc_t<InputIt>>,
+         typename = std::enable_if_t<!is_allocator<Comp>::value>, typename = std::enable_if_t<is_allocator<Alloc>::value>>
 map(InputIt, InputIt, Comp = Comp(), Alloc = Alloc())
-    -> map<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>,
-           typename std::iterator_traits<InputIt>::value_type::second_type, Comp, Alloc>;
-template<typename Key, typename Ty, typename Comp = std::less<Key>,
-         typename Alloc = std::allocator<std::pair<const Key, Ty>>>
-map(std::initializer_list<std::pair<Key, Ty>>, Comp = Comp(), Alloc = Alloc()) -> map<Key, Ty, Comp, Alloc>;
-template<typename InputIt, typename Alloc>
+    -> map<detail::iter_key_t<InputIt>, detail::iter_val_t<InputIt>, Comp, Alloc>;
+template<typename Key, typename Ty, typename Comp = less<remove_const_t<Key>>,
+         typename Alloc = std::allocator<std::pair<const Key, Ty>>,
+         typename = std::enable_if_t<!is_allocator<Comp>::value>, typename = std::enable_if_t<is_allocator<Alloc>::value>>
+map(std::initializer_list<std::pair<Key, Ty>>, Comp = Comp(), Alloc = Alloc())
+    -> map<remove_const_t<Key>, Ty, Comp, Alloc>;
+template<typename InputIt, typename Alloc, typename = std::enable_if_t<is_allocator<Alloc>::value>>
 map(InputIt, InputIt, Alloc)
-    -> map<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>,
-           typename std::iterator_traits<InputIt>::value_type::second_type,
-           std::less<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>>, Alloc>;
-template<typename Key, typename Ty, typename Allocator>
-map(std::initializer_list<std::pair<Key, Ty>>, Allocator) -> map<Key, Ty, std::less<Key>, Allocator>;
+    -> map<detail::iter_key_t<InputIt>, detail::iter_val_t<InputIt>, less<detail::iter_key_t<InputIt>>, Alloc>;
+template<typename Key, typename Ty, typename Alloc, typename = std::enable_if_t<is_allocator<Alloc>::value>>
+map(std::initializer_list<std::pair<Key, Ty>>, Alloc)
+    -> map<remove_const_t<Key>, Ty, std::less<remove_const_t<Key>>, Alloc>;
 #endif  // __cplusplus >= 201703L
 
 template<typename Key, typename Ty, typename Comp, typename Alloc>
