@@ -43,13 +43,10 @@ class rbtree_multi : public rbtree_base<NodeTraits, Alloc, Comp> {
     }
 #endif  // __cplusplus < 201703L
 
-    void assign(std::initializer_list<value_type> l) {
-        assign_range(l.begin(), l.end(), std::is_copy_assignable<typename node_traits::writable_value_t>());
-    }
-
+    void assign(std::initializer_list<value_type> l) { assign_range(l.begin(), l.end()); }
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     void assign(InputIt first, InputIt last) {
-        assign_range(first, last, std::is_assignable<typename node_traits::writable_value_t&, decltype(*first)>());
+        assign_range(first, last);
     }
 
     iterator insert(const value_type& val) { return emplace(val); }
@@ -95,10 +92,10 @@ class rbtree_multi : public rbtree_base<NodeTraits, Alloc, Comp> {
         auto* node = nh.node_;
         auto result = rbtree_find_insert_pos<node_traits>(
             std::addressof(this->head_), node_traits::get_key(node_traits::get_value(node)), this->get_compare());
-        nh.node_ = nullptr;
         node_traits::set_head(node, std::addressof(this->head_));
         rbtree_insert(std::addressof(this->head_), node, result.first, result.second);
         ++this->size_;
+        nh.node_ = nullptr;
         return iterator(node);
     }
 
@@ -111,10 +108,10 @@ class rbtree_multi : public rbtree_base<NodeTraits, Alloc, Comp> {
         auto result = rbtree_find_insert_pos<node_traits>(std::addressof(this->head_), this->to_ptr(hint),
                                                           node_traits::get_key(node_traits::get_value(node)),
                                                           this->get_compare());
-        nh.node_ = nullptr;
         node_traits::set_head(node, std::addressof(this->head_));
         rbtree_insert(std::addressof(this->head_), node, result.first, result.second);
         ++this->size_;
+        nh.node_ = nullptr;
         return iterator(node);
     }
 
@@ -137,9 +134,7 @@ class rbtree_multi : public rbtree_base<NodeTraits, Alloc, Comp> {
 
  protected:
     template<typename InputIt>
-    void assign_range(InputIt first, InputIt last, std::true_type);
-    template<typename InputIt>
-    void assign_range(InputIt first, InputIt last, std::false_type);
+    void assign_range(InputIt first, InputIt last);
     template<typename Comp2>
     void merge_impl(rbtree_base<node_traits, Alloc, Comp2>&& other);
     template<typename InputIt>
@@ -151,55 +146,18 @@ class rbtree_multi : public rbtree_base<NodeTraits, Alloc, Comp> {
 
 template<typename node_traits, typename Alloc, typename Comp>
 template<typename InputIt>
-void rbtree_multi<node_traits, Alloc, Comp>::assign_range(InputIt first, InputIt last, std::true_type) {
+void rbtree_multi<node_traits, Alloc, Comp>::assign_range(InputIt first, InputIt last) {
     assert(super::check_iterator_range(first, last, is_random_access_iterator<InputIt>()));
     if (this->size_) {
-        auto* reuse = super::reuse_first(this->head_.parent);
+        typename super::reuse_cache_t cache(this);
         this->reset();
-        try {
-            for (; reuse != std::addressof(this->head_) && first != last; ++first) {
-                auto* node = reuse;
-                node_traits::get_writable_value(node) = *first;
-                auto result = rbtree_find_insert_pos<node_traits>(
-                    std::addressof(this->head_), std::addressof(this->head_),
-                    node_traits::get_key(node_traits::get_value(node)), this->get_compare());
-                reuse = super::reuse_next(reuse);
-                rbtree_insert(std::addressof(this->head_), node, result.first, result.second);
-                ++this->size_;
-            }
-            this->delete_node_chain(reuse);
-        } catch (...) {
-            this->delete_node_chain(reuse);
-            throw;
-        }
-    }
-    insert_impl(first, last);
-}
-
-template<typename node_traits, typename Alloc, typename Comp>
-template<typename InputIt>
-void rbtree_multi<node_traits, Alloc, Comp>::assign_range(InputIt first, InputIt last, std::false_type) {
-    assert(super::check_iterator_range(first, last, is_random_access_iterator<InputIt>()));
-    if (this->size_) {
-        auto* node = super::reuse_first(this->head_.parent);
-        auto* reuse = super::reuse_next(node);
-        this->reset();
-        try {
-            for (; reuse != std::addressof(this->head_) && first != last; ++first) {
-                this->reconstruct_node(node, *first);
-                auto* tmp_reuse = reuse;
-                reuse = node;
-                auto result = rbtree_find_insert_pos<node_traits>(
-                    std::addressof(this->head_), std::addressof(this->head_),
-                    node_traits::get_key(node_traits::get_value(node)), this->get_compare());
-                rbtree_insert(std::addressof(this->head_), node, result.first, result.second);
-                ++this->size_;
-                node = tmp_reuse, reuse = super::reuse_next(tmp_reuse);
-            }
-            this->delete_node_chain(reuse);
-        } catch (...) {
-            this->delete_node_chain(reuse);
-            throw;
+        for (; cache && first != last; ++first) {
+            node_traits::get_lref_value(*cache) = *first;
+            auto result = rbtree_find_insert_pos<node_traits>(std::addressof(this->head_), std::addressof(this->head_),
+                                                              node_traits::get_key(node_traits::get_value(*cache)),
+                                                              this->get_compare());
+            rbtree_insert(std::addressof(this->head_), cache.advance(), result.first, result.second);
+            ++this->size_;
         }
     }
     insert_impl(first, last);
