@@ -314,7 +314,7 @@ void json::writer::write(const value& v) {
             case value::dtype::kRecord: {
                 output_.put('{');
                 indent += indent_size_;
-                stack.emplace_back(&v, v.as_map().begin());
+                stack.emplace_back(&v, v.as_record().begin());
                 return true;
             } break;
         }
@@ -337,15 +337,15 @@ loop:
         }
         output_.put(']');
     } else {
-        auto range = top->v->as_map();
+        auto range = top->v->as_record();
         auto el = top->record_element;
         while (el != range.end()) {
             if (el != range.begin()) { output_.put(','); }
             output_.put('\n');
             output_.fill_n(indent, indent_char_);
-            print_quoted_text<char>(output_, el->name());
+            print_quoted_text<char>(output_, el->first);
             output_.put(':').put(' ');
-            if (write_value((el++)->val())) {
+            if (write_value((el++)->second)) {
                 (stack.curr() - 2)->record_element = el;
                 goto loop;
             }
