@@ -653,7 +653,7 @@ const value* value::find(std::string_view name) const {
 void value::clear() {
     if (type_ == dtype::kRecord) {
         value_.rec->clear();
-    } else if (value_.arr) {
+    } else if (type_ == dtype::kArray && value_.arr) {
         uxs::for_each(value_.arr->view(), [](value& v) { v.destroy(); });
         value_.arr->size = 0;
     }
@@ -833,6 +833,7 @@ void value::print_scalar(iobuf& out) const {
         if (arr) { flexarray<value>::dealloc(arr); }
         arr = new_arr;
     }
+    arr->size = v.size();
     return arr;
 }
 
@@ -851,6 +852,7 @@ void value::copy_from(const value& other) {
     if (type_ != other.type_) {
         if (type_ != dtype::kNull) { destroy(); }
         init_from(other);
+        type_ = other.type_;
     } else {
         switch (other.type_) {
             case dtype::kString: value_.str = assign_string(value_.str, other.str_view()); break;
@@ -859,7 +861,6 @@ void value::copy_from(const value& other) {
             default: value_ = other.value_; break;
         }
     }
-    type_ = other.type_;
 }
 
 void value::destroy() {
@@ -879,9 +880,8 @@ void value::destroy() {
         } break;
         default: break;
     }
+    type_ = dtype::kNull;
 }
-
-// --------------------------
 
 void value::reserve_back() {
     if (type_ != dtype::kArray || !value_.arr) {
@@ -889,7 +889,7 @@ void value::reserve_back() {
         value_.arr = flexarray<value>::alloc(kMinCapacity);
         value_.arr->size = 0;
         type_ = dtype::kArray;
-    } else if (value_.arr->size == value_.arr->capacity) {
+    } else {
         value_.arr = flexarray<value>::grow(value_.arr, 1);
     }
 }
