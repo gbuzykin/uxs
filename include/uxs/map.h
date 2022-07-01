@@ -38,8 +38,8 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
     ~map() = default;
     map(const map&) = default;
     map& operator=(const map&) = default;
-    map(map&& other) NOEXCEPT : super(std::move(other)) {}
-    map& operator=(map&& other) {
+    map(map&& other) NOEXCEPT_IF(noexcept(super(std::move(other)))) : super(std::move(other)) {}
+    map& operator=(map&& other) NOEXCEPT_IF(std::is_nothrow_move_assignable<super>::value) {
         super::operator=(std::move(other));
         return *this;
     }
@@ -93,7 +93,7 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
     }
 
     map(const map& other, const allocator_type& alloc) : super(other, alloc) {}
-    map(map&& other, const allocator_type& alloc) NOEXCEPT_IF(is_alloc_always_equal<alloc_type>::value)
+    map(map&& other, const allocator_type& alloc) NOEXCEPT_IF(noexcept(super(std::move(other), alloc)))
         : super(std::move(other), alloc) {}
 
     void swap(map& other) NOEXCEPT_IF(std::is_nothrow_swappable<key_compare>::value) {

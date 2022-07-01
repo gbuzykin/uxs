@@ -37,8 +37,8 @@ class multimap : public detail::rbtree_multi<detail::map_node_traits<Key, Ty>, A
     ~multimap() = default;
     multimap(const multimap&) = default;
     multimap& operator=(const multimap&) = default;
-    multimap(multimap&& other) NOEXCEPT : super(std::move(other)) {}
-    multimap& operator=(multimap&& other) {
+    multimap(multimap&& other) NOEXCEPT_IF(noexcept(super(std::move(other)))) : super(std::move(other)) {}
+    multimap& operator=(multimap&& other) NOEXCEPT_IF(std::is_nothrow_move_assignable<super>::value) {
         super::operator=(std::move(other));
         return *this;
     }
@@ -92,7 +92,7 @@ class multimap : public detail::rbtree_multi<detail::map_node_traits<Key, Ty>, A
     }
 
     multimap(const multimap& other, const allocator_type& alloc) : super(other, alloc) {}
-    multimap(multimap&& other, const allocator_type& alloc) NOEXCEPT_IF(is_alloc_always_equal<alloc_type>::value)
+    multimap(multimap&& other, const allocator_type& alloc) NOEXCEPT_IF(noexcept(super(std::move(other), alloc)))
         : super(std::move(other), alloc) {}
 
     void swap(multimap& other) NOEXCEPT_IF(std::is_nothrow_swappable<key_compare>::value) {

@@ -33,8 +33,8 @@ class set : public detail::rbtree_unique<detail::set_node_traits<Key>, Alloc, Co
     ~set() = default;
     set(const set&) = default;
     set& operator=(const set&) = default;
-    set(set&& other) NOEXCEPT : super(std::move(other)) {}
-    set& operator=(set&& other) NOEXCEPT {
+    set(set&& other) NOEXCEPT_IF(noexcept(super(std::move(other)))) : super(std::move(other)) {}
+    set& operator=(set&& other) NOEXCEPT_IF(std::is_nothrow_move_assignable<super>::value) {
         super::operator=(std::move(other));
         return *this;
     }
@@ -88,7 +88,7 @@ class set : public detail::rbtree_unique<detail::set_node_traits<Key>, Alloc, Co
     }
 
     set(const set& other, const allocator_type& alloc) : super(other, alloc) {}
-    set(set&& other, const allocator_type& alloc) NOEXCEPT_IF(is_alloc_always_equal<alloc_type>::value)
+    set(set&& other, const allocator_type& alloc) NOEXCEPT_IF(noexcept(super(std::move(other), alloc)))
         : super(std::move(other), alloc) {}
 
     void swap(set& other) NOEXCEPT_IF(std::is_nothrow_swappable<key_compare>::value) {

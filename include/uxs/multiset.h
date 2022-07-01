@@ -33,8 +33,8 @@ class multiset : public detail::rbtree_multi<detail::set_node_traits<Key>, Alloc
     ~multiset() = default;
     multiset(const multiset&) = default;
     multiset& operator=(const multiset&) = default;
-    multiset(multiset&& other) NOEXCEPT : super(std::move(other)) {}
-    multiset& operator=(multiset&& other) {
+    multiset(multiset&& other) NOEXCEPT_IF(noexcept(super(std::move(other)))) : super(std::move(other)) {}
+    multiset& operator=(multiset&& other) NOEXCEPT_IF(std::is_nothrow_move_assignable<super>::value) {
         super::operator=(std::move(other));
         return *this;
     }
@@ -88,7 +88,7 @@ class multiset : public detail::rbtree_multi<detail::set_node_traits<Key>, Alloc
     }
 
     multiset(const multiset& other, const allocator_type& alloc) : super(other, alloc) {}
-    multiset(multiset&& other, const allocator_type& alloc) NOEXCEPT_IF(is_alloc_always_equal<alloc_type>::value)
+    multiset(multiset&& other, const allocator_type& alloc) NOEXCEPT_IF(noexcept(super(std::move(other), alloc)))
         : super(std::move(other), alloc) {}
 
     void swap(multiset& other) NOEXCEPT_IF(std::is_nothrow_swappable<key_compare>::value) {
