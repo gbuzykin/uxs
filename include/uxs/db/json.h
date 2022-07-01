@@ -2,13 +2,14 @@
 
 #include "value.h"
 
+#include "uxs/io/iobuf.h"
 #include "uxs/stringcvt.h"
 
 namespace uxs {
 namespace db {
 namespace json {
 
-class reader {
+class UXS_EXPORT reader {
  public:
     explicit reader(iobuf& input) : input_(input) {}
     value read();
@@ -25,7 +26,7 @@ class reader {
     int parse_token(std::string_view& lval);
 };
 
-class writer {
+class UXS_EXPORT writer {
  public:
     explicit writer(iobuf& output, unsigned indent_sz = 4, char indent_ch = ' ')
         : output_(output), indent_size_(indent_sz), indent_char_(indent_ch) {}

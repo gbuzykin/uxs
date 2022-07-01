@@ -277,19 +277,48 @@ void json::writer::write(const value& v) {
     basic_inline_dynbuffer<writer_stack_item_t, 32> stack;
 
     auto write_value = [this, &stack, &indent](const value& v) {
-        if (v.type() < value::dtype::kArray) {
-            v.print_scalar(output_);
-            return false;
+        switch (v.type_) {
+            case value::dtype::kNull: output_.write("null"); break;
+            case value::dtype::kBoolean: output_.write(v.value_.b ? "true" : "false"); break;
+            case value::dtype::kInteger: {
+                inline_dynbuffer buf;
+                basic_to_string(buf.base(), v.value_.i, fmt_state());
+                output_.write(as_span(buf.data(), buf.size()));
+            } break;
+            case value::dtype::kUInteger: {
+                inline_dynbuffer buf;
+                basic_to_string(buf.base(), v.value_.u, fmt_state());
+                output_.write(as_span(buf.data(), buf.size()));
+            } break;
+            case value::dtype::kInteger64: {
+                inline_dynbuffer buf;
+                basic_to_string(buf.base(), v.value_.i64, fmt_state());
+                output_.write(as_span(buf.data(), buf.size()));
+            } break;
+            case value::dtype::kUInteger64: {
+                inline_dynbuffer buf;
+                basic_to_string(buf.base(), v.value_.u64, fmt_state());
+                output_.write(as_span(buf.data(), buf.size()));
+            } break;
+            case value::dtype::kDouble: {
+                inline_dynbuffer buf;
+                basic_to_string(buf.base(), v.value_.dbl, fmt_state(fmt_flags::kAlternate));
+                output_.write(as_span(buf.data(), buf.size()));
+            } break;
+            case value::dtype::kString: print_quoted_text(output_, v.str_view()); break;
+            case value::dtype::kArray: {
+                output_.put('[');
+                stack.emplace_back(&v, v.as_array().data());
+                return true;
+            } break;
+            case value::dtype::kRecord: {
+                output_.put('{');
+                indent += indent_size_;
+                stack.emplace_back(&v, v.as_map().begin());
+                return true;
+            } break;
         }
-        if (v.type() == value::dtype::kArray) {
-            output_.put('[');
-            stack.emplace_back(&v, v.as_array().data());
-            return true;
-        }
-        output_.put('{');
-        indent += indent_size_;
-        stack.emplace_back(&v, v.as_map().begin());
-        return true;
+        return false;
     };
 
     if (!write_value(v)) { return; }
@@ -309,8 +338,8 @@ loop:
         output_.put(']');
     } else {
         auto range = top->v->as_map();
-        auto el = top->record_element, el_end = range.end();
-        while (el != el_end) {
+        auto el = top->record_element;
+        while (el != range.end()) {
             if (el != range.begin()) { output_.put(','); }
             output_.put('\n');
             output_.fill_n(indent, indent_char_);
