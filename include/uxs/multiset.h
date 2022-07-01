@@ -61,7 +61,7 @@ class multiset : public detail::rbtree_multi<detail::set_node_traits<Key>, Alloc
     }
 
     multiset& operator=(std::initializer_list<value_type> l) {
-        this->assign_range(l.begin(), l.end(), std::is_copy_assignable<typename node_traits::writable_value_t>());
+        this->assign_range(l.begin(), l.end());
         return *this;
     }
 

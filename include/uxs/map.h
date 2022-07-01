@@ -66,7 +66,7 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
     }
 
     map& operator=(std::initializer_list<value_type> l) {
-        this->assign_range(l.begin(), l.end(), std::is_copy_assignable<typename node_traits::writable_value_t>());
+        this->assign_range(l.begin(), l.end());
         return *this;
     }
 
@@ -224,7 +224,7 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
     }
 
     template<typename Key2, typename... Args>
-    iterator try_emplace_hint_impl(const_iterator hint, Key2&& key, Args&&... args) {
+    std::pair<iterator, bool> try_emplace_hint_impl(const_iterator hint, Key2&& key, Args&&... args) {
         auto result = rbtree_find_insert_unique_pos<node_traits>(std::addressof(this->head_), this->to_ptr(hint), key,
                                                                  this->get_compare());
         if (result.second) {

@@ -54,9 +54,7 @@ class rbtree_node_handle_getters<NodeTraits, Alloc, NodeHandle, std::void_t<type
         alloc_type::operator=(std::move(other));
         return *this;
     }
-    key_type& key() const {
-        return const_cast<key_type&>(node_traits::get_value(static_cast<const NodeHandle*>(this)->node_).first);
-    }
+    key_type& key() const { return node_traits::get_lref_value(static_cast<const NodeHandle*>(this)->node_).first; }
     mapped_type& mapped() const { return node_traits::get_value(static_cast<const NodeHandle*>(this)->node_).second; }
 };
 
