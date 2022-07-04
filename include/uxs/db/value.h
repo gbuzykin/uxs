@@ -119,19 +119,20 @@ class UXS_EXPORT value {
         static record_t* alloc(const std::initializer_list<std::pair<std::string_view, value>>& init);
         static record_t* alloc(const record_t& src);
 
-        void assign(const record_t& src);
+        static record_t* assign(record_t* rec, const record_t& src);
 
         template<typename... Args>
         list_links_type* new_node(std::string_view name, Args&&... args);
         static void delete_node(list_links_type* node);
         static size_t calc_hash_code(std::string_view name);
         void add_to_hash(list_links_type* node, size_t hash_code);
-        void insert(size_t hash_code, list_links_type* node);
+        static record_t* insert(record_t* rec, size_t hash_code, list_links_type* node);
         list_links_type* erase(list_links_type* node);
         size_t erase(std::string_view name);
 
         static size_t max_size();
         static size_t get_alloc_sz(size_t bckt_cnt);
+        static size_t next_bucket_count(size_t sz);
         static record_t* alloc(size_t bckt_cnt);
         static record_t* rehash(record_t* rec, size_t bckt_cnt);
         static void dealloc(record_t* rec);
@@ -320,12 +321,6 @@ class UXS_EXPORT value {
     void reserve(size_t sz);
     void resize(size_t sz);
 
-    void rehash() {
-        if (type_ == dtype::kRecord && value_.rec->size > value_.rec->bucket_count) {
-            value_.rec = record_t::rehash(value_.rec, value_.rec->size);
-        }
-    }
-
     template<typename... Args>
     value& emplace_back(Args&&... args);
     void push_back(const value& v) { emplace_back(v); }
@@ -367,7 +362,7 @@ class UXS_EXPORT value {
     friend value make_record(InputIt, InputIt);
     friend value make_record(std::initializer_list<std::pair<std::string_view, value>>);
 
-    enum : unsigned { kStartCapacity = 8 };
+    enum : unsigned { kStartCapacity = 8, kMinBucketCountInc = 12 };
 
     dtype type_;
 
@@ -609,7 +604,7 @@ value& value::emplace(std::string_view name, Args&&... args) {
         type_ = dtype::kRecord;
     }
     list_links_type* node = value_.rec->new_node(name, std::forward<Args>(args)...);
-    value_.rec->insert(record_t::calc_hash_code(name), node);
+    value_.rec = record_t::insert(value_.rec, record_t::calc_hash_code(name), node);
     return list_node_traits::get_value(node).val();
 }
 
@@ -636,8 +631,8 @@ void value::insert(InputIt first, InputIt last) {
         type_ = dtype::kRecord;
     } else {
         for (; first != last; ++first) {
-            value_.rec->insert(record_t::calc_hash_code(first->first),
-                               value_.rec->new_node(first->first, first->second));
+            value_.rec = record_t::insert(value_.rec, record_t::calc_hash_code(first->first),
+                                          value_.rec->new_node(first->first, first->second));
         }
     }
 }
@@ -800,8 +795,8 @@ void value::assign_impl(InputIt first, InputIt last, std::true_type /* range of 
     } else {
         value_.rec->clear();
         for (; first != last; ++first) {
-            value_.rec->insert(record_t::calc_hash_code(first->first),
-                               value_.rec->new_node(first->first, first->second));
+            value_.rec = record_t::insert(value_.rec, record_t::calc_hash_code(first->first),
+                                          value_.rec->new_node(first->first, first->second));
         }
     }
 }
@@ -822,7 +817,7 @@ template<typename InputIt>
     record_t* rec = alloc();
     try {
         for (; first != last; ++first) {
-            rec->insert(calc_hash_code(first->first), rec->new_node(first->first, first->second));
+            rec = insert(rec, calc_hash_code(first->first), rec->new_node(first->first, first->second));
         }
         return rec;
     } catch (...) {
