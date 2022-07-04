@@ -135,11 +135,12 @@ size_t value::record_t::count(std::string_view name) const {
 }
 
 /*static*/ value::record_t* value::record_t::alloc(const std::initializer_list<value>& init) {
-    record_t* rec = alloc();
+    record_t* rec = alloc(init.size() ? std::min(init.size(), max_size()) : 1);
+    rec->init();
     try {
-        uxs::for_each(init, [rec](const value& v) {
+        uxs::for_each(init, [&rec](const value& v) {
             std::string_view name = v.value_.arr->data[0].str_view();
-            rec->insert(calc_hash_code(name), rec->new_node(name, v.value_.arr->data[1]));
+            rec = insert(rec, calc_hash_code(name), rec->new_node(name, v.value_.arr->data[1]));
         });
         return rec;
     } catch (...) {
@@ -151,10 +152,11 @@ size_t value::record_t::count(std::string_view name) const {
 
 /*static*/ value::record_t* value::record_t::alloc(
     const std::initializer_list<std::pair<std::string_view, value>>& init) {
-    record_t* rec = alloc();
+    record_t* rec = alloc(init.size() ? std::min(init.size(), max_size()) : 1);
+    rec->init();
     try {
-        uxs::for_each(init, [rec](const std::pair<std::string_view, value>& v) {
-            rec->insert(calc_hash_code(v.first), rec->new_node(v.first, v.second));
+        uxs::for_each(init, [&rec](const std::pair<std::string_view, value>& v) {
+            rec = insert(rec, calc_hash_code(v.first), rec->new_node(v.first, v.second));
         });
         return rec;
     } catch (...) {
@@ -165,12 +167,13 @@ size_t value::record_t::count(std::string_view name) const {
 }
 
 /*static*/ value::record_t* value::record_t::alloc(const record_t& src) {
-    record_t* rec = alloc();
+    record_t* rec = alloc(src.size ? std::min(src.size, max_size()) : 0);
+    rec->init();
     try {
         list_links_type* node = src.head.next;
         while (node != &src.head) {
             const auto& v = list_node_traits::get_value(node);
-            rec->insert(static_cast<list_node_type*>(node)->hash_code, rec->new_node(v.name(), v.val()));
+            rec = insert(rec, static_cast<list_node_type*>(node)->hash_code, rec->new_node(v.name(), v.val()));
             node = node->next;
         }
         return rec;
@@ -181,14 +184,15 @@ size_t value::record_t::count(std::string_view name) const {
     }
 }
 
-void value::record_t::assign(const record_t& src) {
-    clear();
+/*static*/ value::record_t* value::record_t::assign(record_t* rec, const record_t& src) {
+    rec->clear();
     list_links_type* node = src.head.next;
     while (node != &src.head) {
         const auto& v = list_node_traits::get_value(node);
-        insert(static_cast<list_node_type*>(node)->hash_code, new_node(v.name(), v.val()));
+        rec = insert(rec, static_cast<list_node_type*>(node)->hash_code, rec->new_node(v.name(), v.val()));
         node = node->next;
     }
+    return rec;
 }
 
 /*static*/ size_t value::record_t::calc_hash_code(std::string_view name) {
@@ -226,12 +230,18 @@ inline void value::record_t::add_to_hash(list_links_type* node, size_t hash_code
     *slot = node;
 }
 
-void value::record_t::insert(size_t hash_code, list_links_type* node) {
-    list_node_traits::set_head(node, &head);
+/*static*/ value::record_t* value::record_t::insert(record_t* rec, size_t hash_code, list_links_type* node) {
+    assert(rec->size <= rec->bucket_count);
+    if (rec->size == rec->bucket_count) {
+        const size_t sz = next_bucket_count(rec->size);
+        if (sz > rec->size) { rec = record_t::rehash(rec, sz); }
+    }
+    list_node_traits::set_head(node, &rec->head);
     static_cast<list_node_type*>(node)->hash_code = hash_code;
-    add_to_hash(node, hash_code);
-    dllist_insert_before(&head, node);
-    ++size;
+    rec->add_to_hash(node, hash_code);
+    dllist_insert_before(&rec->head, node);
+    ++rec->size;
+    return rec;
 }
 
 value::list_links_type* value::record_t::erase(list_links_type* node) {
@@ -276,6 +286,19 @@ size_t value::record_t::erase(std::string_view name) {
     return (offsetof(record_t, hashtbl[bckt_cnt]) + sizeof(record_t) - 1) / sizeof(record_t);
 }
 
+/*static*/ size_t value::record_t::next_bucket_count(size_t sz) {
+    size_t delta_sz = std::max<size_t>(kMinBucketCountInc, sz >> 1);
+    using alloc_traits = std::allocator_traits<std::allocator<record_t>>;
+    const size_t max_size = (alloc_traits::max_size(std::allocator<record_t>()) * sizeof(record_t) -
+                             offsetof(record_t, hashtbl[0])) /
+                            sizeof(list_links_type*);
+    if (delta_sz > max_size - sz) {
+        if (sz == max_size) { return sz; }
+        delta_sz = std::max<size_t>(1, (max_size - sz) >> 1);
+    }
+    return sz + delta_sz;
+}
+
 /*static*/ value::record_t* value::record_t::alloc(size_t bckt_cnt) {
     const size_t alloc_sz = get_alloc_sz(bckt_cnt);
     record_t* rec = std::allocator<record_t>().allocate(alloc_sz);
@@ -285,8 +308,7 @@ size_t value::record_t::erase(std::string_view name) {
 }
 
 /*static*/ value::record_t* value::record_t::rehash(record_t* rec, size_t bckt_cnt) {
-    bckt_cnt = std::min(bckt_cnt, max_size());
-    if (bckt_cnt <= rec->bucket_count) { return rec; }
+    assert(rec->size);
     record_t* new_rec = alloc(bckt_cnt);
     new_rec->head = rec->head;
     new_rec->size = rec->size;
@@ -333,7 +355,8 @@ void value::assign(std::initializer_list<value> init) {
             value_.rec->clear();
             uxs::for_each(init, [this](const value& v) {
                 std::string_view name = v.value_.arr->data[0].str_view();
-                value_.rec->insert(record_t::calc_hash_code(name), value_.rec->new_node(name, v.value_.arr->data[1]));
+                value_.rec = record_t::insert(value_.rec, record_t::calc_hash_code(name),
+                                              value_.rec->new_node(name, v.value_.arr->data[1]));
             });
         }
     } else if (type_ != dtype::kArray) {
@@ -366,7 +389,8 @@ void value::insert(std::initializer_list<std::pair<std::string_view, value>> ini
         type_ = dtype::kRecord;
     } else {
         uxs::for_each(init, [this](const std::pair<std::string_view, value>& v) {
-            value_.rec->insert(record_t::calc_hash_code(v.first), value_.rec->new_node(v.first, v.second));
+            value_.rec = record_t::insert(value_.rec, record_t::calc_hash_code(v.first),
+                                          value_.rec->new_node(v.first, v.second));
         });
     }
 }
@@ -740,7 +764,7 @@ value& value::operator[](std::string_view name) {
     list_links_type* node = value_.rec->find(name, hash_code);
     if (node == &value_.rec->head) {
         node = value_.rec->new_node(name);
-        value_.rec->insert(hash_code, node);
+        value_.rec = record_t::insert(value_.rec, hash_code, node);
     }
     return list_node_traits::get_value(node).val();
 }
@@ -844,7 +868,7 @@ void value::assign_impl(const value& other) {
         switch (other.type_) {
             case dtype::kString: assign_string(other.str_view()); break;
             case dtype::kArray: assign_array(other.array_view()); break;
-            case dtype::kRecord: value_.rec->record_t::assign(*other.value_.rec); break;
+            case dtype::kRecord: value_.rec = record_t::assign(value_.rec, *other.value_.rec); break;
             default: value_ = other.value_; break;
         }
     }
