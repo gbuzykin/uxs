@@ -228,6 +228,12 @@ class UXS_EXPORT value {
         return *this;
     }
 
+    void swap(value& other) NOEXCEPT {
+        if (&other == this) { return; }
+        std::swap(value_, other.value_);
+        std::swap(type_, other.type_);
+    }
+
     friend bool operator==(const value& lhs, const value& rhs);
     friend bool operator!=(const value& lhs, const value& rhs) { return !(lhs == rhs); }
 
@@ -898,3 +904,7 @@ UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_GET(std::string_view, as_string_view)
 
 }  // namespace db
 }  // namespace uxs
+
+namespace std {
+inline void swap(uxs::db::value& v1, uxs::db::value& v2) NOEXCEPT { v1.swap(v2); }
+}  // namespace std
