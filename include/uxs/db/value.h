@@ -451,24 +451,12 @@ class UXS_EXPORT value {
 };
 
 struct value::rec_value {
-    size_t name_sz_;
-    value v_;
-    char name_[1];
-
-    template<typename... Args>
-    explicit rec_value(std::string_view name, Args&&... args) : name_sz_(name.size()), v_(std::forward<Args>(args)...) {
-        std::copy_n(name.data(), name.size(), static_cast<char*>(name_));
-    }
-    rec_value(const rec_value&) = delete;
-    rec_value& operator=(const rec_value&) = delete;
-
-    std::string_view name() const { return std::string_view(name_, name_sz_); }
-    const value& val() const { return v_; }
-    value& val() { return v_; }
-
-    static size_t get_alloc_sz(size_t name_sz) {
-        return (offsetof(rec_value, name_[name_sz]) + sizeof(rec_value) - 1) / sizeof(rec_value);
-    }
+    value v;
+    size_t name_sz;
+    char name_chars[1];
+    std::string_view name() const { return std::string_view(name_chars, name_sz); }
+    const value& val() const { return v; }
+    value& val() { return v; }
 };
 
 template<typename Ty>
@@ -498,10 +486,18 @@ struct value::rec_value_proxy : std::pair<std::string_view, Ty&> {
     friend bool operator!=(const rec_value_proxy& lhs, const rec_value_proxy& rhs) { return !(lhs == rhs); }
 };
 
-struct value::list_node_type : list_links_type {
+struct value::list_node_type {
+    list_links_type links;
     list_links_type* bucket_next;
     size_t hash_code;
     rec_value v;
+    static list_node_type* from_links(list_links_type* links) {
+        return reinterpret_cast<list_node_type*>(reinterpret_cast<uint8_t*>(links) - offsetof(list_node_type, links));
+    }
+    static size_t max_name_size();
+    static size_t get_alloc_sz(size_t name_sz);
+    static list_node_type* alloc_checked(std::string_view name);
+    static void dealloc(list_node_type* node);
 };
 
 struct value::list_node_traits {
@@ -516,7 +512,7 @@ struct value::list_node_traits {
 #else   // _ITERATOR_DEBUG_LEVEL != 0
     static void set_head(list_links_type* node, list_links_type* head) {}
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
-    static rec_value& get_value(list_links_type* node) { return static_cast<node_t*>(node)->v; }
+    static rec_value& get_value(list_links_type* node) { return node_t::from_links(node)->v; }
 };
 
 // --------------------------
@@ -637,8 +633,8 @@ void value::insert(InputIt first, InputIt last) {
         type_ = dtype::kRecord;
     } else {
         for (; first != last; ++first) {
-            value_.rec = record_t::insert(value_.rec, record_t::calc_hash_code(first->first),
-                                          value_.rec->new_node(first->first, first->second));
+            list_links_type* node = value_.rec->new_node(first->first, first->second);
+            value_.rec = record_t::insert(value_.rec, record_t::calc_hash_code(first->first), node);
         }
     }
 }
@@ -801,8 +797,8 @@ void value::assign_impl(InputIt first, InputIt last, std::true_type /* range of 
     } else {
         value_.rec->clear();
         for (; first != last; ++first) {
-            value_.rec = record_t::insert(value_.rec, record_t::calc_hash_code(first->first),
-                                          value_.rec->new_node(first->first, first->second));
+            list_links_type* node = value_.rec->new_node(first->first, first->second);
+            value_.rec = record_t::insert(value_.rec, record_t::calc_hash_code(first->first), node);
         }
     }
 }
@@ -823,7 +819,8 @@ template<typename InputIt>
     record_t* rec = alloc();
     try {
         for (; first != last; ++first) {
-            rec = insert(rec, calc_hash_code(first->first), rec->new_node(first->first, first->second));
+            list_links_type* node = rec->new_node(first->first, first->second);
+            rec = insert(rec, calc_hash_code(first->first), node);
         }
         return rec;
     } catch (...) {
@@ -835,21 +832,20 @@ template<typename InputIt>
 
 template<typename... Args>
 value::list_links_type* value::record_t::new_node(std::string_view name, Args&&... args) {
-    const size_t alloc_sz = rec_value::get_alloc_sz(name.size());
-    list_links_type* node = std::allocator<list_node_type>().allocate(alloc_sz);
+    list_node_type* node = list_node_type::alloc_checked(name);
     try {
-        new (&list_node_traits::get_value(node)) rec_value(name, std::forward<Args>(args)...);
-        return node;
+        new (&node->v.val()) value(std::forward<Args>(args)...);
+        return &node->links;
     } catch (...) {
-        std::allocator<list_node_type>().deallocate(static_cast<list_node_type*>(node), alloc_sz);
+        list_node_type::dealloc(node);
         throw;
     }
 }
 
-/*static*/ inline void value::record_t::delete_node(list_links_type* node) {
-    rec_value& v = list_node_traits::get_value(node);
-    v.val().~value();
-    std::allocator<list_node_type>().deallocate(static_cast<list_node_type*>(node), rec_value::get_alloc_sz(v.name_sz_));
+/*static*/ inline void value::record_t::delete_node(list_links_type* links) {
+    list_node_type* node = list_node_type::from_links(links);
+    node->v.val().~value();
+    list_node_type::dealloc(node);
 }
 
 #define UXS_DB_VALUE_IMPLEMENT_SCALAR_IS_GET(ty, is_func) \

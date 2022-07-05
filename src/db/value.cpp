@@ -111,11 +111,11 @@ void value::record_t::destroy(list_links_type* node) {
 value::list_links_type* value::record_t::find(std::string_view name, size_t hash_code) const {
     list_links_type* bucket_next = hashtbl[hash_code % bucket_count];
     while (bucket_next) {
-        if (static_cast<list_node_type*>(bucket_next)->hash_code == hash_code &&
+        if (list_node_type::from_links(bucket_next)->hash_code == hash_code &&
             list_node_traits::get_value(bucket_next).name() == name) {
             return bucket_next;
         }
-        bucket_next = static_cast<list_node_type*>(bucket_next)->bucket_next;
+        bucket_next = list_node_type::from_links(bucket_next)->bucket_next;
     }
     return &head;
 }
@@ -125,11 +125,11 @@ size_t value::record_t::count(std::string_view name) const {
     const size_t hash_code = calc_hash_code(name);
     list_links_type* bucket_next = hashtbl[hash_code % bucket_count];
     while (bucket_next) {
-        if (static_cast<list_node_type*>(bucket_next)->hash_code == hash_code &&
+        if (list_node_type::from_links(bucket_next)->hash_code == hash_code &&
             list_node_traits::get_value(bucket_next).name() == name) {
             ++count;
         }
-        bucket_next = static_cast<list_node_type*>(bucket_next)->bucket_next;
+        bucket_next = list_node_type::from_links(bucket_next)->bucket_next;
     }
     return count;
 }
@@ -140,7 +140,8 @@ size_t value::record_t::count(std::string_view name) const {
     try {
         uxs::for_each(init, [&rec](const value& v) {
             std::string_view name = v.value_.arr->data[0].str_view();
-            rec = insert(rec, calc_hash_code(name), rec->new_node(name, v.value_.arr->data[1]));
+            list_links_type* node = rec->new_node(name, v.value_.arr->data[1]);
+            rec = insert(rec, calc_hash_code(name), node);
         });
         return rec;
     } catch (...) {
@@ -156,7 +157,8 @@ size_t value::record_t::count(std::string_view name) const {
     rec->init();
     try {
         uxs::for_each(init, [&rec](const std::pair<std::string_view, value>& v) {
-            rec = insert(rec, calc_hash_code(v.first), rec->new_node(v.first, v.second));
+            list_links_type* node = rec->new_node(v.first, v.second);
+            rec = insert(rec, calc_hash_code(v.first), node);
         });
         return rec;
     } catch (...) {
@@ -173,7 +175,7 @@ size_t value::record_t::count(std::string_view name) const {
         list_links_type* node = src.head.next;
         while (node != &src.head) {
             const auto& v = list_node_traits::get_value(node);
-            rec = insert(rec, static_cast<list_node_type*>(node)->hash_code, rec->new_node(v.name(), v.val()));
+            rec = insert(rec, list_node_type::from_links(node)->hash_code, rec->new_node(v.name(), v.val()));
             node = node->next;
         }
         return rec;
@@ -189,7 +191,7 @@ size_t value::record_t::count(std::string_view name) const {
     list_links_type* node = src.head.next;
     while (node != &src.head) {
         const auto& v = list_node_traits::get_value(node);
-        rec = insert(rec, static_cast<list_node_type*>(node)->hash_code, rec->new_node(v.name(), v.val()));
+        rec = insert(rec, list_node_type::from_links(node)->hash_code, rec->new_node(v.name(), v.val()));
         node = node->next;
     }
     return rec;
@@ -226,7 +228,7 @@ size_t value::record_t::count(std::string_view name) const {
 
 inline void value::record_t::add_to_hash(list_links_type* node, size_t hash_code) {
     list_links_type** slot = &hashtbl[hash_code % bucket_count];
-    static_cast<list_node_type*>(node)->bucket_next = *slot;
+    list_node_type::from_links(node)->bucket_next = *slot;
     *slot = node;
 }
 
@@ -237,7 +239,7 @@ inline void value::record_t::add_to_hash(list_links_type* node, size_t hash_code
         if (sz > rec->size) { rec = record_t::rehash(rec, sz); }
     }
     list_node_traits::set_head(node, &rec->head);
-    static_cast<list_node_type*>(node)->hash_code = hash_code;
+    list_node_type::from_links(node)->hash_code = hash_code;
     rec->add_to_hash(node, hash_code);
     dllist_insert_before(&rec->head, node);
     ++rec->size;
@@ -245,12 +247,12 @@ inline void value::record_t::add_to_hash(list_links_type* node, size_t hash_code
 }
 
 value::list_links_type* value::record_t::erase(list_links_type* node) {
-    list_links_type** p_bucket_next = &hashtbl[static_cast<list_node_type*>(node)->hash_code % bucket_count];
+    list_links_type** p_bucket_next = &hashtbl[list_node_type::from_links(node)->hash_code % bucket_count];
     while (*p_bucket_next != node) {
         assert(*p_bucket_next);
-        p_bucket_next = &static_cast<list_node_type*>(*p_bucket_next)->bucket_next;
+        p_bucket_next = &list_node_type::from_links(*p_bucket_next)->bucket_next;
     }
-    *p_bucket_next = static_cast<list_node_type*>(*p_bucket_next)->bucket_next;
+    *p_bucket_next = list_node_type::from_links(*p_bucket_next)->bucket_next;
     list_links_type* next = dllist_remove(node);
     delete_node(node);
     --size;
@@ -262,15 +264,15 @@ size_t value::record_t::erase(std::string_view name) {
     const size_t hash_code = calc_hash_code(name);
     list_links_type** p_bucket_next = &hashtbl[hash_code % bucket_count];
     while (*p_bucket_next) {
-        if (static_cast<list_node_type*>(*p_bucket_next)->hash_code == hash_code &&
+        if (list_node_type::from_links(*p_bucket_next)->hash_code == hash_code &&
             list_node_traits::get_value(*p_bucket_next).name() == name) {
             list_links_type* erased_node = *p_bucket_next;
-            *p_bucket_next = static_cast<list_node_type*>(*p_bucket_next)->bucket_next;
+            *p_bucket_next = list_node_type::from_links(*p_bucket_next)->bucket_next;
             --size;
             dllist_remove(erased_node);
             delete_node(erased_node);
         } else {
-            p_bucket_next = &static_cast<list_node_type*>(*p_bucket_next)->bucket_next;
+            p_bucket_next = &list_node_type::from_links(*p_bucket_next)->bucket_next;
         }
     }
     return old_size - size;
@@ -320,7 +322,7 @@ size_t value::record_t::erase(std::string_view name) {
     new_rec->head.prev->next = &new_rec->head;
     while (node != &new_rec->head) {
         list_node_traits::set_head(node, &new_rec->head);
-        new_rec->add_to_hash(node, static_cast<list_node_type*>(node)->hash_code);
+        new_rec->add_to_hash(node, list_node_type::from_links(node)->hash_code);
         node = node->next;
     }
     return new_rec;
@@ -328,6 +330,30 @@ size_t value::record_t::erase(std::string_view name) {
 
 /*static*/ void value::record_t::dealloc(record_t* rec) {
     std::allocator<record_t>().deallocate(rec, get_alloc_sz(rec->bucket_count));
+}
+
+/*static*/ inline size_t value::list_node_type::max_name_size() {
+    using alloc_traits = std::allocator_traits<std::allocator<list_node_type>>;
+    return (alloc_traits::max_size(std::allocator<list_node_type>()) * sizeof(list_node_type) -
+            offsetof(list_node_type, v.name_chars[0])) /
+           sizeof(char);
+}
+
+/*static*/ inline size_t value::list_node_type::get_alloc_sz(size_t name_sz) {
+    return (offsetof(list_node_type, v.name_chars[name_sz]) + sizeof(list_node_type) - 1) / sizeof(list_node_type);
+}
+
+/*static*/ value::list_node_type* value::list_node_type::alloc_checked(std::string_view name) {
+    if (name.size() > max_name_size()) { throw std::length_error("too much to reserve"); }
+    const size_t alloc_sz = get_alloc_sz(name.size());
+    list_node_type* node = std::allocator<list_node_type>().allocate(alloc_sz);
+    node->v.name_sz = name.size();
+    std::copy_n(name.data(), name.size(), static_cast<char*>(node->v.name_chars));
+    return node;
+}
+
+/*static*/ void value::list_node_type::dealloc(list_node_type* node) {
+    std::allocator<list_node_type>().deallocate(node, get_alloc_sz(node->v.name_sz));
 }
 
 // --------------------------
@@ -355,8 +381,8 @@ void value::assign(std::initializer_list<value> init) {
             value_.rec->clear();
             uxs::for_each(init, [this](const value& v) {
                 std::string_view name = v.value_.arr->data[0].str_view();
-                value_.rec = record_t::insert(value_.rec, record_t::calc_hash_code(name),
-                                              value_.rec->new_node(name, v.value_.arr->data[1]));
+                list_links_type* node = value_.rec->new_node(name, v.value_.arr->data[1]);
+                value_.rec = record_t::insert(value_.rec, record_t::calc_hash_code(name), node);
             });
         }
     } else if (type_ != dtype::kArray) {
@@ -389,8 +415,8 @@ void value::insert(std::initializer_list<std::pair<std::string_view, value>> ini
         type_ = dtype::kRecord;
     } else {
         uxs::for_each(init, [this](const std::pair<std::string_view, value>& v) {
-            value_.rec = record_t::insert(value_.rec, record_t::calc_hash_code(v.first),
-                                          value_.rec->new_node(v.first, v.second));
+            list_links_type* node = value_.rec->new_node(v.first, v.second);
+            value_.rec = record_t::insert(value_.rec, record_t::calc_hash_code(v.first), node);
         });
     }
 }
@@ -831,7 +857,7 @@ size_t value::erase(std::string_view name) {
 
 /*static*/ value::flexarray_t<char>* value::alloc_string(std::string_view s) {
     if (!s.size()) { return nullptr; }
-    flexarray_t<char>* str = flexarray_t<char>::alloc(s.size());
+    flexarray_t<char>* str = flexarray_t<char>::alloc_checked(s.size());
     str->size = s.size();
     std::memcpy(str->data, s.data(), s.size());
     return str;
@@ -840,7 +866,7 @@ size_t value::erase(std::string_view name) {
 void value::assign_string(std::string_view s) {
     if (!value_.str || s.size() > value_.str->capacity) {
         if (!s.size()) { return; }
-        flexarray_t<char>* new_str = flexarray_t<char>::alloc(s.size());
+        flexarray_t<char>* new_str = flexarray_t<char>::alloc_checked(s.size());
         if (value_.str) { flexarray_t<char>::dealloc(value_.str); }
         value_.str = new_str;
     }
