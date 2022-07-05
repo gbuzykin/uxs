@@ -425,10 +425,10 @@ typename basic_devbuf<CharT>::pos_type basic_devbuf<CharT>::seekimpl(off_type of
     if (dir != seekdir::kEnd) {
         std::ptrdiff_t delta = !!(this->mode() & iomode::kOut) ? this->curr() - this->first() :
                                                                  this->curr() - this->last();
-        pos_type pos = pos_ + delta;
+        pos_type pos = pos_ + static_cast<off_type>(delta);
         if (dir == seekdir::kCurr) {
             if (off == 0) { return pos; }
-            off += delta;
+            off += static_cast<off_type>(delta);
         } else if (pos == off) {
             return pos;
         }

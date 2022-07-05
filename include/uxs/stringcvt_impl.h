@@ -48,11 +48,14 @@ struct fp_m64_t {
     int exp;
 };
 
+inline uint64_t lo32(uint64_t x) { return x & 0xffffffff; }
+inline uint64_t hi32(uint64_t x) { return x >> 32; }
+
 extern const unsigned g_exp2_digs[];
 extern const uint64_t g_ten_pows[];
 extern const char g_digits[][2];
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && defined(_M_X64)
 inline unsigned ulog2(uint32_t x) {
     unsigned long ret;
     _BitScanReverse(&ret, x | 1);

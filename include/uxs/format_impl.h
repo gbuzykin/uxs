@@ -324,17 +324,17 @@ StrTy& fmt_append_string(StrTy& s, std::basic_string_view<typename StrTy::value_
     if (fmt.prec >= 0) {
         unsigned prec = fmt.prec;
         len = prec;
-        while (prec > 0 && last - p > count) {
+        while (prec > 0 && static_cast<size_t>(last - p) > count) {
             p += count;
             count = utf_count_chars<CharT>()(*p), --prec;
         }
         if (prec > 0) {
             len -= prec;
-        } else if (last - p > count) {
+        } else if (static_cast<size_t>(last - p) > count) {
             last = p + count;
         }
     } else if (fmt.width > 0) {
-        while (last - p > count) {
+        while (static_cast<size_t>(last - p) > count) {
             p += count;
             count = utf_count_chars<CharT>()(*p), ++len;
         }
