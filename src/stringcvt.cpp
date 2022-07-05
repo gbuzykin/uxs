@@ -20,9 +20,6 @@ struct fp_m96_t {
     int exp;
 };
 
-inline uint64_t lo32(uint64_t x) { return x & 0xffffffff; }
-inline uint64_t hi32(uint64_t x) { return x >> 32; }
-
 template<typename TyH, typename TyL>
 uint64_t make64(TyH hi, TyL lo) {
     return (static_cast<uint64_t>(hi) << 32) | static_cast<uint64_t>(lo);

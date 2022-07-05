@@ -46,16 +46,16 @@ typename basic_ostringbuf<CharT>::pos_type basic_ostringbuf<CharT>::seekimpl(off
     switch (dir) {
         case seekdir::kBeg: {
             if (off < 0) { return -1; }
-            new_pos = off;
+            new_pos = static_cast<size_type>(off);
         } break;
         case seekdir::kCurr: {
             if (off == 0) { return pos; }
             if (off < 0 && static_cast<size_type>(-off) >= new_pos) { return -1; }
-            new_pos += off;
+            new_pos += static_cast<size_type>(off);
         } break;
         case seekdir::kEnd: {
             if (off < 0 && static_cast<size_type>(-off) >= sz) { return -1; }
-            new_pos = sz + off;
+            new_pos = sz + static_cast<size_type>(off);
         } break;
     }
     size_type capacity = this->last() - this->first();

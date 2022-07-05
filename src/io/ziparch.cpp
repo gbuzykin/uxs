@@ -29,7 +29,7 @@ void ziparch::close() {
     zip_ = nullptr;
 }
 
-bool ziparch::stat_size(const char* fname, size_t& sz) {
+bool ziparch::stat_size(const char* fname, uint64_t& sz) {
     if (!zip_) { return false; }
     zip_stat_t stat;
     zip_stat_init(&stat);
@@ -52,12 +52,12 @@ bool ziparch::stat_crc(const char* fname, uint32_t& crc) {
 using namespace uxs;
 bool ziparch::open(const char* name, iomode mode) { return false; }
 void ziparch::close() {}
-bool ziparch::stat_size(const char* fname, size_t& sz) { return false; }
+bool ziparch::stat_size(const char* fname, uint64_t& sz) { return false; }
 bool ziparch::stat_crc(const char* fname, uint32_t& crc) { return false; }
 
 #endif  // defined(UXS_USE_LIBZIP)
 
-bool ziparch::stat_size(const wchar_t* fname, size_t& sz) {
+bool ziparch::stat_size(const wchar_t* fname, uint64_t& sz) {
     return stat_size(uxs::from_wide_to_utf8(fname).c_str(), sz);
 }
 bool ziparch::stat_crc(const wchar_t* fname, uint32_t& crc) {

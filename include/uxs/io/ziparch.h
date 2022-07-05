@@ -31,10 +31,10 @@ class UXS_EXPORT ziparch {
     bool open(const wchar_t* name, const char* mode) { return open(name, detail::iomode_from_str(mode, iomode::kIn)); }
     void close();
 
-    bool stat_size(const char* fname, size_t& sz);
+    bool stat_size(const char* fname, uint64_t& sz);
     bool stat_crc(const char* fname, uint32_t& crc);
 
-    bool stat_size(const wchar_t* fname, size_t& sz);
+    bool stat_size(const wchar_t* fname, uint64_t& sz);
     bool stat_crc(const wchar_t* fname, uint32_t& crc);
 
  private:
