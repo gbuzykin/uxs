@@ -28,9 +28,9 @@ basic_zipfilebuf<CharT>::basic_zipfilebuf(basic_zipfilebuf&& other) NOEXCEPT : b
 }
 
 template<typename CharT>
-basic_zipfilebuf<CharT>& basic_zipfilebuf<CharT>::operator=(basic_zipfilebuf&& other) NOEXCEPT {
+basic_zipfilebuf<CharT>& basic_zipfilebuf<CharT>::operator=(basic_zipfilebuf&& other) {
     if (&other == this) { return *this; }
-    static_cast<basic_devbuf<CharT>&>(*this) = std::move(other);
+    basic_devbuf<CharT>::operator=(std::move(other));
     zip_file_ = std::move(other.zip_file_);
     this->setdev(&zip_file_);
     return *this;

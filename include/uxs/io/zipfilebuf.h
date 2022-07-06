@@ -17,7 +17,7 @@ class UXS_EXPORT basic_zipfilebuf : public basic_devbuf<CharT> {
                      iomode mode = is_character<CharT>::value ? iomode::kText | iomode::kIn : iomode::kIn);
     ~basic_zipfilebuf() override;
     basic_zipfilebuf(basic_zipfilebuf&& other) NOEXCEPT;
-    basic_zipfilebuf& operator=(basic_zipfilebuf&& other) NOEXCEPT;
+    basic_zipfilebuf& operator=(basic_zipfilebuf&& other);
 
     bool open(ziparch& arch, const char* fname,
               iomode mode = is_character<CharT>::value ? iomode::kText | iomode::kIn : iomode::kIn);

@@ -15,8 +15,8 @@
 
 namespace uxs {
 
-template<typename CharT>
-struct basic_devbuf<CharT>::flexbuf_t {
+template<typename CharT, typename Alloc>
+struct basic_devbuf<CharT, Alloc>::flexbuf_t {
     size_t alloc_sz;
     size_t sz;
 #if defined(UXS_USE_ZLIB)
@@ -27,12 +27,13 @@ struct basic_devbuf<CharT>::flexbuf_t {
 #endif
     bool pending_cr;
     char_type data[1];
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<flexbuf_t>;
     static size_t get_alloc_sz(size_t sz) {
         return (offsetof(flexbuf_t, data[sz]) + sizeof(flexbuf_t) - 1) / sizeof(flexbuf_t);
     }
-    static flexbuf_t* alloc(size_t sz) {
+    static flexbuf_t* alloc(alloc_type al, size_t sz) {
         const size_t alloc_sz = get_alloc_sz(sz);
-        flexbuf_t* buf = std::allocator<flexbuf_t>().allocate(alloc_sz);
+        flexbuf_t* buf = al.allocate(alloc_sz);
         std::memset(buf, 0, sizeof(flexbuf_t));
         buf->alloc_sz = alloc_sz;
         buf->sz = (alloc_sz * sizeof(flexbuf_t) - offsetof(flexbuf_t, data[0])) / sizeof(char_type);
@@ -41,28 +42,30 @@ struct basic_devbuf<CharT>::flexbuf_t {
     }
 };
 
-template<typename CharT>
-basic_devbuf<CharT>::basic_devbuf(basic_devbuf&& other) NOEXCEPT : basic_iobuf<CharT>(std::move(other)),
-                                                                   dev_(other.dev_),
-                                                                   buf_(other.buf_),
-                                                                   tie_buf_(other.tie_buf_) {}
+template<typename CharT, typename Alloc>
+basic_devbuf<CharT, Alloc>::basic_devbuf(basic_devbuf&& other) NOEXCEPT : alloc_type(std::move(other)),
+                                                                          basic_iobuf<CharT>(std::move(other)),
+                                                                          dev_(other.dev_),
+                                                                          buf_(other.buf_),
+                                                                          tie_buf_(other.tie_buf_) {}
 
-template<typename CharT>
-basic_devbuf<CharT>::~basic_devbuf() {
+template<typename CharT, typename Alloc>
+basic_devbuf<CharT, Alloc>::~basic_devbuf() {
     freebuf();
 }
 
-template<typename CharT>
-basic_devbuf<CharT>& basic_devbuf<CharT>::operator=(basic_devbuf&& other) {
+template<typename CharT, typename Alloc>
+basic_devbuf<CharT, Alloc>& basic_devbuf<CharT, Alloc>::operator=(basic_devbuf&& other) NOEXCEPT {
     if (&other == this) { return *this; }
     freebuf();
-    static_cast<basic_iobuf<CharT>&>(*this) = std::move(other);
+    alloc_type::operator=(std::move(other));
+    basic_iobuf<CharT>::operator=(std::move(other));
     dev_ = other.dev_, buf_ = other.buf_, tie_buf_ = other.tie_buf_;
     return *this;
 }
 
-template<typename CharT>
-void basic_devbuf<CharT>::initbuf(iomode mode, size_type bufsz) {
+template<typename CharT, typename Alloc>
+void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
     assert(dev_);
     freebuf();
     if (!(mode & iomode::kIn) && !(mode & iomode::kOut)) { return; }
@@ -71,7 +74,7 @@ void basic_devbuf<CharT>::initbuf(iomode mode, size_type bufsz) {
     if (!!(mode & iomode::kOut)) {
         mode &= ~iomode::kIn;
         if (!mappable || !!(mode & (iomode::kCrLf | iomode::kCtrlEsc | iomode::kZCompr))) {
-            buf_ = flexbuf_t::alloc(bufsz);
+            buf_ = flexbuf_t::alloc(*this, bufsz);
 #if defined(UXS_USE_ZLIB)
             if (!!(mode & iomode::kZCompr)) {
                 deflateInit(&buf_->zstr, Z_DEFAULT_COMPRESSION);
@@ -90,7 +93,7 @@ void basic_devbuf<CharT>::initbuf(iomode mode, size_type bufsz) {
             this->setview(&buf_->data[cr_reserve_sz], &buf_->data[cr_reserve_sz], &buf_->data[buf_->sz]);
         }
     } else if (!mappable || !!(mode & (iomode::kCrLf | iomode::kZCompr))) {
-        buf_ = flexbuf_t::alloc(bufsz);
+        buf_ = flexbuf_t::alloc(*this, bufsz);
 #if defined(UXS_USE_ZLIB)
         if (!!(mode & iomode::kZCompr)) {
             inflateInit(&buf_->zstr);
@@ -109,8 +112,8 @@ void basic_devbuf<CharT>::initbuf(iomode mode, size_type bufsz) {
     this->clear();
 }
 
-template<typename CharT>
-void basic_devbuf<CharT>::freebuf() {
+template<typename CharT, typename Alloc>
+void basic_devbuf<CharT, Alloc>::freebuf() {
     if (this->mode() == iomode::kNone) { return; }
     if (!!(this->mode() & iomode::kOut)) {
         this->flush();
@@ -126,7 +129,7 @@ void basic_devbuf<CharT>::freebuf() {
 #endif
     }
     if (buf_) {
-        std::allocator<flexbuf_t>().deallocate(buf_, buf_->alloc_sz);
+        typename flexbuf_t::alloc_type(*this).deallocate(buf_, buf_->alloc_sz);
         buf_ = nullptr;
     }
     this->setview(nullptr, nullptr, nullptr);
@@ -134,9 +137,9 @@ void basic_devbuf<CharT>::freebuf() {
     this->setstate(iostate_bits::kFail);
 }
 
-template<typename CharT>
-const typename basic_devbuf<CharT>::char_type* basic_devbuf<CharT>::find_end_of_ctrlesc(const char_type* first,
-                                                                                        const char_type* last) {
+template<typename CharT, typename Alloc>
+const typename basic_devbuf<CharT, Alloc>::char_type* basic_devbuf<CharT, Alloc>::find_end_of_ctrlesc(
+    const char_type* first, const char_type* last) {
     if (first == last) { return first; }
     const char_type* p = first;
     if (*p == '[') {
@@ -148,8 +151,9 @@ const typename basic_devbuf<CharT>::char_type* basic_devbuf<CharT>::find_end_of_
     return p + 1;
 }
 
+namespace detail {
 template<typename CharT>
-static int write_all(iodevice* dev, const void* data, size_t sz) {
+int write_all(iodevice* dev, const void* data, size_t sz) {
     int ret = 0;
     sz *= sizeof(CharT);
     do {
@@ -160,9 +164,8 @@ static int write_all(iodevice* dev, const void* data, size_t sz) {
     } while (sz);
     return ret;
 }
-
 template<typename CharT>
-static int read_at_least_one(iodevice* dev, void* data, size_t sz, size_t& n_read) {
+int read_at_least_one(iodevice* dev, void* data, size_t sz, size_t& n_read) {
     int ret = 0;
     sz *= sizeof(CharT);
     n_read = 0;
@@ -176,38 +179,41 @@ static int read_at_least_one(iodevice* dev, void* data, size_t sz, size_t& n_rea
     n_read /= sizeof(CharT);
     return n_read ? ret : -1;
 }
+}  // namespace detail
 
-template<typename CharT>
-int basic_devbuf<CharT>::write_buf(const void* data, size_t sz) {
+template<typename CharT, typename Alloc>
+int basic_devbuf<CharT, Alloc>::write_buf(const void* data, size_t sz) {
     assert(buf_);
     int ret = !!(this->mode() & iomode::kZCompr) ? write_compressed(data, sz * sizeof(char_type)) :
-                                                   write_all<char_type>(dev_, data, sz);
+                                                   detail::write_all<char_type>(dev_, data, sz);
     if (ret < 0) { return ret; }
     pos_ += sz;
     return ret;
 }
 
-template<typename CharT>
-int basic_devbuf<CharT>::read_buf(void* data, size_t sz, size_t& n_read) {
+template<typename CharT, typename Alloc>
+int basic_devbuf<CharT, Alloc>::read_buf(void* data, size_t sz, size_t& n_read) {
     assert(buf_);
     int ret = 0;
     if (!!(this->mode() & iomode::kZCompr)) {
         ret = read_compressed(data, sz * sizeof(char_type), n_read);
         n_read /= sizeof(char_type);
     } else {
-        ret = read_at_least_one<char_type>(dev_, data, sz, n_read);
+        ret = detail::read_at_least_one<char_type>(dev_, data, sz, n_read);
     }
     if (ret < 0) { return ret; }
     pos_ += n_read;
     return ret;
 }
 
-template<typename CharT>
-int basic_devbuf<CharT>::flush_compressed_buf() {
+template<typename CharT, typename Alloc>
+int basic_devbuf<CharT, Alloc>::flush_compressed_buf() {
 #if defined(UXS_USE_ZLIB)
     if (!(dev_->caps() & iodevcaps::kMappable)) {
         int ret = 0;
-        if ((ret = write_all<Bytef>(dev_, buf_->z_first, buf_->zstr.next_out - buf_->z_first)) < 0) { return ret; }
+        if ((ret = detail::write_all<Bytef>(dev_, buf_->z_first, buf_->zstr.next_out - buf_->z_first)) < 0) {
+            return ret;
+        }
         buf_->zstr.next_out = buf_->z_first;
         buf_->zstr.avail_out = static_cast<uLong>(buf_->z_last - buf_->z_first);
         return ret;
@@ -225,8 +231,8 @@ int basic_devbuf<CharT>::flush_compressed_buf() {
 #endif
 }
 
-template<typename CharT>
-int basic_devbuf<CharT>::write_compressed(const void* data, size_t sz) {
+template<typename CharT, typename Alloc>
+int basic_devbuf<CharT, Alloc>::write_compressed(const void* data, size_t sz) {
 #if defined(UXS_USE_ZLIB)
     int ret = 0;
     buf_->zstr.next_in = reinterpret_cast<const Bytef*>(data);
@@ -241,8 +247,8 @@ int basic_devbuf<CharT>::write_compressed(const void* data, size_t sz) {
 #endif
 }
 
-template<typename CharT>
-void basic_devbuf<CharT>::finish_compressed() {
+template<typename CharT, typename Alloc>
+void basic_devbuf<CharT, Alloc>::finish_compressed() {
 #if defined(UXS_USE_ZLIB)
     int z_ret = 0;
     do {
@@ -251,15 +257,15 @@ void basic_devbuf<CharT>::finish_compressed() {
     } while (z_ret == Z_OK);
     if (z_ret != Z_STREAM_END) { return; }
     if (!(dev_->caps() & iodevcaps::kMappable)) {
-        write_all<Bytef>(dev_, buf_->z_first, buf_->zstr.next_out - buf_->z_first);
+        detail::write_all<Bytef>(dev_, buf_->z_first, buf_->zstr.next_out - buf_->z_first);
     } else {
         dev_->seek(buf_->zstr.next_out - buf_->z_first, seekdir::kCurr);
     }
 #endif
 }
 
-template<typename CharT>
-int basic_devbuf<CharT>::read_compressed(void* data, size_t sz, size_t& n_read) {
+template<typename CharT, typename Alloc>
+int basic_devbuf<CharT, Alloc>::read_compressed(void* data, size_t sz, size_t& n_read) {
 #if defined(UXS_USE_ZLIB)
     buf_->zstr.next_out = reinterpret_cast<Bytef*>(data);
     buf_->zstr.avail_out = static_cast<uLong>(sz);
@@ -267,7 +273,8 @@ int basic_devbuf<CharT>::read_compressed(void* data, size_t sz, size_t& n_read) 
         if (!buf_->zstr.avail_in) {
             if (!(dev_->caps() & iodevcaps::kMappable)) {
                 size_t n_raw_read = 0;
-                int ret = read_at_least_one<Bytef>(dev_, buf_->z_first, buf_->z_last - buf_->z_first, n_raw_read);
+                int ret = detail::read_at_least_one<Bytef>(dev_, buf_->z_first, buf_->z_last - buf_->z_first,
+                                                           n_raw_read);
                 buf_->z_in_finish = ret < 0;
                 if (!buf_->z_in_finish) {
                     buf_->zstr.next_in = buf_->z_first;
@@ -295,8 +302,8 @@ int basic_devbuf<CharT>::read_compressed(void* data, size_t sz, size_t& n_read) 
 #endif
 }
 
-template<typename CharT>
-void basic_devbuf<CharT>::parse_ctrlesc(const char_type* first, const char_type* last) {
+template<typename CharT, typename Alloc>
+void basic_devbuf<CharT, Alloc>::parse_ctrlesc(const char_type* first, const char_type* last) {
     if (first == last || *first != '[' || *(last - 1) != 'm') { return; }  // not a color ANSI code
     std::array<uint8_t, 16> v;
     unsigned n = 0;
@@ -314,8 +321,8 @@ void basic_devbuf<CharT>::parse_ctrlesc(const char_type* first, const char_type*
     dev_->ctrlesc_color(as_span(v.data(), n + 1));
 }
 
-template<typename CharT>
-int basic_devbuf<CharT>::flush_buffer() {
+template<typename CharT, typename Alloc>
+int basic_devbuf<CharT, Alloc>::flush_buffer() {
     int ret = 0;
     const char_type *from = this->first(), *top = this->curr(), *mid = top;
     if (!(this->mode() & (iomode::kCrLf | iomode::kCtrlEsc))) {
@@ -352,8 +359,8 @@ int basic_devbuf<CharT>::flush_buffer() {
     return ret;
 }
 
-template<typename CharT>
-size_t basic_devbuf<CharT>::remove_crlf(char_type* dst, size_t count) {
+template<typename CharT, typename Alloc>
+size_t basic_devbuf<CharT, Alloc>::remove_crlf(char_type* dst, size_t count) {
     if (!count) { return 0; }
     char_type* dst_end = dst + count;
     do {
@@ -368,8 +375,8 @@ size_t basic_devbuf<CharT>::remove_crlf(char_type* dst, size_t count) {
     return count - static_cast<size_t>(dst_end - p);
 }
 
-template<typename CharT>
-int basic_devbuf<CharT>::underflow() {
+template<typename CharT, typename Alloc>
+int basic_devbuf<CharT, Alloc>::underflow() {
     assert(dev_);
     if (!(this->mode() & iomode::kIn)) { return -1; }
     if (tie_buf_) { tie_buf_->flush(); }
@@ -401,8 +408,8 @@ int basic_devbuf<CharT>::underflow() {
     return ret;
 }
 
-template<typename CharT>
-int basic_devbuf<CharT>::overflow() {
+template<typename CharT, typename Alloc>
+int basic_devbuf<CharT, Alloc>::overflow() {
     assert(dev_);
     if (!(this->mode() & iomode::kOut)) { return -1; }
     if (tie_buf_) { tie_buf_->flush(); }
@@ -419,8 +426,8 @@ int basic_devbuf<CharT>::overflow() {
     return flush_buffer();
 }
 
-template<typename CharT>
-typename basic_devbuf<CharT>::pos_type basic_devbuf<CharT>::seekimpl(off_type off, seekdir dir) {
+template<typename CharT, typename Alloc>
+typename basic_devbuf<CharT, Alloc>::pos_type basic_devbuf<CharT, Alloc>::seekimpl(off_type off, seekdir dir) {
     assert(dev_);
     if (dir != seekdir::kEnd) {
         std::ptrdiff_t delta = !!(this->mode() & iomode::kOut) ? this->curr() - this->first() :
@@ -441,8 +448,8 @@ typename basic_devbuf<CharT>::pos_type basic_devbuf<CharT>::seekimpl(off_type of
     return pos_;
 }
 
-template<typename CharT>
-int basic_devbuf<CharT>::sync() {
+template<typename CharT, typename Alloc>
+int basic_devbuf<CharT, Alloc>::sync() {
     assert(dev_);
     if (!(this->mode() & iomode::kOut)) { return -1; }
     if (tie_buf_) { tie_buf_->flush(); }

@@ -5,20 +5,32 @@
 
 namespace uxs {
 
-template<typename CharT>
-class UXS_EXPORT basic_devbuf : public basic_iobuf<CharT> {
+template<typename CharT, typename Alloc = std::allocator<CharT>>
+class UXS_EXPORT basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_alloc<CharT>,
+                                public basic_iobuf<CharT> {
+ protected:
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<CharT>;
+
  public:
-    using char_type = CharT;
+    using char_type = typename basic_iobuf<CharT>::char_type;
+    using traits_type = typename basic_iobuf<CharT>::traits_type;
     using size_type = typename basic_iobuf<CharT>::size_type;
     using int_type = typename basic_iobuf<CharT>::int_type;
     using pos_type = typename basic_iobuf<CharT>::pos_type;
     using off_type = typename basic_iobuf<CharT>::off_type;
+    using allocator_type = Alloc;
 
-    explicit basic_devbuf(iodevice& dev) : basic_iobuf<CharT>(iomode::kNone, iostate_bits::kFail), dev_(&dev) {}
-    basic_devbuf(iodevice& dev, iomode mode, size_type bufsz = 0) : dev_(&dev) { initbuf(mode, bufsz); }
+    explicit basic_devbuf(iodevice& dev)
+        : alloc_type(), basic_iobuf<CharT>(iomode::kNone, iostate_bits::kFail), dev_(&dev) {}
+    basic_devbuf(iodevice& dev, const Alloc& al)
+        : alloc_type(al), basic_iobuf<CharT>(iomode::kNone, iostate_bits::kFail), dev_(&dev) {}
+    basic_devbuf(iodevice& dev, iomode mode, size_type bufsz = 0) : alloc_type(), dev_(&dev) { initbuf(mode, bufsz); }
+    basic_devbuf(iodevice& dev, iomode mode, size_type bufsz, const Alloc& al) : alloc_type(al), dev_(&dev) {
+        initbuf(mode, bufsz);
+    }
     ~basic_devbuf() override;
     basic_devbuf(basic_devbuf&& other) NOEXCEPT;
-    basic_devbuf& operator=(basic_devbuf&& other);
+    basic_devbuf& operator=(basic_devbuf&& other) NOEXCEPT;
 
     iodevice* dev() const { return dev_; }
     basic_iobuf<CharT>* tie() const { return tie_buf_; }
@@ -26,6 +38,7 @@ class UXS_EXPORT basic_devbuf : public basic_iobuf<CharT> {
 
     void initbuf(iomode mode, size_type bufsz = 0);
     void freebuf();
+    allocator_type get_allocator() const NOEXCEPT { return allocator_type(*this); }
 
  protected:
     int underflow() override;

@@ -34,9 +34,9 @@ basic_filebuf<CharT>::basic_filebuf(basic_filebuf&& other) NOEXCEPT : basic_devb
 }
 
 template<typename CharT>
-basic_filebuf<CharT>& basic_filebuf<CharT>::operator=(basic_filebuf&& other) NOEXCEPT {
+basic_filebuf<CharT>& basic_filebuf<CharT>::operator=(basic_filebuf&& other) {
     if (&other == this) { return *this; }
-    static_cast<basic_devbuf<CharT>&>(*this) = std::move(other);
+    basic_devbuf<CharT>::operator=(std::move(other));
     file_ = std::move(other.file_);
     this->setdev(&file_);
     return *this;
