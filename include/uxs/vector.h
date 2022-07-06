@@ -11,7 +11,7 @@ namespace uxs {
 // Vector implementation
 
 template<typename Ty, typename Alloc = std::allocator<Ty>>
-class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
+class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
  private:
     static_assert(std::is_same<typename std::remove_cv<Ty>::type, Ty>::value,
                   "uxs::vector must have a non-const, non-volatile value type");
@@ -95,7 +95,7 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
         swap_impl(other, typename alloc_traits::propagate_on_container_swap());
     }
 
-    allocator_type get_allocator() const { return allocator_type(*this); }
+    allocator_type get_allocator() const NOEXCEPT { return allocator_type(*this); }
 
     bool empty() const NOEXCEPT { return v_.end == v_.begin; }
     size_type size() const NOEXCEPT { return static_cast<size_type>(v_.end - v_.begin); }
@@ -314,9 +314,10 @@ class vector : public std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
 
     size_type grow_capacity(size_type extra) const {
         size_type sz = size(), delta_sz = std::max(extra, sz >> 1);
-        if (delta_sz > alloc_traits::max_size(*this) - sz) {
-            if (extra > alloc_traits::max_size(*this) - sz) { throw std::length_error("too much to reserve"); }
-            delta_sz = std::max(extra, (alloc_traits::max_size(*this) - sz) >> 1);
+        const size_type max_avail = alloc_traits::max_size(*this) - sz;
+        if (delta_sz > max_avail) {
+            if (extra > max_avail) { throw std::length_error("too much to reserve"); }
+            delta_sz = std::max(extra, max_avail >> 1);
         }
         return std::max<size_type>(sz + delta_sz, kStartCapacity);
     }

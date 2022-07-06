@@ -171,7 +171,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
         swap_impl(other, typename alloc_traits::propagate_on_container_swap());
     }
 
-    allocator_type get_allocator() const { return allocator_type(*this); }
+    allocator_type get_allocator() const NOEXCEPT { return allocator_type(*this); }
 
     bool empty() const NOEXCEPT { return size_ == 0; }
     size_type size() const NOEXCEPT { return size_; }
