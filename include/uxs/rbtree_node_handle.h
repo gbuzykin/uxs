@@ -89,7 +89,7 @@ class rbtree_node_handle : public rbtree_node_handle_getters<NodeTraits, Alloc, 
         if (node_) { tidy(); }
     }
 
-    allocator_type get_allocator() const { return allocator_type(*this); }
+    allocator_type get_allocator() const NOEXCEPT { return allocator_type(*this); }
     bool empty() const NOEXCEPT { return node_ == nullptr; }
     explicit operator bool() const NOEXCEPT { return node_ != nullptr; }
     void swap(rbtree_node_handle& nh) NOEXCEPT {

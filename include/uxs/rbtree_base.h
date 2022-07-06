@@ -76,7 +76,7 @@ struct map_node_traits : rbtree_node_traits {
 };
 
 template<typename NodeTraits, typename Alloc, typename Comp, typename = void>
-class rbtree_compare : public std::allocator_traits<Alloc>::template rebind_alloc<typename NodeTraits::node_t> {
+class rbtree_compare : protected std::allocator_traits<Alloc>::template rebind_alloc<typename NodeTraits::node_t> {
  protected:
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<typename NodeTraits::node_t>;
 
@@ -115,7 +115,7 @@ template<typename NodeTraits, typename Alloc, typename Comp>
 class rbtree_compare<NodeTraits, Alloc, Comp,
                      std::enable_if_t<(std::is_empty<Comp>::value &&  //
                                        std::is_nothrow_default_constructible<Comp>::value)>>
-    : public std::allocator_traits<Alloc>::template rebind_alloc<typename NodeTraits::node_t> {
+    : protected std::allocator_traits<Alloc>::template rebind_alloc<typename NodeTraits::node_t> {
  protected:
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<typename NodeTraits::node_t>;
 
@@ -216,7 +216,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
 
     ~rbtree_base() { tidy(); }
 
-    allocator_type get_allocator() const { return allocator_type(*this); }
+    allocator_type get_allocator() const NOEXCEPT { return allocator_type(*this); }
     key_compare key_comp() const { return this->get_compare(); }
 
     bool empty() const NOEXCEPT { return size_ == 0; }
