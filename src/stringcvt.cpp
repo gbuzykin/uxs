@@ -766,10 +766,10 @@ fp10_t fp2_to_fp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& fp_fmt, int& prec, 
 }  // namespace scvt
 
 #define UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(ty) \
-    template size_t string_converter<ty>::from_string(std::string_view s, ty& val); \
-    template unlimbuf_appender& string_converter<ty>::to_string(unlimbuf_appender& s, ty val, const fmt_state& fmt); \
-    template limbuf_appender& string_converter<ty>::to_string(limbuf_appender& s, ty val, const fmt_state& fmt); \
-    template dynbuffer& string_converter<ty>::to_string(dynbuffer& s, ty val, const fmt_state& fmt);
+    template size_t string_converter<ty>::from_string(std::string_view, ty&); \
+    template unlimbuf_appender& string_converter<ty>::to_string(unlimbuf_appender&, ty, const fmt_state&); \
+    template limbuf_appender& string_converter<ty>::to_string(limbuf_appender&, ty, const fmt_state&); \
+    template dynbuffer& string_converter<ty>::to_string(dynbuffer&, ty, const fmt_state&);
 UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int8_t)
 UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int16_t)
 UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int32_t)
@@ -785,10 +785,10 @@ UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(bool)
 #undef UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER
 
 #define UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(ty) \
-    template size_t string_converter<ty>::from_string(std::wstring_view s, ty& val); \
-    template wunlimbuf_appender& string_converter<ty>::to_string(wunlimbuf_appender& s, ty val, const fmt_state& fmt); \
-    template wlimbuf_appender& string_converter<ty>::to_string(wlimbuf_appender& s, ty val, const fmt_state& fmt); \
-    template wdynbuffer& string_converter<ty>::to_string(wdynbuffer& s, ty val, const fmt_state& fmt);
+    template size_t string_converter<ty>::from_string(std::wstring_view, ty&); \
+    template wunlimbuf_appender& string_converter<ty>::to_string(wunlimbuf_appender&, ty, const fmt_state&); \
+    template wlimbuf_appender& string_converter<ty>::to_string(wlimbuf_appender&, ty, const fmt_state&); \
+    template wdynbuffer& string_converter<ty>::to_string(wdynbuffer&, ty, const fmt_state&);
 UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int8_t)
 UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int16_t)
 UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int32_t)

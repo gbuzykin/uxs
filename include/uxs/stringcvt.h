@@ -150,16 +150,24 @@ class basic_limbuf_appender : public basic_appender_mixin<CharT, basic_limbuf_ap
 using limbuf_appender = basic_limbuf_appender<char>;
 using wlimbuf_appender = basic_limbuf_appender<wchar_t>;
 
-template<typename Ty>
-class basic_dynbuffer : public basic_appender_mixin<Ty, basic_dynbuffer<Ty>> {
+template<typename Ty, typename Alloc = std::allocator<Ty>>
+class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>,
+                        public basic_appender_mixin<Ty, basic_dynbuffer<Ty>> {
+ private:
     static_assert(std::is_trivially_copyable<Ty>::value && std::is_trivially_destructible<Ty>::value,
-                  "uxs::basic_dynbuffer must have trivially copyable and destructible value type");
+                  "uxs::basic_dynbuffer<> must have trivially copyable and destructible value type");
+
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>;
 
  public:
+    using value_type = Ty;
+
     basic_dynbuffer(Ty* first, Ty* last, bool is_inline)
-        : curr_(first), first_(first), last_(last), is_inline_(is_inline) {}
+        : alloc_type(), curr_(first), first_(first), last_(last), is_inline_(is_inline) {}
+    basic_dynbuffer(Ty* first, Ty* last, bool is_inline, const Alloc& al)
+        : alloc_type(al), curr_(first), first_(first), last_(last), is_inline_(is_inline) {}
     ~basic_dynbuffer() {
-        if (!is_inline_) { std::allocator<Ty>().deallocate(first_, last_ - first_); }
+        if (!is_inline_) { this->deallocate(first_, last_ - first_); }
     }
     basic_dynbuffer(const basic_dynbuffer&) = delete;
     basic_dynbuffer& operator=(const basic_dynbuffer&) = delete;
@@ -211,7 +219,7 @@ class basic_dynbuffer : public basic_appender_mixin<Ty, basic_dynbuffer<Ty>> {
     }
     void pop_back() {
         assert(first_ < curr_);
-        (--curr_)->~Ty();
+        --curr_;
     }
 
  private:
@@ -221,31 +229,31 @@ class basic_dynbuffer : public basic_appender_mixin<Ty, basic_dynbuffer<Ty>> {
     void grow(size_t extra);
 };
 
-template<typename Ty>
-void basic_dynbuffer<Ty>::grow(size_t extra) {
+template<typename Ty, typename Alloc>
+void basic_dynbuffer<Ty, Alloc>::grow(size_t extra) {
     size_t sz = curr_ - first_, delta_sz = std::max(extra, sz >> 1);
-    using alloc_traits = std::allocator_traits<std::allocator<Ty>>;
-    if (delta_sz > alloc_traits::max_size(std::allocator<Ty>()) - sz) {
-        if (extra > alloc_traits::max_size(std::allocator<Ty>()) - sz) {
-            throw std::length_error("too much to reserve");
-        }
-        delta_sz = std::max(extra, (alloc_traits::max_size(std::allocator<Ty>()) - sz) >> 1);
+    const size_t max_avail = std::allocator_traits<alloc_type>::max_size(*this) - sz;
+    if (delta_sz > max_avail) {
+        if (extra > max_avail) { throw std::length_error("too much to reserve"); }
+        delta_sz = std::max(extra, max_avail >> 1);
     }
     sz += delta_sz;
-    Ty* first = std::allocator<Ty>().allocate(sz);
+    Ty* first = this->allocate(sz);
     curr_ = std::uninitialized_copy(first_, curr_, first);
-    if (!is_inline_) { std::allocator<Ty>().deallocate(first_, last_ - first_); }
+    if (!is_inline_) { this->deallocate(first_, last_ - first_); }
     first_ = first, last_ = first + sz, is_inline_ = false;
 }
 
 using dynbuffer = basic_dynbuffer<char>;
 using wdynbuffer = basic_dynbuffer<wchar_t>;
 
-template<typename Ty, size_t InlineBufSize = 0>
-class basic_inline_dynbuffer : public basic_dynbuffer<Ty> {
+template<typename Ty, size_t InlineBufSize = 0, typename Alloc = std::allocator<Ty>>
+class basic_inline_dynbuffer : public basic_dynbuffer<Ty, Alloc> {
  public:
     basic_inline_dynbuffer()
         : basic_dynbuffer<Ty>(reinterpret_cast<Ty*>(&buf_), reinterpret_cast<Ty*>(&buf_[kInlineBufSize]), true) {}
+    explicit basic_inline_dynbuffer(const Alloc& al)
+        : basic_dynbuffer<Ty>(reinterpret_cast<Ty*>(&buf_), reinterpret_cast<Ty*>(&buf_[kInlineBufSize]), true, al) {}
     basic_dynbuffer<Ty>& base() { return *this; }
 
  private:
