@@ -17,7 +17,7 @@ basic_iobuf<CharT>::basic_iobuf(basic_iobuf&& other) NOEXCEPT : iostate(other),
 template<typename CharT>
 basic_iobuf<CharT>& basic_iobuf<CharT>::operator=(basic_iobuf&& other) NOEXCEPT {
     if (&other == this) { return *this; }
-    static_cast<iostate&>(*this) = other;
+    iostate::operator=(other);
     first_ = other.first_, curr_ = other.curr_, last_ = other.last_;
     other.first_ = other.curr_ = other.last_ = nullptr;
     return *this;

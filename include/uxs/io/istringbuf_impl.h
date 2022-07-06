@@ -13,7 +13,8 @@ basic_istringbuf<CharT>::basic_istringbuf(basic_istringbuf&& other) NOEXCEPT : b
 template<typename CharT>
 basic_istringbuf<CharT>& basic_istringbuf<CharT>::operator=(basic_istringbuf&& other) NOEXCEPT {
     if (&other == this) { return *this; }
-    static_cast<basic_iobuf<CharT>&>(*this) = std::move(other), str_ = std::move(other.str_);
+    basic_iobuf<CharT>::operator=(std::move(other));
+    str_ = std::move(other.str_);
     if (this->first() != &str_[0]) { redirect_ptrs(); }
     return *this;
 }

@@ -22,7 +22,7 @@ class UXS_EXPORT basic_filebuf : public basic_devbuf<CharT> {
                         detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::kText : iomode::kNone)) {}
     ~basic_filebuf() override;
     basic_filebuf(basic_filebuf&& other) NOEXCEPT;
-    basic_filebuf& operator=(basic_filebuf&& other) NOEXCEPT;
+    basic_filebuf& operator=(basic_filebuf&& other);
 
     void attach(file_desc_t fd, iomode mode);
     file_desc_t detach();
