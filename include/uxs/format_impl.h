@@ -295,21 +295,21 @@ unsigned get_fmt_arg_integer_value(const detail::fmt_arg_list_item<StrTy>& arg, 
 }
 
 template<typename CharT>
-struct utf_count_chars;
+struct count_utf_chars;
 
 template<>
-struct utf_count_chars<char> {
+struct count_utf_chars<char> {
     unsigned operator()(uint8_t ch) const { return get_utf8_byte_count(ch); }
 };
 
 #if defined(WCHAR_MAX) && WCHAR_MAX > 0xffff
 template<>
-struct utf_count_chars<wchar_t> {
+struct count_utf_chars<wchar_t> {
     unsigned operator()(uint32_t ch) const { return 1; }
 };
 #else   // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
 template<>
-struct utf_count_chars<wchar_t> {
+struct count_utf_chars<wchar_t> {
     unsigned operator()(uint16_t ch) const { return get_utf16_word_count(ch); }
 };
 #endif  // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
@@ -326,7 +326,7 @@ StrTy& fmt_append_string(StrTy& s, std::basic_string_view<typename StrTy::value_
         len = prec;
         while (prec > 0 && static_cast<size_t>(last - p) > count) {
             p += count;
-            count = utf_count_chars<CharT>()(*p), --prec;
+            count = count_utf_chars<CharT>()(*p), --prec;
         }
         if (prec > 0) {
             len -= prec;
@@ -336,7 +336,7 @@ StrTy& fmt_append_string(StrTy& s, std::basic_string_view<typename StrTy::value_
     } else if (fmt.width > 0) {
         while (static_cast<size_t>(last - p) > count) {
             p += count;
-            count = utf_count_chars<CharT>()(*p), ++len;
+            count = count_utf_chars<CharT>()(*p), ++len;
         }
     }
 

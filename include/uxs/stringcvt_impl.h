@@ -311,8 +311,8 @@ basic_unlimbuf_appender<CharT>& fmt_bin(basic_unlimbuf_appender<CharT>& s, Ty va
     return s.setcurr(fmt_bin(s.curr(), val, len, fmt));
 }
 
-template<typename CharT, typename Ty>
-basic_dynbuffer<CharT>& fmt_bin(basic_dynbuffer<CharT>& s, Ty val, unsigned len, const fmt_state& fmt) {
+template<typename CharT, typename Alloc, typename Ty>
+basic_dynbuffer<CharT, Alloc>& fmt_bin(basic_dynbuffer<CharT, Alloc>& s, Ty val, unsigned len, const fmt_state& fmt) {
     return s.setcurr(fmt_bin(s.reserve_at_curr(len), val, len, fmt));
 }
 
@@ -347,8 +347,8 @@ basic_unlimbuf_appender<CharT>& fmt_oct(basic_unlimbuf_appender<CharT>& s, Ty va
     return s.setcurr(fmt_oct(s.curr(), val, len, fmt));
 }
 
-template<typename CharT, typename Ty>
-basic_dynbuffer<CharT>& fmt_oct(basic_dynbuffer<CharT>& s, Ty val, unsigned len, const fmt_state& fmt) {
+template<typename CharT, typename Alloc, typename Ty>
+basic_dynbuffer<CharT, Alloc>& fmt_oct(basic_dynbuffer<CharT, Alloc>& s, Ty val, unsigned len, const fmt_state& fmt) {
     return s.setcurr(fmt_oct(s.reserve_at_curr(len), val, len, fmt));
 }
 
@@ -386,8 +386,8 @@ basic_unlimbuf_appender<CharT>& fmt_hex(basic_unlimbuf_appender<CharT>& s, Ty va
     return s.setcurr(fmt_hex(s.curr(), val, len, fmt));
 }
 
-template<typename CharT, typename Ty>
-basic_dynbuffer<CharT>& fmt_hex(basic_dynbuffer<CharT>& s, Ty val, unsigned len, const fmt_state& fmt) {
+template<typename CharT, typename Alloc, typename Ty>
+basic_dynbuffer<CharT, Alloc>& fmt_hex(basic_dynbuffer<CharT, Alloc>& s, Ty val, unsigned len, const fmt_state& fmt) {
     return s.setcurr(fmt_hex(s.reserve_at_curr(len), val, len, fmt));
 }
 
@@ -452,8 +452,8 @@ basic_unlimbuf_appender<CharT>& fmt_dec_unsigned(basic_unlimbuf_appender<CharT>&
     return s.setcurr(fmt_dec_unsigned(s.curr(), val, len));
 }
 
-template<typename CharT, typename Ty>
-basic_dynbuffer<CharT>& fmt_dec_unsigned(basic_dynbuffer<CharT>& s, Ty val, unsigned len) {
+template<typename CharT, typename Alloc, typename Ty>
+basic_dynbuffer<CharT, Alloc>& fmt_dec_unsigned(basic_dynbuffer<CharT, Alloc>& s, Ty val, unsigned len) {
     return s.setcurr(fmt_dec_unsigned(s.reserve_at_curr(len), val, len));
 }
 
@@ -484,8 +484,8 @@ basic_unlimbuf_appender<CharT>& fmt_dec_signed(basic_unlimbuf_appender<CharT>& s
     return s.setcurr(fmt_dec_signed(s.curr(), val, sign, len));
 }
 
-template<typename CharT, typename Ty>
-basic_dynbuffer<CharT>& fmt_dec_signed(basic_dynbuffer<CharT>& s, Ty val, char sign, unsigned len) {
+template<typename CharT, typename Alloc, typename Ty>
+basic_dynbuffer<CharT, Alloc>& fmt_dec_signed(basic_dynbuffer<CharT, Alloc>& s, Ty val, char sign, unsigned len) {
     return s.setcurr(fmt_dec_signed(s.reserve_at_curr(len), val, sign, len));
 }
 
@@ -644,9 +644,9 @@ basic_unlimbuf_appender<CharT>& fmt_gen_float(basic_unlimbuf_appender<CharT>& s,
     return s.setcurr(fmt_gen_float(s.curr(), fp10, sign, is_fixed, flags, prec));
 }
 
-template<typename CharT>
-basic_dynbuffer<CharT>& fmt_gen_float(basic_dynbuffer<CharT>& s, const fp10_t& fp10, char sign, bool is_fixed,
-                                      unsigned len, fmt_flags flags, int prec) {
+template<typename CharT, typename Alloc>
+basic_dynbuffer<CharT, Alloc>& fmt_gen_float(basic_dynbuffer<CharT, Alloc>& s, const fp10_t& fp10, char sign,
+                                             bool is_fixed, unsigned len, fmt_flags flags, int prec) {
     return s.setcurr(fmt_gen_float(s.reserve_at_curr(len), fp10, sign, is_fixed, flags, prec));
 }
 
