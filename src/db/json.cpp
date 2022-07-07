@@ -1,6 +1,4 @@
-#include "uxs/db/json.h"
-
-#include "uxs/format.h"
+#include "uxs/db/json_impl.h"
 #include "uxs/utf.h"
 
 namespace lex_detail {
@@ -10,118 +8,15 @@ namespace lex_detail {
 #include "lex_analyzer.inl"
 }
 
-using namespace uxs;
-using namespace uxs::db;
+namespace uxs {
+namespace db {
 
-// --------------------------
-
-value json::reader::read() {
-    if (input_.peek() == iobuf::traits_type::eof()) { throw exception("empty input"); }
-
-    auto token_to_value = [this](int tk, std::string_view lval) -> value {
-        switch (tk) {
-            case '[': return make_array();
-            case '{': return make_record();
-            case kNull: return {};
-            case kTrue: return true;
-            case kFalse: return false;
-            case kInteger: {
-                uint64_t u64 = 0;
-                if (stoval(lval, u64) != 0) {
-                    if (u64 <= static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
-                        return static_cast<int32_t>(u64);
-                    } else if (u64 <= static_cast<uint64_t>(std::numeric_limits<uint32_t>::max())) {
-                        return static_cast<uint32_t>(u64);
-                    } else if (u64 <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
-                        return static_cast<int64_t>(u64);
-                    }
-                    return u64;
-                }
-                // too big integer - treat as double
-                return from_string<double>(lval);
-            } break;
-            case kNegInteger: {
-                int64_t i64 = 0;
-                if (stoval(lval, i64) != 0) {
-                    if (i64 >= static_cast<int64_t>(std::numeric_limits<int32_t>::min())) {
-                        return static_cast<int32_t>(i64);
-                    }
-                    return i64;
-                }
-                // too big integer - treat as double
-                return from_string<double>(lval);
-            } break;
-            case kDouble: return from_string<double>(lval);
-            case kString: return lval;
-        }
-        throw exception(format("{}: invalid value or unexpected character", n_ln_));
-    };
-
-    std::string_view lval;
-    basic_inline_dynbuffer<value*, 32> stack;
-
+void json::reader::init_parser() {
     n_ln_ = 1;
     str_.clear();
     stash_.clear();
     state_stack_.clear();
     state_stack_.push_back(lex_detail::sc_initial);
-
-    int tk = parse_token(lval);
-    value result = token_to_value(tk, lval);
-    if (!result.is_array() && !result.is_record()) { return result; }
-
-    value* top = &result;
-    bool comma = false;
-    tk = parse_token(lval);
-
-loop:
-    if (top->is_array()) {
-        if (comma || tk != ']') {
-            while (true) {
-                value& el = top->emplace_back(token_to_value(tk, lval));
-                tk = parse_token(lval);
-                if (el.is_array() || el.is_record()) {
-                    stack.push_back(top);
-                    top = &el, comma = false;
-                    goto loop;
-                }
-                if (tk == ']') { break; }
-                if (tk != ',') { throw exception(format("{}: expected `,` or `]`", n_ln_)); }
-                tk = parse_token(lval);
-            }
-        }
-    } else if (comma || tk != '}') {
-        while (true) {
-            if (tk != kString) { throw exception(format("{}: expected valid string", n_ln_)); }
-            value& el = top->emplace(lval);
-            tk = parse_token(lval);
-            if (tk != ':') { throw exception(format("{}: expected `:`", n_ln_)); }
-            tk = parse_token(lval);
-            el = token_to_value(tk, lval);
-            tk = parse_token(lval);
-            if (el.is_array() || el.is_record()) {
-                stack.push_back(top);
-                top = &el, comma = false;
-                goto loop;
-            }
-            if (tk == '}') { break; }
-            if (tk != ',') { throw exception(format("{}: expected `,` or `}}`", n_ln_)); }
-            tk = parse_token(lval);
-        }
-    }
-
-    while (!stack.empty()) {
-        top = stack.back();
-        stack.pop_back();
-        tk = parse_token(lval);
-        char close_char = top->is_array() ? ']' : '}';
-        if (tk != close_char) {
-            if (tk != ',') { throw exception(format("{}: expected `,` or `{}`", n_ln_, close_char)); }
-            tk = parse_token(lval), comma = true;
-            goto loop;
-        }
-    }
-    return result;
 }
 
 int json::reader::parse_token(std::string_view& lval) {
@@ -253,111 +148,11 @@ int json::reader::parse_token(std::string_view& lval) {
     }
 }
 
-// --------------------------
-
-struct writer_stack_item_t {
-    writer_stack_item_t() {}
-    writer_stack_item_t(const value* p, const value* el) : v(p), array_element(el) {}
-    writer_stack_item_t(const value* p, value::const_record_iterator el) : v(p), record_element(el) {}
-    const value* v;
-#if !defined(_MSC_VER) || _MSC_VER >= 1920
-    union {
-        const value* array_element;
-        value::const_record_iterator record_element;
-    };
-#else   // !defined(_MSC_VER) || _MSC_VER >= 1920
-    // Old versions of VS compiler don't support such unions
-    const value* array_element = nullptr;
-    value::const_record_iterator record_element;
-#endif  // !defined(_MSC_VER) || _MSC_VER >= 1920
-};
-
-void json::writer::write(const value& v) {
-    unsigned indent = 0;
-    basic_inline_dynbuffer<writer_stack_item_t, 32> stack;
-
-    auto write_value = [this, &stack, &indent](const value& v) {
-        switch (v.type_) {
-            case value::dtype::kNull: output_.write("null"); break;
-            case value::dtype::kBoolean: output_.write(v.value_.b ? "true" : "false"); break;
-            case value::dtype::kInteger: {
-                inline_dynbuffer buf;
-                basic_to_string(buf.base(), v.value_.i, fmt_state());
-                output_.write(as_span(buf.data(), buf.size()));
-            } break;
-            case value::dtype::kUInteger: {
-                inline_dynbuffer buf;
-                basic_to_string(buf.base(), v.value_.u, fmt_state());
-                output_.write(as_span(buf.data(), buf.size()));
-            } break;
-            case value::dtype::kInteger64: {
-                inline_dynbuffer buf;
-                basic_to_string(buf.base(), v.value_.i64, fmt_state());
-                output_.write(as_span(buf.data(), buf.size()));
-            } break;
-            case value::dtype::kUInteger64: {
-                inline_dynbuffer buf;
-                basic_to_string(buf.base(), v.value_.u64, fmt_state());
-                output_.write(as_span(buf.data(), buf.size()));
-            } break;
-            case value::dtype::kDouble: {
-                inline_dynbuffer buf;
-                basic_to_string(buf.base(), v.value_.dbl, fmt_state(fmt_flags::kAlternate));
-                output_.write(as_span(buf.data(), buf.size()));
-            } break;
-            case value::dtype::kString: print_quoted_text(output_, v.str_view()); break;
-            case value::dtype::kArray: {
-                output_.put('[');
-                stack.emplace_back(&v, v.as_array().data());
-                return true;
-            } break;
-            case value::dtype::kRecord: {
-                output_.put('{');
-                indent += indent_size_;
-                stack.emplace_back(&v, v.as_record().begin());
-                return true;
-            } break;
-        }
-        return false;
-    };
-
-    if (!write_value(v)) { return; }
-
-loop:
-    writer_stack_item_t* top = stack.curr() - 1;
-    if (top->v->is_array()) {
-        auto range = top->v->as_array();
-        const value *el = top->array_element, *el_end = range.data() + range.size();
-        while (el != el_end) {
-            if (el != range.data()) { output_.put(',').put(' '); }
-            if (write_value(*el++)) {
-                (stack.curr() - 2)->array_element = el;
-                goto loop;
-            }
-        }
-        output_.put(']');
-    } else {
-        auto range = top->v->as_record();
-        auto el = top->record_element;
-        while (el != range.end()) {
-            if (el != range.begin()) { output_.put(','); }
-            output_.put('\n');
-            output_.fill_n(indent, indent_char_);
-            print_quoted_text<char>(output_, el->first);
-            output_.put(':').put(' ');
-            if (write_value((el++)->second)) {
-                (stack.curr() - 2)->record_element = el;
-                goto loop;
-            }
-        }
-        indent -= indent_size_;
-        if (!top->v->empty()) {
-            output_.put('\n');
-            output_.fill_n(indent, indent_char_);
-        }
-        output_.put('}');
-    }
-
-    stack.pop_back();
-    if (!stack.empty()) { goto loop; }
-}
+namespace json {
+template basic_value<char> reader::read(const std::allocator<char>&);
+template basic_value<wchar_t> reader::read(const std::allocator<wchar_t>&);
+template void writer::write(const basic_value<char>&);
+template void writer::write(const basic_value<wchar_t>&);
+}  // namespace json
+}  // namespace db
+}  // namespace uxs
