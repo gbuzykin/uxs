@@ -588,7 +588,7 @@ bool basic_value<CharT, Alloc>::as_int64(int64_t& res) const {
             }
         } break;
         case dtype::kDouble: {
-            // Note that double(2^63 - 1) will be rounded up to 2^63, so the left limit is excluded
+            // Note that double(2^63 - 1) will be rounded up to 2^63, so maximum is excluded
             if (value_.dbl >= static_cast<double>(std::numeric_limits<int64_t>::min()) &&
                 value_.dbl < static_cast<double>(std::numeric_limits<int64_t>::max())) {
                 res = static_cast<int64_t>(value_.dbl);
@@ -623,7 +623,7 @@ bool basic_value<CharT, Alloc>::as_uint64(uint64_t& res) const {
         } break;
         case dtype::kUInteger64: res = value_.u64; return true;
         case dtype::kDouble: {
-            // Note that double(2^64 - 1) will be rounded up to 2^64, so the left limit is excluded
+            // Note that double(2^64 - 1) will be rounded up to 2^64, so maximum is excluded
             if (value_.dbl >= 0 && value_.dbl < static_cast<double>(std::numeric_limits<uint64_t>::max())) {
                 res = static_cast<uint64_t>(value_.dbl);
                 return true;
@@ -774,7 +774,7 @@ bool basic_value<CharT, Alloc>::is_int64() const {
         case dtype::kInteger64: return true;
         case dtype::kUInteger64: return value_.u64 <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
         case dtype::kDouble:
-            // Note that double(2^63 - 1) will be rounded up to 2^63, so the left limit is excluded
+            // Note that double(2^63 - 1) will be rounded up to 2^63, so maximum is excluded
             return value_.dbl >= static_cast<double>(std::numeric_limits<int64_t>::min()) &&
                    value_.dbl < static_cast<double>(std::numeric_limits<int64_t>::max()) &&
                    detail::is_integral(value_.dbl);
@@ -791,7 +791,7 @@ bool basic_value<CharT, Alloc>::is_uint64() const {
         case dtype::kInteger64: return value_.i64 >= 0;
         case dtype::kUInteger64: return true;
         case dtype::kDouble:
-            // Note that double(2^64 - 1) will be rounded up to 2^64, so the left limit is excluded
+            // Note that double(2^64 - 1) will be rounded up to 2^64, so maximum is excluded
             return value_.dbl >= 0 && value_.dbl < static_cast<double>(std::numeric_limits<uint64_t>::max()) &&
                    detail::is_integral(value_.dbl);
         default: break;
@@ -807,7 +807,7 @@ bool basic_value<CharT, Alloc>::is_integral() const {
         case dtype::kInteger64:
         case dtype::kUInteger64: return true;
         case dtype::kDouble:
-            // Note that double(2^64 - 1) will be rounded up to 2^64, so the left limit is excluded
+            // Note that double(2^64 - 1) will be rounded up to 2^64, so maximum is excluded
             return value_.dbl >= static_cast<double>(std::numeric_limits<int64_t>::min()) &&
                    value_.dbl < static_cast<double>(std::numeric_limits<uint64_t>::max()) &&
                    detail::is_integral(value_.dbl);

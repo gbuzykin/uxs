@@ -10,7 +10,9 @@ namespace uxs {
 
 namespace detail {
 template<typename Container, typename Key>
-auto find(Container&& c, const Key& k) -> std::pair<decltype(c.find(k)), bool> {
+auto find(Container&& c, const Key& k)
+    -> std::enable_if_t<std::is_same<decltype(c.find(k)), decltype(std::end(c))>::value,
+                        std::pair<decltype(std::end(c)), bool>> {
     auto it = c.find(k);
     return std::make_pair(it, it != std::end(c));
 }
@@ -65,7 +67,8 @@ auto erase_ranged(Container& c, Range&& r, const Val& v, Dummy&&...) -> decltype
 }
 
 template<typename Container, typename Val>
-auto erase(Container& c, const Val& v) -> decltype(c.find(v), c.size()) {
+auto erase(Container& c, const Val& v)
+    -> std::enable_if_t<std::is_same<decltype(c.find(v)), decltype(std::end(c))>::value, decltype(c.size())> {
     static_assert(!std::is_same<Val, Val>::value,
                   "function `uxs::erase_one` should be used for associative containers to erase by key!");
     return 0;

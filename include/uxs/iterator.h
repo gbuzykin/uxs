@@ -54,19 +54,19 @@ iterator_range<Iter> make_range(const std::pair<Iter, Iter>& p) {
 }
 
 template<typename Iter>
-iterator_range<std::reverse_iterator<Iter>> reverse_range(Iter from, Iter to) {
+iterator_range<std::reverse_iterator<Iter>> make_reverse_range(Iter from, Iter to) {
     return {std::reverse_iterator<Iter>(to), std::reverse_iterator<Iter>(from)};
 }
 
 template<typename Iter>
-iterator_range<std::reverse_iterator<Iter>> reverse_range(const std::pair<Iter, Iter>& p) {
+iterator_range<std::reverse_iterator<Iter>> make_reverse_range(const std::pair<Iter, Iter>& p) {
     return {std::reverse_iterator<Iter>(p.second), std::reverse_iterator<Iter>(p.first)};
 }
 
 template<typename Range>
-auto reverse_range(Range&& r) -> iterator_range<std::reverse_iterator<decltype(std::end(r))>> {
+auto make_reverse_range(Range&& r) -> iterator_range<std::reverse_iterator<decltype(std::end(r))>> {
     return {std::reverse_iterator<decltype(std::end(r))>(std::end(r)),
-            std::reverse_iterator<decltype(std::begin(r))>(std::begin(r))};
+            std::reverse_iterator<decltype(std::end(r))>(std::begin(r))};
 }
 
 template<typename IterL, typename IterR>
