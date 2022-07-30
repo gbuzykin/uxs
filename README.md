@@ -25,8 +25,8 @@ The collection includes the following functionality:
 - dynamic *variant* object implementation `uxs::variant`, which can hold data of various types known
   at runtime and convert one to another (not a template with predefined set of types); it easily
   integrates with mentioned string parsers and formatters for to and from string conversion
-- data structures `db::value` to store hierarchical records and arrays; *JSON* file reader and
-  writer
+- data structures `db::value` to store hierarchical records and arrays (*json DOM*)
+- fast full-featured *JSON* file reader (SAX-like & DOM) and writer
 - insert, erase and find algorithm implementations for *bidirectional lists* and *red-black trees*
   (in the form of functions to make it possible to implement either universal containers or
   intrusive data structures)
