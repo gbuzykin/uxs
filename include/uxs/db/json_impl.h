@@ -76,7 +76,7 @@ basic_value<CharT, Alloc> reader::read(const Alloc& al) {
     basic_value<CharT, Alloc> result = token_to_value(tk, lval);
     if (!result.is_array() && !result.is_record()) { return result; }
 
-    basic_value<CharT, Alloc>* top = &result;
+    auto* top = &result;
     bool comma = false;
     tk = parse_token(lval);
 
@@ -84,7 +84,7 @@ loop:
     if (top->is_array()) {
         if (comma || tk != ']') {
             while (true) {
-                basic_value<CharT, Alloc>& el = top->emplace_back(token_to_value(tk, lval));
+                auto& el = top->emplace_back(token_to_value(tk, lval));
                 tk = parse_token(lval);
                 if (el.is_array() || el.is_record()) {
                     stack.push_back(top);
@@ -99,7 +99,7 @@ loop:
     } else if (comma || tk != '}') {
         while (true) {
             if (tk != kString) { throw exception(format("{}: expected valid string", n_ln_)); }
-            basic_value<CharT, Alloc>& el = top->emplace(detail::utf8_string_converter<CharT>().from(lval), al);
+            auto& el = top->emplace(detail::utf8_string_converter<CharT>().from(lval), al)->second;
             tk = parse_token(lval);
             if (tk != ':') { throw exception(format("{}: expected `:`", n_ln_)); }
             tk = parse_token(lval);

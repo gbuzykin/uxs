@@ -878,15 +878,6 @@ size_t basic_value<CharT, Alloc>::size() const NOEXCEPT {
 }
 
 template<typename CharT, typename Alloc>
-std::vector<std::basic_string_view<CharT>> basic_value<CharT, Alloc>::members() const {
-    if (type_ != dtype::kRecord) { return {}; }
-    std::vector<std::basic_string_view<char_type>> names(value_.rec->size);
-    auto p = names.begin();
-    for (const auto& item : as_record()) { *p++ = item->first; }
-    return names;
-}
-
-template<typename CharT, typename Alloc>
 const basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::operator[](std::basic_string_view<char_type> name) const {
     static const basic_value null;
     if (type_ != dtype::kRecord) { throw exception("not a record"); }
@@ -1076,6 +1067,19 @@ void basic_value<CharT, Alloc>::reserve_back() {
         type_ = dtype::kArray;
     } else {
         value_.arr = value_flexarray_t::grow(arr_al, value_.arr, 1);
+    }
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::reserve_string(size_t extra) {
+    typename char_flexarray_t::alloc_type arr_al(*this);
+    if (type_ != dtype::kString || !value_.str) {
+        if (type_ != dtype::kString && type_ != dtype::kNull) { throw exception("not a string"); }
+        value_.str = char_flexarray_t::alloc_checked(arr_al, extra);
+        value_.str->size = 0;
+        type_ = dtype::kString;
+    } else {
+        value_.str = char_flexarray_t::grow(arr_al, value_.str, extra);
     }
 }
 

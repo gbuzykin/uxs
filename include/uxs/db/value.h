@@ -1,5 +1,7 @@
 #pragma once
 
+#include "exception.h"
+
 #include "uxs/allocator.h"
 #include "uxs/dllist.h"
 #include "uxs/span.h"
@@ -8,12 +10,14 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
-#include <stdexcept>
 #include <vector>
 
 namespace uxs {
 namespace db {
 namespace json {
+class writer;
+}
+namespace xml {
 class writer;
 }
 
@@ -42,12 +46,6 @@ struct is_record_value<CharT, Alloc, std::pair<FirstTy, SecondTy>,
                                         std::is_convertible<SecondTy, basic_value<CharT, Alloc>>::value>>
     : std::true_type {};
 }  // namespace detail
-
-class exception : public std::runtime_error {
- public:
-    explicit exception(const char* message) : std::runtime_error(message) {}
-    explicit exception(const std::string& message) : std::runtime_error(message) {}
-};
 
 template<typename CharT = char, typename Alloc = std::allocator<CharT>, typename InputIt,
          typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
@@ -354,8 +352,10 @@ class UXS_EXPORT basic_value : protected std::allocator_traits<Alloc>::template 
 
     bool empty() const NOEXCEPT;
     size_t size() const NOEXCEPT;
-    std::vector<std::basic_string_view<char_type>> members() const;
     explicit operator bool() const { return !is_null(); }
+
+    basic_value& append_string(std::basic_string_view<char_type> s);
+    basic_value& append_string(const char_type* cstr) { return append_string(std::basic_string_view<char_type>(cstr)); }
 
     span<const basic_value> as_array() const NOEXCEPT;
     span<basic_value> as_array() NOEXCEPT;
@@ -399,14 +399,25 @@ class UXS_EXPORT basic_value : protected std::allocator_traits<Alloc>::template 
     void pop_back();
 
     template<typename... Args>
-    basic_value& emplace(size_t pos, Args&&... args);
-    void insert(size_t pos, const basic_value& v) { emplace(pos, v); }
-    void insert(size_t pos, basic_value&& v) { emplace(pos, std::move(v)); }
+    basic_value* emplace(size_t pos, Args&&... args);
+    basic_value* insert(size_t pos, const basic_value& v) { return emplace(pos, v); }
+    basic_value* insert(size_t pos, basic_value&& v) { return emplace(pos, std::move(v)); }
 
     template<typename... Args>
-    basic_value& emplace(std::basic_string_view<char_type> name, Args&&... args);
-    void insert(std::basic_string_view<char_type> name, const basic_value& v) { emplace(name, v); }
-    void insert(std::basic_string_view<char_type> name, basic_value&& v) { emplace(name, std::move(v)); }
+    record_iterator emplace(std::basic_string_view<char_type> name, Args&&... args);
+    record_iterator insert(std::basic_string_view<char_type> name, const basic_value& v) { return emplace(name, v); }
+    record_iterator insert(std::basic_string_view<char_type> name, basic_value&& v) {
+        return emplace(name, std::move(v));
+    }
+
+    template<typename... Args>
+    std::pair<record_iterator, bool> emplace_unique(std::basic_string_view<char_type> name, Args&&... args);
+    std::pair<record_iterator, bool> insert_unique(std::basic_string_view<char_type> name, const basic_value& v) {
+        return emplace_unique(name, v);
+    }
+    std::pair<record_iterator, bool> insert_unique(std::basic_string_view<char_type> name, basic_value&& v) {
+        return emplace_unique(name, std::move(v));
+    }
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     void insert(size_t pos, InputIt first, InputIt last);
@@ -424,6 +435,7 @@ class UXS_EXPORT basic_value : protected std::allocator_traits<Alloc>::template 
 
  private:
     friend class json::writer;
+    friend class xml::writer;
     template<typename CharT_, typename Alloc_>
     friend basic_value<CharT_, Alloc_> make_array();
     template<typename CharT_, typename Alloc_>
@@ -535,6 +547,7 @@ class UXS_EXPORT basic_value : protected std::allocator_traits<Alloc>::template 
     void assign_impl(InputIt first, InputIt last, std::false_type /* range of pairs */);
 
     void reserve_back();
+    void reserve_string(size_t extra);
     void rotate_back(size_t pos);
 
     static void move_values(const basic_value* first, const basic_value* last, basic_value* out) {
@@ -678,6 +691,8 @@ basic_value<CharT, Alloc> make_record(
     return v;
 }
 
+// --------------------------
+
 template<typename CharT, typename Alloc>
 basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::operator=(std::basic_string_view<char_type> s) {
     if (type_ != dtype::kString) {
@@ -687,6 +702,16 @@ basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::operator=(std::basic_strin
     } else {
         assign_string(s);
     }
+    return *this;
+}
+
+template<typename CharT, typename Alloc>
+basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::append_string(std::basic_string_view<char_type> s) {
+    if (type_ != dtype::kString || !value_.str || value_.str->capacity - value_.str->size < s.size()) {
+        reserve_string(s.size());
+    }
+    std::copy_n(s.data(), s.size(), &(*value_.str)[value_.str->size]);
+    value_.str->size += s.size();
     return *this;
 }
 
@@ -710,18 +735,18 @@ void basic_value<CharT, Alloc>::pop_back() {
 
 template<typename CharT, typename Alloc>
 template<typename... Args>
-basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::emplace(size_t pos, Args&&... args) {
+basic_value<CharT, Alloc>* basic_value<CharT, Alloc>::emplace(size_t pos, Args&&... args) {
     if (type_ != dtype::kArray || !value_.arr || value_.arr->size == value_.arr->capacity) { reserve_back(); }
     new (&(*value_.arr)[value_.arr->size]) basic_value(std::forward<Args>(args)...);
     ++value_.arr->size;
-    if (pos >= value_.arr->size - 1) { return (*value_.arr)[value_.arr->size - 1]; }
+    if (pos >= value_.arr->size - 1) { return &(*value_.arr)[value_.arr->size - 1]; }
     rotate_back(pos);
-    return (*value_.arr)[pos];
+    return &(*value_.arr)[pos];
 }
 
 template<typename CharT, typename Alloc>
 template<typename... Args>
-basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::emplace(std::basic_string_view<char_type> name, Args&&... args) {
+auto basic_value<CharT, Alloc>::emplace(std::basic_string_view<char_type> name, Args&&... args) -> record_iterator {
     typename record_t::alloc_type rec_al(*this);
     if (type_ != dtype::kRecord) {
         if (type_ != dtype::kNull) { throw exception("not a record"); }
@@ -730,7 +755,27 @@ basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::emplace(std::basic_string_
     }
     list_links_type* node = value_.rec->new_node(rec_al, name, std::forward<Args>(args)...);
     value_.rec = record_t::insert(rec_al, value_.rec, record_t::calc_hash_code(name), node);
-    return list_node_traits::get_value(node).val();
+    return record_iterator(node);
+}
+
+template<typename CharT, typename Alloc>
+template<typename... Args>
+auto basic_value<CharT, Alloc>::emplace_unique(std::basic_string_view<char_type> name, Args&&... args)
+    -> std::pair<record_iterator, bool> {
+    typename record_t::alloc_type rec_al(*this);
+    if (type_ != dtype::kRecord) {
+        if (type_ != dtype::kNull) { throw exception("not a record"); }
+        value_.rec = record_t::create(rec_al);
+        type_ = dtype::kRecord;
+    }
+    const size_t hash_code = record_t::calc_hash_code(name);
+    list_links_type* node = value_.rec->find(name, hash_code);
+    if (node == &value_.rec->head) {
+        node = value_.rec->new_node(rec_al, name, std::forward<Args>(args)...);
+        value_.rec = record_t::insert(rec_al, value_.rec, hash_code, node);
+        return std::make_pair(record_iterator(node), true);
+    }
+    return std::make_pair(record_iterator(node), false);
 }
 
 template<typename CharT, typename Alloc>
