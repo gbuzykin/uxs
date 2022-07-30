@@ -24,7 +24,6 @@ enum {
     pat_real,
     pat_comment,
     pat_c_comment,
-    pat_whitespace,
     total_pattern_count,
 };
 

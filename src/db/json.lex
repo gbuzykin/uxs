@@ -2,7 +2,6 @@
 
 dig       [0-9]
 hdig      [0-9a-fA-F]
-letter    [a-zA-Z]
 dec       0|[1-9]{dig}*
 
 %%
@@ -33,6 +32,5 @@ real           -?({dec}(\.{dig}+)?((e|E)(\+|-)?{dig}+)?)
 # Other
 comment          "//"
 c_comment        "/*"
-whitespace       [ \t\r]+
 
 %%

@@ -2,22 +2,25 @@
 #include "uxs/utf.h"
 
 namespace lex_detail {
-#include "lex_defs.h"
+#include "json_lex_defs.h"
 }
 namespace lex_detail {
-#include "lex_analyzer.inl"
+#include "json_lex_analyzer.inl"
 }
+
+static uint8_t g_whitespaces[256] = {
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 namespace uxs {
 namespace db {
 
-void json::reader::init_parser() {
-    n_ln_ = 1;
-    str_.clear();
-    stash_.clear();
-    state_stack_.clear();
-    state_stack_.push_back(lex_detail::sc_initial);
-}
+json::reader::reader(iobuf& input) : input_(input) { state_stack_.push_back(lex_detail::sc_initial); }
 
 int json::reader::parse_token(std::string_view& lval) {
     unsigned surrogate = 0;
@@ -25,6 +28,26 @@ int json::reader::parse_token(std::string_view& lval) {
         int pat = 0;
         unsigned llen = 0;
         const char* first = input_.first_avail();
+        if (state_stack_.back() == lex_detail::sc_initial) {
+            while (true) {  // skip whitespaces
+                first = std::find_if<const char*>(first, input_.last_avail(), [this](char ch) {
+                    if (ch != '\n') { return !g_whitespaces[static_cast<unsigned char>(ch)]; }
+                    ++n_ln_;
+                    return false;
+                });
+                input_.bump(first - input_.first_avail());
+                if (first != input_.last_avail()) { break; }
+                if (input_.peek() == iobuf::traits_type::eof()) { return static_cast<int>(token_t::kEof); }
+                first = input_.first_avail();
+            }
+            // just process a single character if it can't be recognized with analyzer
+            if (lex_detail::Dtran[lex_detail::symb2meta[static_cast<unsigned char>(*first)]] < 0) {
+                input_.bump(1);
+                if (*first != '\"') { return static_cast<unsigned char>(*first); }
+                state_stack_.push_back(lex_detail::sc_string);
+                continue;
+            }
+        }
         while (true) {
             bool stack_limitation = false;
             const char* last = input_.last_avail();
@@ -40,7 +63,7 @@ int json::reader::parse_token(std::string_view& lval) {
                 first = last;
                 continue;
             } else if (!input_) {
-                return kEof;  // end of sequence, first_ == last_
+                return static_cast<int>(token_t::kEof);  // end of sequence, first_ == last_
             }
             if (input_.avail()) {  // append read buffer to stash
                 stash_.append(input_.first_avail(), input_.last_avail());
@@ -76,7 +99,7 @@ int json::reader::parse_token(std::string_view& lval) {
             case lex_detail::pat_escape_n: str_.push_back('\n'); break;
             case lex_detail::pat_escape_r: str_.push_back('\r'); break;
             case lex_detail::pat_escape_t: str_.push_back('\t'); break;
-            case lex_detail::pat_escape_other: return kEof;
+            case lex_detail::pat_escape_other: return static_cast<int>(token_t::kEof);
             case lex_detail::pat_escape_unicode: {
                 unsigned unicode = (uxs::dig_v<16>(lexeme[2]) << 12) | (uxs::dig_v<16>(lexeme[3]) << 8) |
                                    (uxs::dig_v<16>(lexeme[4]) << 4) | uxs::dig_v<16>(lexeme[5]);
@@ -91,7 +114,7 @@ int json::reader::parse_token(std::string_view& lval) {
             } break;
 
             // ------ strings
-            case lex_detail::pat_string_nl: return kEof;
+            case lex_detail::pat_string_nl: return static_cast<int>(token_t::kEof);
             case lex_detail::pat_string_seq: {
                 str_.append(lexeme, lexeme + llen);
             } break;
@@ -104,21 +127,29 @@ int json::reader::parse_token(std::string_view& lval) {
                     str_.clear();  // it resets end pointer, but retains the contents
                 }
                 state_stack_.pop_back();
-                return kString;
+                return static_cast<int>(token_t::kString);
             } break;
 
-            case lex_detail::pat_null: return kNull;
-            case lex_detail::pat_true: return kTrue;
-            case lex_detail::pat_false: return kFalse;
-            case lex_detail::pat_decimal: lval = std::string_view(lexeme, llen); return kInteger;
-            case lex_detail::pat_neg_decimal: lval = std::string_view(lexeme, llen); return kNegInteger;
-            case lex_detail::pat_real: lval = std::string_view(lexeme, llen); return kDouble;
+            case lex_detail::pat_null: return static_cast<int>(token_t::kNull);
+            case lex_detail::pat_true: return static_cast<int>(token_t::kTrue);
+            case lex_detail::pat_false: return static_cast<int>(token_t::kFalse);
+            case lex_detail::pat_decimal: {
+                lval = std::string_view(lexeme, llen);
+                return static_cast<int>(token_t::kInteger);
+            } break;
+            case lex_detail::pat_neg_decimal: {
+                lval = std::string_view(lexeme, llen);
+                return static_cast<int>(token_t::kNegInteger);
+            } break;
+            case lex_detail::pat_real: {
+                lval = std::string_view(lexeme, llen);
+                return static_cast<int>(token_t::kDouble);
+            } break;
 
-            case lex_detail::pat_whitespace: break;
             case lex_detail::pat_comment: {  // skip till end of line or stream
                 int ch = input_.get();
                 while (input_ && ch != '\n') {
-                    if (ch == '\0') { return kEof; }
+                    if (ch == '\0') { return static_cast<int>(token_t::kEof); }
                     ch = input_.get();
                 }
                 ++n_ln_;
@@ -127,7 +158,7 @@ int json::reader::parse_token(std::string_view& lval) {
                 int ch = input_.get();
                 do {
                     while (input_ && ch != '*') {
-                        if (ch == '\0') { return kEof; }
+                        if (ch == '\0') { return static_cast<int>(token_t::kEof); }
                         if (ch == '\n') { ++n_ln_; }
                         ch = input_.get();
                     }
@@ -135,24 +166,17 @@ int json::reader::parse_token(std::string_view& lval) {
                 } while (input_ && ch != '/');
             } break;
 
-            case lex_detail::predef_pat_default: {
-                switch (lexeme[0]) {
-                    case '\n': ++n_ln_; break;
-                    case '\"': state_stack_.push_back(lex_detail::sc_string); break;
-                    default: return lexeme[0];
-                }
-            } break;
-
+            case lex_detail::predef_pat_default: return static_cast<unsigned char>(lexeme[0]);
             default: UNREACHABLE_CODE;
         }
     }
 }
 
 namespace json {
-template basic_value<char> reader::read(const std::allocator<char>&);
-template basic_value<wchar_t> reader::read(const std::allocator<wchar_t>&);
-template void writer::write(const basic_value<char>&);
-template void writer::write(const basic_value<wchar_t>&);
+template basic_value<char> reader::read(token_t, const std::allocator<char>&);
+template basic_value<wchar_t> reader::read(token_t, const std::allocator<wchar_t>&);
+template void writer::write(const basic_value<char>&, unsigned);
+template void writer::write(const basic_value<wchar_t>&, unsigned);
 }  // namespace json
 }  // namespace db
 }  // namespace uxs

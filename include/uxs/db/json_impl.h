@@ -1,8 +1,8 @@
 #pragma once
 
 #include "json.h"
+#include "value.h"
 
-#include "uxs/format.h"
 #include "uxs/stringalg.h"
 
 namespace uxs {
@@ -11,31 +11,29 @@ namespace json {
 
 namespace detail {
 template<typename CharT>
-struct utf8_string_converter {
-    std::basic_string_view<CharT> from(std::string_view s) { return s; }
-    std::string_view to(std::basic_string_view<CharT> s) { return s; }
+struct utf8_string_converter;
+template<>
+struct utf8_string_converter<char> {
+    static std::string_view from(std::string_view s) { return s; }
+    static std::string_view to(std::string_view s) { return s; }
 };
 template<>
 struct utf8_string_converter<wchar_t> {
-    std::wstring from(std::string_view s) { return from_utf8_to_wide(s); }
-    std::string to(std::wstring_view s) { return from_wide_to_utf8(s); }
+    static std::wstring from(std::string_view s) { return from_utf8_to_wide(s); }
+    static std::string to(std::wstring_view s) { return from_wide_to_utf8(s); }
 };
 }  // namespace detail
 
 // --------------------------
 
 template<typename CharT, typename Alloc>
-basic_value<CharT, Alloc> reader::read(const Alloc& al) {
-    if (input_.peek() == iobuf::traits_type::eof()) { throw exception("empty input"); }
-
-    auto token_to_value = [this, &al](int tk, std::string_view lval) -> basic_value<CharT, Alloc> {
-        switch (tk) {
-            case '[': return make_array<CharT>(al);
-            case '{': return make_record<CharT>(al);
-            case kNull: return basic_value<CharT, Alloc>(al);
-            case kTrue: return {true, al};
-            case kFalse: return {false, al};
-            case kInteger: {
+basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
+    auto token_to_value = [](token_t tt, std::string_view lval, const Alloc& al) -> basic_value<CharT, Alloc> {
+        switch (tt) {
+            case token_t::kNull: return {nullptr, al};
+            case token_t::kTrue: return {true, al};
+            case token_t::kFalse: return {false, al};
+            case token_t::kInteger: {
                 uint64_t u64 = 0;
                 if (stoval(lval, u64) != 0) {
                     if (u64 <= static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
@@ -50,7 +48,7 @@ basic_value<CharT, Alloc> reader::read(const Alloc& al) {
                 // too big integer - treat as double
                 return {from_string<double>(lval), al};
             } break;
-            case kNegInteger: {
+            case token_t::kNegInteger: {
                 int64_t i64 = 0;
                 if (stoval(lval, i64) != 0) {
                     if (i64 >= static_cast<int64_t>(std::numeric_limits<int32_t>::min())) {
@@ -61,99 +59,59 @@ basic_value<CharT, Alloc> reader::read(const Alloc& al) {
                 // too big integer - treat as double
                 return {from_string<double>(lval), al};
             } break;
-            case kDouble: return {from_string<double>(lval), al};
-            case kString: return {detail::utf8_string_converter<CharT>().from(lval), al};
+            case token_t::kDouble: return {from_string<double>(lval), al};
+            case token_t::kString: return {detail::utf8_string_converter<CharT>::from(lval), al};
+            default: UNREACHABLE_CODE;
         }
-        throw exception(format("{}: invalid value or unexpected character", n_ln_));
     };
 
-    std::string_view lval;
+    basic_value<CharT, Alloc> result;
     basic_inline_dynbuffer<basic_value<CharT, Alloc>*, 32> stack;
 
-    init_parser();
-
-    int tk = parse_token(lval);
-    basic_value<CharT, Alloc> result = token_to_value(tk, lval);
-    if (!result.is_array() && !result.is_record()) { return result; }
-
-    auto* top = &result;
-    bool comma = false;
-    tk = parse_token(lval);
-
-loop:
-    if (top->is_array()) {
-        if (comma || tk != ']') {
-            while (true) {
-                auto& el = top->emplace_back(token_to_value(tk, lval));
-                tk = parse_token(lval);
-                if (el.is_array() || el.is_record()) {
-                    stack.push_back(top);
-                    top = &el, comma = false;
-                    goto loop;
-                }
-                if (tk == ']') { break; }
-                if (tk != ',') { throw exception(format("{}: expected `,` or `]`", n_ln_)); }
-                tk = parse_token(lval);
+    auto* val = &result;
+    stack.push_back(val);
+    read(
+        [&al, &stack, &val, &token_to_value](token_t tt, std::string_view lval) {
+            if (tt >= token_t::kNull) {
+                *val = token_to_value(tt, lval, al);
+            } else {
+                *val = tt == token_t::kArray ? make_array<CharT>(al) : make_record<CharT>(al);
+                stack.push_back(val);
             }
-        }
-    } else if (comma || tk != '}') {
-        while (true) {
-            if (tk != kString) { throw exception(format("{}: expected valid string", n_ln_)); }
-            auto& el = top->emplace(detail::utf8_string_converter<CharT>().from(lval), al)->second;
-            tk = parse_token(lval);
-            if (tk != ':') { throw exception(format("{}: expected `:`", n_ln_)); }
-            tk = parse_token(lval);
-            el = token_to_value(tk, lval);
-            tk = parse_token(lval);
-            if (el.is_array() || el.is_record()) {
-                stack.push_back(top);
-                top = &el, comma = false;
-                goto loop;
-            }
-            if (tk == '}') { break; }
-            if (tk != ',') { throw exception(format("{}: expected `,` or `}}`", n_ln_)); }
-            tk = parse_token(lval);
-        }
-    }
-
-    while (!stack.empty()) {
-        top = stack.back();
-        stack.pop_back();
-        tk = parse_token(lval);
-        char close_char = top->is_array() ? ']' : '}';
-        if (tk != close_char) {
-            if (tk != ',') { throw exception(format("{}: expected `,` or `{}`", n_ln_, close_char)); }
-            tk = parse_token(lval), comma = true;
-            goto loop;
-        }
-    }
+            return item_ret_code_t::kStepInto;
+        },
+        [&al, &stack, &val]() { val = &stack.back()->emplace_back(al); },
+        [&al, &stack, &val](std::string_view lval) {
+            val = &stack.back()->emplace(detail::utf8_string_converter<CharT>::from(lval), al)->second;
+        },
+        [&stack] { stack.pop_back(); }, tk_val);
     return result;
 }
 
 // --------------------------
 
-template<typename ValTy>
+template<typename CharT, typename Alloc>
 struct writer_stack_item_t {
+    using value_t = basic_value<CharT, Alloc>;
     writer_stack_item_t() {}
-    writer_stack_item_t(const ValTy* p, const ValTy* el) : v(p), array_element(el) {}
-    writer_stack_item_t(const ValTy* p, typename ValTy::const_record_iterator el) : v(p), record_element(el) {}
-    const ValTy* v;
+    writer_stack_item_t(const value_t* p, const value_t* it) : v(p), array_it(it) {}
+    writer_stack_item_t(const value_t* p, typename value_t::const_record_iterator it) : v(p), record_it(it) {}
+    const value_t* v;
 #if !defined(_MSC_VER) || _MSC_VER >= 1920
     union {
-        const ValTy* array_element;
-        typename ValTy::const_record_iterator record_element;
+        const value_t* array_it;
+        typename value_t::const_record_iterator record_it;
     };
 #else   // !defined(_MSC_VER) || _MSC_VER >= 1920
-    // Old versions of VS compiler don't support such unions
-    const ValTy* array_element = nullptr;
-    typename ValTy::const_record_iterator record_element;
+        // Old versions of VS compiler don't support such unions
+    const value_t* array_it = nullptr;
+    typename value_t::const_record_iterator record_it;
 #endif  // !defined(_MSC_VER) || _MSC_VER >= 1920
 };
 
 template<typename CharT, typename Alloc>
-void writer::write(const basic_value<CharT, Alloc>& v) {
-    unsigned indent = 0;
-    basic_inline_dynbuffer<writer_stack_item_t<basic_value<CharT, Alloc>>, 32> stack;
+void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
+    basic_inline_dynbuffer<writer_stack_item_t<CharT, Alloc>, 32> stack;
 
     auto write_value = [this, &stack, &indent](const basic_value<CharT, Alloc>& v) {
         switch (v.type_) {
@@ -185,7 +143,7 @@ void writer::write(const basic_value<CharT, Alloc>& v) {
                 output_.write(as_span(buf.data(), buf.size()));
             } break;
             case dtype::kString: {
-                print_quoted_text<char>(output_, detail::utf8_string_converter<CharT>().to(v.str_view()));
+                print_quoted_text<char>(output_, detail::utf8_string_converter<CharT>::to(v.str_view()));
             } break;
             case dtype::kArray: {
                 output_.put('[');
@@ -205,38 +163,34 @@ void writer::write(const basic_value<CharT, Alloc>& v) {
     if (!write_value(v)) { return; }
 
 loop:
-    writer_stack_item_t<basic_value<CharT, Alloc>>* top = stack.curr() - 1;
+    auto* top = &stack.back();
     if (top->v->is_array()) {
         auto range = top->v->as_array();
-        const basic_value<CharT, Alloc>* el = top->array_element;
-        const basic_value<CharT, Alloc>* el_end = range.data() + range.size();
+        const auto* el = top->array_it;
+        const auto* el_end = range.data() + range.size();
         while (el != el_end) {
             if (el != range.data()) { output_.put(',').put(' '); }
             if (write_value(*el++)) {
-                (stack.curr() - 2)->array_element = el;
+                (stack.curr() - 2)->array_it = el;
                 goto loop;
             }
         }
         output_.put(']');
     } else {
         auto range = top->v->as_record();
-        auto el = top->record_element;
+        auto el = top->record_it;
         while (el != range.end()) {
             if (el != range.begin()) { output_.put(','); }
-            output_.put('\n');
-            output_.fill_n(indent, indent_char_);
-            print_quoted_text<char>(output_, detail::utf8_string_converter<CharT>().to(el->first));
+            output_.put('\n').fill_n(indent, indent_char_);
+            print_quoted_text<char>(output_, detail::utf8_string_converter<CharT>::to(el->first));
             output_.put(':').put(' ');
             if (write_value((el++)->second)) {
-                (stack.curr() - 2)->record_element = el;
+                (stack.curr() - 2)->record_it = el;
                 goto loop;
             }
         }
         indent -= indent_size_;
-        if (!top->v->empty()) {
-            output_.put('\n');
-            output_.fill_n(indent, indent_char_);
-        }
+        if (!top->v->empty()) { output_.put('\n').fill_n(indent, indent_char_); }
         output_.put('}');
     }
 
