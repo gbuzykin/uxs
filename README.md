@@ -27,6 +27,7 @@ The collection includes the following functionality:
   integrates with mentioned string parsers and formatters for to and from string conversion
 - data structures `db::value` to store hierarchical records and arrays (*json DOM*)
 - fast full-featured *JSON* file reader (SAX-like & DOM) and writer
+- limited (no DTD and XSL support) *XML* SAX parser; json-DOM reader and writer for *XML*
 - insert, erase and find algorithm implementations for *bidirectional lists* and *red-black trees*
   (in the form of functions to make it possible to implement either universal containers or
   intrusive data structures)
@@ -37,10 +38,6 @@ The collection includes the following functionality:
 - standard-compliant pool allocator
 - *CRC32* calculator
 - *COW* pointer `uxs::cow_ptr<>` implementation
-
-The following groups of helpers are planned to be developed and added to the collection soon:
-
-- *XML* file parser
 
 ## How to Use
 

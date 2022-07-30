@@ -180,6 +180,7 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
         assert(first_ < curr_);
         return *(curr_ - 1);
     }
+    Ty* first() { return first_; }
     Ty* curr() { return curr_; }
     Ty** p_curr() { return &curr_; }
     basic_dynbuffer& setcurr(Ty* curr) {
