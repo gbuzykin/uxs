@@ -11,7 +11,6 @@ ws        [ \t\r]+
 
 %%
 
-# Other literals
 null          <value> {ws}?(n|N)(u|U)(l|L)(l|L){ws}?
 true          <value> {ws}?(t|T)(r|R)(u|U)(e|E){ws}?
 false         <value> {ws}?(f|F)(a|A)(l|L)(s|S)(e|E){ws}?
