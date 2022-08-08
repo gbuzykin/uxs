@@ -6,7 +6,6 @@ dec       0|[1-9]{dig}*
 
 %%
 
-# String literal
 escape_quot     <string> \\\"
 escape_rev_sol  <string> \\\\
 escape_sol      <string> \\\/
@@ -21,7 +20,6 @@ string_seq      <string> [^"\\\n]+
 string_close    <string> [^"\\\n]*\"
 string_nl       <string> \n
 
-# Other literals
 null           "null"
 true           "true"
 false          "false"
@@ -29,7 +27,6 @@ decimal        {dec}
 neg_decimal    -{dec}
 real           -?({dec}(\.{dig}+)?((e|E)(\+|-)?{dig}+)?)
 
-# Other
 comment          "//"
 c_comment        "/*"
 
