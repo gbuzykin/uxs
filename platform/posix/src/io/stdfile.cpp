@@ -8,10 +8,10 @@ static filebuf g_outbuf(fileno(stdout), iomode::kOut | iomode::kAppend |
                                             (isatty(fileno(stdout)) ? iomode::kNone : iomode::kSkipCtrlEsc));
 static filebuf g_inbuf(fileno(stdin), iomode::kIn, &stdbuf::out);
 static filebuf g_logbuf(fileno(stderr),
-                        iomode::kOut | iomode::kAppend | (isatty(fileno(stdout)) ? iomode::kNone : iomode::kSkipCtrlEsc),
+                        iomode::kOut | iomode::kAppend | (isatty(fileno(stderr)) ? iomode::kNone : iomode::kSkipCtrlEsc),
                         &stdbuf::out);
 static filebuf g_errbuf(fileno(stderr),
-                        iomode::kOut | iomode::kAppend | (isatty(fileno(stdout)) ? iomode::kNone : iomode::kSkipCtrlEsc),
+                        iomode::kOut | iomode::kAppend | (isatty(fileno(stderr)) ? iomode::kNone : iomode::kSkipCtrlEsc),
                         &stdbuf::log);
 iobuf& stdbuf::out = g_outbuf;
 iobuf& stdbuf::in = g_inbuf;
