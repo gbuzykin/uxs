@@ -30,11 +30,11 @@ struct list_node_traits {
     static dllist_node_t* get_next(dllist_node_t* node) { return node->next; }
     static dllist_node_t* get_prev(dllist_node_t* node) { return node->prev; }
 #if _ITERATOR_DEBUG_LEVEL != 0
-    static void set_head(dllist_node_t* node, dllist_node_t* head) { static_cast<list_links_type*>(node)->head = head; }
+    static void set_head(dllist_node_t* node, dllist_node_t* head) { static_cast<links_t*>(node)->head = head; }
     static void set_head(dllist_node_t* first, dllist_node_t* last, dllist_node_t* head) {
         for (auto* p = first; p != last; p = get_next(p)) { set_head(p, head); }
     }
-    static dllist_node_t* get_head(dllist_node_t* node) { return static_cast<list_links_type*>(node)->head; }
+    static dllist_node_t* get_head(dllist_node_t* node) { return static_cast<links_t*>(node)->head; }
     static dllist_node_t* get_front(dllist_node_t* head) { return head->next; }
 #else   // _ITERATOR_DEBUG_LEVEL != 0
     static void set_head(dllist_node_t* node, dllist_node_t* head) {}

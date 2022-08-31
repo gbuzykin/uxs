@@ -32,13 +32,11 @@ struct rbtree_node_traits {
     static rbtree_node_t* get_next(rbtree_node_t* node) { return rbtree_next(node); }
     static rbtree_node_t* get_prev(rbtree_node_t* node) { return rbtree_prev(node); }
 #if _ITERATOR_DEBUG_LEVEL != 0
-    static void set_head(rbtree_node_t* node, rbtree_node_t* head) {
-        static_cast<rbtree_links_type*>(node)->head = head;
-    }
+    static void set_head(rbtree_node_t* node, rbtree_node_t* head) { static_cast<links_t*>(node)->head = head; }
     static void set_head(rbtree_node_t* first, rbtree_node_t* last, rbtree_node_t* head) {
         for (auto* p = first; p != last; p = get_next(p)) { set_head(p, head); }
     }
-    static rbtree_node_t* get_head(rbtree_node_t* node) { return static_cast<rbtree_links_type*>(node)->head; }
+    static rbtree_node_t* get_head(rbtree_node_t* node) { return static_cast<links_t*>(node)->head; }
     static rbtree_node_t* get_front(rbtree_node_t* head) { return head->parent; }
 #else   // _ITERATOR_DEBUG_LEVEL != 0
     static void set_head(rbtree_node_t* node, rbtree_node_t* head) {}
