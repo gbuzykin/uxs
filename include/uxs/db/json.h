@@ -112,8 +112,8 @@ loop:
             if (tt != static_cast<int>(token_t::kString)) {
                 throw exception(format("{}: expected valid string", n_ln_));
             }
-            if ((tt = parse_token(lval)) != ':') { throw exception(format("{}: expected `:`", n_ln_)); }
             fn_obj_item(lval);
+            if ((tt = parse_token(lval)) != ':') { throw exception(format("{}: expected `:`", n_ln_)); }
             tt = parse_token(lval);
             item_ret_code_t ret = fn_value_checked(tt, lval);
             if (ret == item_ret_code_t::kStepInto) {
