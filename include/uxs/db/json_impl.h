@@ -78,7 +78,7 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
                 *val = tt == token_t::kArray ? make_array<CharT>(al) : make_record<CharT>(al);
                 stack.push_back(val);
             }
-            return item_ret_code_t::kStepInto;
+            return next_action_type::kStepInto;
         },
         [&al, &stack, &val]() { val = &stack.back()->emplace_back(al); },
         [&al, &stack, &val](std::string_view lval) {
