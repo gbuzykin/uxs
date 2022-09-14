@@ -1,6 +1,6 @@
 #pragma once
 
-#include "uxs/io/ostringbuf.h"
+#include "ostringbuf.h"
 
 #include <algorithm>
 
