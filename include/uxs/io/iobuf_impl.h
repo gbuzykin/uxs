@@ -1,6 +1,6 @@
 #pragma once
 
-#include "uxs/io/iobuf.h"
+#include "iobuf.h"
 
 #include <algorithm>
 

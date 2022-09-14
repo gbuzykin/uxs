@@ -1,6 +1,6 @@
 #pragma once
 
-#include "uxs/io/devbuf.h"
+#include "devbuf.h"
 
 #include <algorithm>
 #include <array>
