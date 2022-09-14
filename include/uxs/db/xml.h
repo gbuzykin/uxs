@@ -88,9 +88,9 @@ class UXS_EXPORT reader {
 
     int parse_token(std::string_view& lval);
 
-    enum class str_class_t : int { kNull = 0, kTrue, kFalse, kInteger, kNegInteger, kDouble, kWsWithNl, kOther };
+    enum class string_class : int { kNull = 0, kTrue, kFalse, kInteger, kNegInteger, kDouble, kWsWithNl, kOther };
 
-    static str_class_t classify_string(const std::string_view& sval);
+    static string_class classify_string(const std::string_view& sval);
 };
 
 class UXS_EXPORT writer {

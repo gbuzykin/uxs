@@ -26,7 +26,7 @@ enum class token_t : int {
     kString
 };
 
-enum class item_ret_code_t : int { kStepInto = 0, kStepOver, kBreak };
+enum class next_action_type : int { kStepInto = 0, kStepOver, kBreak };
 
 class UXS_EXPORT reader {
  public:
@@ -68,7 +68,7 @@ void reader::read(const ValueFunc& fn_value, const ArrItemFunc& fn_arr_item, con
                   const PopFunc& fn_pop, token_t tk_val) {
     if (input_.peek() == iobuf::traits_type::eof()) { throw exception("empty input"); }
 
-    auto fn_value_checked = [this, &fn_value](int tt, std::string_view lval) -> item_ret_code_t {
+    auto fn_value_checked = [this, &fn_value](int tt, std::string_view lval) -> next_action_type {
         if (tt >= static_cast<int>(token_t::kNull) || tt == '[' || tt == '{') {
             return fn_value(static_cast<token_t>(tt), lval);
         }
@@ -79,7 +79,7 @@ void reader::read(const ValueFunc& fn_value, const ArrItemFunc& fn_arr_item, con
     basic_inline_dynbuffer<char, 32> stack;
     if (tk_val == token_t::kEof) {
         int tt = parse_token(lval);
-        if (fn_value_checked(tt, lval) != item_ret_code_t::kStepInto) { return; }
+        if (fn_value_checked(tt, lval) != next_action_type::kStepInto) { return; }
         tk_val = static_cast<token_t>(tt);
     }
 
@@ -92,14 +92,14 @@ loop:
         if (comma || tt != ']') {
             while (true) {
                 fn_arr_item();
-                item_ret_code_t ret = fn_value_checked(tt, lval);
-                if (ret == item_ret_code_t::kStepInto) {
+                next_action_type ret = fn_value_checked(tt, lval);
+                if (ret == next_action_type::kStepInto) {
                     if ((tk_val = static_cast<token_t>(tt)) < token_t::kNull) {
                         stack.push_back('[');
                         comma = false;
                         goto loop;
                     }
-                } else if (ret == item_ret_code_t::kBreak) {
+                } else if (ret == next_action_type::kBreak) {
                     return;
                 }
                 if ((tt = parse_token(lval)) == ']') { break; }
@@ -115,14 +115,14 @@ loop:
             fn_obj_item(lval);
             if ((tt = parse_token(lval)) != ':') { throw exception(format("{}: expected `:`", n_ln_)); }
             tt = parse_token(lval);
-            item_ret_code_t ret = fn_value_checked(tt, lval);
-            if (ret == item_ret_code_t::kStepInto) {
+            next_action_type ret = fn_value_checked(tt, lval);
+            if (ret == next_action_type::kStepInto) {
                 if ((tk_val = static_cast<token_t>(tt)) < token_t::kNull) {
                     stack.push_back('{');
                     comma = false;
                     goto loop;
                 }
-            } else if (ret == item_ret_code_t::kBreak) {
+            } else if (ret == next_action_type::kBreak) {
                 return;
             }
             if ((tt = parse_token(lval)) == '}') { break; }

@@ -35,10 +35,10 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
 
     auto text_to_value = [&al](std::string_view sval) -> basic_value<CharT, Alloc> {
         switch (classify_string(sval)) {
-            case str_class_t::kNull: return {nullptr, al};
-            case str_class_t::kTrue: return {true, al};
-            case str_class_t::kFalse: return {false, al};
-            case str_class_t::kInteger: {
+            case string_class::kNull: return {nullptr, al};
+            case string_class::kTrue: return {true, al};
+            case string_class::kFalse: return {false, al};
+            case string_class::kInteger: {
                 uint64_t u64 = 0;
                 if (stoval(sval, u64) != 0) {
                     if (u64 <= static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
@@ -53,7 +53,7 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
                 // too big integer - treat as double
                 return {from_string<double>(sval), al};
             } break;
-            case str_class_t::kNegInteger: {
+            case string_class::kNegInteger: {
                 int64_t i64 = 0;
                 if (stoval(sval, i64) != 0) {
                     if (i64 >= static_cast<int64_t>(std::numeric_limits<int32_t>::min())) {
@@ -64,9 +64,9 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
                 // too big integer - treat as double
                 return {from_string<double>(sval), al};
             } break;
-            case str_class_t::kDouble: return {from_string<double>(sval), al};
-            case str_class_t::kWsWithNl: return make_record<CharT>(al);
-            case str_class_t::kOther: return {detail::utf8_string_converter<CharT>::from(sval), al};
+            case string_class::kDouble: return {from_string<double>(sval), al};
+            case string_class::kWsWithNl: return make_record<CharT>(al);
+            case string_class::kOther: return {detail::utf8_string_converter<CharT>::from(sval), al};
             default: UNREACHABLE_CODE;
         }
     };

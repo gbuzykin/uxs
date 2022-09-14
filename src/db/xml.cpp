@@ -281,20 +281,20 @@ int xml::reader::parse_token(std::string_view& lval) {
     }
 }
 
-/*static*/ xml::reader::str_class_t xml::reader::classify_string(const std::string_view& sval) {
+/*static*/ xml::reader::string_class xml::reader::classify_string(const std::string_view& sval) {
     int state = lex_detail::sc_value;
     for (unsigned char ch : sval) {
         state = lex_detail::Dtran[lex_detail::dtran_width * state + lex_detail::symb2meta[ch]];
     }
     switch (lex_detail::accept[state]) {
-        case lex_detail::pat_null: return str_class_t::kNull;
-        case lex_detail::pat_true: return str_class_t::kTrue;
-        case lex_detail::pat_false: return str_class_t::kFalse;
-        case lex_detail::pat_decimal: return str_class_t::kInteger;
-        case lex_detail::pat_neg_decimal: return str_class_t::kNegInteger;
-        case lex_detail::pat_real: return str_class_t::kDouble;
-        case lex_detail::pat_ws_with_nl: return str_class_t::kWsWithNl;
-        case lex_detail::pat_other_value: return str_class_t::kOther;
+        case lex_detail::pat_null: return string_class::kNull;
+        case lex_detail::pat_true: return string_class::kTrue;
+        case lex_detail::pat_false: return string_class::kFalse;
+        case lex_detail::pat_decimal: return string_class::kInteger;
+        case lex_detail::pat_neg_decimal: return string_class::kNegInteger;
+        case lex_detail::pat_real: return string_class::kDouble;
+        case lex_detail::pat_ws_with_nl: return string_class::kWsWithNl;
+        case lex_detail::pat_other_value: return string_class::kOther;
         default: UNREACHABLE_CODE;
     }
 }
