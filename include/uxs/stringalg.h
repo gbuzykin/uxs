@@ -461,6 +461,21 @@ UXS_EXPORT int compare_strings_nocase(std::wstring_view lhs, std::wstring_view r
 UXS_EXPORT std::string to_lower(std::string_view s);
 UXS_EXPORT std::wstring to_upper(std::wstring_view s);
 
+namespace detail {
+template<typename CharT>
+struct utf8_string_converter;
+template<>
+struct utf8_string_converter<char> {
+    static std::string_view from(std::string_view s) { return s; }
+    static std::string_view to(std::string_view s) { return s; }
+};
+template<>
+struct utf8_string_converter<wchar_t> {
+    static std::wstring from(std::string_view s) { return from_utf8_to_wide(s); }
+    static std::string to(std::wstring_view s) { return from_wide_to_utf8(s); }
+};
+}  // namespace detail
+
 // --------------------------
 
 template<typename Ty = void>

@@ -12,21 +12,6 @@ namespace uxs {
 namespace db {
 namespace xml {
 
-namespace detail {
-template<typename CharT>
-struct utf8_string_converter;
-template<>
-struct utf8_string_converter<char> {
-    static std::string_view from(std::string_view s) { return s; }
-    static std::string_view to(std::string_view s) { return s; }
-};
-template<>
-struct utf8_string_converter<wchar_t> {
-    static std::wstring from(std::string_view s) { return from_utf8_to_wide(s); }
-    static std::string to(std::wstring_view s) { return from_wide_to_utf8(s); }
-};
-}  // namespace detail
-
 // --------------------------
 
 template<typename CharT, typename Alloc>
@@ -66,7 +51,7 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
             } break;
             case string_class::kDouble: return {from_string<double>(sval), al};
             case string_class::kWsWithNl: return make_record<CharT>(al);
-            case string_class::kOther: return {detail::utf8_string_converter<CharT>::from(sval), al};
+            case string_class::kOther: return {uxs::detail::utf8_string_converter<CharT>::from(sval), al};
             default: UNREACHABLE_CODE;
         }
     };
@@ -90,7 +75,7 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
             } break;
             case token_t::kStartElement: {
                 txt.clear();
-                auto result = top->first->emplace_unique(detail::utf8_string_converter<CharT>::from(tk.second), al);
+                auto result = top->first->emplace_unique(uxs::detail::utf8_string_converter<CharT>::from(tk.second), al);
                 stack.emplace_back(&result.first->second, tk.second);
                 if (!result.second) {
                     result.first->second.convert(dtype::kArray);
@@ -123,7 +108,7 @@ struct writer_stack_item_t {
     writer_stack_item_t(const value_t* p, std::string_view el, typename value_t::const_record_iterator it)
         : v(p), element(el), record_it(it) {}
     const value_t* v;
-    decltype(detail::utf8_string_converter<CharT>::to({})) element;
+    decltype(uxs::detail::utf8_string_converter<CharT>::to({})) element;
 #if !defined(_MSC_VER) || _MSC_VER >= 1920
     union {
         const value_t* array_it;
@@ -160,7 +145,7 @@ basic_iobuf<CharT>& print_xml_text(basic_iobuf<CharT>& out, std::basic_string_vi
 template<typename CharT, typename Alloc>
 void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_element, unsigned indent) {
     std::vector<writer_stack_item_t<CharT, Alloc>> stack;
-    decltype(detail::utf8_string_converter<CharT>::to({})) element(root_element);
+    decltype(uxs::detail::utf8_string_converter<CharT>::to({})) element(root_element);
     stack.reserve(32);
 
     auto write_value = [this, &stack, &element, &indent](const basic_value<CharT, Alloc>& v) {
@@ -193,7 +178,7 @@ void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_ele
                 output_.write(as_span(buf.data(), buf.size()));
             } break;
             case dtype::kString: {
-                print_xml_text<char>(output_, detail::utf8_string_converter<CharT>().to(v.str_view()));
+                print_xml_text<char>(output_, uxs::detail::utf8_string_converter<CharT>().to(v.str_view()));
             } break;
             case dtype::kArray: {
                 stack.emplace_back(&v, element, v.as_array().data());
@@ -237,7 +222,7 @@ loop:
                 output_.put('<').put('/').write(element).put('>');
             }
             if (el == range.end()) { break; }
-            element = detail::utf8_string_converter<CharT>::to(el->first);
+            element = uxs::detail::utf8_string_converter<CharT>::to(el->first);
             if (!el->second.is_array()) {
                 output_.put('\n').fill_n(indent, indent_char_).put('<').write(element).put('>');
             }
@@ -255,6 +240,7 @@ loop:
     if (!stack.empty()) { goto loop; }
     output_.put('<').put('/').write(element).put('>');
 }
+
 }  // namespace xml
 }  // namespace db
 }  // namespace uxs

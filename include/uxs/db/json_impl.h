@@ -9,21 +9,6 @@ namespace uxs {
 namespace db {
 namespace json {
 
-namespace detail {
-template<typename CharT>
-struct utf8_string_converter;
-template<>
-struct utf8_string_converter<char> {
-    static std::string_view from(std::string_view s) { return s; }
-    static std::string_view to(std::string_view s) { return s; }
-};
-template<>
-struct utf8_string_converter<wchar_t> {
-    static std::wstring from(std::string_view s) { return from_utf8_to_wide(s); }
-    static std::string to(std::wstring_view s) { return from_wide_to_utf8(s); }
-};
-}  // namespace detail
-
 // --------------------------
 
 template<typename CharT, typename Alloc>
@@ -60,7 +45,7 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
                 return {from_string<double>(lval), al};
             } break;
             case token_t::kDouble: return {from_string<double>(lval), al};
-            case token_t::kString: return {detail::utf8_string_converter<CharT>::from(lval), al};
+            case token_t::kString: return {uxs::detail::utf8_string_converter<CharT>::from(lval), al};
             default: UNREACHABLE_CODE;
         }
     };
@@ -82,7 +67,7 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
         },
         [&al, &stack, &val]() { val = &stack.back()->emplace_back(al); },
         [&al, &stack, &val](std::string_view lval) {
-            val = &stack.back()->emplace(detail::utf8_string_converter<CharT>::from(lval), al)->second;
+            val = &stack.back()->emplace(uxs::detail::utf8_string_converter<CharT>::from(lval), al)->second;
         },
         [&stack] { stack.pop_back(); }, tk_val);
     return result;
@@ -143,7 +128,7 @@ void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
                 output_.write(as_span(buf.data(), buf.size()));
             } break;
             case dtype::kString: {
-                print_quoted_text<char>(output_, detail::utf8_string_converter<CharT>::to(v.str_view()));
+                print_quoted_text<char>(output_, uxs::detail::utf8_string_converter<CharT>::to(v.str_view()));
             } break;
             case dtype::kArray: {
                 output_.put('[');
@@ -182,7 +167,7 @@ loop:
         while (el != range.end()) {
             if (el != range.begin()) { output_.put(','); }
             output_.put('\n').fill_n(indent, indent_char_);
-            print_quoted_text<char>(output_, detail::utf8_string_converter<CharT>::to(el->first));
+            print_quoted_text<char>(output_, uxs::detail::utf8_string_converter<CharT>::to(el->first));
             output_.put(':').put(' ');
             if (write_value((el++)->second)) {
                 (stack.curr() - 2)->record_it = el;
