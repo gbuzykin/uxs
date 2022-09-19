@@ -28,6 +28,12 @@ using is_random_access_iterator =
 //-----------------------------------------------------------------------------
 // Iterator range
 
+#if __cplusplus < 201703L
+const size_t dynamic_extent = size_t(-1);
+#else   // __cplusplus < 201703L
+constexpr size_t dynamic_extent = std::numeric_limits<size_t>::max();
+#endif  // __cplusplus < 201703L
+
 template<typename Iter, typename = void>
 class iterator_range;
 template<typename Iter>
@@ -67,6 +73,21 @@ template<typename Range>
 auto make_reverse_range(Range&& r) -> iterator_range<std::reverse_iterator<decltype(std::end(r))>> {
     return {std::reverse_iterator<decltype(std::end(r))>(std::end(r)),
             std::reverse_iterator<decltype(std::end(r))>(std::begin(r))};
+}
+
+template<typename Range>
+auto make_subrange(Range&& r, size_t offset, size_t count = dynamic_extent)
+    -> std::enable_if_t<is_random_access_iterator<decltype(std::end(r))>::value, iterator_range<decltype(std::end(r))>> {
+    size_t sz = std::end(r) - std::begin(r);
+    offset = std::min(offset, sz);
+    return {std::begin(r) + offset, std::begin(r) + offset + std::min(count, sz - offset)};
+}
+
+template<typename Iter, typename = std::enable_if_t<is_random_access_iterator<Iter>::value>>
+iterator_range<Iter> make_subrange(const std::pair<Iter, Iter>& p, size_t offset, size_t count = dynamic_extent) {
+    size_t sz = p.second - p.first;
+    offset = std::min(offset, sz);
+    return {p.first + offset, p.first + offset + std::min(count, sz - offset)};
 }
 
 template<typename IterL, typename IterR>
