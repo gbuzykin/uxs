@@ -28,16 +28,17 @@ The collection includes the following functionality:
 - data structures `db::value` to store hierarchical records and arrays (*json DOM*)
 - fast full-featured *JSON* file reader (SAX-like & DOM) and writer
 - limited (no DTD and XSL support) *XML* SAX parser; json-DOM reader and writer for *XML*
+- pretty command line interface (CLI) implementation
+- *CRC32* calculator
+- *COW* pointer `uxs::cow_ptr<>` implementation
 - insert, erase and find algorithm implementations for *bidirectional lists* and *red-black trees*
   (in the form of functions to make it possible to implement either universal containers or
   intrusive data structures)
+- intrusive bidirectional list implementation
 - implementation of `uxs::vector<>`, `uxs::list<>`, `uxs::set<>`, `uxs::multiset<>`, `uxs::map<>`,
   and `uxs::multimap<>`*С++17* specification compliant containers (but which can be compiled using
   *С++11*), build upon functions mentioned above (not so useful stuff, but it has academic value)
-- intrusive bidirectional list implementation
 - standard-compliant pool allocator
-- *CRC32* calculator
-- *COW* pointer `uxs::cow_ptr<>` implementation
 
 ## How to Use
 
