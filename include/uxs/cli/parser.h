@@ -138,6 +138,8 @@ class UXS_EXPORT basic_option_group : public basic_option_node<CharT> {
 
     bool is_exclusive() const { return is_exclusive_; }
 
+    friend class basic_command<CharT>;
+
  private:
     std::vector<std::unique_ptr<basic_option_node<CharT>>> children_;
     const bool is_exclusive_;
@@ -202,7 +204,9 @@ class UXS_EXPORT basic_command : public basic_node<CharT> {
  public:
     explicit basic_command(std::basic_string<CharT> name)
         : basic_node<CharT>(node_type::kCommand), name_(std::move(name)),
-          opts_(detail::make_unique<basic_option_group<CharT>>(false)) {}
+          opts_(detail::make_unique<basic_option_group<CharT>>(false)) {
+        opts_->set_parent(this);
+    }
     basic_command(const basic_command&);
     std::unique_ptr<basic_node<CharT>> clone() const override { return detail::make_unique<basic_command>(*this); };
 
@@ -251,8 +255,9 @@ class basic_overview_wrapper {
  public:
     explicit basic_overview_wrapper(std::basic_string_view<CharT> text) : text_(text) {}
 
- private:
     friend basic_command_wrapper<CharT>& operator<<=(basic_command_wrapper<CharT>& cmd, basic_overview_wrapper desc);
+
+ private:
     std::basic_string_view<CharT> text_;
 };
 
@@ -314,10 +319,11 @@ class basic_value_wrapper : public basic_node_wrapper<CharT> {
         return std::move(*this);
     }
 
- private:
-    explicit basic_value_wrapper(std::unique_ptr<basic_node<CharT>> ptr) : basic_node_wrapper<CharT>(std::move(ptr)) {}
     friend basic_option_wrapper<CharT>& operator&=(basic_option_wrapper<CharT>& opt, basic_value_wrapper<CharT> val);
     friend basic_command_wrapper<CharT>& operator<<=(basic_command_wrapper<CharT>& cmd, basic_value_wrapper<CharT> val);
+
+ private:
+    explicit basic_value_wrapper(std::unique_ptr<basic_node<CharT>> ptr) : basic_node_wrapper<CharT>(std::move(ptr)) {}
 };
 
 template<typename CharT>
@@ -386,11 +392,12 @@ class basic_option_node_wrapper : public basic_node_wrapper<CharT> {
         return std::move(lhs |= std::move(rhs));
     }
 
+    friend basic_command_wrapper<CharT>& operator<<=(basic_command_wrapper<CharT>& cmd,
+                                                     basic_option_node_wrapper<CharT> opt);
+
  protected:
     explicit basic_option_node_wrapper(std::unique_ptr<basic_node<CharT>> ptr)
         : basic_node_wrapper<CharT>(std::move(ptr)) {}
-    friend basic_command_wrapper<CharT>& operator<<=(basic_command_wrapper<CharT>& cmd,
-                                                     basic_option_node_wrapper<CharT> opt);
 };
 
 template<typename CharT>

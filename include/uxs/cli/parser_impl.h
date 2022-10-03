@@ -78,13 +78,12 @@ template<typename CharT>
         if (opt_it != cmd->opt_map_.end() && !(arg < opt_it->first)) { return opt_it; }
         while (opt_it != cmd->opt_map_.begin() && !arg.empty()) {
             auto it1 = arg.begin();
-            const auto& key = std::prev(opt_it)->first;
+            const auto& key = (--opt_it)->first;
             for (auto it2 = key.begin(); it1 != arg.end() && it2 != key.end(); ++it1, ++it2) {
                 if (*it1 != *it2) { break; }
             }
-            arg = arg.substr(0, it1 - arg.begin());        // common prefix
-            if (key == arg) { return std::prev(opt_it); }  // `key` is a prefix of `arg`
-            --opt_it;
+            arg = arg.substr(0, it1 - arg.begin());  // common prefix
+            if (key == arg) { return opt_it; }       // `key` is a prefix of `arg`
         }
         return cmd->opt_map_.end();
     };
@@ -108,7 +107,7 @@ template<typename CharT>
         return argc0 != argc;
     };
 
-    std::unordered_set<const basic_option_node<CharT>*> specified_options;
+    std::unordered_set<const basic_option_node<CharT>*> specified, optional;
 
     auto val_it = cmd->values_.begin();
     size_t count_multiple = 0;
@@ -126,7 +125,7 @@ template<typename CharT>
                 n_prefix = 0;
             }
             if (opt.get_handler()) { opt.get_handler()(); }
-            specified_options.emplace(&opt);
+            specified.emplace(&opt);
         } else if (val_it != cmd->values_.end()) {
             do {
                 const auto& val = *val_it;
@@ -144,30 +143,34 @@ template<typename CharT>
                     return parsing_result<CharT>{parsing_status::kInvalidValue, argc0 - argc, &*val};
                 }
             } while (val_it != cmd->values_.end());
+        } else {
+            return parsing_result<CharT>{parsing_status::kUnknownOption, argc0 - argc, cmd};
         }
     }
 
     if (count_multiple) { ++val_it; }
 
     while (val_it != cmd->values_.end()) {
-        const auto& val = *val_it;
+        const auto& val = *val_it++;
         if (!val->is_optional()) {
             return parsing_result<CharT>{parsing_status::kUnspecifiedValue, argc0 - argc, &*val};
         }
-        ++val_it;
     }
 
     parsing_result<CharT> result{parsing_status::kOk, argc0 - argc, cmd};
 
-    cmd->opts_->traverse_options([&specified_options, &result](const basic_option_node<CharT>& node) {
-        if (node.get_type() != node_type::kOptionGroup) { return true; }
+    cmd->opts_->traverse_options([&specified, &optional, &result](const basic_option_node<CharT>& node) {
+        if (node.get_type() != node_type::kOptionGroup) {
+            if (node.is_optional()) (optional.emplace(&node));
+            return true;
+        }
 
         const auto& group = static_cast<const basic_option_group<CharT>&>(node);
         bool is_specified = false, is_optional = false;
         if (group.is_exclusive()) {
             for (const auto& opt : group.get_children()) {
-                if (opt->is_optional()) { is_optional = true; }
-                if (specified_options.find(&*opt) != specified_options.end()) {
+                if (uxs::contains(optional, &*opt)) { is_optional = true; }
+                if (uxs::contains(specified, &*opt)) {
                     if (is_specified) {
                         result.status = parsing_status::kConflictingOption;
                         result.node = &*opt;
@@ -177,26 +180,35 @@ template<typename CharT>
                 }
             }
         } else {
+            const basic_node<CharT>* first_unspecified = nullptr;
             is_optional = true;
             for (const auto& opt : group.get_children()) {
-                if (!opt->is_optional()) { is_optional = false; }
-                if (specified_options.find(&*opt) != specified_options.end()) {
+                bool is_child_optional = uxs::contains(optional, &*opt);
+                if (!is_child_optional) { is_optional = false; }
+                if (uxs::contains(specified, &*opt)) {
                     is_specified = true;
-                } else if (is_specified && !opt->is_optional()) {
-                    result.status = parsing_status::kUnspecifiedOption;
-                    result.node = &*opt;
-                    return false;
+                } else if (!is_child_optional) {
+                    if (!first_unspecified) { first_unspecified = &*opt; }
+                    if (is_specified) { break; }
                 }
+            }
+            if (is_specified && first_unspecified) {
+                result.status = parsing_status::kUnspecifiedOption;
+                result.node = first_unspecified;
+                return false;
             }
         }
 
-        if (!is_specified && !is_optional && !group.is_optional()) {
+        is_optional = is_optional || group.is_optional();
+
+        if (!is_specified && !is_optional) {
             result.status = parsing_status::kUnspecifiedOption;
             result.node = &group;
             return false;
         }
 
-        if (is_specified) { specified_options.emplace(&group); }
+        if (is_specified) { specified.emplace(&group); }
+        if (is_optional) { optional.emplace(&group); }
         return true;
     });
 
