@@ -349,7 +349,7 @@ int basic_devbuf<CharT, Alloc>::flush_buffer() {
                     to = to0;
                 }
                 from = end_of_esc;
-                if (from == top) { break; }
+                continue;
             }
             *to++ = *from++;
         }
