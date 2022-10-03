@@ -88,7 +88,7 @@ template<typename CharT>
         return cmd->opt_map_.end();
     };
 
-    auto parse_value = [cmd, &argc, &argv](const basic_value<CharT>& val, size_t n_prefix) {
+    auto parse_value = [cmd, &find_option_by_key, &argc, &argv](const basic_value<CharT>& val, size_t n_prefix) {
         const int argc0 = argc;
         if (argc > 0) {
             if (!val.is_multiple() && !val.is_optional()) {
@@ -97,7 +97,7 @@ template<typename CharT>
             } else {
                 for (const int argc1 = val.is_multiple() ? 0 : argc - 1; argc > argc1; --argc, ++argv) {
                     std::basic_string_view<CharT> arg(*argv + n_prefix);
-                    if ((!n_prefix && cmd->opt_map_.find(arg) != cmd->opt_map_.end()) || !val.get_handler()(arg)) {
+                    if ((!n_prefix && find_option_by_key(arg) != cmd->opt_map_.end()) || !val.get_handler()(arg)) {
                         break;
                     }
                     n_prefix = 0;
