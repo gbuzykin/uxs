@@ -227,9 +227,14 @@ std::basic_string<CharT> basic_option_node<CharT>::make_string(bool brief) const
             for (const auto& key : uxs::make_subrange(opt.get_keys(), 1)) { s += ',', s += ' ', s += key; }
         }
         for (const auto& val : opt.get_values()) {
-            s += ' ';
+            std::basic_string_view<CharT> label = val->get_label();
+            if (label.empty() || label.front() != '~') {
+                s += ' ';
+            } else {
+                label = label.substr(1);
+            }
             if (val->is_optional()) { s += '['; }
-            s += val->get_label();
+            s += label;
             if (val->is_optional()) { s += '['; }
         }
         return s;
@@ -298,8 +303,9 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
         }
         osb.write(name_);
         for (const auto& val : values_) {
-            width += 1 + val->get_label().size();
-            osb.put(' ').write(val->get_label());
+            const auto& label = val->get_label();
+            width += 1 + label.size();
+            osb.put(' ').write(label);
         }
 
         const auto& opts = opts_->get_children();
