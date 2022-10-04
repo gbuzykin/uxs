@@ -65,12 +65,13 @@ template<typename CharT>
                                                              const CharT* const* argv) {
     const int argc0 = argc;
     --argc, ++argv;
+    if (cmd->get_handler()) { cmd->get_handler()(); }
     for (; argc > 0; --argc, ++argv) {
-        if (cmd->get_handler()) { cmd->get_handler()(); }
         std::basic_string_view<CharT> arg(*argv);
         auto subcmd_it = cmd->subcommands_.find(arg);
         if (subcmd_it == cmd->subcommands_.end()) { break; }
         cmd = &*subcmd_it->second;
+        if (cmd->get_handler()) { cmd->get_handler()(); }
     }
 
     auto find_option_by_key = [cmd](std::basic_string_view<CharT> arg) {
