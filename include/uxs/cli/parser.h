@@ -255,7 +255,7 @@ class basic_overview_wrapper {
  public:
     explicit basic_overview_wrapper(std::basic_string_view<CharT> text) : text_(text) {}
 
-    friend basic_command_wrapper<CharT>& operator<<=(basic_command_wrapper<CharT>& cmd, basic_overview_wrapper desc);
+    friend class basic_command_wrapper<CharT>;
 
  private:
     std::basic_string_view<CharT> text_;
@@ -305,9 +305,9 @@ class basic_value_wrapper : public basic_node_wrapper<CharT> {
         return std::move(*this);
     }
 
-    friend basic_value_wrapper& operator%=(basic_value_wrapper& val, std::basic_string_view<CharT> doc) {
-        val.ptr_->add_doc(doc);
-        return val;
+    basic_value_wrapper& operator%=(std::basic_string_view<CharT> doc) {
+        this->ptr_->add_doc(doc);
+        return *this;
     }
 
     friend basic_value_wrapper operator%(basic_value_wrapper val, std::basic_string_view<CharT> doc) {
@@ -319,8 +319,8 @@ class basic_value_wrapper : public basic_node_wrapper<CharT> {
         return std::move(*this);
     }
 
-    friend basic_option_wrapper<CharT>& operator&=(basic_option_wrapper<CharT>& opt, basic_value_wrapper<CharT> val);
-    friend basic_command_wrapper<CharT>& operator<<=(basic_command_wrapper<CharT>& cmd, basic_value_wrapper<CharT> val);
+    friend class basic_option_wrapper<CharT>;
+    friend class basic_command_wrapper<CharT>;
 
  private:
     explicit basic_value_wrapper(std::unique_ptr<basic_node<CharT>> ptr) : basic_node_wrapper<CharT>(std::move(ptr)) {}
@@ -348,52 +348,54 @@ class basic_option_node_wrapper : public basic_node_wrapper<CharT> {
         return std::move(*this);
     }
 
-    friend basic_option_node_wrapper& operator%=(basic_option_node_wrapper& opt, std::basic_string_view<CharT> doc) {
-        opt.ptr_->add_doc(doc);
-        return opt;
+    basic_option_node_wrapper& operator%=(std::basic_string_view<CharT> doc) {
+        this->ptr_->add_doc(doc);
+        return *this;
     }
 
     friend basic_option_node_wrapper operator%(basic_option_node_wrapper opt, std::basic_string_view<CharT> doc) {
         return std::move(opt %= doc);
     }
 
-    friend basic_option_node_wrapper& operator&=(basic_option_node_wrapper& lhs, basic_option_node_wrapper rhs) {
-        if (lhs.ptr_->get_type() == node_type::kOptionGroup && !lhs.ptr_->is_optional() &&
-            !static_cast<basic_option_group<CharT>&>(*lhs.ptr_).is_exclusive()) {
-            static_cast<basic_option_group<CharT>&>(*lhs.ptr_).add_child(
-                detail::unique_static_cast<basic_option_node<CharT>>(std::move(rhs.ptr_)));
+    basic_option_node_wrapper& operator&=(basic_option_node_wrapper opt) {
+        if (&opt == this) { return *this; }
+        if (this->ptr_->get_type() == node_type::kOptionGroup && !this->ptr_->is_optional() &&
+            !static_cast<basic_option_group<CharT>&>(*this->ptr_).is_exclusive()) {
+            static_cast<basic_option_group<CharT>&>(*this->ptr_)
+                .add_child(detail::unique_static_cast<basic_option_node<CharT>>(std::move(opt.ptr_)));
         } else {
             auto group = detail::make_unique<basic_option_group<CharT>>(false);
-            group->add_child(detail::unique_static_cast<basic_option_node<CharT>>(std::move(lhs.ptr_)));
-            group->add_child(detail::unique_static_cast<basic_option_node<CharT>>(std::move(rhs.ptr_)));
-            lhs.ptr_ = std::move(group);
+            group->add_child(detail::unique_static_cast<basic_option_node<CharT>>(std::move(this->ptr_)));
+            group->add_child(detail::unique_static_cast<basic_option_node<CharT>>(std::move(opt.ptr_)));
+            this->ptr_ = std::move(group);
         }
-        return lhs;
+        return *this;
     }
 
-    friend basic_option_node_wrapper& operator|=(basic_option_node_wrapper& lhs, basic_option_node_wrapper rhs) {
-        if (lhs.ptr_->get_type() == node_type::kOptionGroup &&
-            static_cast<basic_option_group<CharT>&>(*lhs.ptr_).is_exclusive()) {
-            static_cast<basic_option_group<CharT>&>(*lhs.ptr_).add_child(
-                detail::unique_static_cast<basic_option_node<CharT>>(std::move(rhs.ptr_)));
+    basic_option_node_wrapper& operator|=(basic_option_node_wrapper opt) {
+        if (&opt == this) { return *this; }
+        if (this->ptr_->get_type() == node_type::kOptionGroup &&
+            static_cast<basic_option_group<CharT>&>(*this->ptr_).is_exclusive()) {
+            static_cast<basic_option_group<CharT>&>(*this->ptr_)
+                .add_child(detail::unique_static_cast<basic_option_node<CharT>>(std::move(opt.ptr_)));
         } else {
             auto group = detail::make_unique<basic_option_group<CharT>>(true);
-            group->add_child(detail::unique_static_cast<basic_option_node<CharT>>(std::move(lhs.ptr_)));
-            group->add_child(detail::unique_static_cast<basic_option_node<CharT>>(std::move(rhs.ptr_)));
-            lhs.ptr_ = std::move(group);
+            group->add_child(detail::unique_static_cast<basic_option_node<CharT>>(std::move(this->ptr_)));
+            group->add_child(detail::unique_static_cast<basic_option_node<CharT>>(std::move(opt.ptr_)));
+            this->ptr_ = std::move(group);
         }
-        return lhs;
+        return *this;
     }
 
     friend basic_option_node_wrapper operator&(basic_option_node_wrapper lhs, basic_option_node_wrapper rhs) {
         return std::move(lhs &= std::move(rhs));
     }
+
     friend basic_option_node_wrapper operator|(basic_option_node_wrapper lhs, basic_option_node_wrapper rhs) {
         return std::move(lhs |= std::move(rhs));
     }
 
-    friend basic_command_wrapper<CharT>& operator<<=(basic_command_wrapper<CharT>& cmd,
-                                                     basic_option_node_wrapper<CharT> opt);
+    friend class basic_command_wrapper<CharT>;
 
  protected:
     explicit basic_option_node_wrapper(std::unique_ptr<basic_node<CharT>> ptr)
@@ -423,9 +425,9 @@ class basic_option_wrapper : public basic_option_node_wrapper<CharT> {
         return std::move(*this);
     }
 
-    friend basic_option_wrapper& operator%=(basic_option_wrapper& opt, std::basic_string_view<CharT> doc) {
-        opt.ptr_->add_doc(doc);
-        return opt;
+    basic_option_wrapper& operator%=(std::basic_string_view<CharT> doc) {
+        this->ptr_->add_doc(doc);
+        return *this;
     }
 
     friend basic_option_wrapper operator%(basic_option_wrapper opt, std::basic_string_view<CharT> doc) {
@@ -447,10 +449,10 @@ class basic_option_wrapper : public basic_option_node_wrapper<CharT> {
         return std::move(*this);
     }
 
-    friend basic_option_wrapper& operator&=(basic_option_wrapper& opt, basic_value_wrapper<CharT> val) {
-        static_cast<basic_option<CharT>&>(*opt.ptr_).add_value(
-            detail::unique_static_cast<basic_value<CharT>>(std::move(val.ptr_)));
-        return opt;
+    basic_option_wrapper& operator&=(basic_value_wrapper<CharT> val) {
+        static_cast<basic_option<CharT>&>(*this->ptr_)
+            .add_value(detail::unique_static_cast<basic_value<CharT>>(std::move(val.ptr_)));
+        return *this;
     }
 
     friend basic_option_wrapper operator&(basic_option_wrapper opt, basic_value_wrapper<CharT> val) {
@@ -480,9 +482,9 @@ class basic_command_wrapper : public basic_node_wrapper<CharT> {
     basic_command<CharT>* get() const { return &static_cast<basic_command<CharT>&>(*this->ptr_); }
     basic_command<CharT>* operator->() const { return get(); }
 
-    friend basic_command_wrapper& operator%=(basic_command_wrapper& cmd, std::basic_string_view<CharT> doc) {
-        cmd.ptr_->add_doc(doc);
-        return cmd;
+    basic_command_wrapper& operator%=(std::basic_string_view<CharT> doc) {
+        this->ptr_->add_doc(doc);
+        return *this;
     }
 
     friend basic_command_wrapper operator%(basic_command_wrapper cmd, std::basic_string_view<CharT> doc) {
@@ -504,27 +506,28 @@ class basic_command_wrapper : public basic_node_wrapper<CharT> {
         return std::move(*this);
     }
 
-    friend basic_command_wrapper& operator<<=(basic_command_wrapper& cmd, basic_overview_wrapper<CharT> overview) {
-        static_cast<basic_command<CharT>&>(*cmd.ptr_).add_overview(overview.text_);
-        return cmd;
+    basic_command_wrapper& operator<<=(basic_overview_wrapper<CharT> overview) {
+        static_cast<basic_command<CharT>&>(*this->ptr_).add_overview(overview.text_);
+        return *this;
     }
 
-    friend basic_command_wrapper& operator<<=(basic_command_wrapper& cmd, basic_value_wrapper<CharT> val) {
-        static_cast<basic_command<CharT>&>(*cmd.ptr_).add_value(
-            detail::unique_static_cast<basic_value<CharT>>(std::move(val.ptr_)));
-        return cmd;
+    basic_command_wrapper& operator<<=(basic_value_wrapper<CharT> val) {
+        static_cast<basic_command<CharT>&>(*this->ptr_)
+            .add_value(detail::unique_static_cast<basic_value<CharT>>(std::move(val.ptr_)));
+        return *this;
     }
 
-    friend basic_command_wrapper& operator<<=(basic_command_wrapper& cmd, basic_option_node_wrapper<CharT> opt) {
-        static_cast<basic_command<CharT>&>(*cmd.ptr_).add_option(
-            detail::unique_static_cast<basic_option_node<CharT>>(std::move(opt.ptr_)));
-        return cmd;
+    basic_command_wrapper& operator<<=(basic_option_node_wrapper<CharT> opt) {
+        static_cast<basic_command<CharT>&>(*this->ptr_)
+            .add_option(detail::unique_static_cast<basic_option_node<CharT>>(std::move(opt.ptr_)));
+        return *this;
     }
 
-    friend basic_command_wrapper& operator<<=(basic_command_wrapper& cmd, basic_command_wrapper subcmd) {
-        static_cast<basic_command<CharT>&>(*cmd.ptr_).add_subcommand(
-            detail::unique_static_cast<basic_command<CharT>>(std::move(subcmd.ptr_)));
-        return cmd;
+    basic_command_wrapper& operator<<=(basic_command_wrapper subcmd) {
+        if (&subcmd == this) { return *this; }
+        static_cast<basic_command<CharT>&>(*this->ptr_)
+            .add_subcommand(detail::unique_static_cast<basic_command<CharT>>(std::move(subcmd.ptr_)));
+        return *this;
     }
 
     friend basic_command_wrapper operator<<(basic_command_wrapper cmd, basic_overview_wrapper<CharT> overview) {
