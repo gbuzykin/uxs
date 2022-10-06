@@ -311,7 +311,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
         if (!opts.empty()) {
             std::vector<std::basic_string<CharT>> opts_str;
             opts_str.reserve(opts.size());
-            uxs::transform(opts, std::back_inserter(opts_str), [](decltype(*opts.begin()) opt) {
+            uxs::transform(opts, std::back_inserter(opts_str), [](decltype(*opts.cbegin()) opt) {
                 if (opt->is_optional()) {
                     return static_cast<CharT>('[') + opt->make_string(true) + static_cast<CharT>(']');
                 }
@@ -340,7 +340,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
     };
 
     auto print_parameters = [this, &osb, end_width_nl, colored]() {
-        if (uxs::all_of(values_, [](decltype(*values_.begin()) val) { return val->get_doc().empty(); })) { return; }
+        if (uxs::all_of(values_, [](decltype(*values_.cbegin()) val) { return val->get_doc().empty(); })) { return; }
 
         if (colored) { osb.write(color_br_white); }
         static const std::array<CharT, 12> label_parameters{'P', 'A', 'R', 'A', 'M', 'E', 'T', 'E', 'R', 'S', ':', ' '};
@@ -349,7 +349,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
 
         const size_t width = std::min<size_t>(max_margin,
                                               std::accumulate(values_.begin(), values_.end(), static_cast<size_t>(0),
-                                                              [](size_t w, decltype(*values_.begin()) val) {
+                                                              [](size_t w, decltype(*values_.cbegin()) val) {
                                                                   return std::max(w, val->get_label().size());
                                                               }));
         for (const auto& val : values_) {
@@ -388,7 +388,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
 
         const size_t width = std::min<size_t>(
             max_margin, std::accumulate(opts_str.begin(), opts_str.end(), static_cast<size_t>(0),
-                                        [](size_t w, decltype(*opts_str.begin()) s) { return std::max(w, s.size()); }));
+                                        [](size_t w, decltype(*opts_str.cbegin()) s) { return std::max(w, s.size()); }));
         auto opts_str_it = opts_str.begin();
         opts_->traverse_options([&osb, &opts_str_it, width, colored](const basic_option_node<CharT>& node) {
             if (node.get_doc().empty()) { return true; }
@@ -413,7 +413,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
 
     auto print_subcommands = [this, &osb, end_width_nl, colored]() {
         if (uxs::all_of(subcommands_,
-                        [](decltype(*subcommands_.begin()) item) { return item.second->get_doc().empty(); })) {
+                        [](decltype(*subcommands_.cbegin()) item) { return item.second->get_doc().empty(); })) {
             return;
         }
 
@@ -425,7 +425,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
 
         const size_t width = std::min<size_t>(
             max_margin, std::accumulate(subcommands_.begin(), subcommands_.end(), static_cast<size_t>(0),
-                                        [](size_t w, decltype(*subcommands_.begin()) item) {
+                                        [](size_t w, decltype(*subcommands_.cbegin()) item) {
                                             return std::max(w, item.first.size());
                                         }));
         for (const auto& subcmd : subcommands_) {
