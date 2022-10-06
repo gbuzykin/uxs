@@ -222,20 +222,18 @@ template<typename CharT>
 std::basic_string<CharT> basic_option_node<CharT>::make_string(bool brief) const {
     if (this->get_type() == node_type::kOption) {
         const auto& opt = static_cast<const basic_option<CharT>&>(*this);
-        if (opt.get_keys().empty()) { return {}; }
-        std::basic_string<CharT> s(opt.get_keys().front());
+        const auto& keys = opt.get_keys();
+        if (keys.empty()) { return {}; }
+        std::basic_string<CharT> s(keys.front());
+        bool no_space = !s.empty() && s.back() == '=';
         if (!brief) {
-            for (const auto& key : uxs::make_subrange(opt.get_keys(), 1)) { s += ',', s += ' ', s += key; }
+            for (const auto& key : uxs::make_subrange(keys, 1)) { s += ',', s += ' ', s += key; }
+            no_space = !keys.back().empty() && keys.back().back() == '=';
         }
         for (const auto& val : opt.get_values()) {
-            std::basic_string_view<CharT> label = val->get_label();
-            if (label.empty() || label.front() != '~') {
-                s += ' ';
-            } else {
-                label = label.substr(1);
-            }
+            if (!no_space) { s += ' '; }
             if (val->is_optional()) { s += '['; }
-            s += label;
+            s += val->get_label();
             if (val->is_optional()) { s += '['; }
         }
         return s;
