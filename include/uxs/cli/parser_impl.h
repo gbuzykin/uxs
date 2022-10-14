@@ -84,7 +84,10 @@ template<typename CharT>
                 if (*it1 != *it2) { break; }
             }
             arg = arg.substr(0, it1 - arg.begin());  // common prefix
-            if (key == arg) { return opt_it; }       // `key` is a prefix of `arg`
+            if (key == arg                           // `key` is a prefix of `arg`
+                && !opt_it->second->get_values().empty()) {
+                return opt_it;
+            }
         }
         return cmd->opt_map_.end();
     };
@@ -120,10 +123,11 @@ template<typename CharT>
             if (arg.size() == n_prefix) { n_prefix = 0, --argc, ++argv; }
             const auto& opt = *opt_it->second;
             for (const auto& val : opt.get_values()) {
-                if (!parse_value(*val, n_prefix) && !val->is_optional()) {
+                if (parse_value(*val, n_prefix)) {
+                    n_prefix = 0;
+                } else if (n_prefix || !val->is_optional()) {
                     return parsing_result<CharT>{parsing_status::kInvalidValue, argc0 - argc, &*val};
                 }
-                n_prefix = 0;
             }
             if (opt.get_handler()) { opt.get_handler()(); }
             specified.emplace(&opt);
@@ -234,7 +238,7 @@ std::basic_string<CharT> basic_option_node<CharT>::make_string(bool brief) const
             if (!no_space) { s += ' '; }
             if (val->is_optional()) { s += '['; }
             s += val->get_label();
-            if (val->is_optional()) { s += '['; }
+            if (val->is_optional()) { s += ']'; }
         }
         return s;
     }
