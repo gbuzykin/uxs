@@ -154,8 +154,8 @@ class intrusive_list {
     typename hook_t::internal_pointer_t extract_front() { return extract(begin()); }
     typename hook_t::internal_pointer_t extract_back() { return extract(std::prev(end())); }
 
-    const_iterator to_iterator(const_pointer ptr) const NOEXCEPT { return const_iterator(&((*ptr).*PtrToMember)); }
-    iterator to_iterator(pointer ptr) NOEXCEPT { return iterator(&((*ptr).*PtrToMember)); }
+    const_iterator to_iterator(const_reference r) const NOEXCEPT { return const_iterator(&(r.*PtrToMember)); }
+    iterator to_iterator(reference r) NOEXCEPT { return iterator(&(r.*PtrToMember)); }
 
  private:
     size_t size_ = 0;
