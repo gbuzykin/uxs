@@ -40,7 +40,7 @@ template<typename Iter>
 class iterator_range<Iter, std::enable_if_t<is_input_iterator<Iter>::value>> {
  public:
     using iterator = Iter;
-    iterator_range(Iter from, Iter to) : from_(from), to_(to) {}
+    iterator_range(Iter from, Iter to) NOEXCEPT : from_(from), to_(to) {}
     Iter begin() const NOEXCEPT { return from_; }
     Iter end() const NOEXCEPT { return to_; }
     bool empty() const NOEXCEPT { return from_ == to_; }
@@ -50,44 +50,50 @@ class iterator_range<Iter, std::enable_if_t<is_input_iterator<Iter>::value>> {
 };
 
 template<typename Iter>
-iterator_range<Iter> make_range(Iter from, Iter to) {
+iterator_range<Iter> make_range(Iter from, Iter to) NOEXCEPT {
     return {from, to};
 }
 
 template<typename Iter>
-iterator_range<Iter> make_range(const std::pair<Iter, Iter>& p) {
+iterator_range<Iter> make_range(const std::pair<Iter, Iter>& p) NOEXCEPT {
     return {p.first, p.second};
 }
 
+template<typename Range>
+auto make_range(Range&& r) NOEXCEPT -> iterator_range<decltype(std::end(r))> {
+    return {std::begin(r), std::end(r)};
+}
+
 template<typename Iter>
-iterator_range<std::reverse_iterator<Iter>> make_reverse_range(Iter from, Iter to) {
+iterator_range<std::reverse_iterator<Iter>> make_reverse_range(Iter from, Iter to) NOEXCEPT {
     return {std::reverse_iterator<Iter>(to), std::reverse_iterator<Iter>(from)};
 }
 
 template<typename Iter>
-iterator_range<std::reverse_iterator<Iter>> make_reverse_range(const std::pair<Iter, Iter>& p) {
+iterator_range<std::reverse_iterator<Iter>> make_reverse_range(const std::pair<Iter, Iter>& p) NOEXCEPT {
     return {std::reverse_iterator<Iter>(p.second), std::reverse_iterator<Iter>(p.first)};
 }
 
 template<typename Range>
-auto make_reverse_range(Range&& r) -> iterator_range<std::reverse_iterator<decltype(std::end(r))>> {
+auto make_reverse_range(Range&& r) NOEXCEPT -> iterator_range<std::reverse_iterator<decltype(std::end(r))>> {
     return {std::reverse_iterator<decltype(std::end(r))>(std::end(r)),
             std::reverse_iterator<decltype(std::end(r))>(std::begin(r))};
 }
 
+template<typename Iter, typename = std::enable_if_t<is_random_access_iterator<Iter>::value>>
+iterator_range<Iter> make_subrange(const std::pair<Iter, Iter>& p, size_t offset,
+                                   size_t count = dynamic_extent) NOEXCEPT {
+    size_t sz = p.second - p.first;
+    offset = std::min(offset, sz);
+    return {p.first + offset, p.first + offset + std::min(count, sz - offset)};
+}
+
 template<typename Range>
-auto make_subrange(Range&& r, size_t offset, size_t count = dynamic_extent)
+auto make_subrange(Range&& r, size_t offset, size_t count = dynamic_extent) NOEXCEPT
     -> std::enable_if_t<is_random_access_iterator<decltype(std::end(r))>::value, iterator_range<decltype(std::end(r))>> {
     size_t sz = std::end(r) - std::begin(r);
     offset = std::min(offset, sz);
     return {std::begin(r) + offset, std::begin(r) + offset + std::min(count, sz - offset)};
-}
-
-template<typename Iter, typename = std::enable_if_t<is_random_access_iterator<Iter>::value>>
-iterator_range<Iter> make_subrange(const std::pair<Iter, Iter>& p, size_t offset, size_t count = dynamic_extent) {
-    size_t sz = p.second - p.first;
-    offset = std::min(offset, sz);
-    return {p.first + offset, p.first + offset + std::min(count, sz - offset)};
 }
 
 template<typename IterL, typename IterR>
