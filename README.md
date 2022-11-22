@@ -9,7 +9,7 @@ The collection includes the following functionality:
 
 - implementation of base utility templates such as `std::enable_if_t<>`, `std::index_sequence<>`,
   and other missing stuff for *С++11*
-- *iterator* helper classes and functions
+- *iterator* helper classes and functions; `uxs::zip_iterator<>` *zip iterator* implementation
 - standard *algorithm* and *functional* extensions
 - *C++20*-like `uxs::span<>` template type
 - standard `std::basic_string_view<>` implementation for *C++11*

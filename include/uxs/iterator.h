@@ -22,6 +22,14 @@ using is_input_iterator =
     std::is_base_of<std::input_iterator_tag, typename std::iterator_traits<Iter>::iterator_category>;
 
 template<typename Iter>
+using is_forward_iterator =
+    std::is_base_of<std::forward_iterator_tag, typename std::iterator_traits<Iter>::iterator_category>;
+
+template<typename Iter>
+using is_bidirectional_iterator =
+    std::is_base_of<std::bidirectional_iterator_tag, typename std::iterator_traits<Iter>::iterator_category>;
+
+template<typename Iter>
 using is_random_access_iterator =
     std::is_base_of<std::random_access_iterator_tag, typename std::iterator_traits<Iter>::iterator_category>;
 
@@ -248,8 +256,9 @@ auto operator-(const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>&
 
 template<typename Iter, typename ValTy, typename Tag, typename RefTy, typename PtrTy, typename DiffTy>
 auto operator+(typename iterator_facade<Iter, ValTy, Tag, RefTy, PtrTy, DiffTy>::difference_type j,
-               const iterator_facade<Iter, ValTy, Tag, RefTy, PtrTy, DiffTy>& it) NOEXCEPT
-    -> uxs::type_identity_t<Iter, decltype(std::declval<Iter>().advance(j))> {
+               const iterator_facade<Iter, ValTy, Tag, RefTy, PtrTy, DiffTy>& it)
+    NOEXCEPT_IF(NOEXCEPT_IF(std::declval<Iter>().advance(0)))
+        -> uxs::type_identity_t<Iter, decltype(std::declval<Iter>().advance(j))> {
     auto result = static_cast<const Iter&>(it);
     result.advance(j);
     return result;

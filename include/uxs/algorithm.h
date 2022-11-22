@@ -404,9 +404,8 @@ UnaryFunc for_each(Range&& r, UnaryFunc func) {
     return std::for_each(std::begin(r), std::end(r), func);
 }
 
+#if __cplusplus < 201703L
 namespace detail {
-template<typename... Args>
-void dummy_func(Args&&...) {}
 template<typename Func, typename>
 struct for_loop_helper;
 template<typename Func>
@@ -414,7 +413,7 @@ struct for_loop_helper<Func, std::false_type> {
     template<typename Range, typename... InputIts>
     auto operator()(Range&& r, Func func, InputIts... its) -> decltype(std::end(r)) {
         auto it = std::begin(r), end_it = std::end(r);
-        for (; it != end_it; ++it, detail::dummy_func(++its...)) {
+        for (; it != end_it; ++it, detail::dummy_variadic(++its...)) {
             if (!func(*it, *its...)) { break; }
         }
         return it;
@@ -425,16 +424,29 @@ struct for_loop_helper<Func, std::true_type> {
     template<typename Range, typename... InputIts>
     auto operator()(Range&& r, Func func, InputIts... its) -> decltype(std::end(r)) {
         auto it = std::begin(r), end_it = std::end(r);
-        for (; it != end_it; ++it, detail::dummy_func(++its...)) { func(*it, *its...); }
+        for (; it != end_it; ++it, detail::dummy_variadic(++its...)) { func(*it, *its...); }
         return it;
     }
 };
 }  // namespace detail
-
 template<typename Range, typename Func, typename... InputIts>
 auto for_loop(Range&& r, Func func, InputIts... its) -> decltype(std::end(r)) {
     return detail::for_loop_helper<Func, typename std::is_same<decltype(func(*std::begin(r), *its...)), void>::type>()(
         std::forward<Range>(r), func, its...);
 }
+#else   // __cplusplus < 201703L
+template<typename Range, typename Func, typename... InputIts>
+auto for_loop(Range&& r, Func func, InputIts... its) -> decltype(std::end(r)) {
+    auto it = std::begin(r), end_it = std::end(r);
+    for (; it != end_it; (++it, ..., ++its)) {
+        if constexpr (std::is_same_v<decltype(func(*std::begin(r), *its...)), void>) {
+            func(*it, *its...);
+        } else {
+            if (!func(*it, *its...)) { break; }
+        }
+    }
+    return it;
+}
+#endif  // __cplusplus < 201703L
 
 }  // namespace uxs
