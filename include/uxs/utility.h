@@ -113,6 +113,35 @@ struct is_contiguous_range {
     static std::false_type test(...);
     using type = decltype(test<Range>(nullptr));
 };
+template<typename... Ts>
+void dummy_variadic(Ts&&...) {}
+#if __cplusplus < 201703L
+template<typename Ty>
+bool and_variadic(const Ty& v1) {
+    return !!v1;
+}
+template<typename Ty, typename... Ts>
+bool and_variadic(const Ty& v1, const Ts&... vn) {
+    return (!!v1 && and_variadic(vn...));
+}
+template<typename Ty>
+bool or_variadic(const Ty& v1) {
+    return !!v1;
+}
+template<typename Ty, typename... Ts>
+bool or_variadic(const Ty& v1, const Ts&... vn) {
+    return (!!v1 || and_variadic(vn...));
+}
+#else   // __cplusplus < 201703L
+template<typename Ty, typename... Ts>
+bool and_variadic(const Ty& v1, const Ts&... vn) {
+    return (!!v1 && ... && !!vn);
+}
+template<typename Ty, typename... Ts>
+bool or_variadic(const Ty& v1, const Ts&... vn) {
+    return (!!v1 || ... || !!vn);
+}
+#endif  // __cplusplus < 201703L
 }  // namespace detail
 
 template<typename Range, typename Ty>

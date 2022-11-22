@@ -69,7 +69,7 @@ auto get_n(Ty&& v) -> decltype(Func1{}(std::get<n>(Func2{}(std::forward<Ty>(v)))
 }
 template<typename Ty, size_t n, typename Func1, typename Func2, typename... Dummy>
 auto get_n(Ty&& v, Dummy&&...) -> decltype(Func1{}(Func2{}(std::forward<Ty>(v)))) {
-    static_assert(n == 0, "template parameter `n` should be 0!");
+    static_assert(n == 0, "template parameter `n` must be 0");
     return Func1{}(Func2{}(std::forward<Ty>(v)));
 }
 }  // namespace detail
