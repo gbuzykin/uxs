@@ -569,8 +569,7 @@ inline basic_value_wrapper<char> value(std::string name, std::string& s) {
 
 template<typename Ty>
 basic_value_wrapper<char> value(std::string name, Ty& v) {
-    return basic_value_wrapper<char>(
-        std::move(name), [&v](std::string_view arg) { return string_converter<Ty>::from_string(arg, v) != 0; });
+    return basic_value_wrapper<char>(std::move(name), [&v](std::string_view arg) { return stoval(arg, v) != 0; });
 }
 
 inline basic_value_wrapper<char> values(std::string name, std::vector<std::string>& vec) {
@@ -587,12 +586,60 @@ basic_value_wrapper<char> values(std::string name, std::vector<Ty>& vec) {
     return basic_value_wrapper<char>(std::move(name),
                                      [&vec](std::string_view arg) {
                                          Ty v;
-                                         if (string_converter<Ty>::from_string(arg, v) != 0) {
+                                         if (stoval(arg, v) != 0) {
                                              vec.emplace_back(v);
                                              return true;
                                          }
                                          return false;
                                      })
+        .multiple();
+}
+
+inline basic_overview_wrapper<wchar_t> overview(std::wstring_view text) {
+    return basic_overview_wrapper<wchar_t>(text);
+}
+inline basic_command_wrapper<wchar_t> command(std::wstring name) {
+    return basic_command_wrapper<wchar_t>(std::move(name));
+}
+inline basic_option_wrapper<wchar_t> option(std::initializer_list<std::wstring_view> keys) {
+    return basic_option_wrapper<wchar_t>(keys).optional();
+}
+inline basic_option_wrapper<wchar_t> required(std::initializer_list<std::wstring_view> keys) {
+    return basic_option_wrapper<wchar_t>(keys);
+}
+
+inline basic_value_wrapper<wchar_t> value(std::wstring name, std::wstring& s) {
+    return basic_value_wrapper<wchar_t>(std::move(name), [&s](std::wstring_view arg) {
+        s = std::wstring(arg);
+        return true;
+    });
+}
+
+template<typename Ty>
+basic_value_wrapper<wchar_t> value(std::wstring name, Ty& v) {
+    return basic_value_wrapper<wchar_t>(std::move(name), [&v](std::wstring_view arg) { return stoval(arg, v) != 0; });
+}
+
+inline basic_value_wrapper<wchar_t> values(std::wstring name, std::vector<std::wstring>& vec) {
+    return basic_value_wrapper<wchar_t>(std::move(name),
+                                        [&vec](std::wstring_view arg) {
+                                            vec.emplace_back(arg);
+                                            return true;
+                                        })
+        .multiple();
+}
+
+template<typename Ty>
+basic_value_wrapper<wchar_t> values(std::wstring name, std::vector<Ty>& vec) {
+    return basic_value_wrapper<wchar_t>(std::move(name),
+                                        [&vec](std::wstring_view arg) {
+                                            Ty v;
+                                            if (stoval(arg, v) != 0) {
+                                                vec.emplace_back(v);
+                                                return true;
+                                            }
+                                            return false;
+                                        })
         .multiple();
 }
 

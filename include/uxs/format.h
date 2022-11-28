@@ -24,7 +24,7 @@ struct fmt_arg_appender;
 template<typename StrTy, typename Ty>
 struct fmt_arg_appender<StrTy, Ty, std::void_t<typename string_converter<Ty>::is_string_converter>> {
     static StrTy& append(StrTy& s, const void* val, fmt_state& fmt) {
-        return basic_to_string(s, *reinterpret_cast<const Ty*>(val), fmt);
+        return to_basic_string(s, *reinterpret_cast<const Ty*>(val), fmt);
     }
 };
 
@@ -33,7 +33,7 @@ struct fmt_arg_appender<StrTy, Ty*, std::enable_if_t<!is_character<Ty>::value>> 
     static StrTy& append(StrTy& s, const void* val, fmt_state& fmt) {
         fmt.flags &= ~fmt_flags::kBaseField;
         fmt.flags |= fmt_flags::kHex | fmt_flags::kAlternate;
-        return basic_to_string(s, reinterpret_cast<uintptr_t>(val), fmt);
+        return to_basic_string(s, reinterpret_cast<uintptr_t>(val), fmt);
     }
 };
 

@@ -303,32 +303,43 @@ UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(wchar_t)
 UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(bool)
 #undef UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER
 
-template<typename Ty, typename Def>
-Ty from_string(std::string_view s, Def&& def) {
+template<typename Ty, typename CharT, typename Def>
+Ty from_basic_string(std::basic_string_view<CharT> s, Def&& def) {
     Ty result(std::forward<Def>(def));
     string_converter<Ty>::from_string(s, result);
     return result;
 }
 
 template<typename Ty, typename Def>
-Ty from_wstring(std::wstring_view s, Def&& def) {
-    Ty result(std::forward<Def>(def));
+Ty from_string(std::string_view s, Def&& def) {
+    return from_basic_string<Ty>(s, std::forward<Def>(def));
+}
+
+template<typename Ty, typename Def>
+Ty from_string(std::wstring_view s, Def&& def) {
+    return from_basic_string<Ty>(s, std::forward<Def>(def));
+}
+
+template<typename Ty, typename CharT>
+Ty from_basic_string(std::basic_string_view<CharT> s) {
+    Ty result(string_converter<Ty>::default_value());
     string_converter<Ty>::from_string(s, result);
     return result;
 }
 
 template<typename Ty>
 Ty from_string(std::string_view s) {
-    Ty result(string_converter<Ty>::default_value());
-    string_converter<Ty>::from_string(s, result);
-    return result;
+    return from_basic_string<Ty>(s);
 }
 
 template<typename Ty>
-Ty from_wstring(std::wstring_view s) {
-    Ty result(string_converter<Ty>::default_value());
-    string_converter<Ty>::from_string(s, result);
-    return result;
+Ty from_string(std::wstring_view s) {
+    return from_basic_string<Ty>(s);
+}
+
+template<typename CharT, typename Ty>
+size_t basic_stoval(std::basic_string_view<CharT> s, Ty& v) {
+    return string_converter<Ty>::from_string(s, v);
 }
 
 template<typename Ty>
@@ -337,51 +348,51 @@ size_t stoval(std::string_view s, Ty& v) {
 }
 
 template<typename Ty>
-size_t wstoval(std::wstring_view s, Ty& v) {
+size_t stoval(std::wstring_view s, Ty& v) {
     return string_converter<Ty>::from_string(s, v);
 }
 
 template<typename StrTy, typename Ty>
-StrTy& basic_to_string(StrTy& s, const Ty& val, const fmt_state& fmt) {
+StrTy& to_basic_string(StrTy& s, const Ty& val, const fmt_state& fmt) {
     return string_converter<Ty>::to_string(s, val, fmt);
 }
 
 template<typename Ty, typename... Args>
 std::string to_string(const Ty& val, Args&&... args) {
     inline_dynbuffer buf;
-    basic_to_string(buf.base(), val, fmt_state(std::forward<Args>(args)...));
+    to_basic_string(buf.base(), val, fmt_state(std::forward<Args>(args)...));
     return std::string(buf.data(), buf.size());
 }
 
 template<typename Ty, typename... Args>
 std::wstring to_wstring(const Ty& val, Args&&... args) {
     inline_wdynbuffer buf;
-    basic_to_string(buf.base(), val, fmt_state(std::forward<Args>(args)...));
+    to_basic_string(buf.base(), val, fmt_state(std::forward<Args>(args)...));
     return std::wstring(buf.data(), buf.size());
 }
 
 template<typename Ty, typename... Args>
 char* to_chars(char* buf, const Ty& val, Args&&... args) {
     unlimbuf_appender appender(buf);
-    return basic_to_string(appender, val, fmt_state(std::forward<Args>(args)...)).curr();
+    return to_basic_string(appender, val, fmt_state(std::forward<Args>(args)...)).curr();
 }
 
 template<typename Ty, typename... Args>
 wchar_t* to_wchars(wchar_t* buf, const Ty& val, Args&&... args) {
     wunlimbuf_appender appender(buf);
-    return basic_to_string(appender, val, fmt_state(std::forward<Args>(args)...)).curr();
+    return to_basic_string(appender, val, fmt_state(std::forward<Args>(args)...)).curr();
 }
 
 template<typename Ty, typename... Args>
 char* to_chars_n(char* buf, size_t n, const Ty& val, Args&&... args) {
     limbuf_appender appender(buf, n);
-    return basic_to_string(appender, val, fmt_state(std::forward<Args>(args)...)).curr();
+    return to_basic_string(appender, val, fmt_state(std::forward<Args>(args)...)).curr();
 }
 
 template<typename Ty, typename... Args>
 wchar_t* to_wchars_n(wchar_t* buf, size_t n, const Ty& val, Args&&... args) {
     wlimbuf_appender appender(buf, n);
-    return basic_to_string(appender, val, fmt_state(std::forward<Args>(args)...)).curr();
+    return to_basic_string(appender, val, fmt_state(std::forward<Args>(args)...)).curr();
 }
 
 }  // namespace uxs

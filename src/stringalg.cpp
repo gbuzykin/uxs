@@ -135,18 +135,18 @@ template<typename CharT>
 std::pair<unsigned, unsigned> basic_parse_flag_string(
     std::basic_string_view<CharT> s, const std::vector<std::pair<std::basic_string_view<CharT>, unsigned>>& flag_tbl) {
     std::pair<unsigned, unsigned> flags(0, 0);
-    separate_words(s, ' ', nofunc(), function_caller([&](std::basic_string_view<CharT> flag) {
-                       bool add_flag = (flag[0] != '-');
-                       if (flag[0] == '+' || flag[0] == '-') { flag = flag.substr(1); }
-                       auto it = std::find_if(flag_tbl.begin(), flag_tbl.end(),
-                                              [flag](decltype(*flag_tbl.begin()) el) { return el.first == flag; });
-                       if (it == flag_tbl.end()) {
-                       } else if (add_flag) {
-                           flags.first |= it->second;
-                       } else {
-                           flags.second |= it->second;
-                       }
-                   }));
+    string_to_words(s, ' ', nofunc(), function_caller([&](std::basic_string_view<CharT> flag) {
+                        bool add_flag = (flag[0] != '-');
+                        if (flag[0] == '+' || flag[0] == '-') { flag = flag.substr(1); }
+                        auto it = std::find_if(flag_tbl.begin(), flag_tbl.end(),
+                                               [flag](decltype(*flag_tbl.begin()) el) { return el.first == flag; });
+                        if (it == flag_tbl.end()) {
+                        } else if (add_flag) {
+                            flags.first |= it->second;
+                        } else {
+                            flags.second |= it->second;
+                        }
+                    }));
     return flags;
 }
 
