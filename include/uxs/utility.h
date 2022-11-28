@@ -105,14 +105,6 @@ struct remove_cv<std::pair<Ty1, Ty2>> {
 };
 
 namespace detail {
-template<typename Range, typename Ty>
-struct is_contiguous_range {
-    template<typename Range_>
-    static auto test(Range_* r) -> std::is_convertible<decltype(r->data() + r->size()), Ty*>;
-    template<typename Range_>
-    static std::false_type test(...);
-    using type = decltype(test<Range>(nullptr));
-};
 template<typename... Ts>
 void dummy_variadic(Ts&&...) {}
 #if __cplusplus < 201703L
@@ -130,7 +122,7 @@ bool or_variadic(const Ty& v1) {
 }
 template<typename Ty, typename... Ts>
 bool or_variadic(const Ty& v1, const Ts&... vn) {
-    return (!!v1 || and_variadic(vn...));
+    return (!!v1 || or_variadic(vn...));
 }
 #else   // __cplusplus < 201703L
 template<typename Ty, typename... Ts>
@@ -143,9 +135,6 @@ bool or_variadic(const Ty& v1, const Ts&... vn) {
 }
 #endif  // __cplusplus < 201703L
 }  // namespace detail
-
-template<typename Range, typename Ty>
-struct is_contiguous_range : detail::is_contiguous_range<Range, Ty>::type {};
 
 template<typename Ty>
 Ty get_and_set(Ty& v, std::remove_reference_t<Ty> v_new) {

@@ -113,6 +113,20 @@ bool operator!=(const iterator_range<IterL>& lhs, const iterator_range<IterR>& r
     return !(lhs == rhs);
 }
 
+namespace detail {
+template<typename Range, typename Ty>
+struct is_contiguous_range {
+    template<typename Range_>
+    static auto test(Range_* r) -> std::is_convertible<decltype(r->data() + r->size()), Ty*>;
+    template<typename Range_>
+    static std::false_type test(...);
+    using type = decltype(test<Range>(nullptr));
+};
+}  // namespace detail
+
+template<typename Range, typename Ty>
+struct is_contiguous_range : detail::is_contiguous_range<Range, Ty>::type {};
+
 //-----------------------------------------------------------------------------
 // Iterator facade
 
