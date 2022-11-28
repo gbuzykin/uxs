@@ -490,7 +490,7 @@ bool basic_value<CharT, Alloc>::as_bool(bool& res) const {
         case dtype::kInteger64: res = !!value_.i64; return true;
         case dtype::kUInteger64: res = !!value_.u64; return true;
         case dtype::kDouble: res = value_.dbl != 0.; return true;
-        case dtype::kString: return string_converter<bool>::from_string(str_view(), res) != 0;
+        case dtype::kString: return basic_stoval(str_view(), res) != 0;
         case dtype::kArray: return false;
         case dtype::kRecord: return false;
         default: UNREACHABLE_CODE;
@@ -527,7 +527,7 @@ bool basic_value<CharT, Alloc>::as_int(int32_t& res) const {
                 return true;
             }
         } break;
-        case dtype::kString: return string_converter<int32_t>::from_string(str_view(), res) != 0;
+        case dtype::kString: return basic_stoval(str_view(), res) != 0;
         case dtype::kArray: return false;
         case dtype::kRecord: return false;
         default: UNREACHABLE_CODE;
@@ -565,7 +565,7 @@ bool basic_value<CharT, Alloc>::as_uint(uint32_t& res) const {
                 return true;
             }
         } break;
-        case dtype::kString: return string_converter<uint32_t>::from_string(str_view(), res) != 0;
+        case dtype::kString: return basic_stoval(str_view(), res) != 0;
         case dtype::kArray: return false;
         case dtype::kRecord: return false;
         default: UNREACHABLE_CODE;
@@ -595,7 +595,7 @@ bool basic_value<CharT, Alloc>::as_int64(int64_t& res) const {
                 return true;
             }
         } break;
-        case dtype::kString: return string_converter<int64_t>::from_string(str_view(), res) != 0;
+        case dtype::kString: return basic_stoval(str_view(), res) != 0;
         case dtype::kArray: return false;
         case dtype::kRecord: return false;
         default: UNREACHABLE_CODE;
@@ -629,7 +629,7 @@ bool basic_value<CharT, Alloc>::as_uint64(uint64_t& res) const {
                 return true;
             }
         } break;
-        case dtype::kString: return string_converter<uint64_t>::from_string(str_view(), res) != 0;
+        case dtype::kString: return basic_stoval(str_view(), res) != 0;
         case dtype::kArray: return false;
         case dtype::kRecord: return false;
         default: UNREACHABLE_CODE;
@@ -647,7 +647,7 @@ bool basic_value<CharT, Alloc>::as_float(float& res) const {
         case dtype::kInteger64: res = static_cast<float>(value_.i64); return true;
         case dtype::kUInteger64: res = static_cast<float>(value_.u64); return true;
         case dtype::kDouble: res = static_cast<float>(value_.dbl); return true;
-        case dtype::kString: return string_converter<float>::from_string(str_view(), res) != 0;
+        case dtype::kString: return basic_stoval(str_view(), res) != 0;
         case dtype::kArray: return false;
         case dtype::kRecord: return false;
         default: UNREACHABLE_CODE;
@@ -664,7 +664,7 @@ bool basic_value<CharT, Alloc>::as_double(double& res) const {
         case dtype::kInteger64: res = static_cast<double>(value_.i64); return true;
         case dtype::kUInteger64: res = static_cast<double>(value_.u64); return true;
         case dtype::kDouble: res = value_.dbl; return true;
-        case dtype::kString: return string_converter<double>::from_string(str_view(), res) != 0;
+        case dtype::kString: return basic_stoval(str_view(), res) != 0;
         case dtype::kArray: return false;
         case dtype::kRecord: return false;
         default: UNREACHABLE_CODE;
@@ -686,31 +686,31 @@ bool basic_value<CharT, Alloc>::as_string(std::basic_string<char_type>& res) con
         } break;
         case dtype::kInteger: {
             basic_inline_dynbuffer<CharT> buf;
-            basic_to_string(buf.base(), value_.i, {});
+            to_basic_string(buf.base(), value_.i, {});
             res.assign(buf.data(), buf.size());
             return true;
         } break;
         case dtype::kUInteger: {
             basic_inline_dynbuffer<CharT> buf;
-            basic_to_string(buf.base(), value_.u, {});
+            to_basic_string(buf.base(), value_.u, {});
             res.assign(buf.data(), buf.size());
             return true;
         } break;
         case dtype::kInteger64: {
             basic_inline_dynbuffer<CharT> buf;
-            basic_to_string(buf.base(), value_.i64, {});
+            to_basic_string(buf.base(), value_.i64, {});
             res.assign(buf.data(), buf.size());
             return true;
         } break;
         case dtype::kUInteger64: {
             basic_inline_dynbuffer<CharT> buf;
-            basic_to_string(buf.base(), value_.u64, {});
+            to_basic_string(buf.base(), value_.u64, {});
             res.assign(buf.data(), buf.size());
             return true;
         } break;
         case dtype::kDouble: {
             basic_inline_dynbuffer<CharT> buf;
-            basic_to_string(buf.base(), value_.dbl, fmt_flags::kAlternate);
+            to_basic_string(buf.base(), value_.dbl, fmt_flags::kAlternate);
             res.assign(buf.data(), buf.size());
             return true;
         } break;

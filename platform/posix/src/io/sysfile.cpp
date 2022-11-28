@@ -81,7 +81,7 @@ int sysfile::ctrlesc_color(span<uint8_t> v) {
     using namespace std::placeholders;
     uxs::inline_dynbuffer buf;
     buf += "\033[";
-    basic_join_strings(buf, v, ';', std::bind(basic_to_string<uxs::dynbuffer, uint8_t>, _1, _2, fmt_state()));
+    join_basic_strings(buf, v, ';', std::bind(to_basic_string<uxs::dynbuffer, uint8_t>, _1, _2, fmt_state()));
     buf += 'm';
     return ::write(fd_, buf.data(), buf.size()) < 0 ? -1 : 0;
 }
