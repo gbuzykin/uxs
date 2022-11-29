@@ -4,6 +4,7 @@
 
 #include <windows.h>
 
+#include <array>
 #include <cstring>
 
 using namespace uxs;
@@ -81,6 +82,29 @@ int sysfile::ctrlesc_color(span<uint8_t> v) {
     CONSOLE_SCREEN_BUFFER_INFO info;
     std::memset(&info, 0, sizeof(info));
     if (!::GetConsoleScreenBufferInfo(fd_, &info)) { return -1; }
+<<<<<<< Updated upstream
+    static const std::array<WORD, 7> fg_color = {0,
+                                                 FOREGROUND_RED,
+                                                 FOREGROUND_GREEN,
+                                                 FOREGROUND_RED | FOREGROUND_GREEN,
+                                                 FOREGROUND_BLUE,
+                                                 FOREGROUND_BLUE | FOREGROUND_RED,
+                                                 FOREGROUND_BLUE | FOREGROUND_GREEN,
+                                                 FOREGROUND_BLUE | FOREGROUND_RED | FOREGROUND_GREEN};
+    static const std::array<WORD, 7> bg_color = {0,
+                                                 BACKGROUND_RED,
+                                                 BACKGROUND_GREEN,
+                                                 BACKGROUND_RED | BACKGROUND_GREEN,
+                                                 BACKGROUND_BLUE,
+                                                 BACKGROUND_BLUE | BACKGROUND_RED,
+                                                 BACKGROUND_BLUE | BACKGROUND_GREEN,
+                                                 BACKGROUND_BLUE | BACKGROUND_RED | BACKGROUND_GREEN};
+    for (uint8_t c : v) {
+        if (c == 0) {
+            info.wAttributes = fg_color[7];
+        } else if (c = 1) {
+=======
+<<<<<<< Updated upstream
     const WORD fg_wh = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
     const WORD bg_wh = BACKGROUND_RED | BACKGROUND_GREEN | BACKGROUND_BLUE;
     for (uint8_t c : v) {
@@ -131,6 +155,41 @@ int sysfile::ctrlesc_color(span<uint8_t> v) {
             case 47: {
                 info.wAttributes = (info.wAttributes & ~bg_wh) | BACKGROUND_BLUE | BACKGROUND_RED | BACKGROUND_GREEN;
             } break;
+=======
+    static const std::array<WORD, 8> fg_color = {0,
+                                                 FOREGROUND_RED,
+                                                 FOREGROUND_GREEN,
+                                                 FOREGROUND_RED | FOREGROUND_GREEN,
+                                                 FOREGROUND_BLUE,
+                                                 FOREGROUND_BLUE | FOREGROUND_RED,
+                                                 FOREGROUND_BLUE | FOREGROUND_GREEN,
+                                                 FOREGROUND_BLUE | FOREGROUND_RED | FOREGROUND_GREEN};
+    static const std::array<WORD, 8> bg_color = {0,
+                                                 BACKGROUND_RED,
+                                                 BACKGROUND_GREEN,
+                                                 BACKGROUND_RED | BACKGROUND_GREEN,
+                                                 BACKGROUND_BLUE,
+                                                 BACKGROUND_BLUE | BACKGROUND_RED,
+                                                 BACKGROUND_BLUE | BACKGROUND_GREEN,
+                                                 BACKGROUND_BLUE | BACKGROUND_RED | BACKGROUND_GREEN};
+    for (uint8_t c : v) {
+        if (c == 0) {
+            info.wAttributes = fg_color[7];
+        } else if (c == 1) {
+>>>>>>> Stashed changes
+            info.wAttributes |= FOREGROUND_INTENSITY;
+        } else if (c >= 30 && c <= 37) {
+            info.wAttributes = (info.wAttributes & ~fg_color[7]) | fg_color[c - 30];
+        } else if (c >= 40 && c <= 47) {
+            info.wAttributes = (info.wAttributes & ~bg_color[7]) | bg_color[c - 40];
+        } else if (c >= 90 && c <= 97) {
+            info.wAttributes = (info.wAttributes & ~fg_color[7]) | fg_color[c - 90] | FOREGROUND_INTENSITY;
+        } else if (c >= 100 && c <= 107) {
+            info.wAttributes = (info.wAttributes & ~bg_color[7]) | bg_color[c - 100] | BACKGROUND_INTENSITY;
+<<<<<<< Updated upstream
+=======
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
         }
     }
     ::SetConsoleTextAttribute(fd_, info.wAttributes);
