@@ -812,10 +812,10 @@ size_t string_converter<bool>::from_string(std::basic_string_view<CharT> s, bool
 
 template<typename StrTy>
 StrTy& string_converter<bool>::to_string(StrTy& s, bool val, const fmt_state& fmt) {
-    auto sval = val ? std::make_pair(!(fmt.flags & fmt_flags::kUpperCase) ? "true" : "TRUE", 4u) :
-                      std::make_pair(!(fmt.flags & fmt_flags::kUpperCase) ? "false" : "FALSE", 5u);
-    const auto fn = [sval](StrTy& s) -> StrTy& { return s.append(sval.first, sval.first + sval.second); };
-    return fmt.width > sval.second ? scvt::fmt_adjusted(s, fn, sval.second, fmt) : fn(s);
+    const std::string_view sval = val ? std::string_view(!(fmt.flags & fmt_flags::kUpperCase) ? "true" : "TRUE", 4) :
+                                        std::string_view(!(fmt.flags & fmt_flags::kUpperCase) ? "false" : "FALSE", 5);
+    const auto fn = [sval](StrTy& s) -> StrTy& { return s.append(sval.begin(), sval.end()); };
+    return fmt.width > sval.size() ? scvt::fmt_adjusted(s, fn, static_cast<unsigned>(sval.size()), fmt) : fn(s);
 }
 
 }  // namespace uxs

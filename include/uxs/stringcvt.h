@@ -1,6 +1,7 @@
 #pragma once
 
 #include "chars.h"
+#include "iterator.h"
 #include "string_view.h"
 
 #include <algorithm>
@@ -77,7 +78,7 @@ class basic_appender_mixin {
  public:
     using value_type = CharT;
     Appender& operator+=(std::basic_string_view<value_type> s) {
-        return static_cast<Appender&>(*this).append(s.data(), s.data() + s.size());
+        return static_cast<Appender&>(*this).append(s.begin(), s.end());
     }
     Appender& operator+=(value_type ch) {
         static_cast<Appender&>(*this).push_back(ch);
@@ -98,8 +99,8 @@ class basic_unlimbuf_appender : public basic_appender_mixin<CharT, basic_unlimbu
         return *this;
     }
 
-    template<typename CharT_>
-    basic_unlimbuf_appender& append(const CharT_* first, const CharT_* last) {
+    template<typename InputIt, typename = std::enable_if_t<is_random_access_iterator<InputIt>::value>>
+    basic_unlimbuf_appender& append(InputIt first, InputIt last) {
         curr_ = std::copy(first, last, curr_);
         return *this;
     }
@@ -130,8 +131,8 @@ class basic_limbuf_appender : public basic_appender_mixin<CharT, basic_limbuf_ap
         return *this;
     }
 
-    template<typename CharT_>
-    basic_limbuf_appender& append(const CharT_* first, const CharT_* last) {
+    template<typename InputIt, typename = std::enable_if_t<is_random_access_iterator<InputIt>::value>>
+    basic_limbuf_appender& append(InputIt first, InputIt last) {
         curr_ = std::copy_n(first, std::min<size_t>(last - first, last_ - curr_), curr_);
         return *this;
     }
@@ -196,9 +197,9 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
         return curr_;
     }
 
-    template<typename Ty_>
-    basic_dynbuffer& append(const Ty_* first, const Ty_* last) {
-        if (last_ - curr_ < last - first) { grow(last - first); }
+    template<typename InputIt, typename = std::enable_if_t<is_random_access_iterator<InputIt>::value>>
+    basic_dynbuffer& append(InputIt first, InputIt last) {
+        if (static_cast<size_t>(last_ - curr_) < static_cast<size_t>(last - first)) { grow(last - first); }
         curr_ = std::uninitialized_copy(first, last, curr_);
         return *this;
     }
