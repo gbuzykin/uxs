@@ -3,6 +3,6 @@
 namespace uxs {
 namespace detail {
 pool<std::allocator<void>> g_global_pool;
-template class pool<std::allocator<void>>;
+template UXS_EXPORT pool<std::allocator<void>>;
 }  // namespace detail
 }  // namespace uxs

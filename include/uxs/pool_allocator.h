@@ -119,7 +119,7 @@ class UXS_EXPORT pool {
     static pool_desc_t* allocate_dummy_pool(const alloc_type& al, uint32_t partition_size);
 };
 
-extern pool<std::allocator<void>> g_global_pool;
+extern UXS_EXPORT pool<std::allocator<void>> g_global_pool;
 
 template<typename Pool, uint16_t Size, uint16_t Alignment>
 struct pool_specializer {
