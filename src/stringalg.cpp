@@ -115,18 +115,18 @@ std::wstring decode_escapes(std::wstring_view s, std::wstring_view symb, std::ws
 
 // --------------------------
 
-std::string make_quoted_text(std::string_view text) {
-    std::string s;
-    s.reserve(text.size() + 16);
-    make_quoted_text(text, std::back_inserter(s));
-    return s;
+std::string make_quoted_string(std::string_view s) {
+    std::string qs;
+    qs.reserve(s.size() + 16);
+    make_quoted_string(s, std::back_inserter(qs));
+    return qs;
 }
 
-std::wstring make_quoted_text(std::wstring_view text) {
-    std::wstring s;
-    s.reserve(text.size() + 16);
-    make_quoted_text(text, std::back_inserter(s));
-    return s;
+std::wstring make_quoted_string(std::wstring_view s) {
+    std::wstring qs;
+    qs.reserve(s.size() + 16);
+    make_quoted_string(s, std::back_inserter(qs));
+    return qs;
 }
 
 // --------------------------

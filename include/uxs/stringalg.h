@@ -129,8 +129,8 @@ std::wstring replace_strings(std::wstring_view s, Finder finder, std::wstring_vi
 
 // --------------------------
 
-template<typename StrTy, typename Range, typename SepTy, typename JoinFn>
-StrTy& join_basic_strings(StrTy& s, const Range& r, SepTy sep, JoinFn fn) {
+template<typename StrTy, typename Range, typename SepTy, typename JoinFn = grow>
+StrTy& join_basic_strings(StrTy& s, const Range& r, SepTy sep, JoinFn fn = JoinFn{}) {
     if (std::begin(r) != std::end(r)) {
         for (auto it = std::begin(r);;) {
             fn(s, *it);
@@ -158,7 +158,8 @@ std::wstring join_strings(const Range& r, SepTy sep, std::wstring prefix, JoinFn
 
 template<split_opts opts, typename CharT, typename Finder, typename OutputFn, typename OutputIt,
          typename = std::void_t<typename Finder::is_finder>>
-size_t split_basic_string(std::basic_string_view<CharT> s, Finder finder, OutputFn fn, OutputIt out, size_t n) {
+size_t split_basic_string(std::basic_string_view<CharT> s, Finder finder, OutputFn fn, OutputIt out,
+                          size_t n = std::numeric_limits<size_t>::max()) {
     if (!n) { return 0; }
     size_t count = 0;
     for (auto p = s.begin();;) {
@@ -207,7 +208,7 @@ auto split_string(std::wstring_view s, Finder finder, OutputFn fn = OutputFn{})
 
 template<split_opts opts, typename CharT, typename Finder>
 type_identity_t<std::basic_string_view<CharT>, typename Finder::is_finder> basic_string_section(
-    std::basic_string_view<CharT> s, Finder finder, size_t start, size_t fin) {
+    std::basic_string_view<CharT> s, Finder finder, size_t start, size_t fin = std::numeric_limits<size_t>::max()) {
     if (fin < start) { fin = start; }
     size_t count = 0;
     auto p = s.begin(), from = s.end();
@@ -239,7 +240,7 @@ type_identity_t<std::wstring_view, typename Finder::is_finder> string_section(  
 
 template<split_opts opts, typename CharT, typename Finder>
 type_identity_t<std::basic_string_view<CharT>, typename Finder::is_reversed_finder> basic_string_section(
-    std::basic_string_view<CharT> s, Finder finder, size_t start, size_t fin) {
+    std::basic_string_view<CharT> s, Finder finder, size_t start, size_t fin = 0) {
     if (fin > start) { fin = start; }
     size_t count = 0;
     auto p = s.end(), to = s.begin();
@@ -270,7 +271,8 @@ type_identity_t<std::wstring_view, typename Finder::is_reversed_finder> string_s
 // --------------------------
 
 template<typename CharT, typename OutputFn, typename OutputIt>
-size_t basic_string_to_words(std::basic_string_view<CharT> s, char sep, OutputFn fn, OutputIt out, size_t n) {
+size_t basic_string_to_words(std::basic_string_view<CharT> s, CharT sep, OutputFn fn, OutputIt out,
+                             size_t n = std::numeric_limits<size_t>::max()) {
     if (!n) { return 0; }
     size_t count = 0;
     enum class state_t : char { kStart = 0, kSepFound, kSkipSep } state = state_t::kStart;
@@ -315,13 +317,13 @@ auto string_to_words(std::string_view s, char sep, OutputFn fn = OutputFn{})
 }
 
 template<typename OutputFn, typename OutputIt>
-size_t string_to_words(std::wstring_view s, char sep, OutputFn fn, OutputIt out,
+size_t string_to_words(std::wstring_view s, wchar_t sep, OutputFn fn, OutputIt out,
                        size_t n = std::numeric_limits<size_t>::max()) {
     return basic_string_to_words(s, sep, fn, out, n);
 }
 
 template<typename OutputFn = nofunc>
-auto string_to_words(std::wstring_view s, char sep, OutputFn fn = OutputFn{})
+auto string_to_words(std::wstring_view s, wchar_t sep, OutputFn fn = OutputFn{})
     -> std::vector<std::decay_t<decltype(fn(s))>> {
     std::vector<std::decay_t<decltype(fn(s))>> result;
     string_to_words(s, sep, fn, std::back_inserter(result));
@@ -361,14 +363,15 @@ std::string pack_strings(const Range& r, char sep, std::string prefix, InputFn f
 }
 
 template<typename Range, typename InputFn = nofunc>
-std::wstring pack_strings(const Range& r, char sep, std::wstring prefix, InputFn fn = InputFn{}) {
+std::wstring pack_strings(const Range& r, wchar_t sep, std::wstring prefix, InputFn fn = InputFn{}) {
     return std::move(pack_basic_strings(prefix, r, sep, fn));
 }
 
 // --------------------------
 
 template<typename CharT, typename OutputFn, typename OutputIt>
-size_t unpack_basic_strings(std::basic_string_view<CharT> s, char sep, OutputFn fn, OutputIt out, size_t n) {
+size_t unpack_basic_strings(std::basic_string_view<CharT> s, CharT sep, OutputFn fn, OutputIt out,
+                            size_t n = std::numeric_limits<size_t>::max()) {
     if (!n) { return 0; }
     size_t count = 0;
     for (auto p = s.begin();; ++p) {
@@ -400,7 +403,7 @@ size_t unpack_strings(std::string_view s, char sep, OutputFn fn, OutputIt out,
 }
 
 template<typename OutputFn, typename OutputIt>
-size_t unpack_strings(std::wstring_view s, char sep, OutputFn fn, OutputIt out,
+size_t unpack_strings(std::wstring_view s, wchar_t sep, OutputFn fn, OutputIt out,
                       size_t n = std::numeric_limits<size_t>::max()) {
     return unpack_basic_strings(s, sep, fn, out, n);
 }
@@ -408,10 +411,10 @@ size_t unpack_strings(std::wstring_view s, char sep, OutputFn fn, OutputIt out,
 // --------------------------
 
 template<typename CharT, typename OutputIt>
-OutputIt make_quoted_text(std::basic_string_view<CharT> text, OutputIt out) {
-    auto p1 = text.begin(), pend = text.end();
+OutputIt make_quoted_basic_string(std::basic_string_view<CharT> s, OutputIt out) {
+    auto p1 = s.begin(), pend = s.end();
     *out++ = '\"';
-    for (auto p2 = text.begin(); p2 != pend; ++p2) {
+    for (auto p2 = s.begin(); p2 != pend; ++p2) {
         std::string_view esc;
         switch (*p2) {
             case '\"': esc = "\\\""; break;
@@ -434,6 +437,16 @@ OutputIt make_quoted_text(std::basic_string_view<CharT> text, OutputIt out) {
     return out;
 }
 
+template<typename OutputIt>
+OutputIt make_quoted_string(std::string_view s, OutputIt out) {
+    return make_quoted_basic_string(s, out);
+}
+
+template<typename OutputIt>
+OutputIt make_quoted_string(std::wstring_view s, OutputIt out) {
+    return make_quoted_basic_string(s, out);
+}
+
 // --------------------------
 
 UXS_EXPORT std::wstring from_utf8_to_wide(std::string_view s);
@@ -443,7 +456,7 @@ UXS_EXPORT std::string_view trim_string(std::string_view s);
 UXS_EXPORT std::vector<std::string> unpack_strings(std::string_view s, char sep);
 UXS_EXPORT std::string encode_escapes(std::string_view s, std::string_view symb, std::string_view code);
 UXS_EXPORT std::string decode_escapes(std::string_view s, std::string_view symb, std::string_view code);
-UXS_EXPORT std::string make_quoted_text(std::string_view text);
+UXS_EXPORT std::string make_quoted_string(std::string_view s);
 UXS_EXPORT std::pair<unsigned, unsigned> parse_flag_string(
     std::string_view s, const std::vector<std::pair<std::string_view, unsigned>>& flag_tbl);
 UXS_EXPORT int compare_strings_nocase(std::string_view lhs, std::string_view rhs);
@@ -451,10 +464,10 @@ UXS_EXPORT std::string to_lower(std::string_view s);
 UXS_EXPORT std::string to_upper(std::string_view s);
 
 UXS_EXPORT std::wstring_view trim_string(std::wstring_view s);
-UXS_EXPORT std::vector<std::wstring> unpack_strings(std::wstring_view s, char sep);
+UXS_EXPORT std::vector<std::wstring> unpack_strings(std::wstring_view s, wchar_t sep);
 UXS_EXPORT std::wstring encode_escapes(std::wstring_view s, std::wstring_view symb, std::wstring_view code);
 UXS_EXPORT std::wstring decode_escapes(std::wstring_view s, std::wstring_view symb, std::wstring_view code);
-UXS_EXPORT std::wstring make_quoted_text(std::wstring_view text);
+UXS_EXPORT std::wstring make_quoted_string(std::wstring_view s);
 UXS_EXPORT std::pair<unsigned, unsigned> parse_flag_string(
     std::wstring_view s, const std::vector<std::pair<std::wstring_view, unsigned>>& flag_tbl);
 UXS_EXPORT int compare_strings_nocase(std::wstring_view lhs, std::wstring_view rhs);
