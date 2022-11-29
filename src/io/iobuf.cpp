@@ -28,7 +28,7 @@ iomode detail::iomode_from_str(const char* mode, iomode def) {
     return result;
 }
 
-template class basic_iobuf<char>;
-template class basic_iobuf<wchar_t>;
-template class basic_iobuf<uint8_t>;
+template class UXS_EXPORT basic_iobuf<char>;
+template class UXS_EXPORT basic_iobuf<wchar_t>;
+template class UXS_EXPORT basic_iobuf<uint8_t>;
 }  // namespace uxs

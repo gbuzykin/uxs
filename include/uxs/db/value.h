@@ -77,7 +77,7 @@ class UXS_EXPORT basic_value : protected std::allocator_traits<Alloc>::template 
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<CharT>;
 
     template<typename Ty>
-    struct flexarray_t {
+    struct UXS_EXPORT flexarray_t {
         size_t size;
         size_t capacity;
         typename std::aligned_storage<sizeof(Ty), std::alignment_of<Ty>::value>::type buf[1];

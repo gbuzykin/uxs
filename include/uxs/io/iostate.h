@@ -30,7 +30,7 @@ UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iostate_bits, uint8_t);
 enum class seekdir : uint8_t { kBeg = 0, kEnd, kCurr };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(seekdir, uint8_t);
 
-class iostate {
+class UXS_EXPORT iostate {
  public:
     iostate() = default;
     explicit iostate(iomode mode) : mode_(mode) {}
