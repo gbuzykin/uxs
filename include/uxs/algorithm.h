@@ -48,13 +48,13 @@ bool contains_if(const Range& r, Pred p) {
 
 namespace detail {
 template<typename Container, typename Range, typename Val>
-auto erase_ranged(Container& c, Range&& r, const Val& v) -> decltype(std::begin(c) + 1 == std::end(r), c.size()) {
+auto erase(Container& c, Range&& r, const Val& v) -> decltype(std::begin(c) + 1 == std::end(r), c.size()) {
     auto old_sz = c.size();
     c.erase(std::remove(std::begin(r), std::end(r), v), std::end(r));
     return old_sz - c.size();
 }
 template<typename Container, typename Range, typename Val, typename... Dummy>
-auto erase_ranged(Container& c, Range&& r, const Val& v, Dummy&&...) -> decltype(std::end(c) == std::end(r), c.size()) {
+auto erase(Container& c, Range&& r, const Val& v, Dummy&&...) -> decltype(std::end(c) == std::end(r), c.size()) {
     auto old_sz = c.size();
     for (auto first = std::begin(r), last = std::end(r); first != last;) {
         if (*first == v) {
@@ -67,26 +67,26 @@ auto erase_ranged(Container& c, Range&& r, const Val& v, Dummy&&...) -> decltype
 }
 
 template<typename Container, typename Val>
-auto erase(Container& c, const Val& v)
+auto erase_val(Container& c, const Val& v)
     -> std::enable_if_t<std::is_same<decltype(c.find(v)), decltype(std::end(c))>::value, decltype(c.size())> {
     static_assert(!std::is_same<Val, Val>::value,
                   "function `uxs::erase_one` should be used for associative containers to erase by key!");
     return 0;
 }
 template<typename Container, typename Val, typename... Dummy>
-auto erase(Container& c, const Val& v, Dummy&&...) -> decltype(c.size()) {
-    return detail::erase_ranged(c, c, v);
+auto erase_val(Container& c, const Val& v, Dummy&&...) -> decltype(c.size()) {
+    return detail::erase(c, c, v);
 }
 }  // namespace detail
 
 template<typename Container, typename Range, typename Val>
 auto erase(Container& c, Range&& r, const Val& v) -> decltype(c.size()) {
-    return detail::erase_ranged(c, std::forward<Range>(r), v);
+    return detail::erase(c, std::forward<Range>(r), v);
 }
 
 template<typename Container, typename Val>
 auto erase(Container& c, const Val& v) -> decltype(c.size()) {
-    return detail::erase(c, v);
+    return detail::erase_val(c, v);
 }
 
 template<typename Container, typename Key>
@@ -98,14 +98,14 @@ auto erase_one(Container& c, const Key& k) -> decltype(std::end(c)) {
 
 namespace detail {
 template<typename Container, typename Range, typename Pred>
-auto erase_if_ranged(Container& c, Range&& r, Pred p)  //
+auto erase_if(Container& c, Range&& r, Pred p)  //
     -> decltype(std::begin(c) + 1 == std::end(r), c.size()) {
     auto old_sz = c.size();
     c.erase(std::remove_if(std::begin(r), std::end(r), p), std::end(r));
     return old_sz - c.size();
 }
 template<typename Container, typename Range, typename Pred, typename... Dummy>
-auto erase_if_ranged(Container& c, Range&& r, Pred p, Dummy&&...)  //
+auto erase_if(Container& c, Range&& r, Pred p, Dummy&&...)  //
     -> decltype(std::end(c) == std::end(r), c.size()) {
     auto old_sz = c.size();
     for (auto first = std::begin(r), last = std::end(r); first != last;) {
@@ -121,12 +121,12 @@ auto erase_if_ranged(Container& c, Range&& r, Pred p, Dummy&&...)  //
 
 template<typename Container, typename Range, typename Pred>
 auto erase_if(Container& c, Range&& r, Pred p) -> decltype(c.size()) {
-    return detail::erase_if_ranged(c, std::forward<Range>(r), p);
+    return detail::erase_if(c, std::forward<Range>(r), p);
 }
 
 template<typename Container, typename Pred>
 auto erase_if(Container& c, Pred p) -> decltype(c.size()) {
-    return detail::erase_if_ranged(c, c, p);
+    return detail::erase_if(c, c, p);
 }
 
 template<typename Container, typename Range>
@@ -264,7 +264,7 @@ bool binary_contains(const Range& r, const Key& k, KeyFn fn = KeyFn{}) {
 
 namespace detail {
 template<typename Container, typename Key, typename... Args, size_t... Indices, typename KeyFn>
-auto binary_emplace_unique(Container& c, const Key& k, std::tuple<Args...> args, std::index_sequence<Indices...>,
+auto binary_emplace_unique(Container& c, const Key& k, const std::tuple<Args...>& args, std::index_sequence<Indices...>,
                            KeyFn fn) -> std::pair<decltype(std::end(c)), bool> {
     auto result = uxs::binary_find(c, k, fn);
     if (result.second) { return std::make_pair(result.first, false); }
@@ -273,14 +273,14 @@ auto binary_emplace_unique(Container& c, const Key& k, std::tuple<Args...> args,
 }  // namespace detail
 
 template<typename Container, typename Key, typename... Args, typename KeyFn = key>
-auto binary_emplace_unique(Container& c, const Key& k, std::tuple<Args...> args = {}, KeyFn fn = KeyFn{})
+auto binary_emplace_unique(Container& c, const Key& k, const std::tuple<Args...>& args = {}, KeyFn fn = KeyFn{})
     -> std::pair<decltype(std::end(c)), bool> {
     return detail::binary_emplace_unique(c, k, args, std::index_sequence_for<Args...>{}, fn);
 }
 
 template<typename Container, typename Val, typename KeyFn = key>
 auto binary_insert_unique(Container& c, Val&& v, KeyFn fn = KeyFn{}) -> std::pair<decltype(std::end(c)), bool> {
-    return uxs::binary_emplace_unique(c, fn(v), std::forward_as_tuple(v), fn);
+    return uxs::binary_emplace_unique(c, fn(v), std::forward_as_tuple(std::forward<Val>(v)), fn);
 }
 
 template<typename Container, typename Key, typename KeyFn = key>
@@ -294,21 +294,21 @@ auto binary_access_unique(Container& c, Key&& k, KeyFn fn = KeyFn{}) -> decltype
 
 namespace detail {
 template<typename Container, typename Key, typename... Args, size_t... Indices, typename KeyFn>
-auto binary_emplace_new(Container& c, const Key& k, std::tuple<Args...> args, std::index_sequence<Indices...>, KeyFn fn)
-    -> decltype(std::end(c)) {
+auto binary_emplace_new(Container& c, const Key& k, const std::tuple<Args...>& args, std::index_sequence<Indices...>,
+                        KeyFn fn) -> decltype(std::end(c)) {
     return c.emplace(uxs::lower_bound(c, k, fn), std::forward<Args>(std::get<Indices>(args))...);
 }
 }  // namespace detail
 
 template<typename Container, typename Key, typename... Args, typename KeyFn = key>
-auto binary_emplace_new(Container& c, const Key& k, std::tuple<Args...> args = {}, KeyFn fn = KeyFn{})
+auto binary_emplace_new(Container& c, const Key& k, const std::tuple<Args...>& args = {}, KeyFn fn = KeyFn{})
     -> decltype(std::end(c)) {
     return detail::binary_emplace_new(c, k, args, std::index_sequence_for<Args...>{}, fn);
 }
 
 template<typename Container, typename Val, typename KeyFn = key>
 auto binary_insert_new(Container& c, Val&& v, KeyFn fn = KeyFn{}) -> decltype(std::end(c)) {
-    return uxs::binary_emplace_new(c, fn(v), std::forward_as_tuple(v), fn);
+    return uxs::binary_emplace_new(c, fn(v), std::forward_as_tuple(std::forward<Val>(v)), fn);
 }
 
 template<typename Container, typename Key, typename KeyFn = key>
