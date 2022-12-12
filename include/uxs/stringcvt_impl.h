@@ -81,7 +81,7 @@ struct ulog2_table_t {
     }
 };
 #    if __cplusplus < 201703L
-static const ulog2_table_t g_ulog2_tbl;
+extern const ulog2_table_t g_ulog2_tbl;
 #    else   // __cplusplus < 201703L
 constexpr ulog2_table_t g_ulog2_tbl{};
 #    endif  // __cplusplus < 201703L
