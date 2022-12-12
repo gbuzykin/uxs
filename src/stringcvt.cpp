@@ -3,6 +3,10 @@
 namespace uxs {
 namespace scvt {
 
+#if __cplusplus < 201703L && !(defined(_MSC_VER) && defined(_M_X64)) && !(defined(__GNUC__) && defined(__x86_64__))
+const ulog2_table_t g_ulog2_tbl;
+#endif
+
 const uint64_t msb64 = 1ull << 63;
 
 struct uint128_t {
