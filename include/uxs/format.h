@@ -527,14 +527,14 @@ StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type, Ts
 #endif  // defined(_MSC_VER) && _MSC_VER < 1920
 
 template<typename... Ts>
-std::string format(format_string<Ts...> fmt, const Ts&... args) {
+NODISCARD std::string format(format_string<Ts...> fmt, const Ts&... args) {
     inline_dynbuffer buf;
     basic_format(buf.base(), fmt, args...);
     return std::string(buf.data(), buf.size());
 }
 
 template<typename... Ts>
-std::wstring format(wformat_string<Ts...> fmt, const Ts&... args) {
+NODISCARD std::wstring format(wformat_string<Ts...> fmt, const Ts&... args) {
     inline_wdynbuffer buf;
     basic_format(buf.base(), fmt, args...);
     return std::wstring(buf.data(), buf.size());

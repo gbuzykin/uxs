@@ -43,6 +43,14 @@
 #    endif  // __cplusplus < 201703L
 #endif      // !defined(CONSTEXPR_IF)
 
+#if !defined(NODISCARD)
+#    if __cplusplus < 201703L
+#        define NODISCARD
+#    else  // __cplusplus < 201703L
+#        define NODISCARD [[nodiscard]]
+#    endif  // __cplusplus < 201703L
+#endif      // !defined(NODISCARD)
+
 #if !defined(UNREACHABLE_CODE)
 #    if defined(_MSC_VER)
 #        define UNREACHABLE_CODE __assume(false)
