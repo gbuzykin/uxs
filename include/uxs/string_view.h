@@ -24,30 +24,35 @@ class basic_string_view {
 
     static const size_t npos = size_t(-1);
 
-    basic_string_view() = default;
+    basic_string_view() NOEXCEPT {}
     basic_string_view(const CharT* s, size_t count) : begin_(s), size_(count) {}
     basic_string_view(const CharT* s) : begin_(s) {
         for (; *s; ++s, ++size_) {}
     }
-    basic_string_view(const basic_string<CharT>& s) : basic_string_view(s.data(), s.size()) {}
+    basic_string_view(const basic_string<CharT>& s) NOEXCEPT : basic_string_view(s.data(), s.size()) {}
+    basic_string_view(const basic_string_view& v) NOEXCEPT : begin_(v.begin_), size_(v.size_) {}
+    basic_string_view& operator=(const basic_string_view& v) NOEXCEPT {
+        begin_ = v.begin_, size_ = v.size_;
+        return *this;
+    }
 
-    size_t size() const { return size_; }
-    size_t length() const { return size_; }
-    bool empty() const { return size_ == 0; }
+    size_t size() const NOEXCEPT { return size_; }
+    size_t length() const NOEXCEPT { return size_; }
+    bool empty() const NOEXCEPT { return size_ == 0; }
 
     explicit operator basic_string<CharT>() const { return basic_string<CharT>(begin_, size_); }
 
-    const_iterator begin() const { return const_iterator(begin_, begin_, begin_ + size_); }
-    const_iterator cbegin() const { return const_iterator(begin_, begin_, begin_ + size_); }
+    const_iterator begin() const NOEXCEPT { return const_iterator(begin_, begin_, begin_ + size_); }
+    const_iterator cbegin() const NOEXCEPT { return const_iterator(begin_, begin_, begin_ + size_); }
 
-    const_iterator end() const { return const_iterator(begin_ + size_, begin_, begin_ + size_); }
-    const_iterator cend() const { return const_iterator(begin_ + size_, begin_, begin_ + size_); }
+    const_iterator end() const NOEXCEPT { return const_iterator(begin_ + size_, begin_, begin_ + size_); }
+    const_iterator cend() const NOEXCEPT { return const_iterator(begin_ + size_, begin_, begin_ + size_); }
 
-    const_reverse_iterator rbegin() const { return const_reverse_iterator{end()}; }
-    const_reverse_iterator crbegin() const { return const_reverse_iterator{end()}; }
+    const_reverse_iterator rbegin() const NOEXCEPT { return const_reverse_iterator{end()}; }
+    const_reverse_iterator crbegin() const NOEXCEPT { return const_reverse_iterator{end()}; }
 
-    const_reverse_iterator rend() const { return const_reverse_iterator{begin()}; }
-    const_reverse_iterator crend() const { return const_reverse_iterator{begin()}; }
+    const_reverse_iterator rend() const NOEXCEPT { return const_reverse_iterator{begin()}; }
+    const_reverse_iterator crend() const NOEXCEPT { return const_reverse_iterator{begin()}; }
 
     const_reference operator[](size_t pos) const {
         assert(pos < size_);
@@ -65,7 +70,7 @@ class basic_string_view {
         assert(size_ > 0);
         return *(begin_ + size_ - 1);
     }
-    const_pointer data() const { return begin_; }
+    const_pointer data() const NOEXCEPT { return begin_; }
 
     basic_string_view substr(size_t pos, size_t count = npos) const {
         pos = std::min(pos, size_);
