@@ -10,7 +10,7 @@
 
 #if defined(UXS_USE_ZLIB)
 #    define ZLIB_CONST
-#    include "zlib.h"
+#    include <zlib.h>
 #endif
 
 namespace uxs {

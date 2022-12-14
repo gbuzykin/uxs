@@ -185,7 +185,9 @@ class UXS_EXPORT basic_value : protected std::allocator_traits<Alloc>::template 
     using const_record_iterator = list_iterator<record_t, list_node_traits, true>;
 
     basic_value() NOEXCEPT_IF(std::is_nothrow_default_constructible<alloc_type>::value)
-        : alloc_type(), type_(dtype::kNull) {}
+        : alloc_type(), type_(dtype::kNull) {
+        value_.i = 0;
+    }
     basic_value(bool b) : alloc_type(), type_(dtype::kBoolean) { value_.b = b; }
     basic_value(int32_t i) : alloc_type(), type_(dtype::kInteger) { value_.i = i; }
     basic_value(uint32_t u) : alloc_type(), type_(dtype::kUInteger) { value_.u = u; }
