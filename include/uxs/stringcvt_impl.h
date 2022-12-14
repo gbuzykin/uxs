@@ -27,6 +27,7 @@ struct fp_traits;
 
 template<>
 struct fp_traits<double> {
+    static_assert(sizeof(double) == sizeof(uint64_t), "type size mismatch");
     enum : unsigned { kTotalBits = 64, kBitsPerMantissa = 52 };
     enum : uint64_t { kMantissaMask = (1ull << kBitsPerMantissa) - 1 };
     enum : int { kExpMax = (1 << (kTotalBits - kBitsPerMantissa - 1)) - 1 };
@@ -36,6 +37,7 @@ struct fp_traits<double> {
 
 template<>
 struct fp_traits<float> {
+    static_assert(sizeof(float) == sizeof(uint32_t), "type size mismatch");
     enum : unsigned { kTotalBits = 32, kBitsPerMantissa = 23 };
     enum : uint64_t { kMantissaMask = (1ull << kBitsPerMantissa) - 1 };
     enum : int { kExpMax = (1 << (kTotalBits - kBitsPerMantissa - 1)) - 1 };
