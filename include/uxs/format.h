@@ -506,7 +506,7 @@ template<typename StrTy>
 UXS_EXPORT StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
                                 span<const fmt::arg_list_item<StrTy>> args);
 
-#if defined(_MSC_VER) && _MSC_VER < 1920
+#if defined(_MSC_VER) && _MSC_VER <= 1800
 template<typename... Ts>
 using format_string = basic_format_string<char>;
 template<typename... Ts>
@@ -515,7 +515,7 @@ template<typename StrTy, typename... Ts>
 StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type> fmt, const Ts&... args) {
     return basic_vformat<StrTy>(s, fmt.checked, fmt::make_args<StrTy>(args...));
 }
-#else   // defined(_MSC_VER) && _MSC_VER < 1920
+#else   // defined(_MSC_VER) && _MSC_VER <= 1800
 template<typename... Ts>
 using format_string = basic_format_string<char, type_identity_t<Ts>...>;
 template<typename... Ts>
@@ -524,7 +524,7 @@ template<typename StrTy, typename... Ts>
 StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type, Ts...> fmt, const Ts&... args) {
     return basic_vformat<StrTy>(s, fmt.checked, fmt::make_args<StrTy>(args...));
 }
-#endif  // defined(_MSC_VER) && _MSC_VER < 1920
+#endif  // defined(_MSC_VER) && _MSC_VER <= 1800
 
 template<typename... Ts>
 NODISCARD std::string format(format_string<Ts...> fmt, const Ts&... args) {

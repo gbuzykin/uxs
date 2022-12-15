@@ -41,7 +41,7 @@ struct make_index_sequence<0U, Next...> {
 }  // namespace detail
 }  // namespace uxs
 namespace std {
-#    if !defined(_MSC_VER) && __cplusplus < 201402L
+#    if __cplusplus < 201402L && (!defined(_MSC_VER) || _MSC_VER > 1800)
 template<bool B, typename Ty = void>
 using enable_if_t = typename enable_if<B, Ty>::type;
 template<typename Ty>
@@ -58,7 +58,8 @@ template<typename Ty>
 using add_const_t = typename add_const<Ty>::type;
 template<bool B, typename Ty1, typename Ty2>
 using conditional_t = typename conditional<B, Ty1, Ty2>::type;
-#    endif  // !defined(_MSC_VER) && __cplusplus < 201402L
+#    endif  // __cplusplus < 201402L && (!defined(_MSC_VER) || _MSC_VER > 1800)
+#    if !defined(_MSC_VER) || _MSC_VER <= 1800
 template<class Ty>
 add_const_t<Ty>& as_const(Ty& t) {
     return t;
@@ -67,12 +68,13 @@ template<class Ty>
 void as_const(const Ty&&) = delete;
 template<typename TestTy>
 using void_t = typename uxs::type_identity<void, TestTy>::type;
+#    endif  // !defined(_MSC_VER) || _MSC_VER <= 1800
 template<bool B>
 using bool_constant = integral_constant<bool, B>;
-#    if !defined(_MSC_VER)
+#    if !defined(_MSC_VER) || _MSC_VER > 1800
 template<typename Ty>
 using is_nothrow_swappable = bool_constant<noexcept(swap(declval<Ty&>(), declval<Ty&>()))>;
-#    endif  // !defined(_MSC_VER)
+#    endif  // !defined(_MSC_VER) || _MSC_VER > 1800
 #    if __cplusplus < 201402L
 template<size_t... Indices>
 using index_sequence = uxs::detail::index_sequence<Indices...>;
