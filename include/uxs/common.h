@@ -7,19 +7,18 @@
 #include <cstdint>
 
 #if !defined(NOEXCEPT)
-#    if defined(_MSC_VER) && __cplusplus < 201703L
+#    if defined(_MSC_VER) && _MSC_VER <= 1800
 #        define NOEXCEPT throw()
 #        define NOEXCEPT_IF(x)
-#    else  // defined(_MSC_VER) && __cplusplus < 201703L
+#    else  // defined(_MSC_VER) && _MSC_VER <= 1800
 #        define NOEXCEPT       noexcept
 #        define NOEXCEPT_IF(x) noexcept(x)
-#    endif  // defined(_MSC_VER) && __cplusplus < 201703L
+#    endif  // defined(_MSC_VER) && _MSC_VER <= 1800
 #endif      // !defined(NOEXCEPT)
 
 #if !defined(CONSTEVAL)
-#    if (((defined(__GNUC__) && __GNUC__ >= 10) || (defined(__clang_major__) && __clang_major__ >= 12)) && \
-         __cplusplus > 201703L) || \
-        (defined(_MSC_VER) && _MSC_VER >= 1920 && defined(__cpp_consteval))
+#    if ((__GNUC__ >= 10 || __clang_major__ >= 12) && __cplusplus > 201703L) || \
+        (_MSC_VER >= 1920 && defined(__cpp_consteval))
 #        define CONSTEVAL consteval
 #        define HAS_CONSTEVAL
 #    else

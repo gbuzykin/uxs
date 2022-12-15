@@ -4,7 +4,7 @@
 
 #include <algorithm>
 
-#if __cplusplus < 201703L
+#if __cplusplus < 201703L && (!defined(_MSC_VER) || _MSC_VER <= 1800)
 namespace std {
 template<typename...>
 struct conjunction : true_type {};
@@ -21,7 +21,7 @@ struct disjunction<Ty, Ts...> : conditional_t<Ty::value, Ty, disjunction<Ts...>>
 template<typename Ty>
 struct negation : bool_constant<!Ty::value> {};
 }  // namespace std
-#endif  // __cplusplus < 201703L
+#endif  // __cplusplus < 201703L && (!defined(_MSC_VER) || _MSC_VER <= 1800)
 
 namespace uxs {
 #if __cplusplus < 201402L

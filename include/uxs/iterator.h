@@ -11,9 +11,9 @@
 #    define iterator_assert(cond) ((void)0)
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
 
-#if defined(_MSC_VER) && _MSC_VER < 1920
+#if defined(_MSC_VER) && _MSC_VER <= 1800
 #    define USE_CHECKED_ITERATORS
-#endif  // defined(_MSC_VER)
+#endif  // defined(_MSC_VER) && _MSC_VER <= 1800
 
 namespace uxs {
 
