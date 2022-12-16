@@ -1,6 +1,11 @@
 #include "uxs/stringcvt_impl.h"
 
 namespace uxs {
+#if __cplusplus < 201703L
+namespace detail {
+const char_tbl_t g_char_tbl;
+}
+#endif  // __cplusplus < 201703L
 namespace scvt {
 
 #if __cplusplus < 201703L && !(defined(_MSC_VER) && defined(_M_X64)) && !(defined(__GNUC__) && defined(__x86_64__))

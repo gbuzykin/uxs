@@ -149,11 +149,12 @@ Ty to_integer_limited(const CharT* p, const CharT* end, const CharT*& last, Ty p
     } else if (*p == '-') {
         ++p, neg = true;  // negative sign
     }
-    if (p == end || !is_digit(*p)) { return 0; }
-    Ty val = static_cast<unsigned>(*p++ - '0');
-    while (p < end && is_digit(*p)) {
+    unsigned dig = 0;
+    if (p == end || (dig = dig_v(*p)) >= 10) { return 0; }
+    Ty val = dig;
+    while (++p < end && (dig = dig_v(*p)) < 10) {
         Ty val0 = val;
-        val = 10u * val + static_cast<unsigned>(*p++ - '0');
+        val = 10u * val + dig;
         if (val < val0) { return 0; }  // too big integer
     }
     // Note: resulting number must be in range [-(1 + pos_limit / 2), pos_limit]
@@ -184,9 +185,9 @@ Ty to_char(const CharT* p, const CharT* end, const CharT*& last) {
 template<typename CharT>
 const CharT* accum_mantissa(const CharT* p, const CharT* end, uint64_t& m, int& exp) {
     const uint64_t max_mantissa10 = 1000000000000000000ull;
-    for (; p < end && is_digit(*p); ++p) {
+    for (unsigned dig = 0; p < end && (dig = dig_v(*p)) < 10; ++p) {
         if (m < max_mantissa10) {  // decimal mantissa can hold up to 19 digits
-            m = 10u * m + static_cast<int>(*p - '0');
+            m = 10u * m + dig;
         } else {
             ++exp;
         }
@@ -196,15 +197,15 @@ const CharT* accum_mantissa(const CharT* p, const CharT* end, uint64_t& m, int& 
 
 template<typename CharT>
 const CharT* chars_to_fp10(const CharT* p, const CharT* end, fp_m64_t& fp10) {
+    unsigned dig = 0;
     const char dot_symb = '.';
     if (p == end) { return p; }
-    if (is_digit(*p)) {  // integral part
-        fp10.m = static_cast<int>(*p++ - '0');
-        p = accum_mantissa(p, end, fp10.m, fp10.exp);
+    if ((dig = dig_v(*p)) < 10) {  // integral part
+        fp10.m = dig;
+        p = accum_mantissa(++p, end, fp10.m, fp10.exp);
         if (p < end && *p == dot_symb) { ++p; }  // skip decimal point
-    } else if (*p == dot_symb && p + 1 < end && is_digit(*(p + 1))) {
-        fp10.m = static_cast<int>(*(p + 1) - '0');  // tenth
-        fp10.exp = -1, p += 2;
+    } else if (*p == dot_symb && p + 1 < end && (dig = dig_v(*(p + 1))) < 10) {
+        fp10.m = dig, fp10.exp = -1, p += 2;  // tenth
     } else {
         return p;
     }
@@ -796,15 +797,16 @@ size_t string_converter<bool>::from_string(std::basic_string_view<CharT> s, bool
     const CharT* last = s.data() + s.size();
     const CharT* p = scvt::skip_spaces(s.data(), last);
     const CharT* p0 = p;
+    unsigned dig = 0;
     if ((p = scvt::starts_with(p, last, "true", 4)) > p0) {
         val = true;
     } else if ((p = scvt::starts_with(p, last, "false", 5)) > p0) {
         val = false;
-    } else if (p < last && is_digit(*p)) {
+    } else if (p < last && (dig = dig_v(*p)) < 10) {
         val = false;
         do {
-            if (*p++ != '0') { val = true; }
-        } while (p < last && is_digit(*p));
+            if (dig) { val = true; }
+        } while (++p < last && (dig = dig_v(*p)) < 10);
     } else {
         return 0;
     }

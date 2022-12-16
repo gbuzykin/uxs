@@ -166,7 +166,7 @@ template<typename CharT>
 int basic_compare_strings_nocase(std::basic_string_view<CharT> lhs, std::basic_string_view<CharT> rhs) {
     auto p1_end = lhs.begin() + std::min(lhs.size(), rhs.size());
     for (auto p1 = lhs.begin(), p2 = rhs.begin(); p1 != p1_end; ++p1, ++p2) {
-        char ch1 = to_lower(*p1), ch2 = to_lower(*p2);
+        CharT ch1 = to_lower(*p1), ch2 = to_lower(*p2);
         if (std::basic_string_view<CharT>::traits_type::lt(ch1, ch2)) {
             return -1;
         } else if (std::basic_string_view<CharT>::traits_type::lt(ch2, ch1)) {
