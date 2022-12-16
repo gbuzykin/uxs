@@ -1,6 +1,5 @@
 #include "uxs/guid.h"
 
-#include <limits>
 #include <random>
 
 using namespace uxs;
