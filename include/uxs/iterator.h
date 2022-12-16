@@ -3,6 +3,7 @@
 #include "utility.h"
 
 #include <iterator>
+#include <limits>
 #include <memory>
 
 #if _ITERATOR_DEBUG_LEVEL != 0

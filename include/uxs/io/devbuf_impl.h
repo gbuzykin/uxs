@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
-#include <limits>
 #include <memory>
 
 #if defined(UXS_USE_ZLIB)

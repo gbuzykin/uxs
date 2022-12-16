@@ -2,8 +2,6 @@
 
 #include "common.h"
 
-#include <limits>
-
 namespace uxs {
 
 template<typename InputIt>
