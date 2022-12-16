@@ -101,8 +101,8 @@ int json::reader::parse_token(std::string_view& lval) {
             case lex_detail::pat_escape_t: str_.push_back('\t'); break;
             case lex_detail::pat_escape_other: return static_cast<int>(token_t::kEof);
             case lex_detail::pat_escape_unicode: {
-                unsigned unicode = (uxs::dig_v<16>(lexeme[2]) << 12) | (uxs::dig_v<16>(lexeme[3]) << 8) |
-                                   (uxs::dig_v<16>(lexeme[4]) << 4) | uxs::dig_v<16>(lexeme[5]);
+                unsigned unicode = (dig_v(lexeme[2]) << 12) | (dig_v(lexeme[3]) << 8) | (dig_v(lexeme[4]) << 4) |
+                                   dig_v(lexeme[5]);
                 if (surrogate != 0) {
                     unicode = 0x10000 + (((surrogate & 0x3ff) << 10) | (unicode & 0x3ff));
                     surrogate = 0;

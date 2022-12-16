@@ -11,25 +11,25 @@
 namespace uxs {
 
 template<typename InputIt, typename InputFn = nofunc>
-unsigned from_hex(InputIt in, unsigned digs, InputFn fn = InputFn{}, unsigned* n_valid = nullptr) {
+unsigned from_hex(InputIt in, unsigned n_digs, InputFn fn = InputFn{}, unsigned* n_valid = nullptr) {
     unsigned val = 0;
-    if (n_valid) { *n_valid = digs; }
-    while (digs) {
-        int dig_v = xdigit_v(fn(*in));
-        if (dig_v >= 0) {
-            val = (val << 4) | dig_v;
+    if (n_valid) { *n_valid = n_digs; }
+    while (n_digs) {
+        unsigned dig = dig_v(fn(*in));
+        if (dig < 16) {
+            val = (val << 4) | dig;
         } else {
-            if (n_valid) { *n_valid -= digs; }
+            if (n_valid) { *n_valid -= n_digs; }
             return val;
         }
-        ++in, --digs;
+        ++in, --n_digs;
     }
     return val;
 }
 
 template<typename OutputIt, typename OutputFn = nofunc>
-void to_hex(unsigned val, OutputIt out, unsigned digs, OutputFn fn = OutputFn{}) {
-    unsigned shift = digs << 2;
+void to_hex(unsigned val, OutputIt out, unsigned n_digs, OutputFn fn = OutputFn{}) {
+    unsigned shift = n_digs << 2;
     while (shift) {
         shift -= 4;
         *out++ = fn("0123456789ABCDEF"[(val >> shift) & 0xf]);

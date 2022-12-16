@@ -237,7 +237,7 @@ static constexpr std::array<const char*, static_cast<unsigned>(arg_type_id::kCus
 
 template<typename CharT, typename Ty>
 CONSTEXPR const CharT* accum_num(const CharT* p, const CharT* last, Ty& num) {
-    while (p != last && is_digit(*p)) { num = 10 * num + static_cast<Ty>(*p++ - '0'); }
+    for (unsigned dig = 0; p != last && (dig = dig_v(*p)) < 10; ++p) { num = 10 * num + dig; }
     return p;
 }
 
@@ -245,10 +245,11 @@ template<typename CharT>
 CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_specs& specs) {
     assert(p != last && *p != '}');
 
-    if (is_digit(*p)) {
+    unsigned dig = 0;
+    if ((dig = dig_v(*p)) < 10) {
         specs.flags |= parse_flags::kArgNumSpecified;
-        specs.n_arg = static_cast<unsigned>(*p++ - '0');
-        p = accum_num(p, last, specs.n_arg);
+        specs.n_arg = dig;
+        p = accum_num(++p, last, specs.n_arg);
         if (p == last) { return nullptr; }
         if (*p == '}') { return p; }
     }
@@ -305,10 +306,10 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
                     if (*p == '}') {
                         ++p;
                         break;
-                    } else if (is_digit(*p)) {
+                    } else if ((dig = dig_v(*p)) < 10) {
                         specs.flags |= parse_flags::kWidthArgNumSpecified;
-                        specs.n_width_arg = static_cast<unsigned>(*p++ - '0');
-                        p = accum_num(p, last, specs.n_width_arg);
+                        specs.n_width_arg = dig;
+                        p = accum_num(++p, last, specs.n_width_arg);
                         if (p != last && *p++ == '}') { break; }
                     }
                     return nullptr;
@@ -323,19 +324,19 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
             case meta_tbl_t::kDot:
                 UXS_FMT_SPECIFIER_CASE(kType, {
                     if (p == last) { return nullptr; }
-                    if (is_digit(*p)) {
-                        specs.fmt.prec = static_cast<int>(*p++ - '0');
-                        p = accum_num(p, last, specs.fmt.prec);
+                    if ((dig = dig_v(*p)) < 10) {
+                        specs.fmt.prec = dig;
+                        p = accum_num(++p, last, specs.fmt.prec);
                         break;
                     } else if (*p == '{' && ++p != last) {
                         specs.flags |= parse_flags::kDynamicPrec;
                         if (*p == '}') {
                             ++p;
                             break;
-                        } else if (is_digit(*p)) {
+                        } else if ((dig = dig_v(*p)) < 10) {
                             specs.flags |= parse_flags::kPrecArgNumSpecified;
-                            specs.n_prec_arg = static_cast<unsigned>(*p++ - '0');
-                            p = accum_num(p, last, specs.n_prec_arg);
+                            specs.n_prec_arg = dig;
+                            p = accum_num(++p, last, specs.n_prec_arg);
                             if (p != last && *p++ == '}') { break; }
                         }
                     }
