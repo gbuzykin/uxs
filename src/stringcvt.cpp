@@ -34,22 +34,11 @@ uint64_t make64(TyH hi, TyL lo) {
     return (static_cast<uint64_t>(hi) << 32) | static_cast<uint64_t>(lo);
 }
 
-inline uint128_t mul64x32(uint64_t x, uint32_t y, uint32_t bias = 0) {
-#if defined(__GNUC__) && defined(__x86_64__)
-    gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x) * static_cast<gcc_ints::uint128>(y) + bias;
-    return uint128_t{static_cast<uint64_t>(p >> 64), static_cast<uint64_t>(p)};
-#else
-    const uint64_t lower = lo32(x) * y + bias;
-    const uint64_t higher = hi32(x) * y + hi32(lower);
-    return uint128_t{hi32(higher), make64(lo32(higher), lo32(lower))};
-#endif
-}
-
 inline uint128_t mul64x64(uint64_t x, uint64_t y, uint64_t bias = 0) {
 #if defined(_MSC_VER) && defined(_M_X64)
     uint128_t result;
     result.lo = _umul128(x, y, &result.hi);
-#    if _MSC_VER >= 1920
+#    if _MSC_VER > 1800
     result.hi += _addcarry_u64(0, result.lo, bias, &result.lo);
 #    else  // VS2013 compiler bug workaround
     result.lo += bias;
@@ -67,8 +56,22 @@ inline uint128_t mul64x64(uint64_t x, uint64_t y, uint64_t bias = 0) {
 #endif
 }
 
+inline uint128_t mul64x32(uint64_t x, uint32_t y, uint32_t bias = 0) {
+#if (defined(_MSC_VER) && defined(_M_X64)) || (defined(__GNUC__) && defined(__x86_64__))
+    return mul64x64(x, y, bias);
+#else
+    const uint64_t lower = lo32(x) * y + bias;
+    const uint64_t higher = hi32(x) * y + hi32(lower);
+    return uint128_t{hi32(higher), make64(lo32(higher), lo32(lower))};
+#endif
+}
+
 inline uint128_t mul96x64_hi128(uint96_t x, uint64_t y) {
-#if defined(__GNUC__) && defined(__x86_64__)
+#if defined(_MSC_VER) && defined(_M_X64)
+    uint64_t mid;
+    uint64_t lo = _umul128(x.lo, y, &mid);
+    return mul64x64(x.hi, y, (mid << 32) | (lo >> 32));
+#elif defined(__GNUC__) && defined(__x86_64__)
     gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x.lo) * static_cast<gcc_ints::uint128>(y);
     p = static_cast<gcc_ints::uint128>(x.hi) * static_cast<gcc_ints::uint128>(y) + (p >> 32);
     return uint128_t{static_cast<uint64_t>(p >> 64), static_cast<uint64_t>(p)};
