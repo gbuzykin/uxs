@@ -75,9 +75,11 @@ template<typename CharT, typename Appender>
 class basic_appender_mixin {
  public:
     using value_type = CharT;
-    Appender& operator+=(std::basic_string_view<value_type> s) {
+    template<typename Traits>
+    Appender& operator+=(std::basic_string_view<value_type, Traits> s) {
         return static_cast<Appender&>(*this).append(s.begin(), s.end());
     }
+    Appender& operator+=(const value_type* s) { return *this += std::basic_string_view<value_type>(s); }
     Appender& operator+=(value_type ch) {
         static_cast<Appender&>(*this).push_back(ch);
         return static_cast<Appender&>(*this);
@@ -282,8 +284,8 @@ struct string_converter_base {
 #define UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(ty) \
     template<> \
     struct UXS_EXPORT string_converter<ty> : string_converter_base<ty> { \
-        template<typename CharT> \
-        static size_t from_string(std::basic_string_view<CharT> s, ty& val); \
+        template<typename CharT, typename Traits> \
+        static size_t from_string(std::basic_string_view<CharT, Traits> s, ty& val); \
         template<typename StrTy> \
         static StrTy& to_string(StrTy& s, ty val, const fmt_state& fmt); \
     };
@@ -302,8 +304,8 @@ UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(wchar_t)
 UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(bool)
 #undef UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER
 
-template<typename Ty, typename CharT, typename Def>
-NODISCARD Ty from_basic_string(std::basic_string_view<CharT> s, Def&& def) {
+template<typename Ty, typename CharT, typename Traits, typename Def>
+NODISCARD Ty from_basic_string(std::basic_string_view<CharT, Traits> s, Def&& def) {
     Ty result(std::forward<Def>(def));
     string_converter<Ty>::from_string(s, result);
     return result;
@@ -319,8 +321,8 @@ NODISCARD Ty from_string(std::wstring_view s, Def&& def) {
     return from_basic_string<Ty>(s, std::forward<Def>(def));
 }
 
-template<typename Ty, typename CharT>
-NODISCARD Ty from_basic_string(std::basic_string_view<CharT> s) {
+template<typename Ty, typename CharT, typename Traits>
+NODISCARD Ty from_basic_string(std::basic_string_view<CharT, Traits> s) {
     Ty result(string_converter<Ty>::default_value());
     string_converter<Ty>::from_string(s, result);
     return result;
@@ -336,8 +338,8 @@ NODISCARD Ty from_string(std::wstring_view s) {
     return from_basic_string<Ty>(s);
 }
 
-template<typename CharT, typename Ty>
-size_t basic_stoval(std::basic_string_view<CharT> s, Ty& v) {
+template<typename CharT, typename Traits, typename Ty>
+size_t basic_stoval(std::basic_string_view<CharT, Traits> s, Ty& v) {
     return string_converter<Ty>::from_string(s, v);
 }
 

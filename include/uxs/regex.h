@@ -7,12 +7,12 @@
 namespace uxs {
 
 namespace detail {
-template<typename CharT>
-struct string_finder<std::basic_regex<CharT>> {
-    const std::basic_regex<CharT>& regex;
+template<typename CharT, typename RegexTraits, typename Traits>
+struct string_finder<std::basic_regex<CharT, RegexTraits>, Traits> {
+    const std::basic_regex<CharT, RegexTraits>& regex;
     using is_finder = int;
-    using iterator = typename std::basic_string_view<CharT>::const_iterator;
-    explicit string_finder(const std::basic_regex<CharT>& tgt) : regex(tgt) {}
+    using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
+    explicit string_finder(const std::basic_regex<CharT, RegexTraits>& tgt) : regex(tgt) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         std::match_results<iterator> m;
         if (std::regex_search(begin, end, m, regex)) { return m[0]; }
@@ -20,12 +20,12 @@ struct string_finder<std::basic_regex<CharT>> {
     }
 };
 
-template<typename CharT>
-struct reversed_string_finder<std::basic_regex<CharT>> {
-    const std::basic_regex<CharT>& regex;
+template<typename CharT, typename RegexTraits, typename Traits>
+struct reversed_string_finder<std::basic_regex<CharT, RegexTraits>, Traits> {
+    const std::basic_regex<CharT, RegexTraits>& regex;
     using is_reversed_finder = int;
-    using iterator = typename std::basic_string_view<CharT>::const_iterator;
-    explicit reversed_string_finder(const std::basic_regex<CharT>& tgt) : regex(tgt) {}
+    using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
+    explicit reversed_string_finder(const std::basic_regex<CharT, RegexTraits>& tgt) : regex(tgt) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         std::match_results<iterator> m;
         auto result = std::make_pair(begin, begin);
@@ -45,16 +45,18 @@ struct reversed_string_finder<std::basic_regex<CharT>> {
 };
 }  // namespace detail
 
-inline detail::string_finder<std::regex> sfind(const std::regex& re) { return detail::string_finder<std::regex>(re); }
-inline detail::reversed_string_finder<std::regex> rsfind(const std::regex& re) {
-    return detail::reversed_string_finder<std::regex>(re);
+inline detail::string_finder<std::regex, std::char_traits<char>> sfind(const std::regex& re) {
+    return detail::string_finder<std::regex, std::char_traits<char>>(re);
+}
+inline detail::reversed_string_finder<std::regex, std::char_traits<char>> rsfind(const std::regex& re) {
+    return detail::reversed_string_finder<std::regex, std::char_traits<char>>(re);
 }
 
-inline detail::string_finder<std::wregex> sfind(const std::wregex& re) {
-    return detail::string_finder<std::wregex>(re);
+inline detail::string_finder<std::wregex, std::char_traits<wchar_t>> sfind(const std::wregex& re) {
+    return detail::string_finder<std::wregex, std::char_traits<wchar_t>>(re);
 }
-inline detail::reversed_string_finder<std::wregex> rsfind(const std::wregex& re) {
-    return detail::reversed_string_finder<std::wregex>(re);
+inline detail::reversed_string_finder<std::wregex, std::char_traits<wchar_t>> rsfind(const std::wregex& re) {
+    return detail::reversed_string_finder<std::wregex, std::char_traits<wchar_t>>(re);
 }
 
 }  // namespace uxs

@@ -10,9 +10,9 @@ const std::array<const char*, static_cast<unsigned>(arg_type_id::kCustom) + 1> g
     "xXbBod", "xXbBod", "xXbBod", "xXbBod", "xXbBod", "xXbBod", "xXbBod", "xXbBod",
     "c",      "c",      "",       "fFeEgG", "fFeEgG", "pP",     "s",      ""};
 #endif  // __cplusplus < 201703L
-template UXS_EXPORT unlimbuf_appender& format_string(unlimbuf_appender&, std::string_view, fmt_state&);
-template UXS_EXPORT limbuf_appender& format_string(limbuf_appender&, std::string_view, fmt_state&);
-template UXS_EXPORT dynbuffer& format_string(dynbuffer&, std::string_view, fmt_state&);
+template UXS_EXPORT unlimbuf_appender& format_string(unlimbuf_appender&, uxs::span<const char>, fmt_state&);
+template UXS_EXPORT limbuf_appender& format_string(limbuf_appender&, uxs::span<const char>, fmt_state&);
+template UXS_EXPORT dynbuffer& format_string(dynbuffer&, uxs::span<const char>, fmt_state&);
 }  // namespace fmt
 
 template UXS_EXPORT unlimbuf_appender& basic_vformat(unlimbuf_appender&, std::string_view,
@@ -22,9 +22,9 @@ template UXS_EXPORT limbuf_appender& basic_vformat(limbuf_appender&, std::string
 template UXS_EXPORT dynbuffer& basic_vformat(dynbuffer&, std::string_view, span<const fmt::arg_list_item<dynbuffer>>);
 
 namespace fmt {
-template UXS_EXPORT wunlimbuf_appender& format_string(wunlimbuf_appender&, std::wstring_view, fmt_state&);
-template UXS_EXPORT wlimbuf_appender& format_string(wlimbuf_appender&, std::wstring_view, fmt_state&);
-template UXS_EXPORT wdynbuffer& format_string(wdynbuffer&, std::wstring_view, fmt_state&);
+template UXS_EXPORT wunlimbuf_appender& format_string(wunlimbuf_appender&, uxs::span<const wchar_t>, fmt_state&);
+template UXS_EXPORT wlimbuf_appender& format_string(wlimbuf_appender&, uxs::span<const wchar_t>, fmt_state&);
+template UXS_EXPORT wdynbuffer& format_string(wdynbuffer&, uxs::span<const wchar_t>, fmt_state&);
 }  // namespace fmt
 
 template UXS_EXPORT wunlimbuf_appender& basic_vformat(wunlimbuf_appender&, std::wstring_view,

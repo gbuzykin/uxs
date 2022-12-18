@@ -15,17 +15,17 @@ UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(split_opts, unsigned);
 
 namespace detail {
 
-template<typename CharT>
+template<typename CharT, typename Traits>
 struct string_finder {
     CharT ch;
     using is_finder = int;
-    using iterator = typename std::basic_string_view<CharT>::const_iterator;
+    using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
     explicit string_finder(CharT tgt) : ch(tgt) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         for (; begin != end; ++begin) {
-            if (*begin == '\\') {
+            if (Traits::eq(*begin, '\\')) {
                 if (++begin == end) { break; }
-            } else if (*begin == ch) {
+            } else if (Traits::eq(*begin, ch)) {
                 return std::make_pair(begin, begin + 1);
             }
         }
@@ -33,16 +33,16 @@ struct string_finder {
     }
 };
 
-template<typename CharT>
+template<typename CharT, typename Traits>
 struct reversed_string_finder {
     CharT ch;
     using is_reversed_finder = int;
-    using iterator = typename std::basic_string_view<CharT>::const_iterator;
+    using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
     explicit reversed_string_finder(CharT tgt) : ch(tgt) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         while (begin != end) {
-            if (begin != --end && *(end - 1) == '\\') {
-            } else if (*end == ch) {
+            if (begin != --end && Traits::eq(*(end - 1), '\\')) {
+            } else if (Traits::eq(*end, ch)) {
                 return std::make_pair(end, end + 1);
             }
         }
@@ -50,63 +50,71 @@ struct reversed_string_finder {
     }
 };
 
-template<typename CharT>
-struct string_finder<std::basic_string_view<CharT>> {
-    std::basic_string_view<CharT> s;
+template<typename CharT, typename Traits>
+struct string_finder<std::basic_string_view<CharT, Traits>, Traits> {
+    std::basic_string_view<CharT, Traits> s;
     using is_finder = int;
-    using iterator = typename std::basic_string_view<CharT>::const_iterator;
-    explicit string_finder(std::basic_string_view<CharT> tgt) : s(tgt) {}
+    using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
+    explicit string_finder(std::basic_string_view<CharT, Traits> tgt) : s(tgt) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         if (static_cast<size_t>(end - begin) < s.size()) { return std::make_pair(end, end); }
         for (iterator last = end - s.size() + 1; begin != last; ++begin) {
-            if (std::equal(begin, begin + s.size(), s.begin())) { return std::make_pair(begin, begin + s.size()); }
+            if (std::equal(begin, begin + s.size(), s.begin(), Traits::eq)) {
+                return std::make_pair(begin, begin + s.size());
+            }
         }
         return std::make_pair(end, end);
     }
 };
 
-template<typename CharT>
-struct reversed_string_finder<std::basic_string_view<CharT>> {
-    std::basic_string_view<CharT> s;
+template<typename CharT, typename Traits>
+struct reversed_string_finder<std::basic_string_view<CharT, Traits>, Traits> {
+    std::basic_string_view<CharT, Traits> s;
     using is_reversed_finder = int;
-    using iterator = typename std::basic_string_view<CharT>::const_iterator;
-    explicit reversed_string_finder(std::basic_string_view<CharT> tgt) : s(tgt) {}
+    using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
+    explicit reversed_string_finder(std::basic_string_view<CharT, Traits> tgt) : s(tgt) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         if (static_cast<size_t>(end - begin) < s.size()) { return std::make_pair(begin, begin); }
         for (iterator last = begin + s.size() - 1; last != end; --end) {
-            if (std::equal(end - s.size(), end, s.begin())) { return std::make_pair(end - s.size(), end); }
+            if (std::equal(end - s.size(), end, s.begin(), Traits::eq)) { return std::make_pair(end - s.size(), end); }
         }
         return std::make_pair(begin, begin);
     }
 };
 }  // namespace detail
 
-inline detail::string_finder<char> sfind(char ch) { return detail::string_finder<char>(ch); }
-inline detail::reversed_string_finder<char> rsfind(char ch) { return detail::reversed_string_finder<char>(ch); }
-inline detail::string_finder<std::string_view> sfind(std::string_view s) {
-    return detail::string_finder<std::string_view>(s);
+inline detail::string_finder<char, std::char_traits<char>> sfind(char ch) {
+    return detail::string_finder<char, std::char_traits<char>>(ch);
 }
-inline detail::reversed_string_finder<std::string_view> rsfind(std::string_view s) {
-    return detail::reversed_string_finder<std::string_view>(s);
+inline detail::reversed_string_finder<char, std::char_traits<char>> rsfind(char ch) {
+    return detail::reversed_string_finder<char, std::char_traits<char>>(ch);
+}
+inline detail::string_finder<std::string_view, std::char_traits<char>> sfind(std::string_view s) {
+    return detail::string_finder<std::string_view, std::char_traits<char>>(s);
+}
+inline detail::reversed_string_finder<std::string_view, std::char_traits<char>> rsfind(std::string_view s) {
+    return detail::reversed_string_finder<std::string_view, std::char_traits<char>>(s);
 }
 
-inline detail::string_finder<wchar_t> sfind(wchar_t ch) { return detail::string_finder<wchar_t>(ch); }
-inline detail::reversed_string_finder<wchar_t> rsfind(wchar_t ch) {
-    return detail::reversed_string_finder<wchar_t>(ch);
+inline detail::string_finder<wchar_t, std::char_traits<wchar_t>> sfind(wchar_t ch) {
+    return detail::string_finder<wchar_t, std::char_traits<wchar_t>>(ch);
 }
-inline detail::string_finder<std::wstring_view> sfind(std::wstring_view s) {
-    return detail::string_finder<std::wstring_view>(s);
+inline detail::reversed_string_finder<wchar_t, std::char_traits<wchar_t>> rsfind(wchar_t ch) {
+    return detail::reversed_string_finder<wchar_t, std::char_traits<wchar_t>>(ch);
 }
-inline detail::reversed_string_finder<std::wstring_view> rsfind(std::wstring_view s) {
-    return detail::reversed_string_finder<std::wstring_view>(s);
+inline detail::string_finder<std::wstring_view, std::char_traits<wchar_t>> sfind(std::wstring_view s) {
+    return detail::string_finder<std::wstring_view, std::char_traits<wchar_t>>(s);
+}
+inline detail::reversed_string_finder<std::wstring_view, std::char_traits<wchar_t>> rsfind(std::wstring_view s) {
+    return detail::reversed_string_finder<std::wstring_view, std::char_traits<wchar_t>>(s);
 }
 
 // --------------------------
 
-template<typename CharT, typename Finder, typename = std::void_t<typename Finder::is_finder>>
-std::basic_string<CharT> replace_basic_strings(std::basic_string_view<CharT> s, Finder finder,
-                                               std::basic_string_view<CharT> with) {
-    std::basic_string<CharT> result;
+template<typename CharT, typename Traits, typename Finder, typename = std::void_t<typename Finder::is_finder>>
+std::basic_string<CharT, Traits> replace_basic_strings(std::basic_string_view<CharT, Traits> s, Finder finder,
+                                                       std::basic_string_view<CharT, Traits> with) {
+    std::basic_string<CharT, Traits> result;
     result.reserve(s.size());
     for (auto p = s.begin(); p != s.end();) {
         auto sub = finder(p, s.end());
@@ -156,9 +164,9 @@ std::wstring join_strings(const Range& r, SepTy sep, std::wstring prefix, JoinFn
 
 // --------------------------
 
-template<split_opts opts, typename CharT, typename Finder, typename OutputFn, typename OutputIt,
+template<split_opts opts, typename CharT, typename Traits, typename Finder, typename OutputFn, typename OutputIt,
          typename = std::void_t<typename Finder::is_finder>>
-size_t split_basic_string(std::basic_string_view<CharT> s, Finder finder, OutputFn fn, OutputIt out,
+size_t split_basic_string(std::basic_string_view<CharT, Traits> s, Finder finder, OutputFn fn, OutputIt out,
                           size_t n = std::numeric_limits<size_t>::max()) {
     if (!n) { return 0; }
     size_t count = 0;
@@ -206,9 +214,10 @@ auto split_string(std::wstring_view s, Finder finder, OutputFn fn = OutputFn{})
 
 // --------------------------
 
-template<split_opts opts, typename CharT, typename Finder>
-type_identity_t<std::basic_string_view<CharT>, typename Finder::is_finder> basic_string_section(
-    std::basic_string_view<CharT> s, Finder finder, size_t start, size_t fin = std::numeric_limits<size_t>::max()) {
+template<split_opts opts, typename CharT, typename Traits, typename Finder>
+type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_finder> basic_string_section(
+    std::basic_string_view<CharT, Traits> s, Finder finder, size_t start,
+    size_t fin = std::numeric_limits<size_t>::max()) {
     if (fin < start) { fin = start; }
     size_t count = 0;
     auto p = s.begin(), from = s.end();
@@ -238,9 +247,9 @@ type_identity_t<std::wstring_view, typename Finder::is_finder> string_section(  
 
 // --------------------------
 
-template<split_opts opts, typename CharT, typename Finder>
-type_identity_t<std::basic_string_view<CharT>, typename Finder::is_reversed_finder> basic_string_section(
-    std::basic_string_view<CharT> s, Finder finder, size_t start, size_t fin = 0) {
+template<split_opts opts, typename CharT, typename Traits, typename Finder>
+type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_reversed_finder> basic_string_section(
+    std::basic_string_view<CharT, Traits> s, Finder finder, size_t start, size_t fin = 0) {
     if (fin > start) { fin = start; }
     size_t count = 0;
     auto p = s.end(), to = s.begin();
@@ -270,8 +279,8 @@ type_identity_t<std::wstring_view, typename Finder::is_reversed_finder> string_s
 
 // --------------------------
 
-template<typename CharT, typename OutputFn, typename OutputIt>
-size_t basic_string_to_words(std::basic_string_view<CharT> s, CharT sep, OutputFn fn, OutputIt out,
+template<typename CharT, typename Traits, typename OutputFn, typename OutputIt>
+size_t basic_string_to_words(std::basic_string_view<CharT, Traits> s, CharT sep, OutputFn fn, OutputIt out,
                              size_t n = std::numeric_limits<size_t>::max()) {
     if (!n) { return 0; }
     size_t count = 0;
@@ -369,13 +378,13 @@ std::wstring pack_strings(const Range& r, wchar_t sep, std::wstring prefix, Inpu
 
 // --------------------------
 
-template<typename CharT, typename OutputFn, typename OutputIt>
-size_t unpack_basic_strings(std::basic_string_view<CharT> s, CharT sep, OutputFn fn, OutputIt out,
+template<typename CharT, typename Traits, typename OutputFn, typename OutputIt>
+size_t unpack_basic_strings(std::basic_string_view<CharT, Traits> s, CharT sep, OutputFn fn, OutputIt out,
                             size_t n = std::numeric_limits<size_t>::max()) {
     if (!n) { return 0; }
     size_t count = 0;
     for (auto p = s.begin();; ++p) {
-        std::basic_string<CharT> result;
+        std::basic_string<CharT, Traits> result;
         auto p0 = p;  // append chars till separator
         for (; p != s.end(); ++p) {
             if (*p == '\\') {
@@ -410,8 +419,8 @@ size_t unpack_strings(std::wstring_view s, wchar_t sep, OutputFn fn, OutputIt ou
 
 // --------------------------
 
-template<typename CharT, typename OutputIt>
-OutputIt make_quoted_basic_string(std::basic_string_view<CharT> s, OutputIt out) {
+template<typename CharT, typename Traits, typename OutputIt>
+OutputIt make_quoted_basic_string(std::basic_string_view<CharT, Traits> s, OutputIt out) {
     auto p1 = s.begin(), pend = s.end();
     *out++ = '\"';
     for (auto p2 = s.begin(); p2 != pend; ++p2) {

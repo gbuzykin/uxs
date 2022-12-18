@@ -48,16 +48,24 @@ class UXS_EXPORT guid {
     bool operator>(const guid& id) const { return id < *this; }
     bool operator>=(const guid& id) const { return !(*this < id); }
 
-    template<typename CharT>
-    std::basic_string<CharT> to_per_byte_basic_string() const;
-    template<typename CharT>
-    static guid from_per_byte_basic_string(std::basic_string_view<CharT> s);
+    template<typename CharT, typename Traits, typename Alloc>
+    void to_per_byte_basic_string(std::basic_string<CharT, Traits, Alloc>& s) const;
+    template<typename CharT, typename Traits>
+    static guid from_per_byte_basic_string(std::basic_string_view<CharT, Traits> s);
 
-    std::string to_per_byte_string() const { return to_per_byte_basic_string<char>(); }
-    static guid from_per_byte_string(std::string_view s) { return from_per_byte_basic_string<char>(s); }
+    std::string to_per_byte_string() const {
+        std::string s;
+        to_per_byte_basic_string(s);
+        return s;
+    }
+    static guid from_per_byte_string(std::string_view s) { return from_per_byte_basic_string(s); }
 
-    std::wstring to_per_byte_wstring() const { return to_per_byte_basic_string<wchar_t>(); }
-    static guid from_per_byte_wstring(std::wstring_view s) { return from_per_byte_basic_string<wchar_t>(s); }
+    std::wstring to_per_byte_wstring() const {
+        std::wstring s;
+        to_per_byte_basic_string(s);
+        return s;
+    }
+    static guid from_per_byte_wstring(std::wstring_view s) { return from_per_byte_basic_string(s); }
 
     static guid generate();
 
@@ -77,17 +85,15 @@ inline guid guid::make_xor(uint32_t a) const {
     return id;
 }
 
-template<typename CharT>
-std::basic_string<CharT> guid::to_per_byte_basic_string() const {
-    std::basic_string<CharT> s;
+template<typename CharT, typename Traits, typename Alloc>
+void guid::to_per_byte_basic_string(std::basic_string<CharT, Traits, Alloc>& s) const {
     s.resize(32);
     auto* p = &s[0];
     for (uint8_t b : data8_) { uxs::to_hex(b, p, 2), p += 2; }
-    return s;
 }
 
-template<typename CharT>
-/*static*/ guid guid::from_per_byte_basic_string(std::basic_string_view<CharT> s) {
+template<typename CharT, typename Traits>
+/*static*/ guid guid::from_per_byte_basic_string(std::basic_string_view<CharT, Traits> s) {
     guid id;
     if (s.size() < 32) { return id; }
     const auto* p = s.data();
@@ -97,8 +103,8 @@ template<typename CharT>
 
 template<>
 struct string_converter<guid> : string_converter_base<guid> {
-    template<typename CharT>
-    static size_t from_string(std::basic_string_view<CharT> s, guid& val) {
+    template<typename CharT, typename Traits>
+    static size_t from_string(std::basic_string_view<CharT, Traits> s, guid& val) {
         if (s.size() < 38) { return 0; }
         const auto* p = s.data();
         val.data32(0) = uxs::from_hex(p + 1, 8);

@@ -27,9 +27,8 @@ struct count_utf_chars<wchar_t> {
 };
 #endif  // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
 
-template<typename StrTy>
-StrTy& format_string(StrTy& s, std::basic_string_view<typename StrTy::value_type> val, fmt_state& fmt) {
-    using CharT = typename StrTy::value_type;
+template<typename CharT, typename StrTy>
+StrTy& format_string(StrTy& s, span<const CharT> val, fmt_state& fmt) {
     const CharT *first = val.data(), *last = first + val.size();
     size_t len = 0;
     unsigned count = 0;
@@ -52,7 +51,6 @@ StrTy& format_string(StrTy& s, std::basic_string_view<typename StrTy::value_type
             count = count_utf_chars<CharT>()(*p), ++len;
         }
     }
-
     if (fmt.width > len) {
         unsigned left = fmt.width - static_cast<unsigned>(len), right = left;
         switch (fmt.flags & fmt_flags::kAdjustField) {
@@ -67,8 +65,8 @@ StrTy& format_string(StrTy& s, std::basic_string_view<typename StrTy::value_type
 
 }  // namespace fmt
 
-template<typename StrTy>
-StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
+template<typename StrTy, typename Traits>
+StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type, Traits> fmt,
                      span<const fmt::arg_list_item<StrTy>> args) {
     auto get_fmt_arg_integer_value = [&args](unsigned n_arg) -> unsigned {
         switch (args[n_arg].type_id) {
