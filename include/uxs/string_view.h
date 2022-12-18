@@ -6,10 +6,10 @@
 #    include "iterator.h"
 
 namespace std {
-template<typename CharT>
+template<typename CharT, typename Traits = std::char_traits<CharT>>
 class basic_string_view {
  public:
-    using traits_type = std::char_traits<CharT>;
+    using traits_type = Traits;
     using value_type = CharT;
     using pointer = CharT*;
     using const_pointer = const CharT*;
@@ -29,7 +29,8 @@ class basic_string_view {
     basic_string_view(const CharT* s) : begin_(s) {
         for (; *s; ++s, ++size_) {}
     }
-    basic_string_view(const basic_string<CharT>& s) NOEXCEPT : basic_string_view(s.data(), s.size()) {}
+    template<typename Alloc>
+    basic_string_view(const basic_string<CharT, Traits, Alloc>& s) NOEXCEPT : basic_string_view(s.data(), s.size()) {}
     basic_string_view(const basic_string_view& v) NOEXCEPT : begin_(v.begin_), size_(v.size_) {}
     basic_string_view& operator=(const basic_string_view& v) NOEXCEPT {
         begin_ = v.begin_, size_ = v.size_;
@@ -40,7 +41,7 @@ class basic_string_view {
     size_t length() const NOEXCEPT { return size_; }
     bool empty() const NOEXCEPT { return size_ == 0; }
 
-    explicit operator basic_string<CharT>() const { return basic_string<CharT>(begin_, size_); }
+    explicit operator basic_string<CharT, Traits>() const { return basic_string<CharT, Traits>(begin_, size_); }
 
     const_iterator begin() const NOEXCEPT { return const_iterator(begin_, begin_, begin_ + size_); }
     const_iterator cbegin() const NOEXCEPT { return const_iterator(begin_, begin_, begin_ + size_); }
@@ -83,7 +84,9 @@ class basic_string_view {
     size_t rfind(CharT ch, size_t pos = npos) const;
     size_t rfind(basic_string_view s, size_t pos = npos) const;
 
-    friend basic_string<CharT>& operator+=(basic_string<CharT>& lhs, basic_string_view rhs) {
+    template<typename Traits2, typename Alloc>
+    friend basic_string<CharT, Traits2, Alloc>& operator+=(basic_string<CharT, Traits2, Alloc>& lhs,
+                                                           basic_string_view rhs) {
         lhs.append(rhs.data(), rhs.size());
         return lhs;
     }
@@ -93,8 +96,8 @@ class basic_string_view {
     size_t size_ = 0;
 };
 
-template<typename CharT>
-int basic_string_view<CharT>::compare(basic_string_view<CharT> s) const {
+template<typename CharT, typename Traits>
+int basic_string_view<CharT, Traits>::compare(basic_string_view<CharT, Traits> s) const {
     int result = traits_type::compare(begin_, s.begin_, std::min(size_, s.size_));
     if (result != 0) {
         return result;
@@ -106,138 +109,140 @@ int basic_string_view<CharT>::compare(basic_string_view<CharT> s) const {
     return 0;
 }
 
-template<typename CharT>
-size_t basic_string_view<CharT>::find(CharT ch, size_t pos) const {
+template<typename CharT, typename Traits>
+size_t basic_string_view<CharT, Traits>::find(CharT ch, size_t pos) const {
     for (auto p = begin_ + pos; p < begin_ + size_; ++p) {
         if (traits_type::eq(*p, ch)) { return p - begin_; }
     }
     return npos;
 }
 
-template<typename CharT>
-size_t basic_string_view<CharT>::find(basic_string_view s, size_t pos) const {
+template<typename CharT, typename Traits>
+size_t basic_string_view<CharT, Traits>::find(basic_string_view s, size_t pos) const {
     for (auto p = begin_ + pos; p + s.size_ <= begin_ + size_; ++p) {
         if (std::equal(p, p + s.size_, s.begin_, traits_type::eq)) { return p - begin_; }
     }
     return npos;
 }
 
-template<typename CharT>
-size_t basic_string_view<CharT>::rfind(CharT ch, size_t pos) const {
+template<typename CharT, typename Traits>
+size_t basic_string_view<CharT, Traits>::rfind(CharT ch, size_t pos) const {
     for (auto p = begin_ + std::min(pos + 1, size_); p > begin_; --p) {
         if (traits_type::eq(*(p - 1), ch)) { return p - begin_ - 1; }
     }
     return npos;
 }
 
-template<typename CharT>
-size_t basic_string_view<CharT>::rfind(basic_string_view s, size_t pos) const {
+template<typename CharT, typename Traits>
+size_t basic_string_view<CharT, Traits>::rfind(basic_string_view s, size_t pos) const {
     for (auto p = begin_ + std::min(pos + s.size_, size_); p >= begin_ + s.size_; --p) {
         if (std::equal(p - s.size_, p, s.begin_, traits_type::eq)) { return p - begin_ - s.size_; }
     }
     return npos;
 }
 
-template<typename CharT>
-bool operator==(basic_string_view<CharT> lhs, basic_string_view<CharT> rhs) {
+template<typename CharT, typename Traits>
+bool operator==(basic_string_view<CharT, Traits> lhs, basic_string_view<CharT, Traits> rhs) {
     return lhs.size() == rhs.size() && lhs.compare(rhs) == 0;
 }
-template<typename CharT>
-bool operator!=(basic_string_view<CharT> lhs, basic_string_view<CharT> rhs) {
+template<typename CharT, typename Traits>
+bool operator!=(basic_string_view<CharT, Traits> lhs, basic_string_view<CharT, Traits> rhs) {
     return lhs.size() != rhs.size() || lhs.compare(rhs) != 0;
 }
-template<typename CharT>
-bool operator<(basic_string_view<CharT> lhs, basic_string_view<CharT> rhs) {
+template<typename CharT, typename Traits>
+bool operator<(basic_string_view<CharT, Traits> lhs, basic_string_view<CharT, Traits> rhs) {
     return lhs.compare(rhs) < 0;
 }
-template<typename CharT>
-bool operator<=(basic_string_view<CharT> lhs, basic_string_view<CharT> rhs) {
+template<typename CharT, typename Traits>
+bool operator<=(basic_string_view<CharT, Traits> lhs, basic_string_view<CharT, Traits> rhs) {
     return lhs.compare(rhs) <= 0;
 }
-template<typename CharT>
-bool operator>(basic_string_view<CharT> lhs, basic_string_view<CharT> rhs) {
+template<typename CharT, typename Traits>
+bool operator>(basic_string_view<CharT, Traits> lhs, basic_string_view<CharT, Traits> rhs) {
     return lhs.compare(rhs) > 0;
 }
-template<typename CharT>
-bool operator>=(basic_string_view<CharT> lhs, basic_string_view<CharT> rhs) {
+template<typename CharT, typename Traits>
+bool operator>=(basic_string_view<CharT, Traits> lhs, basic_string_view<CharT, Traits> rhs) {
     return lhs.compare(rhs) >= 0;
 }
 
-template<typename CharT, typename Ty,
-         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT>>::value>>
-bool operator==(basic_string_view<CharT> lhs, const Ty& rhs) {
-    return lhs == basic_string_view<CharT>(rhs);
+template<typename CharT, typename Traits, typename Ty,
+         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT, Traits>>::value>>
+bool operator==(basic_string_view<CharT, Traits> lhs, const Ty& rhs) {
+    return lhs == basic_string_view<CharT, Traits>(rhs);
 }
-template<typename CharT, typename Ty,
-         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT>>::value>>
-bool operator!=(basic_string_view<CharT> lhs, const Ty& rhs) {
-    return lhs != basic_string_view<CharT>(rhs);
+template<typename CharT, typename Traits, typename Ty,
+         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT, Traits>>::value>>
+bool operator!=(basic_string_view<CharT, Traits> lhs, const Ty& rhs) {
+    return lhs != basic_string_view<CharT, Traits>(rhs);
 }
-template<typename CharT, typename Ty,
-         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT>>::value>>
-bool operator<(basic_string_view<CharT> lhs, const Ty& rhs) {
-    return lhs < basic_string_view<CharT>(rhs);
+template<typename CharT, typename Traits, typename Ty,
+         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT, Traits>>::value>>
+bool operator<(basic_string_view<CharT, Traits> lhs, const Ty& rhs) {
+    return lhs < basic_string_view<CharT, Traits>(rhs);
 }
-template<typename CharT, typename Ty,
-         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT>>::value>>
-bool operator<=(basic_string_view<CharT> lhs, const Ty& rhs) {
-    return lhs <= basic_string_view<CharT>(rhs);
+template<typename CharT, typename Traits, typename Ty,
+         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT, Traits>>::value>>
+bool operator<=(basic_string_view<CharT, Traits> lhs, const Ty& rhs) {
+    return lhs <= basic_string_view<CharT, Traits>(rhs);
 }
-template<typename CharT, typename Ty,
-         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT>>::value>>
-bool operator>(basic_string_view<CharT> lhs, const Ty& rhs) {
-    return lhs > basic_string_view<CharT>(rhs);
+template<typename CharT, typename Traits, typename Ty,
+         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT, Traits>>::value>>
+bool operator>(basic_string_view<CharT, Traits> lhs, const Ty& rhs) {
+    return lhs > basic_string_view<CharT, Traits>(rhs);
 }
-template<typename CharT, typename Ty,
-         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT>>::value>>
-bool operator>=(basic_string_view<CharT> lhs, const Ty& rhs) {
-    return lhs >= basic_string_view<CharT>(rhs);
+template<typename CharT, typename Traits, typename Ty,
+         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT, Traits>>::value>>
+bool operator>=(basic_string_view<CharT, Traits> lhs, const Ty& rhs) {
+    return lhs >= basic_string_view<CharT, Traits>(rhs);
 }
 
-template<typename CharT, typename Ty,
-         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT>>::value>>
-bool operator==(const Ty& lhs, basic_string_view<CharT> rhs) {
-    return basic_string_view<CharT>(lhs) == rhs;
+template<typename CharT, typename Traits, typename Ty,
+         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT, Traits>>::value>>
+bool operator==(const Ty& lhs, basic_string_view<CharT, Traits> rhs) {
+    return basic_string_view<CharT, Traits>(lhs) == rhs;
 }
-template<typename CharT, typename Ty,
-         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT>>::value>>
-bool operator!=(const Ty& lhs, basic_string_view<CharT> rhs) {
-    return basic_string_view<CharT>(lhs) != rhs;
+template<typename CharT, typename Traits, typename Ty,
+         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT, Traits>>::value>>
+bool operator!=(const Ty& lhs, basic_string_view<CharT, Traits> rhs) {
+    return basic_string_view<CharT, Traits>(lhs) != rhs;
 }
-template<typename CharT, typename Ty,
-         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT>>::value>>
-bool operator<(const Ty& lhs, basic_string_view<CharT> rhs) {
-    return basic_string_view<CharT>(lhs) < rhs;
+template<typename CharT, typename Traits, typename Ty,
+         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT, Traits>>::value>>
+bool operator<(const Ty& lhs, basic_string_view<CharT, Traits> rhs) {
+    return basic_string_view<CharT, Traits>(lhs) < rhs;
 }
-template<typename CharT, typename Ty,
-         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT>>::value>>
-bool operator<=(const Ty& lhs, basic_string_view<CharT> rhs) {
-    return basic_string_view<CharT>(lhs) <= rhs;
+template<typename CharT, typename Traits, typename Ty,
+         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT, Traits>>::value>>
+bool operator<=(const Ty& lhs, basic_string_view<CharT, Traits> rhs) {
+    return basic_string_view<CharT, Traits>(lhs) <= rhs;
 }
-template<typename CharT, typename Ty,
-         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT>>::value>>
-bool operator>(const Ty& lhs, basic_string_view<CharT> rhs) {
-    return basic_string_view<CharT>(lhs) > rhs;
+template<typename CharT, typename Traits, typename Ty,
+         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT, Traits>>::value>>
+bool operator>(const Ty& lhs, basic_string_view<CharT, Traits> rhs) {
+    return basic_string_view<CharT, Traits>(lhs) > rhs;
 }
-template<typename CharT, typename Ty,
-         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT>>::value>>
-bool operator>=(const Ty& lhs, basic_string_view<CharT> rhs) {
-    return basic_string_view<CharT>(lhs) >= rhs;
+template<typename CharT, typename Traits, typename Ty,
+         typename = std::enable_if_t<std::is_convertible<Ty, basic_string_view<CharT, Traits>>::value>>
+bool operator>=(const Ty& lhs, basic_string_view<CharT, Traits> rhs) {
+    return basic_string_view<CharT, Traits>(lhs) >= rhs;
 }
 
 using string_view = basic_string_view<char>;
 using wstring_view = basic_string_view<wchar_t>;
 
 #    if defined(_MSC_VER)
-template<typename CharT>
-struct hash<basic_string_view<CharT>> {
-    size_t operator()(basic_string_view<CharT> s) const { return _Hash_seq((const unsigned char*)s.data(), s.size()); }
+template<typename CharT, typename Traits>
+struct hash<basic_string_view<CharT, Traits>> {
+    size_t operator()(basic_string_view<CharT, Traits> s) const {
+        return _Hash_seq((const unsigned char*)s.data(), s.size());
+    }
 };
 #    else   // defined(_MSC_VER)
-template<typename CharT>
-struct hash<basic_string_view<CharT>> {
-    size_t operator()(basic_string_view<CharT> s) const {
-        return std::hash<std::basic_string<CharT>>{}(static_cast<std::basic_string<CharT>>(s));
+template<typename CharT, typename Traits>
+struct hash<basic_string_view<CharT, Traits>> {
+    size_t operator()(basic_string_view<CharT, Traits> s) const {
+        return std::hash<std::basic_string<CharT, Traits>>{}(static_cast<std::basic_string<CharT, Traits>>(s));
     }
 };
 #    endif  // defined(_MSC_VER)

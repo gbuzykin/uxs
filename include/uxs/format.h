@@ -63,11 +63,13 @@ template<typename CharT>
 struct type_id_t<CharT*, std::enable_if_t<is_character<CharT>::value>>
     : std::integral_constant<arg_type_id, arg_type_id::kString> {};
 
-template<typename CharT>
-struct type_id_t<std::basic_string_view<CharT>, void> : std::integral_constant<arg_type_id, arg_type_id::kString> {};
+template<typename CharT, typename Traits>
+struct type_id_t<std::basic_string_view<CharT, Traits>, void>
+    : std::integral_constant<arg_type_id, arg_type_id::kString> {};
 
-template<typename CharT>
-struct type_id_t<std::basic_string<CharT>, void> : std::integral_constant<arg_type_id, arg_type_id::kString> {};
+template<typename CharT, typename Traits, typename Alloc>
+struct type_id_t<std::basic_string<CharT, Traits, Alloc>, void>
+    : std::integral_constant<arg_type_id, arg_type_id::kString> {};
 
 template<typename StrTy, typename Ty, typename = void>
 struct arg_fmt_func_t;
@@ -75,7 +77,7 @@ struct arg_fmt_func_t;
 template<typename StrTy, typename Ty>
 struct arg_fmt_func_t<StrTy, Ty, std::void_t<typename string_converter<Ty>::is_string_converter>> {
     static StrTy& func(StrTy& s, const void* val, fmt_state& fmt) {
-        return to_basic_string(s, *reinterpret_cast<const Ty*>(val), fmt);
+        return to_basic_string(s, *static_cast<const Ty*>(val), fmt);
     }
 };
 
@@ -88,36 +90,36 @@ struct arg_fmt_func_t<StrTy, Ty*, std::enable_if_t<!is_character<Ty>::value>> {
     }
 };
 
-template<typename StrTy>
-UXS_EXPORT StrTy& format_string(StrTy& s, std::basic_string_view<typename StrTy::value_type> val, fmt_state& fmt);
+template<typename CharT, typename StrTy>
+UXS_EXPORT StrTy& format_string(StrTy& s, span<const CharT> val, fmt_state& fmt);
 
 template<typename StrTy>
 struct arg_fmt_func_t<StrTy, typename StrTy::value_type*, void> {
     static StrTy& func(StrTy& s, const void* val, fmt_state& fmt) {
         using CharT = typename StrTy::value_type;
-        return format_string(s, std::basic_string_view<CharT>(static_cast<const CharT*>(val)), fmt);
+        return format_string<CharT>(s, std::basic_string_view<CharT>(static_cast<const CharT*>(val)), fmt);
     }
 };
 
-template<typename StrTy>
-struct arg_fmt_func_t<StrTy, std::basic_string_view<typename StrTy::value_type>, void> {
+template<typename StrTy, typename Traits>
+struct arg_fmt_func_t<StrTy, std::basic_string_view<typename StrTy::value_type, Traits>, void> {
     static StrTy& func(StrTy& s, const void* val, fmt_state& fmt) {
         using CharT = typename StrTy::value_type;
-        return format_string(s, *reinterpret_cast<const std::basic_string_view<CharT>*>(val), fmt);
+        return format_string<CharT>(s, *static_cast<const std::basic_string_view<CharT, Traits>*>(val), fmt);
     }
 };
 
-template<typename StrTy>
-struct arg_fmt_func_t<StrTy, std::basic_string<typename StrTy::value_type>, void> {
+template<typename StrTy, typename Traits, typename Alloc>
+struct arg_fmt_func_t<StrTy, std::basic_string<typename StrTy::value_type, Traits, Alloc>, void> {
     static StrTy& func(StrTy& s, const void* val, fmt_state& fmt) {
         using CharT = typename StrTy::value_type;
-        return format_string(s, *reinterpret_cast<const std::basic_string<CharT>*>(val), fmt);
+        return format_string<CharT>(s, *static_cast<const std::basic_string<CharT, Traits, Alloc>*>(val), fmt);
     }
 };
 
 template<typename Ty>
 const void* get_arg_ptr(const Ty& arg) {
-    return reinterpret_cast<const void*>(&arg);
+    return static_cast<const void*>(&arg);
 }
 
 template<typename Ty>
@@ -405,8 +407,8 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
 
 enum class parse_format_error_code { kSuccess = 0, kInvalidFormat, kOutOfArgList };
 
-template<typename CharT, typename AppendFn, typename AppendArgFn, typename GetUIntArgFn>
-CONSTEXPR parse_format_error_code parse_format(std::basic_string_view<CharT> fmt, const size_t arg_count,
+template<typename CharT, typename Traits, typename AppendFn, typename AppendArgFn, typename GetUIntArgFn>
+CONSTEXPR parse_format_error_code parse_format(std::basic_string_view<CharT, Traits> fmt, const size_t arg_count,
                                                const AppendFn& append_fn, const AppendArgFn& append_arg_fn,
                                                const GetUIntArgFn& get_uint_arg_fn) {
     unsigned n_arg_auto = 0;
@@ -460,9 +462,9 @@ CONSTEXPR bool check_type(const arg_specs& specs, arg_type_id type_id) {
 
 }  // namespace fmt
 
-template<typename Char>
+template<typename CharT, typename Traits = std::char_traits<CharT>>
 struct basic_runtime_string {
-    std::basic_string_view<Char> s;
+    std::basic_string_view<CharT, Traits> s;
 };
 
 using runtime_string = basic_runtime_string<char>;
@@ -470,11 +472,11 @@ using wruntime_string = basic_runtime_string<wchar_t>;
 
 inline void format_string_error(const char*) {}
 
-template<typename CharT, typename... Ts>
+template<typename CharT, typename Traits = std::char_traits<CharT>, typename... Ts>
 struct basic_format_string {
-    std::basic_string_view<CharT> checked;
+    std::basic_string_view<CharT, Traits> checked;
     template<typename Ty,
-             typename = std::enable_if_t<std::is_convertible<const Ty&, std::basic_string_view<CharT>>::value>>
+             typename = std::enable_if_t<std::is_convertible<const Ty&, std::basic_string_view<CharT, Traits>>::value>>
     CONSTEVAL basic_format_string(const Ty& fmt) : checked(fmt) {
 #if defined(HAS_CONSTEVAL)
         const std::array<fmt::arg_type_id, sizeof...(Ts)> arg_type_ids{
@@ -500,11 +502,11 @@ struct basic_format_string {
         }
 #endif  // defined(HAS_CONSTEVAL)
     }
-    basic_format_string(basic_runtime_string<CharT> fmt) : checked(fmt.s) {}
+    basic_format_string(basic_runtime_string<CharT, Traits> fmt) : checked(fmt.s) {}
 };
 
-template<typename StrTy>
-UXS_EXPORT StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
+template<typename StrTy, typename Traits>
+UXS_EXPORT StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type, Traits> fmt,
                                 span<const fmt::arg_list_item<StrTy>> args);
 
 #if defined(_MSC_VER) && _MSC_VER <= 1800
@@ -518,11 +520,11 @@ StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type> fm
 }
 #else   // defined(_MSC_VER) && _MSC_VER <= 1800
 template<typename... Ts>
-using format_string = basic_format_string<char, type_identity_t<Ts>...>;
+using format_string = basic_format_string<char, std::char_traits<char>, type_identity_t<Ts>...>;
 template<typename... Ts>
-using wformat_string = basic_format_string<wchar_t, type_identity_t<Ts>...>;
-template<typename StrTy, typename... Ts>
-StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type, Ts...> fmt, const Ts&... args) {
+using wformat_string = basic_format_string<wchar_t, std::char_traits<wchar_t>, type_identity_t<Ts>...>;
+template<typename StrTy, typename Traits, typename... Ts>
+StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type, Traits, Ts...> fmt, const Ts&... args) {
     return basic_vformat<StrTy>(s, fmt.checked, fmt::make_args<StrTy>(args...));
 }
 #endif  // defined(_MSC_VER) && _MSC_VER <= 1800

@@ -765,8 +765,8 @@ StrTy& fmt_float(StrTy& s, Ty val, const fmt_state& fmt) {
 }  // namespace scvt
 
 #define UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(ty, from_string_func, to_string_func) \
-    template<typename CharT> \
-    size_t string_converter<ty>::from_string(std::basic_string_view<CharT> s, ty& val) { \
+    template<typename CharT, typename Traits> \
+    size_t string_converter<ty>::from_string(std::basic_string_view<CharT, Traits> s, ty& val) { \
         const CharT* last = s.data() + s.size(); \
         const CharT* first = scvt::skip_spaces(s.data(), last); \
         auto t = scvt::from_string_func<ty>(first, last, last); \
@@ -792,8 +792,8 @@ UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(float, to_float, fmt_float)
 UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(double, to_float, fmt_float)
 #undef SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER
 
-template<typename CharT>
-size_t string_converter<bool>::from_string(std::basic_string_view<CharT> s, bool& val) {
+template<typename CharT, typename Traits>
+size_t string_converter<bool>::from_string(std::basic_string_view<CharT, Traits> s, bool& val) {
     const CharT* last = s.data() + s.size();
     const CharT* p = scvt::skip_spaces(s.data(), last);
     const CharT* p0 = p;
