@@ -19,8 +19,8 @@
 #if !defined(CONSTEVAL)
 #    if ((__GNUC__ >= 10 || __clang_major__ >= 12) && __cplusplus > 201703L) || \
         (_MSC_VER >= 1920 && defined(__cpp_consteval))
-#        define CONSTEVAL consteval
-#        define HAS_CONSTEVAL
+#        define CONSTEVAL     consteval
+#        define HAS_CONSTEVAL 1
 #    else
 #        define CONSTEVAL inline
 #    endif
@@ -33,14 +33,6 @@
 #        define CONSTEXPR constexpr
 #    endif  // __cplusplus < 201703L
 #endif      // !defined(CONSTEXPR)
-
-#if !defined(CONSTEXPR_IF)
-#    if __cplusplus < 201703L
-#        define CONSTEXPR_IF
-#    else  // __cplusplus < 201703L
-#        define CONSTEXPR_IF constexpr
-#    endif  // __cplusplus < 201703L
-#endif      // !defined(CONSTEXPR_IF)
 
 #if !defined(NODISCARD)
 #    if __cplusplus < 201703L
