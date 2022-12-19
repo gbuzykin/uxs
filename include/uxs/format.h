@@ -544,7 +544,7 @@ UXS_EXPORT StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy:
 
 #if defined(_MSC_VER) && _MSC_VER <= 1800
 template<typename... Ts>
-using adjust_string = basic_format_string<char>;
+using format_string = basic_format_string<char>;
 template<typename... Ts>
 using wformat_string = basic_format_string<wchar_t>;
 template<typename StrTy, typename... Ts>
@@ -553,7 +553,7 @@ StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type> fm
 }
 #else   // defined(_MSC_VER) && _MSC_VER <= 1800
 template<typename... Ts>
-using adjust_string = basic_format_string<char, std::char_traits<char>, type_identity_t<Ts>...>;
+using format_string = basic_format_string<char, std::char_traits<char>, type_identity_t<Ts>...>;
 template<typename... Ts>
 using wformat_string = basic_format_string<wchar_t, std::char_traits<wchar_t>, type_identity_t<Ts>...>;
 template<typename StrTy, typename Traits, typename... Ts>
@@ -563,7 +563,7 @@ StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type, Tr
 #endif  // defined(_MSC_VER) && _MSC_VER <= 1800
 
 template<typename... Ts>
-NODISCARD std::string format(adjust_string<Ts...> fmt, const Ts&... args) {
+NODISCARD std::string format(format_string<Ts...> fmt, const Ts&... args) {
     inline_dynbuffer buf;
     basic_format(buf.base(), fmt, args...);
     return std::string(buf.data(), buf.size());
@@ -577,7 +577,7 @@ NODISCARD std::wstring format(wformat_string<Ts...> fmt, const Ts&... args) {
 }
 
 template<typename... Ts>
-char* format_to(char* buf, adjust_string<Ts...> fmt, const Ts&... args) {
+char* format_to(char* buf, format_string<Ts...> fmt, const Ts&... args) {
     unlimbuf_appender appender(buf);
     return basic_format(appender, fmt, args...).curr();
 }
@@ -589,7 +589,7 @@ wchar_t* format_to(wchar_t* buf, wformat_string<Ts...> fmt, const Ts&... args) {
 }
 
 template<typename... Ts>
-char* format_to_n(char* buf, size_t n, adjust_string<Ts...> fmt, const Ts&... args) {
+char* format_to_n(char* buf, size_t n, format_string<Ts...> fmt, const Ts&... args) {
     limbuf_appender appender(buf, n);
     return basic_format(appender, fmt, args...).curr();
 }
@@ -601,7 +601,7 @@ wchar_t* format_to_n(wchar_t* buf, size_t n, wformat_string<Ts...> fmt, const Ts
 }
 
 template<typename... Ts>
-iobuf& fprint(iobuf& out, adjust_string<Ts...> fmt, const Ts&... args) {
+iobuf& fprint(iobuf& out, format_string<Ts...> fmt, const Ts&... args) {
     inline_dynbuffer buf;
     basic_format(buf.base(), fmt, args...);
     return out.write(as_span(buf.data(), buf.size()));
@@ -615,7 +615,7 @@ wiobuf& fprint(wiobuf& out, wformat_string<Ts...> fmt, const Ts&... args) {
 }
 
 template<typename... Ts>
-iobuf& fprintln(iobuf& out, adjust_string<Ts...> fmt, const Ts&... args) {
+iobuf& fprintln(iobuf& out, format_string<Ts...> fmt, const Ts&... args) {
     inline_dynbuffer buf;
     basic_format(buf.base(), fmt, args...);
     buf.push_back('\n');
@@ -631,12 +631,12 @@ wiobuf& fprintln(wiobuf& out, wformat_string<Ts...> fmt, const Ts&... args) {
 }
 
 template<typename... Ts>
-iobuf& print(adjust_string<Ts...> fmt, const Ts&... args) {
+iobuf& print(format_string<Ts...> fmt, const Ts&... args) {
     return fprint(stdbuf::out, fmt, args...);
 }
 
 template<typename... Ts>
-iobuf& println(adjust_string<Ts...> fmt, const Ts&... args) {
+iobuf& println(format_string<Ts...> fmt, const Ts&... args) {
     return fprintln(stdbuf::out, fmt, args...);
 }
 

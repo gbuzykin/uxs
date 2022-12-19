@@ -617,7 +617,7 @@ inline basic_value_wrapper<wchar_t> value(std::wstring name, std::wstring& s) {
 
 template<typename Ty>
 basic_value_wrapper<wchar_t> value(std::wstring name, Ty& v) {
-    return basic_value_wrapper<wchar_t>(std::move(name), [&v](std::wstring_view arg) { return stoval(arg, v) != 0; });
+    return basic_value_wrapper<wchar_t>(std::move(name), [&v](std::wstring_view arg) { return wstoval(arg, v) != 0; });
 }
 
 inline basic_value_wrapper<wchar_t> values(std::wstring name, std::vector<std::wstring>& vec) {
@@ -634,7 +634,7 @@ basic_value_wrapper<wchar_t> values(std::wstring name, std::vector<Ty>& vec) {
     return basic_value_wrapper<wchar_t>(std::move(name),
                                         [&vec](std::wstring_view arg) {
                                             Ty v;
-                                            if (stoval(arg, v) != 0) {
+                                            if (wstoval(arg, v) != 0) {
                                                 vec.emplace_back(v);
                                                 return true;
                                             }
