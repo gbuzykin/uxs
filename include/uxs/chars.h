@@ -39,7 +39,7 @@ struct char_tbl_t {
     }
 };
 #if __cplusplus < 201703L
-extern const char_tbl_t g_char_tbl;
+extern UXS_EXPORT const char_tbl_t g_char_tbl;
 #else   // __cplusplus < 201703L
 static constexpr char_tbl_t g_char_tbl{};
 #endif  // __cplusplus < 201703L

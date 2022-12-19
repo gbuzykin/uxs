@@ -3,13 +3,13 @@
 namespace uxs {
 #if __cplusplus < 201703L
 namespace detail {
-const char_tbl_t g_char_tbl;
+UXS_EXPORT const char_tbl_t g_char_tbl;
 }
 #endif  // __cplusplus < 201703L
 namespace scvt {
 
 #if __cplusplus < 201703L && !(defined(_MSC_VER) && defined(_M_X64)) && !(defined(__GNUC__) && defined(__x86_64__))
-const ulog2_table_t g_ulog2_tbl;
+const UXS_EXPORT ulog2_table_t g_ulog2_tbl;
 #endif
 
 const uint64_t msb64 = 1ull << 63;
@@ -308,17 +308,18 @@ static const int g_default_prec[] = {2,  2,  2,  3,  3,  3,  4,  4,  4,  5,  5, 
                                      13, 13, 13, 14, 14, 14, 14, 15, 15, 15, 16, 16, 16, 17, 17, 17, 17};
 
 // minimal digit count for numbers 2^N <= x < 2^(N+1), N = 0, 1, 2, ...
-const unsigned g_exp2_digs[] = {1,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  4,  5,  5,  5,  6,  6,  6,  7,  7,
-                                7,  7,  8,  8,  8,  9,  9,  9,  10, 10, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 13, 13,
-                                14, 14, 14, 15, 15, 15, 16, 16, 16, 16, 17, 17, 17, 18, 18, 18, 19, 19, 19, 19, 20};
+UXS_EXPORT const unsigned g_exp2_digs[] = {1,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  4,  5,  5,  5,
+                                           6,  6,  6,  7,  7,  7,  7,  8,  8,  8,  9,  9,  9,  10, 10, 10, 10,
+                                           11, 11, 11, 12, 12, 12, 13, 13, 13, 13, 14, 14, 14, 15, 15, 15, 16,
+                                           16, 16, 16, 17, 17, 17, 18, 18, 18, 19, 19, 19, 19, 20};
 
 #define UXS_SCVT_POWERS_OF_10(base) \
     base, (base)*10, (base)*100, (base)*1000, (base)*10000, (base)*100000, (base)*1000000, (base)*10000000, \
         (base)*100000000, (base)*1000000000
 // powers of ten 10^N, N = 0, 1, 2, ...
-const uint64_t g_ten_pows[] = {UXS_SCVT_POWERS_OF_10(1ull), UXS_SCVT_POWERS_OF_10(10000000000ull)};
+UXS_EXPORT const uint64_t g_ten_pows[] = {UXS_SCVT_POWERS_OF_10(1ull), UXS_SCVT_POWERS_OF_10(10000000000ull)};
 
-const char g_digits[][2] = {
+UXS_EXPORT const char g_digits[][2] = {
     {'0', '0'}, {'0', '1'}, {'0', '2'}, {'0', '3'}, {'0', '4'}, {'0', '5'}, {'0', '6'}, {'0', '7'}, {'0', '8'},
     {'0', '9'}, {'1', '0'}, {'1', '1'}, {'1', '2'}, {'1', '3'}, {'1', '4'}, {'1', '5'}, {'1', '6'}, {'1', '7'},
     {'1', '8'}, {'1', '9'}, {'2', '0'}, {'2', '1'}, {'2', '2'}, {'2', '3'}, {'2', '4'}, {'2', '5'}, {'2', '6'},

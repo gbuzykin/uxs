@@ -52,9 +52,9 @@ struct fp_m64_t {
 inline uint64_t lo32(uint64_t x) { return x & 0xffffffff; }
 inline uint64_t hi32(uint64_t x) { return x >> 32; }
 
-extern const unsigned g_exp2_digs[];
-extern const uint64_t g_ten_pows[];
-extern const char g_digits[][2];
+extern UXS_EXPORT const unsigned g_exp2_digs[];
+extern UXS_EXPORT const uint64_t g_ten_pows[];
+extern UXS_EXPORT const char g_digits[][2];
 
 #if defined(_MSC_VER) && defined(_M_X64)
 inline unsigned ulog2(uint32_t x) {
@@ -82,7 +82,7 @@ struct ulog2_table_t {
     }
 };
 #    if __cplusplus < 201703L
-extern const ulog2_table_t g_ulog2_tbl;
+extern UXS_EXPORT const ulog2_table_t g_ulog2_tbl;
 #    else   // __cplusplus < 201703L
 constexpr ulog2_table_t g_ulog2_tbl{};
 #    endif  // __cplusplus < 201703L
