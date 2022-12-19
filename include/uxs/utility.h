@@ -141,7 +141,7 @@ bool or_variadic(const Ty& v1, const Ts&... vn) {
 }  // namespace detail
 
 template<typename Ty>
-Ty get_and_set(Ty& v, std::remove_reference_t<Ty> v_new) {
+Ty get_and_set(Ty& v, Ty v_new) {
     std::swap(v, v_new);
     return v_new;
 }
