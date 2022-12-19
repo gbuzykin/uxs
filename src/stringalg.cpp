@@ -55,15 +55,16 @@ std::vector<std::wstring> unpack_strings(std::wstring_view s, char sep) {
 
 // --------------------------
 
-template<typename CharT>
-std::basic_string<CharT> basic_encode_escapes(std::basic_string_view<CharT> s, std::basic_string_view<CharT> symb,
-                                              std::basic_string_view<CharT> code) {
-    std::basic_string<CharT> result;
+template<typename CharT, typename Traits>
+std::basic_string<CharT, Traits> basic_encode_escapes(std::basic_string_view<CharT, Traits> s,
+                                                      std::basic_string_view<CharT, Traits> symb,
+                                                      std::basic_string_view<CharT, Traits> code) {
+    std::basic_string<CharT, Traits> result;
     result.reserve(s.size());
     auto p = s.begin(), p0 = p;
     for (; p != s.end(); ++p) {
         auto pos = symb.find(*p);
-        if (pos != std::basic_string_view<CharT>::npos) {
+        if (pos != std::basic_string_view<CharT, Traits>::npos) {
             result.append(p0, p);
             result += '\\';
             result += code[pos];
@@ -84,10 +85,11 @@ std::wstring encode_escapes(std::wstring_view s, std::wstring_view symb, std::ws
 
 // --------------------------
 
-template<typename CharT>
-std::basic_string<CharT> basic_decode_escapes(std::basic_string_view<CharT> s, std::basic_string_view<CharT> symb,
-                                              std::basic_string_view<CharT> code) {
-    std::basic_string<CharT> result;
+template<typename CharT, typename Traits>
+std::basic_string<CharT, Traits> basic_decode_escapes(std::basic_string_view<CharT, Traits> s,
+                                                      std::basic_string_view<CharT, Traits> symb,
+                                                      std::basic_string_view<CharT, Traits> code) {
+    std::basic_string<CharT, Traits> result;
     result.reserve(s.size());
     auto p = s.begin(), p0 = p;
     for (; p != s.end(); ++p) {
@@ -96,7 +98,7 @@ std::basic_string<CharT> basic_decode_escapes(std::basic_string_view<CharT> s, s
         p0 = p + 1;
         if (++p == s.end()) { break; }
         auto pos = code.find(*p);
-        if (pos != std::basic_string_view<CharT>::npos) {
+        if (pos != std::basic_string_view<CharT, Traits>::npos) {
             result += symb[pos];
             p0 = p + 1;
         }
