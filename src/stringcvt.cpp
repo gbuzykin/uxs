@@ -814,5 +814,8 @@ UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(double)
 UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(wchar_t)
 UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(bool)
 #undef UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER
+template UXS_EXPORT wunlimbuf_appender& string_converter<char>::to_string(wunlimbuf_appender&, char, const fmt_state&);
+template UXS_EXPORT wlimbuf_appender& string_converter<char>::to_string(wlimbuf_appender&, char, const fmt_state&);
+template UXS_EXPORT wdynbuffer& string_converter<char>::to_string(wdynbuffer&, char, const fmt_state&);
 
 }  // namespace uxs

@@ -28,7 +28,7 @@ struct count_utf_chars<wchar_t> {
 #endif  // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
 
 template<typename CharT, typename StrTy>
-StrTy& format_string(StrTy& s, span<const CharT> val, fmt_state& fmt) {
+StrTy& adjust_string(StrTy& s, span<const CharT> val, fmt_state& fmt) {
     const CharT *first = val.data(), *last = first + val.size();
     size_t len = 0;
     unsigned count = 0;
@@ -72,13 +72,13 @@ StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type
         switch (args[n_arg].type_id) {
 #define UXS_FMT_ARG_INTEGER_VALUE_CASE(ty, type_id) \
     case fmt::arg_type_id::type_id: { \
-        ty val = *reinterpret_cast<const ty*>(args[n_arg].p_arg); \
+        ty val = *static_cast<const ty*>(args[n_arg].p_arg); \
         if (val < 0) { throw format_error("negative argument specified"); } \
         return static_cast<unsigned>(val); \
     } break;
 #define UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(ty, type_id) \
     case fmt::arg_type_id::type_id: { \
-        return static_cast<unsigned>(*reinterpret_cast<const ty*>(args[n_arg].p_arg)); \
+        return static_cast<unsigned>(*static_cast<const ty*>(args[n_arg].p_arg)); \
     } break;
             UXS_FMT_ARG_INTEGER_VALUE_CASE(int8_t, kInt8)
             UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(uint8_t, kUInt8)
@@ -93,11 +93,79 @@ StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type
             default: throw format_error("argument is not an integer");
         }
     };
+    auto type_error = []() { throw format_error("invalid argument type specifier"); };
     using CharT = typename StrTy::value_type;
     const auto error_code = fmt::parse_format(
         fmt, args.size(), [&s](const CharT* p0, const CharT* p) { s.append(p0, p); },
-        [&s, &args](unsigned n_arg, fmt::arg_specs& specs) {
-            if (!fmt::check_type(specs, args[n_arg].type_id)) { throw format_error("invalid argument type specifier"); }
+        [&s, &args, &type_error](unsigned n_arg, fmt::arg_specs& specs) {
+            const fmt::arg_type_id id = args[n_arg].type_id;
+            switch (specs.flags & fmt::parse_flags::kSpecMask) {
+                case fmt::parse_flags::kSpecIntegral: {
+                    if (id <= fmt::arg_type_id::kUInt64) {
+                    } else if (id == fmt::arg_type_id::kChar) {
+                        to_basic_string(s, static_cast<int>(*static_cast<const char*>(args[n_arg].p_arg)), specs.fmt);
+                        return;
+                    } else if (id == fmt::arg_type_id::kWChar) {
+                        to_basic_string(s, static_cast<int>(*static_cast<const wchar_t*>(args[n_arg].p_arg)), specs.fmt);
+                        return;
+                    } else if (id == fmt::arg_type_id::kBool) {
+                        to_basic_string(s, static_cast<int>(*static_cast<const bool*>(args[n_arg].p_arg)), specs.fmt);
+                        return;
+                    } else {
+                        type_error();
+                    }
+                } break;
+                case fmt::parse_flags::kSpecFloat: {
+                    if (id != fmt::arg_type_id::kFloat && id != fmt::arg_type_id::kDouble) { type_error(); }
+                } break;
+                case fmt::parse_flags::kSpecChar: {
+                    if (id <= fmt::arg_type_id::kUInt64) {
+                        int64_t code = 0;
+                        switch (id) {
+                            case fmt::arg_type_id::kInt8: {
+                                code = *static_cast<const int8_t*>(args[n_arg].p_arg);
+                            } break;
+                            case fmt::arg_type_id::kUInt8: {
+                                code = *static_cast<const uint8_t*>(args[n_arg].p_arg);
+                            } break;
+                            case fmt::arg_type_id::kInt16: {
+                                code = *static_cast<const int16_t*>(args[n_arg].p_arg);
+                            } break;
+                            case fmt::arg_type_id::kUInt16: {
+                                code = *static_cast<const uint16_t*>(args[n_arg].p_arg);
+                            } break;
+                            case fmt::arg_type_id::kInt32: {
+                                code = *static_cast<const int32_t*>(args[n_arg].p_arg);
+                            } break;
+                            case fmt::arg_type_id::kUInt32: {
+                                code = *static_cast<const uint32_t*>(args[n_arg].p_arg);
+                            } break;
+                            case fmt::arg_type_id::kInt64: {
+                                code = *static_cast<const int64_t*>(args[n_arg].p_arg);
+                            } break;
+                            case fmt::arg_type_id::kUInt64: {
+                                code = *static_cast<const uint64_t*>(args[n_arg].p_arg);
+                            } break;
+                            default: UNREACHABLE_CODE;
+                        }
+                        const int64_t char_mask = (1ull << (8 * sizeof(CharT))) - 1;
+                        if ((code & char_mask) != code && (~code & char_mask) != code) {
+                            throw format_error("integral cannot be represented as character");
+                        }
+                        to_basic_string(s, static_cast<CharT>(code), specs.fmt);
+                        return;
+                    } else if (id > fmt::arg_type_id::kWChar) {
+                        type_error();
+                    }
+                } break;
+                case fmt::parse_flags::kSpecPointer: {
+                    if (id != fmt::arg_type_id::kPointer) { type_error(); }
+                } break;
+                case fmt::parse_flags::kSpecString: {
+                    if (id != fmt::arg_type_id::kBool && id != fmt::arg_type_id::kString) { type_error(); }
+                } break;
+                default: break;
+            }
             args[n_arg].fmt_func(s, args[n_arg].p_arg, specs.fmt);
         },
         get_fmt_arg_integer_value);
