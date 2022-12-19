@@ -5,7 +5,7 @@ using namespace uxs;
 namespace uxs {
 namespace fmt {
 #if __cplusplus < 201703L
-const meta_tbl_t g_meta_tbl;
+UXS_EXPORT const meta_tbl_t g_meta_tbl;
 #endif  // __cplusplus < 201703L
 template UXS_EXPORT unlimbuf_appender& adjust_string(unlimbuf_appender&, uxs::span<const char>, fmt_state&);
 template UXS_EXPORT limbuf_appender& adjust_string(limbuf_appender&, uxs::span<const char>, fmt_state&);

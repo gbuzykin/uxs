@@ -237,7 +237,7 @@ struct meta_tbl_t {
 };
 
 #if __cplusplus < 201703L
-extern const meta_tbl_t g_meta_tbl;
+extern UXS_EXPORT const meta_tbl_t g_meta_tbl;
 #else   // __cplusplus < 201703L
 static constexpr meta_tbl_t g_meta_tbl{};
 #endif  // __cplusplus < 201703L
