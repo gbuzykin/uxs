@@ -75,9 +75,9 @@ template<typename CharT, typename Appender>
 class basic_appender_mixin {
  public:
     using value_type = CharT;
-    template<typename Traits>
-    Appender& operator+=(std::basic_string_view<value_type, Traits> s) {
-        return static_cast<Appender&>(*this).append(s.begin(), s.end());
+    template<typename Range, typename = std::void_t<decltype(std::declval<Range>().end())>>
+    Appender& operator+=(const Range& r) {
+        return static_cast<Appender&>(*this).append(r.begin(), r.end());
     }
     Appender& operator+=(const value_type* s) { return *this += std::basic_string_view<value_type>(s); }
     Appender& operator+=(value_type ch) {
