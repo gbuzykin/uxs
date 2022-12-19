@@ -74,30 +74,34 @@ struct type_id_t<std::basic_string<CharT, Traits, Alloc>, void>
 template<typename StrTy, typename Ty, typename = void>
 struct arg_fmt_func_t;
 
+template<typename Ty>
+struct always_true : std::true_type {};
+
 template<typename StrTy, typename Ty>
-struct arg_fmt_func_t<StrTy, Ty, std::void_t<typename string_converter<Ty>::is_string_converter>> {
+struct arg_fmt_func_t<StrTy, Ty,
+                      std::enable_if_t<always_true<typename string_converter<Ty>::is_string_converter>::value &&
+                                       (!is_character<Ty>::value || sizeof(Ty) <= sizeof(typename StrTy::value_type))>> {
     static StrTy& func(StrTy& s, const void* val, fmt_state& fmt) {
-        return to_basic_string(s, *static_cast<const Ty*>(val), fmt);
+        return uxs::to_basic_string(s, *static_cast<const Ty*>(val), fmt);
     }
 };
 
 template<typename StrTy, typename Ty>
 struct arg_fmt_func_t<StrTy, Ty*, std::enable_if_t<!is_character<Ty>::value>> {
     static StrTy& func(StrTy& s, const void* val, fmt_state& fmt) {
-        fmt.flags &= ~fmt_flags::kBaseField;
         fmt.flags |= fmt_flags::kHex | fmt_flags::kAlternate;
-        return to_basic_string(s, reinterpret_cast<uintptr_t>(val), fmt);
+        return uxs::to_basic_string(s, reinterpret_cast<uintptr_t>(val), fmt);
     }
 };
 
 template<typename CharT, typename StrTy>
-UXS_EXPORT StrTy& format_string(StrTy& s, span<const CharT> val, fmt_state& fmt);
+UXS_EXPORT StrTy& adjust_string(StrTy& s, span<const CharT> val, fmt_state& fmt);
 
 template<typename StrTy>
 struct arg_fmt_func_t<StrTy, typename StrTy::value_type*, void> {
     static StrTy& func(StrTy& s, const void* val, fmt_state& fmt) {
         using CharT = typename StrTy::value_type;
-        return format_string<CharT>(s, std::basic_string_view<CharT>(static_cast<const CharT*>(val)), fmt);
+        return adjust_string<CharT>(s, std::basic_string_view<CharT>(static_cast<const CharT*>(val)), fmt);
     }
 };
 
@@ -105,7 +109,7 @@ template<typename StrTy, typename Traits>
 struct arg_fmt_func_t<StrTy, std::basic_string_view<typename StrTy::value_type, Traits>, void> {
     static StrTy& func(StrTy& s, const void* val, fmt_state& fmt) {
         using CharT = typename StrTy::value_type;
-        return format_string<CharT>(s, *static_cast<const std::basic_string_view<CharT, Traits>*>(val), fmt);
+        return adjust_string<CharT>(s, *static_cast<const std::basic_string_view<CharT, Traits>*>(val), fmt);
     }
 };
 
@@ -113,7 +117,7 @@ template<typename StrTy, typename Traits, typename Alloc>
 struct arg_fmt_func_t<StrTy, std::basic_string<typename StrTy::value_type, Traits, Alloc>, void> {
     static StrTy& func(StrTy& s, const void* val, fmt_state& fmt) {
         using CharT = typename StrTy::value_type;
-        return format_string<CharT>(s, *static_cast<const std::basic_string<CharT, Traits, Alloc>*>(val), fmt);
+        return adjust_string<CharT>(s, *static_cast<const std::basic_string<CharT, Traits, Alloc>*>(val), fmt);
     }
 };
 
@@ -162,7 +166,12 @@ std::array<const arg_list_item<StrTy>, sizeof...(Ts)> make_args(const Ts&... arg
 
 enum class parse_flags : unsigned {
     kDefault = 0,
-    kFmtTypeMask = 0xff,
+    kSpecIntegral = 1,
+    kSpecFloat = 2,
+    kSpecChar = 3,
+    kSpecPointer = 4,
+    kSpecString = 5,
+    kSpecMask = 0xff,
     kDynamicWidth = 0x100,
     kDynamicPrec = 0x200,
     kArgNumSpecified = 0x1000,
@@ -229,12 +238,8 @@ struct meta_tbl_t {
 
 #if __cplusplus < 201703L
 extern const meta_tbl_t g_meta_tbl;
-extern const std::array<const char*, static_cast<unsigned>(arg_type_id::kCustom) + 1> g_allowed_types;
 #else   // __cplusplus < 201703L
 static constexpr meta_tbl_t g_meta_tbl{};
-static constexpr std::array<const char*, static_cast<unsigned>(arg_type_id::kCustom) + 1> g_allowed_types{
-    "xXbBod", "xXbBod", "xXbBod", "xXbBod", "xXbBod", "xXbBod", "xXbBod", "xXbBod",
-    "c",      "c",      "",       "fFeEgG", "fFeEgG", "pP",     "s",      ""};
 #endif  // __cplusplus < 201703L
 
 template<typename CharT, typename Ty>
@@ -276,9 +281,6 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
 #define UXS_FMT_SPECIFIER_CASE(next_state, action) \
     if (state < state_t::next_state) { \
         state = state_t::next_state; \
-        if CONSTEXPR_IF (state_t::next_state == state_t::kFinish) { \
-            specs.flags |= static_cast<parse_flags>(static_cast<uint8_t>(ch)); \
-        } \
         action; \
         break; \
     } \
@@ -346,52 +348,80 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
                 });
 
             // types
-            case meta_tbl_t::kBin: UXS_FMT_SPECIFIER_CASE(kFinish, specs.fmt.flags |= fmt_flags::kBin);
-            case meta_tbl_t::kOct: UXS_FMT_SPECIFIER_CASE(kFinish, specs.fmt.flags |= fmt_flags::kOct);
-            case meta_tbl_t::kHex: UXS_FMT_SPECIFIER_CASE(kFinish, specs.fmt.flags |= fmt_flags::kHex);
+            case meta_tbl_t::kBin:
+                UXS_FMT_SPECIFIER_CASE(kFinish, {
+                    specs.flags |= parse_flags::kSpecIntegral;
+                    specs.fmt.flags |= fmt_flags::kBin;
+                });
+            case meta_tbl_t::kOct:
+                UXS_FMT_SPECIFIER_CASE(kFinish, {
+                    specs.flags |= parse_flags::kSpecIntegral;
+                    specs.fmt.flags |= fmt_flags::kOct;
+                });
+            case meta_tbl_t::kHex:
+                UXS_FMT_SPECIFIER_CASE(kFinish, {
+                    specs.flags |= parse_flags::kSpecIntegral;
+                    specs.fmt.flags |= fmt_flags::kHex;
+                });
 
             case meta_tbl_t::kBinCap:
-                UXS_FMT_SPECIFIER_CASE(kFinish, specs.fmt.flags |= fmt_flags::kBin | fmt_flags::kUpperCase);
+                UXS_FMT_SPECIFIER_CASE(kFinish, {
+                    specs.flags |= parse_flags::kSpecIntegral;
+                    specs.fmt.flags |= fmt_flags::kBin | fmt_flags::kUpperCase;
+                });
             case meta_tbl_t::kHexCap:
-                UXS_FMT_SPECIFIER_CASE(kFinish, specs.fmt.flags |= fmt_flags::kHex | fmt_flags::kUpperCase);
+                UXS_FMT_SPECIFIER_CASE(kFinish, {
+                    specs.flags |= parse_flags::kSpecIntegral;
+                    specs.fmt.flags |= fmt_flags::kHex | fmt_flags::kUpperCase;
+                });
 
             case meta_tbl_t::kFixed:
                 UXS_FMT_SPECIFIER_CASE(kFinish, {
+                    specs.flags |= parse_flags::kSpecFloat;
                     specs.fmt.flags |= fmt_flags::kFixed;
                     if (specs.fmt.prec < 0) { specs.fmt.prec = 6; }
                 });
             case meta_tbl_t::kFixedCap:
                 UXS_FMT_SPECIFIER_CASE(kFinish, {
+                    specs.flags |= parse_flags::kSpecFloat;
                     specs.fmt.flags |= fmt_flags::kFixed | fmt_flags::kUpperCase;
                     if (specs.fmt.prec < 0) { specs.fmt.prec = 6; }
                 });
 
             case meta_tbl_t::kScientific:
                 UXS_FMT_SPECIFIER_CASE(kFinish, {
+                    specs.flags |= parse_flags::kSpecFloat;
                     specs.fmt.flags |= fmt_flags::kScientific;
                     if (specs.fmt.prec < 0) { specs.fmt.prec = 6; }
                 });
             case meta_tbl_t::kScientificCap:
                 UXS_FMT_SPECIFIER_CASE(kFinish, {
+                    specs.flags |= parse_flags::kSpecFloat;
                     specs.fmt.flags |= fmt_flags::kScientific | fmt_flags::kUpperCase;
                     if (specs.fmt.prec < 0) { specs.fmt.prec = 6; }
                 });
 
             case meta_tbl_t::kGeneral:
                 UXS_FMT_SPECIFIER_CASE(kFinish, {
+                    specs.flags |= parse_flags::kSpecFloat;
                     if (specs.fmt.prec < 0) { specs.fmt.prec = 6; }
                 });
             case meta_tbl_t::kGeneralCap:
                 UXS_FMT_SPECIFIER_CASE(kFinish, {
+                    specs.flags |= parse_flags::kSpecFloat;
                     specs.fmt.flags |= fmt_flags::kUpperCase;
                     if (specs.fmt.prec < 0) { specs.fmt.prec = 6; }
                 });
 
-            case meta_tbl_t::kDec:
-            case meta_tbl_t::kString:
-            case meta_tbl_t::kChar:
-            case meta_tbl_t::kPtr: UXS_FMT_SPECIFIER_CASE(kFinish, {});
-            case meta_tbl_t::kPtrCap: UXS_FMT_SPECIFIER_CASE(kFinish, specs.fmt.flags |= fmt_flags::kUpperCase);
+            case meta_tbl_t::kDec: UXS_FMT_SPECIFIER_CASE(kFinish, specs.flags |= parse_flags::kSpecIntegral);
+            case meta_tbl_t::kString: UXS_FMT_SPECIFIER_CASE(kFinish, specs.flags |= parse_flags::kSpecString);
+            case meta_tbl_t::kChar: UXS_FMT_SPECIFIER_CASE(kFinish, specs.flags |= parse_flags::kSpecChar);
+            case meta_tbl_t::kPtr: UXS_FMT_SPECIFIER_CASE(kFinish, specs.flags |= parse_flags::kSpecPointer);
+            case meta_tbl_t::kPtrCap:
+                UXS_FMT_SPECIFIER_CASE(kFinish, {
+                    specs.flags |= parse_flags::kSpecPointer;
+                    specs.fmt.flags |= fmt_flags::kUpperCase;
+                });
 #undef UXS_FMT_SPECIFIER_CASE
 
             // end of format specifier
@@ -450,16 +480,6 @@ CONSTEXPR parse_format_error_code parse_format(std::basic_string_view<CharT, Tra
     return parse_format_error_code::kSuccess;
 }
 
-CONSTEXPR bool check_type(const arg_specs& specs, arg_type_id type_id) {
-    const char type = static_cast<char>(specs.flags & parse_flags::kFmtTypeMask);
-    if (type) {
-        const char* p_types = g_allowed_types[static_cast<unsigned>(type_id)];
-        while (*p_types && *p_types != type) { ++p_types; }
-        if (!*p_types) { return false; }
-    }
-    return true;
-}
-
 }  // namespace fmt
 
 template<typename CharT, typename Traits = std::char_traits<CharT>>
@@ -468,7 +488,7 @@ struct basic_runtime_string {
 };
 
 using runtime_string = basic_runtime_string<char>;
-using wruntime_string = basic_runtime_string<wchar_t>;
+using runtime_wstring = basic_runtime_string<wchar_t>;
 
 inline void format_string_error(const char*) {}
 
@@ -484,9 +504,22 @@ struct basic_format_string {
         const auto error_code = fmt::parse_format(
             checked, sizeof...(Ts), [](const CharT*, const CharT*) constexpr {},
             [&arg_type_ids](unsigned n_arg, fmt::arg_specs& specs) constexpr {
-                if (!fmt::check_type(specs, arg_type_ids[n_arg])) {
-                    format_string_error("invalid argument format specifier");
+                const fmt::arg_type_id id = arg_type_ids[n_arg];
+                const fmt::parse_flags flag = specs.flags & fmt::parse_flags::kSpecMask;
+                if (flag == fmt::parse_flags::kDefault) {
+                    return;
+                } else if (flag == fmt::parse_flags::kSpecIntegral) {
+                    if (id <= fmt::arg_type_id::kBool) { return; }
+                } else if (flag == fmt::parse_flags::kSpecFloat) {
+                    if (id == fmt::arg_type_id::kFloat || id == fmt::arg_type_id::kDouble) { return; }
+                } else if (flag == fmt::parse_flags::kSpecChar) {
+                    if (id <= fmt::arg_type_id::kWChar) { return; }
+                } else if (flag == fmt::parse_flags::kSpecPointer) {
+                    if (id == fmt::arg_type_id::kPointer) { return; }
+                } else if (flag == fmt::parse_flags::kSpecString) {
+                    if (id == fmt::arg_type_id::kBool || id == fmt::arg_type_id::kString) { return; }
                 }
+                format_string_error("invalid argument format specifier");
             },
             [&arg_type_ids](unsigned n_arg) constexpr->unsigned {
                 if (arg_type_ids[n_arg] > fmt::arg_type_id::kUInt64) {
@@ -511,7 +544,7 @@ UXS_EXPORT StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy:
 
 #if defined(_MSC_VER) && _MSC_VER <= 1800
 template<typename... Ts>
-using format_string = basic_format_string<char>;
+using adjust_string = basic_format_string<char>;
 template<typename... Ts>
 using wformat_string = basic_format_string<wchar_t>;
 template<typename StrTy, typename... Ts>
@@ -520,7 +553,7 @@ StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type> fm
 }
 #else   // defined(_MSC_VER) && _MSC_VER <= 1800
 template<typename... Ts>
-using format_string = basic_format_string<char, std::char_traits<char>, type_identity_t<Ts>...>;
+using adjust_string = basic_format_string<char, std::char_traits<char>, type_identity_t<Ts>...>;
 template<typename... Ts>
 using wformat_string = basic_format_string<wchar_t, std::char_traits<wchar_t>, type_identity_t<Ts>...>;
 template<typename StrTy, typename Traits, typename... Ts>
@@ -530,7 +563,7 @@ StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type, Tr
 #endif  // defined(_MSC_VER) && _MSC_VER <= 1800
 
 template<typename... Ts>
-NODISCARD std::string format(format_string<Ts...> fmt, const Ts&... args) {
+NODISCARD std::string format(adjust_string<Ts...> fmt, const Ts&... args) {
     inline_dynbuffer buf;
     basic_format(buf.base(), fmt, args...);
     return std::string(buf.data(), buf.size());
@@ -544,7 +577,7 @@ NODISCARD std::wstring format(wformat_string<Ts...> fmt, const Ts&... args) {
 }
 
 template<typename... Ts>
-char* format_to(char* buf, format_string<Ts...> fmt, const Ts&... args) {
+char* format_to(char* buf, adjust_string<Ts...> fmt, const Ts&... args) {
     unlimbuf_appender appender(buf);
     return basic_format(appender, fmt, args...).curr();
 }
@@ -556,7 +589,7 @@ wchar_t* format_to(wchar_t* buf, wformat_string<Ts...> fmt, const Ts&... args) {
 }
 
 template<typename... Ts>
-char* format_to_n(char* buf, size_t n, format_string<Ts...> fmt, const Ts&... args) {
+char* format_to_n(char* buf, size_t n, adjust_string<Ts...> fmt, const Ts&... args) {
     limbuf_appender appender(buf, n);
     return basic_format(appender, fmt, args...).curr();
 }
@@ -568,7 +601,7 @@ wchar_t* format_to_n(wchar_t* buf, size_t n, wformat_string<Ts...> fmt, const Ts
 }
 
 template<typename... Ts>
-iobuf& fprint(iobuf& out, format_string<Ts...> fmt, const Ts&... args) {
+iobuf& fprint(iobuf& out, adjust_string<Ts...> fmt, const Ts&... args) {
     inline_dynbuffer buf;
     basic_format(buf.base(), fmt, args...);
     return out.write(as_span(buf.data(), buf.size()));
@@ -582,7 +615,7 @@ wiobuf& fprint(wiobuf& out, wformat_string<Ts...> fmt, const Ts&... args) {
 }
 
 template<typename... Ts>
-iobuf& fprintln(iobuf& out, format_string<Ts...> fmt, const Ts&... args) {
+iobuf& fprintln(iobuf& out, adjust_string<Ts...> fmt, const Ts&... args) {
     inline_dynbuffer buf;
     basic_format(buf.base(), fmt, args...);
     buf.push_back('\n');
@@ -598,12 +631,12 @@ wiobuf& fprintln(wiobuf& out, wformat_string<Ts...> fmt, const Ts&... args) {
 }
 
 template<typename... Ts>
-iobuf& print(format_string<Ts...> fmt, const Ts&... args) {
+iobuf& print(adjust_string<Ts...> fmt, const Ts&... args) {
     return fprint(stdbuf::out, fmt, args...);
 }
 
 template<typename... Ts>
-iobuf& println(format_string<Ts...> fmt, const Ts&... args) {
+iobuf& println(adjust_string<Ts...> fmt, const Ts&... args) {
     return fprintln(stdbuf::out, fmt, args...);
 }
 

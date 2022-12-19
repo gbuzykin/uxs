@@ -537,7 +537,7 @@ StrTy& fmt_signed(StrTy& s, Ty val, const fmt_state& fmt) {
 
 // ---- char
 
-template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_same<Ty, typename StrTy::value_type>::value>>
+template<typename StrTy, typename Ty, typename = std::enable_if_t<sizeof(Ty) <= sizeof(typename StrTy::value_type)>>
 StrTy& fmt_char(StrTy& s, Ty val, const fmt_state& fmt) {
     const auto fn = [val](StrTy& s) -> StrTy& {
         s.push_back(val);
