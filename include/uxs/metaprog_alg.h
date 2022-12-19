@@ -4,7 +4,8 @@
 
 #include <algorithm>
 
-#if __cplusplus < 201703L && (!defined(_MSC_VER) || _MSC_VER <= 1800)
+#if __cplusplus < 201703L && (!defined(__GNUC__) || !defined(__cpp_lib_logical_traits)) && \
+    (!defined(_MSC_VER) || _MSC_VER <= 1800)
 namespace std {
 template<typename...>
 struct conjunction : true_type {};
@@ -21,7 +22,7 @@ struct disjunction<Ty, Ts...> : conditional_t<Ty::value, Ty, disjunction<Ts...>>
 template<typename Ty>
 struct negation : bool_constant<!Ty::value> {};
 }  // namespace std
-#endif  // __cplusplus < 201703L && (!defined(_MSC_VER) || _MSC_VER <= 1800)
+#endif  // logical traits
 
 namespace uxs {
 #if __cplusplus < 201402L
