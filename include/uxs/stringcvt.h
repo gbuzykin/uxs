@@ -317,7 +317,7 @@ NODISCARD Ty from_string(std::string_view s, Def&& def) {
 }
 
 template<typename Ty, typename Def>
-NODISCARD Ty from_string(std::wstring_view s, Def&& def) {
+NODISCARD Ty from_wstring(std::wstring_view s, Def&& def) {
     return from_basic_string<Ty>(s, std::forward<Def>(def));
 }
 
@@ -334,7 +334,7 @@ NODISCARD Ty from_string(std::string_view s) {
 }
 
 template<typename Ty>
-NODISCARD Ty from_string(std::wstring_view s) {
+NODISCARD Ty from_wstring(std::wstring_view s) {
     return from_basic_string<Ty>(s);
 }
 
@@ -349,7 +349,7 @@ size_t stoval(std::string_view s, Ty& v) {
 }
 
 template<typename Ty>
-size_t stoval(std::wstring_view s, Ty& v) {
+size_t wstoval(std::wstring_view s, Ty& v) {
     return string_converter<Ty>::from_string(s, v);
 }
 
