@@ -132,12 +132,6 @@ const CharT* starts_with(const CharT* p, const CharT* end, const char* s, const 
     return p + len;
 }
 
-template<typename CharT>
-const CharT* skip_spaces(const CharT* p, const CharT* end) {
-    while (p < end && is_space(*p)) { ++p; }
-    return p;
-}
-
 template<typename Ty, typename CharT, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
 Ty to_integer_limited(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) {
     bool neg = false;
@@ -754,9 +748,8 @@ StrTy& fmt_float(StrTy& s, Ty val, const fmt_state& fmt) {
     template<typename CharT, typename Traits> \
     size_t string_converter<ty>::from_string(std::basic_string_view<CharT, Traits> s, ty& val) { \
         const CharT* last = s.data() + s.size(); \
-        const CharT* first = scvt::skip_spaces(s.data(), last); \
-        auto t = scvt::from_string_func<ty>(first, last, last); \
-        if (last == first) { return 0; } \
+        auto t = scvt::from_string_func<ty>(s.data(), last, last); \
+        if (last == s.data()) { return 0; } \
         val = t; \
         return static_cast<size_t>(last - s.data()); \
     } \
@@ -780,13 +773,11 @@ UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(double, to_float, fmt_float)
 
 template<typename CharT, typename Traits>
 size_t string_converter<bool>::from_string(std::basic_string_view<CharT, Traits> s, bool& val) {
-    const CharT* last = s.data() + s.size();
-    const CharT* p = scvt::skip_spaces(s.data(), last);
-    const CharT* p0 = p;
+    const CharT *p = s.data(), *last = p + s.size();
     unsigned dig = 0;
-    if ((p = scvt::starts_with(p, last, "true", 4)) > p0) {
+    if ((p = scvt::starts_with(p, last, "true", 4)) > s.data()) {
         val = true;
-    } else if ((p = scvt::starts_with(p, last, "false", 5)) > p0) {
+    } else if ((p = scvt::starts_with(p, last, "false", 5)) > s.data()) {
         val = false;
     } else if (p < last && (dig = dig_v(*p)) < 10) {
         val = false;
