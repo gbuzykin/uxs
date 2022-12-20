@@ -258,21 +258,7 @@ Ty to_float(const CharT* p, const CharT* end, const CharT*& last) {
 // ---- from value to string
 
 template<typename StrTy, typename Func>
-inline StrTy& fmt_adjusted(StrTy& s, Func fn, unsigned len, const fmt_state& fmt) {
-    unsigned left = fmt.width - len, right = left;
-    switch (fmt.flags & fmt_flags::kAdjustField) {
-        case fmt_flags::kLeft: left = 0; break;
-        case fmt_flags::kInternal: left >>= 1, right -= left; break;
-        default: right = 0; break;
-    }
-    s.append(left, fmt.fill);
-    return fn(s).append(right, fmt.fill);
-}
-
-// --------------------------
-
-template<typename StrTy, typename Func>
-inline StrTy& fmt_num_adjusted(StrTy& s, Func fn, unsigned len, unsigned n_prefix, const fmt_state& fmt) {
+StrTy& adjust_numeric(StrTy& s, Func fn, unsigned len, unsigned n_prefix, const fmt_state& fmt) {
     unsigned left = fmt.width - len, right = left;
     int fill = fmt.fill;
     if (!(fmt.flags & fmt_flags::kLeadingZeroes)) {
@@ -328,7 +314,7 @@ template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_unsign
 StrTy& fmt_bin(StrTy& s, Ty val, const fmt_state& fmt) {
     const unsigned len = (!!(fmt.flags & fmt_flags::kAlternate) ? 2 : 1) + ulog2(val);
     const auto fn = [val, len, &fmt](StrTy& s) -> StrTy& { return fmt_bin(s, val, len, fmt); };
-    return fmt.width > len ? fmt_num_adjusted(s, fn, len, 0, fmt) : fn(s);
+    return fmt.width > len ? adjust_numeric(s, fn, len, 0, fmt) : fn(s);
 }
 
 // ---- octal
@@ -364,7 +350,7 @@ template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_unsign
 StrTy& fmt_oct(StrTy& s, Ty val, const fmt_state& fmt) {
     const unsigned len = (!!(fmt.flags & fmt_flags::kAlternate) ? 2 : 1) + ulog2(val) / 3;
     const auto fn = [val, len, &fmt](StrTy& s) -> StrTy& { return fmt_oct(s, val, len, fmt); };
-    return fmt.width > len ? fmt_num_adjusted(s, fn, len, 0, fmt) : fn(s);
+    return fmt.width > len ? adjust_numeric(s, fn, len, 0, fmt) : fn(s);
 }
 
 // ---- hexadecimal
@@ -403,7 +389,7 @@ template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_unsign
 StrTy& fmt_hex(StrTy& s, Ty val, const fmt_state& fmt) {
     const unsigned len = (!!(fmt.flags & fmt_flags::kAlternate) ? 3 : 1) + (ulog2(val) >> 2);
     const auto fn = [val, len, &fmt](StrTy& s) -> StrTy& { return fmt_hex(s, val, len, fmt); };
-    return fmt.width > len ? fmt_num_adjusted(s, fn, len, !!(fmt.flags & fmt_flags::kAlternate) ? 2 : 0, fmt) : fn(s);
+    return fmt.width > len ? adjust_numeric(s, fn, len, !!(fmt.flags & fmt_flags::kAlternate) ? 2 : 0, fmt) : fn(s);
 }
 
 // ---- decimal unsigned
@@ -469,7 +455,7 @@ template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_unsign
 StrTy& fmt_dec_unsigned(StrTy& s, Ty val, const fmt_state& fmt) {
     const unsigned len = fmt_dec_unsigned_len(val);
     const auto fn = [val, len](StrTy& s) -> StrTy& { return fmt_dec_unsigned(s, val, len); };
-    return fmt.width > len ? fmt_num_adjusted(s, fn, len, 0, fmt) : fn(s);
+    return fmt.width > len ? adjust_numeric(s, fn, len, 0, fmt) : fn(s);
 }
 
 // ---- decimal signed
@@ -508,7 +494,7 @@ StrTy& fmt_dec_signed(StrTy& s, Ty val, const fmt_state& fmt) {
 
     const unsigned len = (sign != '\0' ? 1 : 0) + fmt_dec_unsigned_len(val);
     const auto fn = [val, len, sign](StrTy& s) -> StrTy& { return fmt_dec_signed(s, val, sign, len); };
-    return fmt.width > len ? fmt_num_adjusted(s, fn, len, sign != '\0' ? 1 : 0, fmt) : fn(s);
+    return fmt.width > len ? adjust_numeric(s, fn, len, sign != '\0' ? 1 : 0, fmt) : fn(s);
 }
 
 // --------------------------
@@ -543,7 +529,7 @@ StrTy& fmt_char(StrTy& s, Ty val, const fmt_state& fmt) {
         s.push_back(val);
         return s;
     };
-    return fmt.width > 1 ? fmt_adjusted(s, fn, 1, fmt) : fn(s);
+    return fmt.width > 1 ? append_adjusted(s, fn, 1, fmt) : fn(s);
 }
 
 // ---- float
@@ -741,7 +727,7 @@ StrTy& fmt_float_common(StrTy& s, uint64_t u64, const fmt_state& fmt, const unsi
             if (sign != '\0') { s.push_back(sign); }
             return s.append(p0, p0 + 3);
         };
-        return fmt.width > len ? fmt_adjusted(s, fn, len, fmt) : fn(s);
+        return fmt.width > len ? append_adjusted(s, fn, len, fmt) : fn(s);
     }
 
     inline_dynbuffer digs;
@@ -754,7 +740,7 @@ StrTy& fmt_float_common(StrTy& s, uint64_t u64, const fmt_state& fmt, const unsi
     const auto fn = [&fp10, sign, is_fixed, len, &fmt, prec](StrTy& s) -> StrTy& {
         return fmt_gen_float(s, fp10, sign, is_fixed, len, fmt.flags, prec);
     };
-    return fmt.width > len ? fmt_num_adjusted(s, fn, len, sign != '\0' ? 1 : 0, fmt) : fn(s);
+    return fmt.width > len ? adjust_numeric(s, fn, len, sign != '\0' ? 1 : 0, fmt) : fn(s);
 }
 
 template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_floating_point<Ty>::value>>
@@ -818,7 +804,7 @@ StrTy& string_converter<bool>::to_string(StrTy& s, bool val, const fmt_state& fm
     const std::string_view sval = val ? std::string_view(!(fmt.flags & fmt_flags::kUpperCase) ? "true" : "TRUE", 4) :
                                         std::string_view(!(fmt.flags & fmt_flags::kUpperCase) ? "false" : "FALSE", 5);
     const auto fn = [sval](StrTy& s) -> StrTy& { return s.append(sval.begin(), sval.end()); };
-    return fmt.width > sval.size() ? scvt::fmt_adjusted(s, fn, static_cast<unsigned>(sval.size()), fmt) : fn(s);
+    return fmt.width > sval.size() ? append_adjusted(s, fn, static_cast<unsigned>(sval.size()), fmt) : fn(s);
 }
 
 }  // namespace uxs
