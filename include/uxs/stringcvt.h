@@ -272,6 +272,18 @@ class basic_inline_dynbuffer : public basic_dynbuffer<Ty, Alloc> {
 using inline_dynbuffer = basic_inline_dynbuffer<char>;
 using inline_wdynbuffer = basic_inline_dynbuffer<wchar_t>;
 
+template<typename StrTy, typename Func>
+StrTy& append_adjusted(StrTy& s, Func fn, unsigned len, const fmt_state& fmt) {
+    unsigned left = fmt.width - len, right = left;
+    switch (fmt.flags & fmt_flags::kAdjustField) {
+        case fmt_flags::kLeft: left = 0; break;
+        case fmt_flags::kInternal: left >>= 1, right -= left; break;
+        default: right = 0; break;
+    }
+    s.append(left, fmt.fill);
+    return fn(s).append(right, fmt.fill);
+}
+
 template<typename Ty>
 struct string_converter;
 

@@ -89,7 +89,7 @@ template<typename CharT, typename Traits, typename Alloc>
 void guid::to_per_byte_basic_string(std::basic_string<CharT, Traits, Alloc>& s) const {
     s.resize(32);
     auto* p = &s[0];
-    for (uint8_t b : data8_) { uxs::to_hex(b, p, 2), p += 2; }
+    for (uint8_t b : data8_) { to_hex(b, p, 2), p += 2; }
 }
 
 template<typename CharT, typename Traits>
@@ -97,7 +97,7 @@ template<typename CharT, typename Traits>
     guid id;
     if (s.size() < 32) { return id; }
     const auto* p = s.data();
-    for (uint8_t& b : id.data8_) { b = uxs::from_hex(p, 2), p += 2; }
+    for (uint8_t& b : id.data8_) { b = from_hex(p, 2), p += 2; }
     return id;
 }
 
@@ -105,30 +105,33 @@ template<>
 struct string_converter<guid> : string_converter_base<guid> {
     template<typename CharT, typename Traits>
     static size_t from_string(std::basic_string_view<CharT, Traits> s, guid& val) {
-        if (s.size() < 38) { return 0; }
+        const size_t len = 38;
+        if (s.size() < len) { return 0; }
         const auto* p = s.data();
-        val.data32(0) = uxs::from_hex(p + 1, 8);
-        val.data16(2) = uxs::from_hex(p + 10, 4);
-        val.data16(3) = uxs::from_hex(p + 15, 4);
-        val.data8(8) = uxs::from_hex(p + 20, 2);
-        val.data8(9) = uxs::from_hex(p + 22, 2);
+        val.data32(0) = from_hex(p + 1, 8);
+        val.data16(2) = from_hex(p + 10, 4);
+        val.data16(3) = from_hex(p + 15, 4);
+        val.data8(8) = from_hex(p + 20, 2);
+        val.data8(9) = from_hex(p + 22, 2);
         p += 25;
-        for (unsigned i = 10; i < 16; ++i, p += 2) { val.data8(i) = uxs::from_hex(p, 2); }
-        return s.size();
+        for (unsigned i = 10; i < 16; ++i, p += 2) { val.data8(i) = from_hex(p, 2); }
+        return len;
     }
     template<typename StrTy>
     static StrTy& to_string(StrTy& s, const guid& val, const fmt_state& fmt) {
-        typename StrTy::value_type buf[38];
+        const unsigned len = 38;
+        typename StrTy::value_type buf[len];
         auto* p = buf;
         p[0] = '{', p[9] = '-', p[14] = '-', p[19] = '-', p[24] = '-', p[37] = '}';
-        uxs::to_hex(val.data32(0), p + 1, 8);
-        uxs::to_hex(val.data16(2), p + 10, 4);
-        uxs::to_hex(val.data16(3), p + 15, 4);
-        uxs::to_hex(val.data8(8), p + 20, 2);
-        uxs::to_hex(val.data8(9), p + 22, 2);
+        to_hex(val.data32(0), p + 1, 8);
+        to_hex(val.data16(2), p + 10, 4);
+        to_hex(val.data16(3), p + 15, 4);
+        to_hex(val.data8(8), p + 20, 2);
+        to_hex(val.data8(9), p + 22, 2);
         p += 25;
-        for (unsigned i = 10; i < 16; ++i, p += 2) { uxs::to_hex(val.data8(i), p, 2); }
-        return s.append(buf, buf + 38);
+        for (unsigned i = 10; i < 16; ++i, p += 2) { to_hex(val.data8(i), p, 2); }
+        const auto fn = [buf](StrTy& s) -> StrTy& { return s.append(buf, buf + len); };
+        return fmt.width > len ? append_adjusted(s, fn, len, fmt) : fn(s);
     }
 };
 
