@@ -601,21 +601,21 @@ wchar_t* format_to_n(wchar_t* buf, size_t n, wformat_string<Ts...> fmt, const Ts
 }
 
 template<typename... Ts>
-iobuf& fprint(iobuf& out, format_string<Ts...> fmt, const Ts&... args) {
+iobuf& print(iobuf& out, format_string<Ts...> fmt, const Ts&... args) {
     inline_dynbuffer buf;
     basic_format(buf.base(), fmt, args...);
     return out.write(as_span(buf.data(), buf.size()));
 }
 
 template<typename... Ts>
-wiobuf& fprint(wiobuf& out, wformat_string<Ts...> fmt, const Ts&... args) {
+wiobuf& print(wiobuf& out, wformat_string<Ts...> fmt, const Ts&... args) {
     inline_wdynbuffer buf;
     basic_format(buf.base(), fmt, args...);
     return out.write(as_span(buf.data(), buf.size()));
 }
 
 template<typename... Ts>
-iobuf& fprintln(iobuf& out, format_string<Ts...> fmt, const Ts&... args) {
+iobuf& println(iobuf& out, format_string<Ts...> fmt, const Ts&... args) {
     inline_dynbuffer buf;
     basic_format(buf.base(), fmt, args...);
     buf.push_back('\n');
@@ -623,7 +623,7 @@ iobuf& fprintln(iobuf& out, format_string<Ts...> fmt, const Ts&... args) {
 }
 
 template<typename... Ts>
-wiobuf& fprintln(wiobuf& out, wformat_string<Ts...> fmt, const Ts&... args) {
+wiobuf& println(wiobuf& out, wformat_string<Ts...> fmt, const Ts&... args) {
     inline_wdynbuffer buf;
     basic_format(buf.base(), fmt, args...);
     buf.push_back('\n');
@@ -632,12 +632,12 @@ wiobuf& fprintln(wiobuf& out, wformat_string<Ts...> fmt, const Ts&... args) {
 
 template<typename... Ts>
 iobuf& print(format_string<Ts...> fmt, const Ts&... args) {
-    return fprint(stdbuf::out, fmt, args...);
+    return print(stdbuf::out, fmt, args...);
 }
 
 template<typename... Ts>
 iobuf& println(format_string<Ts...> fmt, const Ts&... args) {
-    return fprintln(stdbuf::out, fmt, args...);
+    return println(stdbuf::out, fmt, args...);
 }
 
 }  // namespace uxs
