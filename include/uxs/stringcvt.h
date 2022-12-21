@@ -10,6 +10,8 @@
 
 namespace uxs {
 
+// --------------------------
+
 template<typename InputIt, typename InputFn = nofunc>
 unsigned from_hex(InputIt in, unsigned n_digs, InputFn fn = InputFn{}, unsigned* n_valid = nullptr) {
     unsigned val = 0;
@@ -37,6 +39,8 @@ void to_hex(unsigned val, OutputIt out, unsigned n_digs, bool upper = false, Out
     }
 }
 
+// --------------------------
+
 enum class fmt_flags : unsigned {
     kDefault = 0,
     kDec = kDefault,
@@ -46,10 +50,11 @@ enum class fmt_flags : unsigned {
     kBaseField = 3,
     kFixed = 4,
     kScientific = 8,
-    kFloatField = 12,
-    kRight = kDefault,
+    kGeneral = 0xc,
+    kFloatField = 0xc,
     kLeft = 0x10,
-    kInternal = 0x20,
+    kRight = 0x20,
+    kInternal = 0x30,
     kAdjustField = 0x30,
     kLeadingZeroes = 0x40,
     kUpperCase = 0x80,
@@ -71,6 +76,8 @@ struct fmt_opts {
     unsigned width = 0;
     int fill = ' ';
 };
+
+// --------------------------
 
 template<typename CharT, typename Appender>
 class basic_appender_mixin {
@@ -95,8 +102,8 @@ class basic_unlimbuf_appender : public basic_appender_mixin<CharT, basic_unlimbu
     basic_unlimbuf_appender& operator=(const basic_unlimbuf_appender&) = delete;
     CharT& back() { return *(curr_ - 1); }
     CharT* curr() { return curr_; }
-    basic_unlimbuf_appender& setcurr(CharT* curr) {
-        curr_ = curr;
+    basic_unlimbuf_appender& advance(unsigned len) {
+        curr_ += len;
         return *this;
     }
 
@@ -126,9 +133,9 @@ class basic_limbuf_appender : public basic_appender_mixin<CharT, basic_limbuf_ap
     basic_limbuf_appender& operator=(const basic_limbuf_appender&) = delete;
     CharT& back() { return *(curr_ - 1); }
     CharT* curr() { return curr_; }
-    basic_limbuf_appender& setcurr(CharT* curr) {
-        assert(curr <= last_);
-        curr_ = curr;
+    basic_limbuf_appender& advance(unsigned len) {
+        assert(curr_ + len <= last_);
+        curr_ += len;
         return *this;
     }
 
@@ -185,9 +192,9 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
     Ty* first() { return first_; }
     Ty* curr() { return curr_; }
     Ty** p_curr() { return &curr_; }
-    basic_dynbuffer& setcurr(Ty* curr) {
-        assert(first_ <= curr && curr <= last_);
-        curr_ = curr;
+    basic_dynbuffer& advance(unsigned len) {
+        assert(curr_ + len <= last_);
+        curr_ += len;
         return *this;
     }
     Ty* last() { return last_; }
@@ -273,54 +280,263 @@ class basic_inline_dynbuffer : public basic_dynbuffer<Ty, Alloc> {
 using inline_dynbuffer = basic_inline_dynbuffer<char>;
 using inline_wdynbuffer = basic_inline_dynbuffer<wchar_t>;
 
+// --------------------------
+
 template<typename StrTy, typename Func>
 StrTy& append_adjusted(StrTy& s, Func fn, unsigned len, const fmt_opts& fmt) {
     unsigned left = fmt.width - len, right = left;
-    switch (fmt.flags & fmt_flags::kAdjustField) {
-        case fmt_flags::kLeft: left = 0; break;
-        case fmt_flags::kInternal: left >>= 1, right -= left; break;
-        default: right = 0; break;
+    if (!(fmt.flags & fmt_flags::kLeadingZeroes)) {
+        switch (fmt.flags & fmt_flags::kAdjustField) {
+            case fmt_flags::kRight: right = 0; break;
+            case fmt_flags::kInternal: left >>= 1, right -= left; break;
+            case fmt_flags::kLeft:
+            default: left = 0; break;
+        }
+    } else {
+        right = 0;
     }
     s.append(left, fmt.fill);
     return fn(s).append(right, fmt.fill);
 }
 
-template<typename Ty>
-struct string_converter;
+// --------------------------
+
+namespace scvt {
 
 template<typename Ty>
-struct string_converter_base {
-    using is_string_converter = int;
-    static Ty default_value() { return {}; }
+struct fp_traits;
+
+template<>
+struct fp_traits<double> {
+    static_assert(sizeof(double) == sizeof(uint64_t), "type size mismatch");
+    enum : unsigned { kTotalBits = 64, kBitsPerMantissa = 52 };
+    enum : uint64_t { kMantissaMask = (1ull << kBitsPerMantissa) - 1 };
+    enum : int { kExpMax = (1 << (kTotalBits - kBitsPerMantissa - 1)) - 1 };
+    static uint64_t to_u64(const double& f) { return *reinterpret_cast<const uint64_t*>(&f); }
+    static double from_u64(const uint64_t& u64) { return *reinterpret_cast<const double*>(&u64); }
 };
 
-#define UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(ty) \
-    template<> \
-    struct UXS_EXPORT string_converter<ty> : string_converter_base<ty> { \
-        template<typename CharT, typename Traits> \
-        static size_t from_string(std::basic_string_view<CharT, Traits> s, ty& val); \
-        template<typename StrTy> \
-        static StrTy& to_string(StrTy& s, ty val, const fmt_opts& fmt); \
-    };
-UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(int8_t)
-UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(int16_t)
-UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(int32_t)
-UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(int64_t)
-UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(uint8_t)
-UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(uint16_t)
-UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(uint32_t)
-UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(uint64_t)
-UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(float)
-UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(double)
-UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(char)
-UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(wchar_t)
-UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(bool)
-#undef UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER
+template<>
+struct fp_traits<float> {
+    static_assert(sizeof(float) == sizeof(uint32_t), "type size mismatch");
+    enum : unsigned { kTotalBits = 32, kBitsPerMantissa = 23 };
+    enum : uint64_t { kMantissaMask = (1ull << kBitsPerMantissa) - 1 };
+    enum : int { kExpMax = (1 << (kTotalBits - kBitsPerMantissa - 1)) - 1 };
+    static uint64_t to_u64(const float& f) { return *reinterpret_cast<const uint32_t*>(&f); }
+    static float from_u64(const uint64_t& u64) { return *reinterpret_cast<const float*>(&u64); }
+};
 
-template<typename Ty, typename CharT, typename Traits>
+// --------------------------
+
+template<typename Ty>
+struct type_substitution {
+    using type = Ty;
+};
+template<>
+struct type_substitution<unsigned char> {
+    using type = uint32_t;
+};
+template<>
+struct type_substitution<unsigned short> {
+    using type = uint32_t;
+};
+template<>
+struct type_substitution<unsigned> {
+    using type = uint32_t;
+};
+template<>
+struct type_substitution<unsigned long> {
+    using type = std::conditional_t<sizeof(long) == sizeof(int32_t), uint32_t, uint64_t>;
+};
+template<>
+struct type_substitution<unsigned long long> {
+    using type = uint64_t;
+};
+template<>
+struct type_substitution<signed char> {
+    using type = int32_t;
+};
+template<>
+struct type_substitution<signed short> {
+    using type = int32_t;
+};
+template<>
+struct type_substitution<signed> {
+    using type = int32_t;
+};
+template<>
+struct type_substitution<signed long> {
+    using type = std::conditional_t<sizeof(long) == sizeof(int32_t), int32_t, int64_t>;
+};
+template<>
+struct type_substitution<signed long long> {
+    using type = int64_t;
+};
+template<>
+struct type_substitution<long double> {
+    using type = double;
+};
+
+// --------------------------
+
+template<typename Ty, typename CharT>
+UXS_EXPORT Ty to_integer_limited(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) NOEXCEPT;
+
+template<typename Ty, typename CharT>
+Ty to_integer(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
+    using UTy = typename std::make_unsigned<Ty>::type;
+    return to_integer_limited<typename type_substitution<UTy>::type>(p, end, last, std::numeric_limits<UTy>::max());
+}
+
+template<typename Ty, typename CharT>
+Ty to_char(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
+    last = p;
+    if (p == end) { return '\0'; }
+    ++last;
+    return *p;
+}
+
+template<typename CharT>
+UXS_EXPORT uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, const unsigned bpm,
+                                    const int exp_max) NOEXCEPT;
+
+template<typename Ty, typename CharT>
+Ty to_float(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
+    using SubstTy = typename type_substitution<Ty>::type;
+    return fp_traits<SubstTy>::from_u64(
+        to_float_common(p, end, last, fp_traits<SubstTy>::kBitsPerMantissa, fp_traits<SubstTy>::kExpMax));
+}
+
+template<typename Ty, typename CharT>
+UXS_EXPORT Ty to_bool(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT;
+
+// --------------------------
+
+template<typename StrTy, typename Ty>
+UXS_EXPORT StrTy& fmt_integral(StrTy& s, Ty val, const fmt_opts& fmt);
+
+template<typename StrTy, typename Ty>
+UXS_EXPORT StrTy& fmt_char(StrTy& s, Ty val, const fmt_opts& fmt);
+
+template<typename StrTy>
+UXS_EXPORT StrTy& fmt_float_common(StrTy& s, uint64_t u64, const fmt_opts& fmt, const unsigned bpm, const int exp_max);
+
+template<typename StrTy, typename Ty>
+StrTy& fmt_float(StrTy& s, Ty val, const fmt_opts& fmt) {
+    return fmt_float_common(s, fp_traits<Ty>::to_u64(val), fmt, fp_traits<Ty>::kBitsPerMantissa, fp_traits<Ty>::kExpMax);
+}
+
+template<typename StrTy, typename Ty>
+UXS_EXPORT StrTy& fmt_bool(StrTy& s, Ty val, const fmt_opts& fmt);
+
+}  // namespace scvt
+
+// --------------------------
+
+template<typename Ty, typename CharT>
+struct string_parser;
+
+template<typename Ty, typename CharT>
+struct formatter;
+
+namespace detail {
+template<typename Ty, typename CharT>
+struct has_string_parser {
+    template<typename U>
+    static auto test(const U* first, const U* last, Ty& v)
+        -> std::is_same<decltype(string_parser<Ty, U>::from_chars(first, last, v)), const U*>;
+    template<typename U>
+    static auto test(...) -> std::false_type;
+    using type = decltype(test<CharT>(nullptr, nullptr, std::declval<Ty&>()));
+};
+template<typename Ty, typename StrTy>
+struct has_formatter {
+    template<typename U>
+    static auto test(U& s, const Ty& v)
+        -> std::is_same<decltype(formatter<Ty, typename U::value_type>::format(s, v, fmt_opts{})), U&>;
+    template<typename U>
+    static auto test(...) -> std::false_type;
+    using type = decltype(test<StrTy>(std::declval<StrTy&>(), std::declval<Ty>()));
+};
+}  // namespace detail
+
+template<typename Ty, typename CharT>
+struct has_string_parser : detail::has_string_parser<Ty, CharT>::type {};
+
+template<typename Ty, typename StrTy>
+struct has_formatter : detail::has_formatter<Ty, StrTy>::type {};
+
+#define UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(ty, from_chars_func, fmt_func) \
+    template<typename CharT> \
+    struct string_parser<ty, CharT> { \
+        static ty default_value() NOEXCEPT { return {}; } \
+        static const CharT* from_chars(const CharT* first, const CharT* last, ty& val) NOEXCEPT { \
+            auto t = scvt::from_chars_func<ty>(first, last, last); \
+            if (last != first) { val = static_cast<ty>(t); } \
+            return last; \
+        } \
+    }; \
+    template<typename CharT> \
+    struct formatter<ty, CharT> { \
+        template<typename StrTy> \
+        static StrTy& format(StrTy& s, ty val, const fmt_opts& fmt) { \
+            using Ty = scvt::type_substitution<ty>::type; \
+            return scvt::fmt_func<StrTy, Ty>(s, static_cast<Ty>(val), fmt); \
+        } \
+    };
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned char, to_integer, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned short, to_integer, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned, to_integer, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned long, to_integer, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned long long, to_integer, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed char, to_integer, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed short, to_integer, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed, to_integer, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed long, to_integer, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed long long, to_integer, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(char, to_char, fmt_char)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(wchar_t, to_char, fmt_char)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(bool, to_bool, fmt_bool)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(float, to_float, fmt_float)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(double, to_float, fmt_float)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(long double, to_float, fmt_float)
+#undef SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER
+
+template<>
+struct string_parser<char, wchar_t>;  // = delete
+
+template<>
+struct formatter<wchar_t, char>;  // = delete
+
+template<typename Ty>
+const char* from_chars(const char* first, const char* last, Ty& v) {
+    return string_parser<Ty, char>::from_chars(first, last);
+}
+
+template<typename Ty>
+const wchar_t* from_wchars(const wchar_t* first, const wchar_t* last, Ty& v) {
+    return string_parser<Ty, wchar_t>::from_chars(first, last);
+}
+
+template<typename Ty, typename CharT, typename Traits = std::char_traits<CharT>>
+size_t basic_stoval(std::basic_string_view<CharT, Traits> s, Ty& v) {
+    return string_parser<Ty, CharT>::from_chars(s.data(), s.data() + s.size(), v) - s.data();
+}
+
+template<typename Ty>
+size_t stoval(std::string_view s, Ty& v) {
+    return basic_stoval(s, v);
+}
+
+template<typename Ty>
+size_t wstoval(std::wstring_view s, Ty& v) {
+    return basic_stoval(s, v);
+}
+
+template<typename Ty, typename CharT, typename Traits = std::char_traits<CharT>>
 NODISCARD Ty from_basic_string(std::basic_string_view<CharT, Traits> s) {
-    Ty result(string_converter<Ty>::default_value());
-    string_converter<Ty>::from_string(s, result);
+    Ty result(string_parser<Ty, CharT>::default_value());
+    basic_stoval(s, result);
     return result;
 }
 
@@ -334,24 +550,9 @@ NODISCARD Ty from_wstring(std::wstring_view s) {
     return from_basic_string<Ty>(s);
 }
 
-template<typename CharT, typename Traits, typename Ty>
-size_t basic_stoval(std::basic_string_view<CharT, Traits> s, Ty& v) {
-    return string_converter<Ty>::from_string(s, v);
-}
-
-template<typename Ty>
-size_t stoval(std::string_view s, Ty& v) {
-    return string_converter<Ty>::from_string(s, v);
-}
-
-template<typename Ty>
-size_t wstoval(std::wstring_view s, Ty& v) {
-    return string_converter<Ty>::from_string(s, v);
-}
-
 template<typename StrTy, typename Ty>
 StrTy& to_basic_string(StrTy& s, const Ty& val, const fmt_opts& fmt = fmt_opts{}) {
-    return string_converter<Ty>::to_string(s, val, fmt);
+    return formatter<Ty, typename StrTy::value_type>::format(s, val, fmt);
 }
 
 template<typename Ty, typename... Args>
