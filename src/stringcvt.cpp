@@ -335,7 +335,7 @@ UXS_EXPORT const char g_digits[][2] = {
 
 // --------------------------
 
-uint64_t fp10_to_fp2(fp_m64_t fp10, const unsigned bpm, const int exp_max) {
+uint64_t fp10_to_fp2(fp_m64_t fp10, const unsigned bpm, const int exp_max) NOEXCEPT {
     if (fp10.m == 0 || fp10.exp < -pow_table_t::kPow10Max) { return 0; }                      // perfect zero
     if (fp10.exp > pow_table_t::kPow10Max) { return static_cast<uint64_t>(exp_max) << bpm; }  // infinity
 
@@ -459,18 +459,23 @@ inline int remove_trailing_zeros(uint64_t& n) {
     return s;
 }
 
-fp10_t fp2_to_fp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& fp_fmt, int& prec, bool alternate, unsigned bpm,
-                   const int exp_bias) {
-    static const char zero = '0';
+fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, const int exp_bias) NOEXCEPT {
+    const int default_prec = 6;
+    const fmt_flags fp_fmt = fmt.flags & fmt_flags::kFloatField;
+    int prec = fmt.prec;
+    fixed_ = fp_fmt == fmt_flags::kFixed;
+    alternate_ = !!(fmt.flags & fmt_flags::kAlternate);
     if (fp2.m == 0 && fp2.exp == 0) {
-        if (fp_fmt == fmt_flags::kDefault) {
-            fp_fmt = fmt_flags::kFixed, prec = alternate ? std::max(1, prec - 1) : 0;
-        } else if (prec < 0) {
-            prec = 0;
+        if (fp_fmt == fmt_flags::kDefault && prec < 0) {
+            fixed_ = true, prec = alternate_ ? 1 : 0;
         } else {
-            prec &= 0xffff;
+            prec = prec < 0 ? default_prec : (prec & 0xffff);
+            if (fp_fmt == fmt_flags::kDefault || fp_fmt == fmt_flags::kGeneral) {
+                fixed_ = true, prec = alternate_ ? std::max(prec - 1, 1) : 0;
+            }
         }
-        return fp10_t{0, &zero, 0, prec};
+        significand_ = 0, digs_ = digs_buf_, exp_ = 0, prec_ = n_zeroes_ = prec, digs_buf_[0] = '0';
+        return;
     }
 
     bool optimal = false;
@@ -485,10 +490,11 @@ fp10_t fp2_to_fp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& fp_fmt, int& prec, 
         fp2.m <<= 63 - bpm, fp2.exp -= bpm0 - bpm - 1;
     }
 
-    if (prec < 0) {
-        prec = g_default_prec[bpm], optimal = fp_fmt == fmt_flags::kDefault;
+    if (fp_fmt == fmt_flags::kDefault && prec < 0) {
+        prec = g_default_prec[bpm] - 1, optimal = true;
     } else {
-        prec &= 0xffff;
+        prec = prec < 0 ? default_prec : (prec & 0xffff);
+        if (fp_fmt == fmt_flags::kDefault || fp_fmt == fmt_flags::kGeneral) { prec = std::max(prec - 1, 0); }
     }
 
     // Obtain decimal power
@@ -498,11 +504,13 @@ fp10_t fp2_to_fp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& fp_fmt, int& prec, 
     // Evaluate desired decimal mantissa length (its integer part)
     // Note: integer part of decimal mantissa is the digits to output,
     // fractional part of decimal mantissa is to be rounded and dropped
-    if (fp_fmt == fmt_flags::kDefault) { prec = std::max(prec - 1, 0); }
     int n_digs = 1 + prec;                                    // desired digit count for scientific format
     if (fp_fmt == fmt_flags::kFixed) { n_digs += fp10.exp; }  // for fixed format
 
-    if (n_digs < 0) { return fp10_t{0, &zero, 0, prec}; }
+    if (n_digs < 0) {
+        significand_ = 0, digs_ = digs_buf_, exp_ = 0, prec_ = n_zeroes_ = prec, digs_buf_[0] = '0';
+        return;
+    }
 
     if (n_digs > pow_table_t::kShortMantissaLimit) {  // Long decimal mantissa
         static std::array<unsigned, 10> dig_base = {UXS_SCVT_POWERS_OF_10(1)};
@@ -511,7 +519,8 @@ fp10_t fp2_to_fp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& fp_fmt, int& prec, 
         std::array<uint64_t, 16> buf;  // so, 16 are enough for sure
 
         // The first digit can belong [1, 20) range, reserve one additional cell to store it.
-        char *p0 = digs.reserve_at_curr(n_digs + 1), *p = p0;
+        char* const p0 = n_digs + 1 > sizeof(digs_buf_) ? static_cast<char*>(std::malloc(n_digs + 1)) : digs_buf_;
+        char* p = p0;
 
         uint64_t* num = &buf[0];  // numerator
         unsigned sz = 1;
@@ -615,10 +624,10 @@ fp10_t fp2_to_fp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& fp_fmt, int& prec, 
 
     finish:
         // Note: `n_digs` is trailing zero count
-        if (fp_fmt == fmt_flags::kDefault) {
+        if (fp_fmt == fmt_flags::kDefault || fp_fmt == fmt_flags::kGeneral) {
             // Select format for number representation
-            if (fp10.exp >= -4 && fp10.exp <= prec) { fp_fmt = fmt_flags::kFixed, prec -= fp10.exp; }
-            if (!alternate) {  // trim trailing zeroes
+            if (fp10.exp >= -4 && fp10.exp <= prec) { fixed_ = true, prec -= fp10.exp; }
+            if (!alternate_) {  // trim trailing zeroes
                 if (n_digs < prec) {
                     prec -= n_digs, n_digs = 0;
                     while (*(p - 1) == '0' && prec > 0) { --p, --prec; }
@@ -628,7 +637,8 @@ fp10_t fp2_to_fp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& fp_fmt, int& prec, 
             }
         }
 
-        return fp10_t{0, p0, fp10.exp, n_digs};
+        significand_ = 0, digs_ = p0, exp_ = fp10.exp, prec_ = prec, n_zeroes_ = n_digs;
+        return;
     }
 
     // Calculate decimal mantissa representation :
@@ -704,11 +714,16 @@ fp10_t fp2_to_fp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& fp_fmt, int& prec, 
         }
     }
 
-    if (fp10.m == 0) { return fp10_t{0, &zero, 0, prec}; }
+    if (fp10.m == 0) {
+        significand_ = 0, digs_ = digs_buf_, exp_ = 0, prec_ = n_zeroes_ = prec, digs_buf_[0] = '0';
+        return;
+    }
+
+    digs_ = nullptr, n_zeroes_ = 0;
 
     if (optimal) {
         // Select format for number representation
-        if (fp10.exp >= -4 && fp10.exp <= prec) { fp_fmt = fmt_flags::kFixed, prec -= fp10.exp; }
+        if (fp10.exp >= -4 && fp10.exp <= prec) { fixed_ = true, prec -= fp10.exp; }
 
         // Evaluate acceptable error range to pass roundtrip test
         assert(bpm + shift >= 30);
@@ -735,7 +750,8 @@ fp10_t fp2_to_fp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& fp_fmt, int& prec, 
                     } else if (err2 < delta_minus) {
                         ++t, err = -err2;
                     } else {
-                        return fp10_t{fp10.m, nullptr, fp10.exp, 0};
+                        significand_ = fp10.m, exp_ = fp10.exp, prec_ = prec;
+                        return;
                     }
                 } else {
                     err_mul += 10;
@@ -747,25 +763,25 @@ fp10_t fp2_to_fp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& fp_fmt, int& prec, 
         prec -= remove_trailing_zeros(fp10.m);
         if (n_digs + prec == prec0) {  // overflow while rounding
             ++fp10.exp;
-            if (fp_fmt != fmt_flags::kFixed) { ++prec; }
+            if (!fixed_) { ++prec; }
         }
 
         if (prec >= 0) {
         } else if (prec >= -4) {
             fp10.m *= g_ten_pows[-prec], prec = 0;
         } else {  // move back to scientific representation if it is shorter
-            fp_fmt = fmt_flags::kDefault, prec += fp10.exp;
+            fixed_ = false, prec += fp10.exp;
         }
 
-        if (alternate && prec == 0) { fp10.m *= 10u, prec = 1; }
-
-        return fp10_t{fp10.m, nullptr, fp10.exp, 0};
+        if (alternate_ && prec == 0) { fp10.m *= 10u, prec = 1; }
+        significand_ = fp10.m, exp_ = fp10.exp, prec_ = prec;
+        return;
     }
 
-    if (fp_fmt == fmt_flags::kDefault) {
+    if (fp_fmt == fmt_flags::kDefault || fp_fmt == fmt_flags::kGeneral) {
         // Select format for number representation
-        if (fp10.exp >= -4 && fp10.exp <= prec) { fp_fmt = fmt_flags::kFixed, prec -= fp10.exp; }
-        if (!alternate) {
+        if (fp10.exp >= -4 && fp10.exp <= prec) { fixed_ = true, prec -= fp10.exp; }
+        if (!alternate_) {
             prec -= remove_trailing_zeros(fp10.m);
             if (prec < 0) { fp10.m *= g_ten_pows[-prec], prec = 0; }
         } else if (prec == 0) {
@@ -773,50 +789,85 @@ fp10_t fp2_to_fp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& fp_fmt, int& prec, 
         }
     }
 
-    return fp10_t{fp10.m, nullptr, fp10.exp, 0};
+    significand_ = fp10.m, exp_ = fp10.exp, prec_ = prec;
 }
 
+template UXS_EXPORT uint32_t to_integer_limited(const char*, const char*, const char*&, uint32_t) NOEXCEPT;
+template UXS_EXPORT uint64_t to_integer_limited(const char*, const char*, const char*&, uint64_t) NOEXCEPT;
+template UXS_EXPORT uint64_t to_float_common(const char*, const char*, const char*& last, const unsigned,
+                                             const int) NOEXCEPT;
+template UXS_EXPORT bool to_bool(const char*, const char*, const char*& last) NOEXCEPT;
+
+template UXS_EXPORT uint32_t to_integer_limited(const wchar_t*, const wchar_t*, const wchar_t*&, uint32_t) NOEXCEPT;
+template UXS_EXPORT uint64_t to_integer_limited(const wchar_t*, const wchar_t*, const wchar_t*&, uint64_t) NOEXCEPT;
+template UXS_EXPORT uint64_t to_float_common(const wchar_t*, const wchar_t*, const wchar_t*& last, const unsigned,
+                                             const int) NOEXCEPT;
+template UXS_EXPORT bool to_bool(const wchar_t*, const wchar_t*, const wchar_t*& last) NOEXCEPT;
+
+template UXS_EXPORT unlimbuf_appender& fmt_integral(unlimbuf_appender&, int32_t, const fmt_opts&);
+template UXS_EXPORT limbuf_appender& fmt_integral(limbuf_appender&, int32_t, const fmt_opts&);
+template UXS_EXPORT dynbuffer& fmt_integral(dynbuffer&, int32_t, const fmt_opts&);
+
+template UXS_EXPORT unlimbuf_appender& fmt_integral(unlimbuf_appender&, int64_t, const fmt_opts&);
+template UXS_EXPORT limbuf_appender& fmt_integral(limbuf_appender&, int64_t, const fmt_opts&);
+template UXS_EXPORT dynbuffer& fmt_integral(dynbuffer&, int64_t, const fmt_opts&);
+
+template UXS_EXPORT unlimbuf_appender& fmt_integral(unlimbuf_appender&, uint32_t, const fmt_opts&);
+template UXS_EXPORT limbuf_appender& fmt_integral(limbuf_appender&, uint32_t, const fmt_opts&);
+template UXS_EXPORT dynbuffer& fmt_integral(dynbuffer&, uint32_t, const fmt_opts&);
+
+template UXS_EXPORT unlimbuf_appender& fmt_integral(unlimbuf_appender&, uint64_t, const fmt_opts&);
+template UXS_EXPORT limbuf_appender& fmt_integral(limbuf_appender&, uint64_t, const fmt_opts&);
+template UXS_EXPORT dynbuffer& fmt_integral(dynbuffer&, uint64_t, const fmt_opts&);
+
+template UXS_EXPORT unlimbuf_appender& fmt_char(unlimbuf_appender&, char, const fmt_opts&);
+template UXS_EXPORT limbuf_appender& fmt_char(limbuf_appender&, char, const fmt_opts&);
+template UXS_EXPORT dynbuffer& fmt_char(dynbuffer&, char, const fmt_opts&);
+
+template UXS_EXPORT unlimbuf_appender& fmt_float_common(unlimbuf_appender&, uint64_t, const fmt_opts&, const unsigned,
+                                                        const int);
+template UXS_EXPORT limbuf_appender& fmt_float_common(limbuf_appender&, uint64_t, const fmt_opts&, const unsigned,
+                                                      const int);
+template UXS_EXPORT dynbuffer& fmt_float_common(dynbuffer&, uint64_t, const fmt_opts&, const unsigned, const int);
+
+template UXS_EXPORT unlimbuf_appender& fmt_bool(unlimbuf_appender&, bool, const fmt_opts&);
+template UXS_EXPORT limbuf_appender& fmt_bool(limbuf_appender&, bool, const fmt_opts&);
+template UXS_EXPORT dynbuffer& fmt_bool(dynbuffer&, bool, const fmt_opts&);
+
+template UXS_EXPORT wunlimbuf_appender& fmt_integral(wunlimbuf_appender&, int32_t, const fmt_opts&);
+template UXS_EXPORT wlimbuf_appender& fmt_integral(wlimbuf_appender&, int32_t, const fmt_opts&);
+template UXS_EXPORT wdynbuffer& fmt_integral(wdynbuffer&, int32_t, const fmt_opts&);
+
+template UXS_EXPORT wunlimbuf_appender& fmt_integral(wunlimbuf_appender&, int64_t, const fmt_opts&);
+template UXS_EXPORT wlimbuf_appender& fmt_integral(wlimbuf_appender&, int64_t, const fmt_opts&);
+template UXS_EXPORT wdynbuffer& fmt_integral(wdynbuffer&, int64_t, const fmt_opts&);
+
+template UXS_EXPORT wunlimbuf_appender& fmt_integral(wunlimbuf_appender&, uint32_t, const fmt_opts&);
+template UXS_EXPORT wlimbuf_appender& fmt_integral(wlimbuf_appender&, uint32_t, const fmt_opts&);
+template UXS_EXPORT wdynbuffer& fmt_integral(wdynbuffer&, uint32_t, const fmt_opts&);
+
+template UXS_EXPORT wunlimbuf_appender& fmt_integral(wunlimbuf_appender&, uint64_t, const fmt_opts&);
+template UXS_EXPORT wlimbuf_appender& fmt_integral(wlimbuf_appender&, uint64_t, const fmt_opts&);
+template UXS_EXPORT wdynbuffer& fmt_integral(wdynbuffer&, uint64_t, const fmt_opts&);
+
+template UXS_EXPORT wunlimbuf_appender& fmt_char(wunlimbuf_appender&, char, const fmt_opts&);
+template UXS_EXPORT wlimbuf_appender& fmt_char(wlimbuf_appender&, char, const fmt_opts&);
+template UXS_EXPORT wdynbuffer& fmt_char(wdynbuffer&, char, const fmt_opts&);
+
+template UXS_EXPORT wunlimbuf_appender& fmt_char(wunlimbuf_appender&, wchar_t, const fmt_opts&);
+template UXS_EXPORT wlimbuf_appender& fmt_char(wlimbuf_appender&, wchar_t, const fmt_opts&);
+template UXS_EXPORT wdynbuffer& fmt_char(wdynbuffer&, wchar_t, const fmt_opts&);
+
+template UXS_EXPORT wunlimbuf_appender& fmt_float_common(wunlimbuf_appender&, uint64_t, const fmt_opts&, const unsigned,
+                                                         const int);
+template UXS_EXPORT wlimbuf_appender& fmt_float_common(wlimbuf_appender&, uint64_t, const fmt_opts&, const unsigned,
+                                                       const int);
+template UXS_EXPORT wdynbuffer& fmt_float_common(wdynbuffer&, uint64_t, const fmt_opts&, const unsigned, const int);
+
+template UXS_EXPORT wunlimbuf_appender& fmt_bool(wunlimbuf_appender&, bool, const fmt_opts&);
+template UXS_EXPORT wlimbuf_appender& fmt_bool(wlimbuf_appender&, bool, const fmt_opts&);
+template UXS_EXPORT wdynbuffer& fmt_bool(wdynbuffer&, bool, const fmt_opts&);
+
 }  // namespace scvt
-
-#define UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(ty) \
-    template UXS_EXPORT size_t string_converter<ty>::from_string(std::string_view, ty&); \
-    template UXS_EXPORT unlimbuf_appender& string_converter<ty>::to_string(unlimbuf_appender&, ty, const fmt_opts&); \
-    template UXS_EXPORT limbuf_appender& string_converter<ty>::to_string(limbuf_appender&, ty, const fmt_opts&); \
-    template UXS_EXPORT dynbuffer& string_converter<ty>::to_string(dynbuffer&, ty, const fmt_opts&);
-UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int8_t)
-UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int16_t)
-UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int32_t)
-UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(int64_t)
-UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(uint8_t)
-UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(uint16_t)
-UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(uint32_t)
-UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(uint64_t)
-UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(float)
-UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(double)
-UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(char)
-UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER(bool)
-#undef UXS_SCVT_INSTANTIATE_STANDARD_STRING_CONVERTER
-
-#define UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(ty) \
-    template UXS_EXPORT size_t string_converter<ty>::from_string(std::wstring_view, ty&); \
-    template UXS_EXPORT wunlimbuf_appender& string_converter<ty>::to_string(wunlimbuf_appender&, ty, const fmt_opts&); \
-    template UXS_EXPORT wlimbuf_appender& string_converter<ty>::to_string(wlimbuf_appender&, ty, const fmt_opts&); \
-    template UXS_EXPORT wdynbuffer& string_converter<ty>::to_string(wdynbuffer&, ty, const fmt_opts&);
-UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int8_t)
-UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int16_t)
-UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int32_t)
-UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(int64_t)
-UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(uint8_t)
-UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(uint16_t)
-UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(uint32_t)
-UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(uint64_t)
-UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(float)
-UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(double)
-UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(wchar_t)
-UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER(bool)
-#undef UXS_SCVT_INSTANTIATE_STANDARD_WSTRING_CONVERTER
-template UXS_EXPORT wunlimbuf_appender& string_converter<char>::to_string(wunlimbuf_appender&, char, const fmt_opts&);
-template UXS_EXPORT wlimbuf_appender& string_converter<char>::to_string(wlimbuf_appender&, char, const fmt_opts&);
-template UXS_EXPORT wdynbuffer& string_converter<char>::to_string(wdynbuffer&, char, const fmt_opts&);
 
 }  // namespace uxs

@@ -5,7 +5,7 @@
 #include "uxs/format.h"
 
 namespace uxs {
-namespace fmt {
+namespace sfmt {
 
 template<typename CharT>
 struct count_utf_chars;
@@ -54,123 +54,141 @@ StrTy& adjust_string(StrTy& s, span<const CharT> val, fmt_opts& fmt) {
     if (fmt.width > len) {
         unsigned left = fmt.width - static_cast<unsigned>(len), right = left;
         switch (fmt.flags & fmt_flags::kAdjustField) {
-            case fmt_flags::kLeft: left = 0; break;
+            case fmt_flags::kRight: right = 0; break;
             case fmt_flags::kInternal: left >>= 1, right -= left; break;
-            default: right = 0; break;
+            case fmt_flags::kLeft:
+            default: left = 0; break;
         }
         return s.append(left, fmt.fill).append(first, last).append(right, fmt.fill);
     }
     return s.append(first, last);
 }
 
-}  // namespace fmt
+}  // namespace sfmt
 
 template<typename StrTy, typename Traits>
 StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type, Traits> fmt,
-                     span<const fmt::arg_list_item<StrTy>> args) {
+                     span<const sfmt::arg_list_item<StrTy>> args) {
     auto get_fmt_arg_integer_value = [&args](unsigned n_arg) -> unsigned {
         switch (args[n_arg].type_id) {
+#define UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(ty, type_id) \
+    case sfmt::arg_type_id::type_id: { \
+        return static_cast<unsigned>(*static_cast<const ty*>(args[n_arg].p_arg)); \
+    } break;
 #define UXS_FMT_ARG_INTEGER_VALUE_CASE(ty, type_id) \
-    case fmt::arg_type_id::type_id: { \
+    case sfmt::arg_type_id::type_id: { \
         ty val = *static_cast<const ty*>(args[n_arg].p_arg); \
         if (val < 0) { throw format_error("negative argument specified"); } \
         return static_cast<unsigned>(val); \
     } break;
-#define UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(ty, type_id) \
-    case fmt::arg_type_id::type_id: { \
-        return static_cast<unsigned>(*static_cast<const ty*>(args[n_arg].p_arg)); \
-    } break;
-            UXS_FMT_ARG_INTEGER_VALUE_CASE(int8_t, kInt8)
-            UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(uint8_t, kUInt8)
-            UXS_FMT_ARG_INTEGER_VALUE_CASE(int16_t, kInt16)
-            UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(uint16_t, kUInt16)
-            UXS_FMT_ARG_INTEGER_VALUE_CASE(int32_t, kInt32)
-            UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(uint32_t, kUInt32)
-            UXS_FMT_ARG_INTEGER_VALUE_CASE(int64_t, kInt64)
-            UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(uint64_t, kUInt64)
+            UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(unsigned char, kUnsignedChar)
+            UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(unsigned short, kUnsignedShort)
+            UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(unsigned, kUnsigned)
+            UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(unsigned long, kUnsignedLong)
+            UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(unsigned long long, kUnsignedLongLong)
+            UXS_FMT_ARG_INTEGER_VALUE_CASE(signed char, kSignedChar)
+            UXS_FMT_ARG_INTEGER_VALUE_CASE(signed short, kSignedShort)
+            UXS_FMT_ARG_INTEGER_VALUE_CASE(signed, kSigned)
+            UXS_FMT_ARG_INTEGER_VALUE_CASE(signed long, kSignedLong)
+            UXS_FMT_ARG_INTEGER_VALUE_CASE(signed long long, kSignedLongLong)
 #undef UXS_FMT_ARG_INTEGER_VALUE_CASE
 #undef UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE
             default: throw format_error("argument is not an integer");
         }
     };
-    auto type_error = []() { throw format_error("invalid argument type specifier"); };
     using CharT = typename StrTy::value_type;
-    const auto error_code = fmt::parse_format(
+    const auto error_code = sfmt::parse_format(
         fmt, args.size(), [&s](const CharT* p0, const CharT* p) { s.append(p0, p); },
-        [&s, &args, &type_error](unsigned n_arg, fmt::arg_specs& specs) {
-            const fmt::arg_type_id id = args[n_arg].type_id;
-            switch (specs.flags & fmt::parse_flags::kSpecMask) {
-                case fmt::parse_flags::kSpecIntegral: {
-                    if (id <= fmt::arg_type_id::kUInt64) {
-                    } else if (id == fmt::arg_type_id::kChar) {
-                        to_basic_string(s, static_cast<int>(*static_cast<const char*>(args[n_arg].p_arg)), specs.fmt);
+        [&s, &args](unsigned n_arg, sfmt::arg_specs& specs) {
+            const sfmt::arg_type_id id = args[n_arg].type_id;
+            const auto type_error = []() { throw format_error("invalid argument type specifier"); };
+            const auto signed_needed = []() { throw format_error("argument format requires signed argument"); };
+            const auto numeric_needed = []() { throw format_error("argument format requires numeric argument"); };
+            switch (specs.flags & sfmt::parse_flags::kSpecMask) {
+                case sfmt::parse_flags::kSpecIntegral: {
+                    if (id <= sfmt::arg_type_id::kSignedLongLong) {
+                        if (!!(specs.fmt.flags & fmt_flags::kSignField) && id < sfmt::arg_type_id::kSignedChar) {
+                            signed_needed();
+                        }
+                    } else if (id == sfmt::arg_type_id::kChar) {
+                        uxs::to_basic_string(s, static_cast<int>(*static_cast<const char*>(args[n_arg].p_arg)),
+                                             specs.fmt);
                         return;
-                    } else if (id == fmt::arg_type_id::kWChar) {
-                        to_basic_string(s, static_cast<int>(*static_cast<const wchar_t*>(args[n_arg].p_arg)), specs.fmt);
+                    } else if (id == sfmt::arg_type_id::kWChar) {
+                        uxs::to_basic_string(s, static_cast<int>(*static_cast<const wchar_t*>(args[n_arg].p_arg)),
+                                             specs.fmt);
                         return;
-                    } else if (id == fmt::arg_type_id::kBool) {
-                        to_basic_string(s, static_cast<int>(*static_cast<const bool*>(args[n_arg].p_arg)), specs.fmt);
+                    } else if (id == sfmt::arg_type_id::kBool) {
+                        if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
+                        uxs::to_basic_string(s, static_cast<int>(*static_cast<const bool*>(args[n_arg].p_arg)),
+                                             specs.fmt);
                         return;
                     } else {
                         type_error();
                     }
                 } break;
-                case fmt::parse_flags::kSpecFloat: {
-                    if (id != fmt::arg_type_id::kFloat && id != fmt::arg_type_id::kDouble) { type_error(); }
+                case sfmt::parse_flags::kSpecFloat: {
+                    if (id < sfmt::arg_type_id::kFloat || id > sfmt::arg_type_id::kLongDouble) { type_error(); }
                 } break;
-                case fmt::parse_flags::kSpecChar: {
-                    if (id <= fmt::arg_type_id::kUInt64) {
+                case sfmt::parse_flags::kSpecChar: {
+                    if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
+                    if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes)) { numeric_needed(); }
+                    if (id <= sfmt::arg_type_id::kSignedLongLong) {
                         int64_t code = 0;
                         switch (id) {
-                            case fmt::arg_type_id::kInt8: {
-                                code = *static_cast<const int8_t*>(args[n_arg].p_arg);
-                            } break;
-                            case fmt::arg_type_id::kUInt8: {
-                                code = *static_cast<const uint8_t*>(args[n_arg].p_arg);
-                            } break;
-                            case fmt::arg_type_id::kInt16: {
-                                code = *static_cast<const int16_t*>(args[n_arg].p_arg);
-                            } break;
-                            case fmt::arg_type_id::kUInt16: {
-                                code = *static_cast<const uint16_t*>(args[n_arg].p_arg);
-                            } break;
-                            case fmt::arg_type_id::kInt32: {
-                                code = *static_cast<const int32_t*>(args[n_arg].p_arg);
-                            } break;
-                            case fmt::arg_type_id::kUInt32: {
-                                code = *static_cast<const uint32_t*>(args[n_arg].p_arg);
-                            } break;
-                            case fmt::arg_type_id::kInt64: {
-                                code = *static_cast<const int64_t*>(args[n_arg].p_arg);
-                            } break;
-                            case fmt::arg_type_id::kUInt64: {
-                                code = *static_cast<const uint64_t*>(args[n_arg].p_arg);
-                            } break;
+#define UXS_FMT_ARG_INTEGER_VALUE_CASE(ty, type_id) \
+    case sfmt::arg_type_id::type_id: { \
+        code = *static_cast<const ty*>(args[n_arg].p_arg); \
+    } break;
+                            UXS_FMT_ARG_INTEGER_VALUE_CASE(unsigned char, kUnsignedChar)
+                            UXS_FMT_ARG_INTEGER_VALUE_CASE(unsigned short, kUnsignedShort)
+                            UXS_FMT_ARG_INTEGER_VALUE_CASE(unsigned, kUnsigned)
+                            UXS_FMT_ARG_INTEGER_VALUE_CASE(unsigned long, kUnsignedLong)
+                            UXS_FMT_ARG_INTEGER_VALUE_CASE(unsigned long long, kUnsignedLongLong)
+                            UXS_FMT_ARG_INTEGER_VALUE_CASE(signed char, kSignedChar)
+                            UXS_FMT_ARG_INTEGER_VALUE_CASE(signed short, kSignedShort)
+                            UXS_FMT_ARG_INTEGER_VALUE_CASE(signed, kSigned)
+                            UXS_FMT_ARG_INTEGER_VALUE_CASE(signed long, kSignedLong)
+                            UXS_FMT_ARG_INTEGER_VALUE_CASE(signed long long, kSignedLongLong)
+#undef UXS_FMT_ARG_INTEGER_VALUE_CASE
                             default: UNREACHABLE_CODE;
                         }
                         const int64_t char_mask = (1ull << (8 * sizeof(CharT))) - 1;
                         if ((code & char_mask) != code && (~code & char_mask) != code) {
                             throw format_error("integral cannot be represented as character");
                         }
-                        to_basic_string(s, static_cast<CharT>(code), specs.fmt);
+                        uxs::to_basic_string(s, static_cast<CharT>(code), specs.fmt);
                         return;
-                    } else if (id > fmt::arg_type_id::kWChar) {
+                    } else if (id > sfmt::arg_type_id::kWChar) {
                         type_error();
                     }
                 } break;
-                case fmt::parse_flags::kSpecPointer: {
-                    if (id != fmt::arg_type_id::kPointer) { type_error(); }
+                case sfmt::parse_flags::kSpecPointer: {
+                    if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
+                    if (id != sfmt::arg_type_id::kPointer) { type_error(); }
                 } break;
-                case fmt::parse_flags::kSpecString: {
-                    if (id != fmt::arg_type_id::kBool && id != fmt::arg_type_id::kString) { type_error(); }
+                case sfmt::parse_flags::kSpecString: {
+                    if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
+                    if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes)) { numeric_needed(); }
+                    if (id != sfmt::arg_type_id::kBool && id != sfmt::arg_type_id::kString) { type_error(); }
                 } break;
-                default: break;
+                default: {
+                    if (!!(specs.fmt.flags & fmt_flags::kSignField) &&
+                        (id < sfmt::arg_type_id::kSignedChar || id > sfmt::arg_type_id::kSignedLongLong) &&
+                        (id < sfmt::arg_type_id::kFloat || id > sfmt::arg_type_id::kLongDouble)) {
+                        signed_needed();
+                    }
+                    if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes) && id > sfmt::arg_type_id::kSignedLongLong &&
+                        (id < sfmt::arg_type_id::kFloat || id > sfmt::arg_type_id::kPointer)) {
+                        numeric_needed();
+                    }
+                } break;
             }
             args[n_arg].fmt_func(s, args[n_arg].p_arg, specs.fmt);
         },
         get_fmt_arg_integer_value);
-    if (error_code == fmt::parse_format_error_code::kSuccess) {
-    } else if (error_code == fmt::parse_format_error_code::kOutOfArgList) {
+    if (error_code == sfmt::parse_format_error_code::kSuccess) {
+    } else if (error_code == sfmt::parse_format_error_code::kOutOfArgList) {
         throw format_error("out of argument list");
     } else {
         throw format_error("invalid specifier syntax");

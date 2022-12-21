@@ -13,22 +13,25 @@ class format_error : public std::runtime_error {
     explicit format_error(const std::string& message) : std::runtime_error(message) {}
 };
 
-namespace fmt {
+namespace sfmt {
 
 enum class arg_type_id {
-    kInt8 = 0,
-    kUInt8,
-    kInt16,
-    kUInt16,
-    kInt32,
-    kUInt32,
-    kInt64,
-    kUInt64,
+    kUnsignedChar = 0,
+    kUnsignedShort,
+    kUnsigned,
+    kUnsignedLong,
+    kUnsignedLongLong,
+    kSignedChar,
+    kSignedShort,
+    kSigned,
+    kSignedLong,
+    kSignedLongLong,
     kChar,
     kWChar,
     kBool,
     kFloat,
     kDouble,
+    kLongDouble,
     kPointer,
     kString,
     kCustom
@@ -40,19 +43,22 @@ struct type_id_t : std::integral_constant<arg_type_id, arg_type_id::kCustom> {};
 #define UXS_FMT_DECLARE_TYPE_ID(ty, type_id) \
     template<> \
     struct type_id_t<ty, void> : std::integral_constant<arg_type_id, arg_type_id::type_id> {};
-UXS_FMT_DECLARE_TYPE_ID(int8_t, kInt8)
-UXS_FMT_DECLARE_TYPE_ID(uint8_t, kUInt8)
-UXS_FMT_DECLARE_TYPE_ID(int16_t, kInt16)
-UXS_FMT_DECLARE_TYPE_ID(uint16_t, kUInt16)
-UXS_FMT_DECLARE_TYPE_ID(int32_t, kInt32)
-UXS_FMT_DECLARE_TYPE_ID(uint32_t, kUInt32)
-UXS_FMT_DECLARE_TYPE_ID(int64_t, kInt64)
-UXS_FMT_DECLARE_TYPE_ID(uint64_t, kUInt64)
+UXS_FMT_DECLARE_TYPE_ID(unsigned char, kUnsignedChar)
+UXS_FMT_DECLARE_TYPE_ID(unsigned short, kUnsignedShort)
+UXS_FMT_DECLARE_TYPE_ID(unsigned, kUnsigned)
+UXS_FMT_DECLARE_TYPE_ID(unsigned long, kUnsignedLong)
+UXS_FMT_DECLARE_TYPE_ID(unsigned long long, kUnsignedLongLong)
+UXS_FMT_DECLARE_TYPE_ID(signed char, kSignedChar)
+UXS_FMT_DECLARE_TYPE_ID(signed short, kSignedShort)
+UXS_FMT_DECLARE_TYPE_ID(signed, kSigned)
+UXS_FMT_DECLARE_TYPE_ID(signed long, kSignedLong)
+UXS_FMT_DECLARE_TYPE_ID(signed long long, kSignedLongLong)
 UXS_FMT_DECLARE_TYPE_ID(char, kChar)
 UXS_FMT_DECLARE_TYPE_ID(wchar_t, kWChar)
 UXS_FMT_DECLARE_TYPE_ID(bool, kBool)
 UXS_FMT_DECLARE_TYPE_ID(float, kFloat)
 UXS_FMT_DECLARE_TYPE_ID(double, kDouble)
+UXS_FMT_DECLARE_TYPE_ID(long double, kLongDouble)
 #undef UXS_FMT_DECLARE_TYPE_ID
 
 template<typename Ty>
@@ -74,13 +80,8 @@ struct type_id_t<std::basic_string<CharT, Traits, Alloc>, void>
 template<typename StrTy, typename Ty, typename = void>
 struct arg_fmt_func_t;
 
-template<typename Ty>
-struct always_true : std::true_type {};
-
 template<typename StrTy, typename Ty>
-struct arg_fmt_func_t<StrTy, Ty,
-                      std::enable_if_t<always_true<typename string_converter<Ty>::is_string_converter>::value &&
-                                       (!is_character<Ty>::value || sizeof(Ty) <= sizeof(typename StrTy::value_type))>> {
+struct arg_fmt_func_t<StrTy, Ty, std::enable_if_t<has_formatter<Ty, StrTy>::value>> {
     static StrTy& func(StrTy& s, const void* val, fmt_opts& fmt) {
         return uxs::to_basic_string(s, *static_cast<const Ty*>(val), fmt);
     }
@@ -131,6 +132,8 @@ const void* get_arg_ptr(Ty* arg) {
     return arg;
 }
 
+inline const void* get_arg_ptr(std::nullptr_t arg) { return arg; }
+
 template<typename Ty, typename = void>
 struct arg_type {
     using type = Ty;
@@ -146,6 +149,11 @@ struct arg_type<Ty*, void> {
     using type = typename std::add_pointer<std::remove_cv_t<Ty>>::type;
 };
 
+template<>
+struct arg_type<std::nullptr_t, void> {
+    using type = void*;
+};
+
 template<typename StrTy>
 struct arg_list_item {
 #if __cplusplus < 201703L
@@ -155,7 +163,7 @@ struct arg_list_item {
 #endif  // __cplusplus < 201703L
     const void* p_arg = nullptr;
     StrTy& (*fmt_func)(StrTy&, const void*, fmt_opts&) = nullptr;
-    arg_type_id type_id = arg_type_id::kInt8;
+    arg_type_id type_id = arg_type_id::kUnsignedChar;
 };
 
 template<typename StrTy, typename... Ts>
@@ -174,6 +182,7 @@ enum class parse_flags : unsigned {
     kSpecMask = 0xff,
     kDynamicWidth = 0x100,
     kDynamicPrec = 0x200,
+    kUseLocale = 0x400,
     kArgNumSpecified = 0x1000,
     kWidthArgNumSpecified = 0x2000,
     kPrecArgNumSpecified = 0x4000,
@@ -201,6 +210,7 @@ struct meta_tbl_t {
         kMinus,
         kSharp,
         kZero,
+        kLocale,
         kDec,
         kBin,
         kBinCap,
@@ -208,6 +218,8 @@ struct meta_tbl_t {
         kHex,
         kHexCap,
         kChar,
+        kHexFloat,
+        kHexFloatCap,
         kFixed,
         kFixedCap,
         kScientific,
@@ -227,9 +239,10 @@ struct meta_tbl_t {
         tbl['{'] = code_t::kOpenBr, tbl['}'] = code_t::kCloseBr, tbl['.'] = code_t::kDot;
         for (unsigned ch = '1'; ch <= '9'; ++ch) { tbl[ch] = code_t::kDig19; }
         tbl['+'] = code_t::kPlus, tbl[' '] = code_t::kSpace, tbl['-'] = code_t::kMinus;
-        tbl['#'] = code_t::kSharp, tbl['0'] = code_t::kZero;
+        tbl['#'] = code_t::kSharp, tbl['0'] = code_t::kZero, tbl['L'] = code_t::kLocale;
         tbl['d'] = code_t::kDec, tbl['b'] = code_t::kBin, tbl['o'] = code_t::kOct, tbl['x'] = code_t::kHex;
         tbl['B'] = code_t::kBinCap, tbl['X'] = code_t::kHexCap, tbl['c'] = code_t::kChar;
+        tbl['a'] = code_t::kHexFloat, tbl['A'] = code_t::kHexFloatCap;
         tbl['f'] = code_t::kFixed, tbl['e'] = code_t::kScientific, tbl['g'] = code_t::kGeneral;
         tbl['F'] = code_t::kFixedCap, tbl['E'] = code_t::kScientificCap, tbl['G'] = code_t::kGeneralCap;
         tbl['s'] = code_t::kString, tbl['p'] = code_t::kPtr, tbl['P'] = code_t::kPtrCap;
@@ -249,7 +262,7 @@ CONSTEXPR const CharT* accum_num(const CharT* p, const CharT* last, Ty& num) {
 }
 
 template<typename CharT>
-CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_specs& specs) {
+CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_specs& specs) NOEXCEPT {
     assert(p != last && *p != '}');
 
     unsigned dig = 0;
@@ -266,12 +279,12 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
         switch (*(p + 1)) {  // adjustment with fill character
             case '<': specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::kLeft, p += 2; break;
             case '^': specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::kInternal, p += 2; break;
-            case '>': specs.fmt.fill = *p, p += 2; break;
+            case '>': specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::kRight, p += 2; break;
             default: break;
         }
     }
 
-    enum class state_t { kStart = 0, kSign, kAlternate, kLeadingZeroes, kWidth, kPrecision, kType, kFinish };
+    enum class state_t { kStart = 0, kSign, kAlternate, kLeadingZeroes, kWidth, kPrecision, kLocale, kType, kFinish };
 
     state_t state = state_t::kStart;
     while (p != last) {
@@ -289,7 +302,7 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
             // adjustment
             case meta_tbl_t::kLeft: UXS_FMT_SPECIFIER_CASE(kSign, specs.fmt.flags |= fmt_flags::kLeft);
             case meta_tbl_t::kMid: UXS_FMT_SPECIFIER_CASE(kSign, specs.fmt.flags |= fmt_flags::kInternal);
-            case meta_tbl_t::kRight: UXS_FMT_SPECIFIER_CASE(kSign, {});
+            case meta_tbl_t::kRight: UXS_FMT_SPECIFIER_CASE(kSign, specs.fmt.flags |= fmt_flags::kRight);
 
             // sign specifiers
             case meta_tbl_t::kPlus: UXS_FMT_SPECIFIER_CASE(kAlternate, specs.fmt.flags |= fmt_flags::kSignPos);
@@ -300,7 +313,10 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
             case meta_tbl_t::kSharp: UXS_FMT_SPECIFIER_CASE(kLeadingZeroes, specs.fmt.flags |= fmt_flags::kAlternate);
 
             // leading zeroes
-            case meta_tbl_t::kZero: UXS_FMT_SPECIFIER_CASE(kWidth, specs.fmt.flags |= fmt_flags::kLeadingZeroes);
+            case meta_tbl_t::kZero:
+                UXS_FMT_SPECIFIER_CASE(kWidth, {
+                    if (!(specs.fmt.flags & fmt_flags::kAdjustField)) { specs.fmt.flags |= fmt_flags::kLeadingZeroes; }
+                });
 
             // width
             case meta_tbl_t::kOpenBr:
@@ -326,7 +342,7 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
 
             // precision
             case meta_tbl_t::kDot:
-                UXS_FMT_SPECIFIER_CASE(kType, {
+                UXS_FMT_SPECIFIER_CASE(kLocale, {
                     if (p == last) { return nullptr; }
                     if ((dig = dig_v(*p)) < 10) {
                         specs.fmt.prec = dig;
@@ -346,6 +362,9 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
                     }
                     return nullptr;
                 });
+
+            // locale
+            case meta_tbl_t::kLocale: UXS_FMT_SPECIFIER_CASE(kType, { specs.flags |= parse_flags::kUseLocale; });
 
             // types
             case meta_tbl_t::kBin:
@@ -375,42 +394,48 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
                     specs.fmt.flags |= fmt_flags::kHex | fmt_flags::kUpperCase;
                 });
 
+            case meta_tbl_t::kHexFloat:
+                UXS_FMT_SPECIFIER_CASE(kFinish, {
+                    specs.flags |= parse_flags::kSpecFloat;
+                    specs.fmt.flags |= fmt_flags::kHex;
+                });
+            case meta_tbl_t::kHexFloatCap:
+                UXS_FMT_SPECIFIER_CASE(kFinish, {
+                    specs.flags |= parse_flags::kSpecFloat;
+                    specs.fmt.flags |= fmt_flags::kHex | fmt_flags::kUpperCase;
+                });
+
             case meta_tbl_t::kFixed:
                 UXS_FMT_SPECIFIER_CASE(kFinish, {
                     specs.flags |= parse_flags::kSpecFloat;
                     specs.fmt.flags |= fmt_flags::kFixed;
-                    if (specs.fmt.prec < 0) { specs.fmt.prec = 6; }
                 });
             case meta_tbl_t::kFixedCap:
                 UXS_FMT_SPECIFIER_CASE(kFinish, {
                     specs.flags |= parse_flags::kSpecFloat;
                     specs.fmt.flags |= fmt_flags::kFixed | fmt_flags::kUpperCase;
-                    if (specs.fmt.prec < 0) { specs.fmt.prec = 6; }
                 });
 
             case meta_tbl_t::kScientific:
                 UXS_FMT_SPECIFIER_CASE(kFinish, {
                     specs.flags |= parse_flags::kSpecFloat;
                     specs.fmt.flags |= fmt_flags::kScientific;
-                    if (specs.fmt.prec < 0) { specs.fmt.prec = 6; }
                 });
             case meta_tbl_t::kScientificCap:
                 UXS_FMT_SPECIFIER_CASE(kFinish, {
                     specs.flags |= parse_flags::kSpecFloat;
                     specs.fmt.flags |= fmt_flags::kScientific | fmt_flags::kUpperCase;
-                    if (specs.fmt.prec < 0) { specs.fmt.prec = 6; }
                 });
 
             case meta_tbl_t::kGeneral:
                 UXS_FMT_SPECIFIER_CASE(kFinish, {
                     specs.flags |= parse_flags::kSpecFloat;
-                    if (specs.fmt.prec < 0) { specs.fmt.prec = 6; }
+                    specs.fmt.flags |= fmt_flags::kGeneral;
                 });
             case meta_tbl_t::kGeneralCap:
                 UXS_FMT_SPECIFIER_CASE(kFinish, {
                     specs.flags |= parse_flags::kSpecFloat;
-                    specs.fmt.flags |= fmt_flags::kUpperCase;
-                    if (specs.fmt.prec < 0) { specs.fmt.prec = 6; }
+                    specs.fmt.flags |= fmt_flags::kGeneral | fmt_flags::kUpperCase;
                 });
 
             case meta_tbl_t::kDec: UXS_FMT_SPECIFIER_CASE(kFinish, specs.flags |= parse_flags::kSpecIntegral);
@@ -480,7 +505,7 @@ CONSTEXPR parse_format_error_code parse_format(std::basic_string_view<CharT, Tra
     return parse_format_error_code::kSuccess;
 }
 
-}  // namespace fmt
+}  // namespace sfmt
 
 template<typename CharT, typename Traits = std::char_traits<CharT>>
 struct basic_runtime_string {
@@ -507,36 +532,59 @@ struct basic_format_string {
              typename = std::enable_if_t<std::is_convertible<const Ty&, std::basic_string_view<CharT, Traits>>::value>>
     CONSTEVAL basic_format_string(const Ty& fmt) : checked(fmt) {
 #if defined(HAS_CONSTEVAL)
-        const std::array<fmt::arg_type_id, sizeof...(Ts)> arg_type_ids{
-            fmt::type_id_t<typename fmt::arg_type<Ts>::type>::value...};
-        const auto error_code = fmt::parse_format(
+        const std::array<sfmt::arg_type_id, sizeof...(Ts)> arg_type_ids{
+            sfmt::type_id_t<typename sfmt::arg_type<Ts>::type>::value...};
+        const auto error_code = sfmt::parse_format(
             checked, sizeof...(Ts), [](const CharT*, const CharT*) constexpr {},
-            [&arg_type_ids](unsigned n_arg, fmt::arg_specs& specs) constexpr {
-                const fmt::arg_type_id id = arg_type_ids[n_arg];
-                const fmt::parse_flags flag = specs.flags & fmt::parse_flags::kSpecMask;
-                if (flag == fmt::parse_flags::kDefault) {
+            [&arg_type_ids](unsigned n_arg, sfmt::arg_specs& specs) constexpr {
+                const sfmt::arg_type_id id = arg_type_ids[n_arg];
+                const sfmt::parse_flags flag = specs.flags & sfmt::parse_flags::kSpecMask;
+                auto signed_needed = []() { format_string_error("argument format requires signed argument"); };
+                const auto numeric_needed = []() { throw format_error("argument format requires numeric argument"); };
+                if (flag == sfmt::parse_flags::kDefault) {
+                    if (!!(specs.fmt.flags & fmt_flags::kSignField) &&
+                        (id < sfmt::arg_type_id::kSignedChar || id > sfmt::arg_type_id::kSignedLongLong) &&
+                        (id < sfmt::arg_type_id::kFloat || id > sfmt::arg_type_id::kLongDouble)) {
+                        signed_needed();
+                    }
+                    if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes) && id > sfmt::arg_type_id::kSignedLongLong &&
+                        (id < sfmt::arg_type_id::kFloat || id > sfmt::arg_type_id::kPointer)) {
+                        numeric_needed();
+                    }
                     return;
-                } else if (flag == fmt::parse_flags::kSpecIntegral) {
-                    if (id <= fmt::arg_type_id::kBool) { return; }
-                } else if (flag == fmt::parse_flags::kSpecFloat) {
-                    if (id == fmt::arg_type_id::kFloat || id == fmt::arg_type_id::kDouble) { return; }
-                } else if (flag == fmt::parse_flags::kSpecChar) {
-                    if (id <= fmt::arg_type_id::kWChar) { return; }
-                } else if (flag == fmt::parse_flags::kSpecPointer) {
-                    if (id == fmt::arg_type_id::kPointer) { return; }
-                } else if (flag == fmt::parse_flags::kSpecString) {
-                    if (id == fmt::arg_type_id::kBool || id == fmt::arg_type_id::kString) { return; }
+                } else if (flag == sfmt::parse_flags::kSpecIntegral) {
+                    if (id <= sfmt::arg_type_id::kBool) {
+                        if (!!(specs.fmt.flags & fmt_flags::kSignField) &&
+                            (id < sfmt::arg_type_id::kSignedChar || id > sfmt::arg_type_id::kWChar) &&
+                            (id < sfmt::arg_type_id::kFloat || id > sfmt::arg_type_id::kLongDouble)) {
+                            signed_needed();
+                        }
+                        return;
+                    }
+                } else if (flag == sfmt::parse_flags::kSpecFloat) {
+                    if (id >= sfmt::arg_type_id::kFloat && id <= sfmt::arg_type_id::kLongDouble) { return; }
+                } else if (flag == sfmt::parse_flags::kSpecChar) {
+                    if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
+                    if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes)) { numeric_needed(); }
+                    if (id >= sfmt::arg_type_id::kUnsignedChar && id <= sfmt::arg_type_id::kWChar) { return; }
+                } else if (flag == sfmt::parse_flags::kSpecPointer) {
+                    if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
+                    if (id == sfmt::arg_type_id::kPointer) { return; }
+                } else if (flag == sfmt::parse_flags::kSpecString) {
+                    if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
+                    if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes)) { numeric_needed(); }
+                    if (id == sfmt::arg_type_id::kBool || id == sfmt::arg_type_id::kString) { return; }
                 }
                 format_string_error("invalid argument format specifier");
             },
             [&arg_type_ids](unsigned n_arg) constexpr->unsigned {
-                if (arg_type_ids[n_arg] > fmt::arg_type_id::kUInt64) {
+                if (arg_type_ids[n_arg] > sfmt::arg_type_id::kSignedLongLong) {
                     format_string_error("argument is not an integer");
                 }
                 return 0;
             });
-        if (error_code == fmt::parse_format_error_code::kSuccess) {
-        } else if (error_code == fmt::parse_format_error_code::kOutOfArgList) {
+        if (error_code == sfmt::parse_format_error_code::kSuccess) {
+        } else if (error_code == sfmt::parse_format_error_code::kOutOfArgList) {
             format_string_error("out of argument list");
         } else {
             format_string_error("invalid specifier syntax");
@@ -548,7 +596,7 @@ struct basic_format_string {
 
 template<typename StrTy, typename Traits>
 UXS_EXPORT StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type, Traits> fmt,
-                                span<const fmt::arg_list_item<StrTy>> args);
+                                span<const sfmt::arg_list_item<StrTy>> args);
 
 #if defined(_MSC_VER) && _MSC_VER <= 1800
 template<typename... Ts>
@@ -557,7 +605,7 @@ template<typename... Ts>
 using wformat_string = basic_format_string<wchar_t>;
 template<typename StrTy, typename... Ts>
 StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type> fmt, const Ts&... args) {
-    return basic_vformat<StrTy>(s, fmt.checked, fmt::make_args<StrTy>(args...));
+    return basic_vformat<StrTy>(s, fmt.checked, sfmt::make_args<StrTy>(args...));
 }
 #else   // defined(_MSC_VER) && _MSC_VER <= 1800
 template<typename... Ts>
@@ -566,7 +614,7 @@ template<typename... Ts>
 using wformat_string = basic_format_string<wchar_t, std::char_traits<wchar_t>, type_identity_t<Ts>...>;
 template<typename StrTy, typename Traits, typename... Ts>
 StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type, Traits, Ts...> fmt, const Ts&... args) {
-    return basic_vformat<StrTy>(s, fmt.checked, fmt::make_args<StrTy>(args...));
+    return basic_vformat<StrTy>(s, fmt.checked, sfmt::make_args<StrTy>(args...));
 }
 #endif  // defined(_MSC_VER) && _MSC_VER <= 1800
 

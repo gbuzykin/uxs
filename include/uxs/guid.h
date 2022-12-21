@@ -101,13 +101,13 @@ template<typename CharT, typename Traits>
     return id;
 }
 
-template<>
-struct string_converter<guid> : string_converter_base<guid> {
-    template<typename CharT, typename Traits>
-    static size_t from_string(std::basic_string_view<CharT, Traits> s, guid& val) {
+template<typename CharT>
+struct string_parser<guid, CharT> {
+    static guid default_value() { return {}; }
+    static const CharT* from_chars(const CharT* first, const CharT* last, guid& val) {
         const size_t len = 38;
-        if (s.size() < len) { return 0; }
-        const auto* p = s.data();
+        if (static_cast<size_t>(last - first) < len) { return 0; }
+        const auto* p = first;
         val.data32(0) = from_hex(p + 1, 8);
         val.data16(2) = from_hex(p + 10, 4);
         val.data16(3) = from_hex(p + 15, 4);
@@ -115,10 +115,14 @@ struct string_converter<guid> : string_converter_base<guid> {
         val.data8(9) = from_hex(p + 22, 2);
         p += 25;
         for (unsigned i = 10; i < 16; ++i, p += 2) { val.data8(i) = from_hex(p, 2); }
-        return len;
+        return first + len;
     }
+};
+
+template<typename CharT>
+struct formatter<guid, CharT> {
     template<typename StrTy>
-    static StrTy& to_string(StrTy& s, const guid& val, const fmt_opts& fmt) {
+    static StrTy& format(StrTy& s, const guid& val, const fmt_opts& fmt) {
         const unsigned len = 38;
         const bool upper = !!(fmt.flags & fmt_flags::kUpperCase);
         std::array<typename StrTy::value_type, len> buf;
