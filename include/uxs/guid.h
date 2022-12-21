@@ -89,7 +89,7 @@ template<typename CharT, typename Traits, typename Alloc>
 void guid::to_per_byte_basic_string(std::basic_string<CharT, Traits, Alloc>& s) const {
     s.resize(32);
     auto* p = &s[0];
-    for (uint8_t b : data8_) { to_hex(b, p, 2), p += 2; }
+    for (uint8_t b : data8_) { to_hex(b, p, 2, true), p += 2; }
 }
 
 template<typename CharT, typename Traits>
@@ -120,17 +120,18 @@ struct string_converter<guid> : string_converter_base<guid> {
     template<typename StrTy>
     static StrTy& to_string(StrTy& s, const guid& val, const fmt_opts& fmt) {
         const unsigned len = 38;
-        typename StrTy::value_type buf[len];
-        auto* p = buf;
+        const bool upper = !!(fmt.flags & fmt_flags::kUpperCase);
+        std::array<typename StrTy::value_type, len> buf;
+        auto* p = buf.data();
         p[0] = '{', p[9] = '-', p[14] = '-', p[19] = '-', p[24] = '-', p[37] = '}';
-        to_hex(val.data32(0), p + 1, 8);
-        to_hex(val.data16(2), p + 10, 4);
-        to_hex(val.data16(3), p + 15, 4);
-        to_hex(val.data8(8), p + 20, 2);
-        to_hex(val.data8(9), p + 22, 2);
+        to_hex(val.data32(0), p + 1, 8, upper);
+        to_hex(val.data16(2), p + 10, 4, upper);
+        to_hex(val.data16(3), p + 15, 4, upper);
+        to_hex(val.data8(8), p + 20, 2, upper);
+        to_hex(val.data8(9), p + 22, 2, upper);
         p += 25;
-        for (unsigned i = 10; i < 16; ++i, p += 2) { to_hex(val.data8(i), p, 2); }
-        const auto fn = [buf](StrTy& s) -> StrTy& { return s.append(buf, buf + len); };
+        for (unsigned i = 10; i < 16; ++i, p += 2) { to_hex(val.data8(i), p, 2, upper); }
+        const auto fn = [&buf](StrTy& s) -> StrTy& { return s.append(buf.data(), buf.data() + buf.size()); };
         return fmt.width > len ? append_adjusted(s, fn, len, fmt) : fn(s);
     }
 };

@@ -28,11 +28,12 @@ unsigned from_hex(InputIt in, unsigned n_digs, InputFn fn = InputFn{}, unsigned*
 }
 
 template<typename OutputIt, typename OutputFn = nofunc>
-void to_hex(unsigned val, OutputIt out, unsigned n_digs, OutputFn fn = OutputFn{}) {
+void to_hex(unsigned val, OutputIt out, unsigned n_digs, bool upper = false, OutputFn fn = OutputFn{}) {
+    const char* digs = upper ? "0123456789ABCDEF" : "0123456789abcdef";
     unsigned shift = n_digs << 2;
     while (shift) {
         shift -= 4;
-        *out++ = fn("0123456789ABCDEF"[(val >> shift) & 0xf]);
+        *out++ = fn(digs[(val >> shift) & 0xf]);
     }
 }
 
