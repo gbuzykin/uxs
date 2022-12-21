@@ -154,27 +154,27 @@ void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_ele
             case dtype::kBoolean: output_.write(v.value_.b ? "true" : "false"); break;
             case dtype::kInteger: {
                 inline_dynbuffer buf;
-                to_basic_string(buf.base(), v.value_.i, fmt_state());
+                to_basic_string(buf.base(), v.value_.i);
                 output_.write(as_span(buf.data(), buf.size()));
             } break;
             case dtype::kUInteger: {
                 inline_dynbuffer buf;
-                to_basic_string(buf.base(), v.value_.u, fmt_state());
+                to_basic_string(buf.base(), v.value_.u);
                 output_.write(as_span(buf.data(), buf.size()));
             } break;
             case dtype::kInteger64: {
                 inline_dynbuffer buf;
-                to_basic_string(buf.base(), v.value_.i64, fmt_state());
+                to_basic_string(buf.base(), v.value_.i64);
                 output_.write(as_span(buf.data(), buf.size()));
             } break;
             case dtype::kUInteger64: {
                 inline_dynbuffer buf;
-                to_basic_string(buf.base(), v.value_.u64, fmt_state());
+                to_basic_string(buf.base(), v.value_.u64);
                 output_.write(as_span(buf.data(), buf.size()));
             } break;
             case dtype::kDouble: {
                 inline_dynbuffer buf;
-                to_basic_string(buf.base(), v.value_.dbl, fmt_state(fmt_flags::kAlternate));
+                to_basic_string(buf.base(), v.value_.dbl, fmt_opts{fmt_flags::kAlternate});
                 output_.write(as_span(buf.data(), buf.size()));
             } break;
             case dtype::kString: {

@@ -118,7 +118,7 @@ struct string_converter<guid> : string_converter_base<guid> {
         return len;
     }
     template<typename StrTy>
-    static StrTy& to_string(StrTy& s, const guid& val, const fmt_state& fmt) {
+    static StrTy& to_string(StrTy& s, const guid& val, const fmt_opts& fmt) {
         const unsigned len = 38;
         typename StrTy::value_type buf[len];
         auto* p = buf;

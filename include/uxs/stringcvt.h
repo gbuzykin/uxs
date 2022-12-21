@@ -60,11 +60,11 @@ enum class fmt_flags : unsigned {
 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(fmt_flags, unsigned);
 
-struct fmt_state {
-    CONSTEXPR fmt_state() = default;
-    CONSTEXPR fmt_state(fmt_flags fl) : flags(fl) {}
-    CONSTEXPR fmt_state(fmt_flags fl, int p) : flags(fl), prec(p) {}
-    CONSTEXPR fmt_state(fmt_flags fl, int p, unsigned w, int ch) : flags(fl), prec(p), width(w), fill(ch) {}
+struct fmt_opts {
+    CONSTEXPR fmt_opts() = default;
+    CONSTEXPR fmt_opts(fmt_flags fl) : flags(fl) {}
+    CONSTEXPR fmt_opts(fmt_flags fl, int p) : flags(fl), prec(p) {}
+    CONSTEXPR fmt_opts(fmt_flags fl, int p, unsigned w, int ch) : flags(fl), prec(p), width(w), fill(ch) {}
     fmt_flags flags = fmt_flags::kDec;
     int prec = -1;
     unsigned width = 0;
@@ -273,7 +273,7 @@ using inline_dynbuffer = basic_inline_dynbuffer<char>;
 using inline_wdynbuffer = basic_inline_dynbuffer<wchar_t>;
 
 template<typename StrTy, typename Func>
-StrTy& append_adjusted(StrTy& s, Func fn, unsigned len, const fmt_state& fmt) {
+StrTy& append_adjusted(StrTy& s, Func fn, unsigned len, const fmt_opts& fmt) {
     unsigned left = fmt.width - len, right = left;
     switch (fmt.flags & fmt_flags::kAdjustField) {
         case fmt_flags::kLeft: left = 0; break;
@@ -299,7 +299,7 @@ struct string_converter_base {
         template<typename CharT, typename Traits> \
         static size_t from_string(std::basic_string_view<CharT, Traits> s, ty& val); \
         template<typename StrTy> \
-        static StrTy& to_string(StrTy& s, ty val, const fmt_state& fmt); \
+        static StrTy& to_string(StrTy& s, ty val, const fmt_opts& fmt); \
     };
 UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(int8_t)
 UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(int16_t)
@@ -315,23 +315,6 @@ UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(char)
 UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(wchar_t)
 UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER(bool)
 #undef UXS_SCVT_DECLARE_STANDARD_STRING_CONVERTER
-
-template<typename Ty, typename CharT, typename Traits, typename Def>
-NODISCARD Ty from_basic_string(std::basic_string_view<CharT, Traits> s, Def&& def) {
-    Ty result(std::forward<Def>(def));
-    string_converter<Ty>::from_string(s, result);
-    return result;
-}
-
-template<typename Ty, typename Def>
-NODISCARD Ty from_string(std::string_view s, Def&& def) {
-    return from_basic_string<Ty>(s, std::forward<Def>(def));
-}
-
-template<typename Ty, typename Def>
-NODISCARD Ty from_wstring(std::wstring_view s, Def&& def) {
-    return from_basic_string<Ty>(s, std::forward<Def>(def));
-}
 
 template<typename Ty, typename CharT, typename Traits>
 NODISCARD Ty from_basic_string(std::basic_string_view<CharT, Traits> s) {
@@ -366,46 +349,46 @@ size_t wstoval(std::wstring_view s, Ty& v) {
 }
 
 template<typename StrTy, typename Ty>
-StrTy& to_basic_string(StrTy& s, const Ty& val, const fmt_state& fmt) {
+StrTy& to_basic_string(StrTy& s, const Ty& val, const fmt_opts& fmt = fmt_opts{}) {
     return string_converter<Ty>::to_string(s, val, fmt);
 }
 
 template<typename Ty, typename... Args>
 NODISCARD std::string to_string(const Ty& val, Args&&... args) {
     inline_dynbuffer buf;
-    to_basic_string(buf.base(), val, fmt_state(std::forward<Args>(args)...));
+    to_basic_string(buf.base(), val, fmt_opts{std::forward<Args>(args)...});
     return std::string(buf.data(), buf.size());
 }
 
 template<typename Ty, typename... Args>
 NODISCARD std::wstring to_wstring(const Ty& val, Args&&... args) {
     inline_wdynbuffer buf;
-    to_basic_string(buf.base(), val, fmt_state(std::forward<Args>(args)...));
+    to_basic_string(buf.base(), val, fmt_opts{std::forward<Args>(args)...});
     return std::wstring(buf.data(), buf.size());
 }
 
 template<typename Ty, typename... Args>
 char* to_chars(char* buf, const Ty& val, Args&&... args) {
     unlimbuf_appender appender(buf);
-    return to_basic_string(appender, val, fmt_state(std::forward<Args>(args)...)).curr();
+    return to_basic_string(appender, val, fmt_opts{std::forward<Args>(args)...}).curr();
 }
 
 template<typename Ty, typename... Args>
 wchar_t* to_wchars(wchar_t* buf, const Ty& val, Args&&... args) {
     wunlimbuf_appender appender(buf);
-    return to_basic_string(appender, val, fmt_state(std::forward<Args>(args)...)).curr();
+    return to_basic_string(appender, val, fmt_opts{std::forward<Args>(args)...}).curr();
 }
 
 template<typename Ty, typename... Args>
 char* to_chars_n(char* buf, size_t n, const Ty& val, Args&&... args) {
     limbuf_appender appender(buf, n);
-    return to_basic_string(appender, val, fmt_state(std::forward<Args>(args)...)).curr();
+    return to_basic_string(appender, val, fmt_opts{std::forward<Args>(args)...}).curr();
 }
 
 template<typename Ty, typename... Args>
 wchar_t* to_wchars_n(wchar_t* buf, size_t n, const Ty& val, Args&&... args) {
     wlimbuf_appender appender(buf, n);
-    return to_basic_string(appender, val, fmt_state(std::forward<Args>(args)...)).curr();
+    return to_basic_string(appender, val, fmt_opts{std::forward<Args>(args)...}).curr();
 }
 
 }  // namespace uxs
