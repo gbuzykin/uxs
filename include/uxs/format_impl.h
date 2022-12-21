@@ -28,7 +28,7 @@ struct count_utf_chars<wchar_t> {
 #endif  // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
 
 template<typename CharT, typename StrTy>
-StrTy& adjust_string(StrTy& s, span<const CharT> val, fmt_state& fmt) {
+StrTy& adjust_string(StrTy& s, span<const CharT> val, fmt_opts& fmt) {
     const CharT *first = val.data(), *last = first + val.size();
     size_t len = 0;
     unsigned count = 0;

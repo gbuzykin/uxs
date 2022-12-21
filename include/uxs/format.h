@@ -81,25 +81,25 @@ template<typename StrTy, typename Ty>
 struct arg_fmt_func_t<StrTy, Ty,
                       std::enable_if_t<always_true<typename string_converter<Ty>::is_string_converter>::value &&
                                        (!is_character<Ty>::value || sizeof(Ty) <= sizeof(typename StrTy::value_type))>> {
-    static StrTy& func(StrTy& s, const void* val, fmt_state& fmt) {
+    static StrTy& func(StrTy& s, const void* val, fmt_opts& fmt) {
         return uxs::to_basic_string(s, *static_cast<const Ty*>(val), fmt);
     }
 };
 
 template<typename StrTy, typename Ty>
 struct arg_fmt_func_t<StrTy, Ty*, std::enable_if_t<!is_character<Ty>::value>> {
-    static StrTy& func(StrTy& s, const void* val, fmt_state& fmt) {
+    static StrTy& func(StrTy& s, const void* val, fmt_opts& fmt) {
         fmt.flags |= fmt_flags::kHex | fmt_flags::kAlternate;
         return uxs::to_basic_string(s, reinterpret_cast<uintptr_t>(val), fmt);
     }
 };
 
 template<typename CharT, typename StrTy>
-UXS_EXPORT StrTy& adjust_string(StrTy& s, span<const CharT> val, fmt_state& fmt);
+UXS_EXPORT StrTy& adjust_string(StrTy& s, span<const CharT> val, fmt_opts& fmt);
 
 template<typename StrTy>
 struct arg_fmt_func_t<StrTy, typename StrTy::value_type*, void> {
-    static StrTy& func(StrTy& s, const void* val, fmt_state& fmt) {
+    static StrTy& func(StrTy& s, const void* val, fmt_opts& fmt) {
         using CharT = typename StrTy::value_type;
         return adjust_string<CharT>(s, std::basic_string_view<CharT>(static_cast<const CharT*>(val)), fmt);
     }
@@ -107,7 +107,7 @@ struct arg_fmt_func_t<StrTy, typename StrTy::value_type*, void> {
 
 template<typename StrTy, typename Traits>
 struct arg_fmt_func_t<StrTy, std::basic_string_view<typename StrTy::value_type, Traits>, void> {
-    static StrTy& func(StrTy& s, const void* val, fmt_state& fmt) {
+    static StrTy& func(StrTy& s, const void* val, fmt_opts& fmt) {
         using CharT = typename StrTy::value_type;
         return adjust_string<CharT>(s, *static_cast<const std::basic_string_view<CharT, Traits>*>(val), fmt);
     }
@@ -115,7 +115,7 @@ struct arg_fmt_func_t<StrTy, std::basic_string_view<typename StrTy::value_type, 
 
 template<typename StrTy, typename Traits, typename Alloc>
 struct arg_fmt_func_t<StrTy, std::basic_string<typename StrTy::value_type, Traits, Alloc>, void> {
-    static StrTy& func(StrTy& s, const void* val, fmt_state& fmt) {
+    static StrTy& func(StrTy& s, const void* val, fmt_opts& fmt) {
         using CharT = typename StrTy::value_type;
         return adjust_string<CharT>(s, *static_cast<const std::basic_string<CharT, Traits, Alloc>*>(val), fmt);
     }
@@ -150,11 +150,11 @@ template<typename StrTy>
 struct arg_list_item {
 #if __cplusplus < 201703L
     arg_list_item() = default;
-    arg_list_item(const void* p, StrTy& (*fn)(StrTy&, const void*, fmt_state&), arg_type_id id)
+    arg_list_item(const void* p, StrTy& (*fn)(StrTy&, const void*, fmt_opts&), arg_type_id id)
         : p_arg(p), fmt_func(fn), type_id(id) {}
 #endif  // __cplusplus < 201703L
     const void* p_arg = nullptr;
-    StrTy& (*fmt_func)(StrTy&, const void*, fmt_state&) = nullptr;
+    StrTy& (*fmt_func)(StrTy&, const void*, fmt_opts&) = nullptr;
     arg_type_id type_id = arg_type_id::kInt8;
 };
 
@@ -181,7 +181,7 @@ enum class parse_flags : unsigned {
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(parse_flags, unsigned);
 
 struct arg_specs {
-    fmt_state fmt;
+    fmt_opts fmt;
     parse_flags flags = parse_flags::kDefault;
     unsigned n_arg = 0;
     unsigned n_width_arg = 0;
@@ -487,8 +487,16 @@ struct basic_runtime_string {
     std::basic_string_view<CharT, Traits> s;
 };
 
-using runtime_string = basic_runtime_string<char>;
-using runtime_wstring = basic_runtime_string<wchar_t>;
+template<typename Str, typename = std::enable_if_t<
+                           std::is_convertible<const Str&, std::basic_string_view<typename Str::value_type>>::value>>
+basic_runtime_string<typename Str::value_type> runtime(const Str& s) {
+    return basic_runtime_string<typename Str::value_type>{s};
+}
+
+template<typename CharT>
+basic_runtime_string<CharT> runtime(const CharT* s) {
+    return basic_runtime_string<CharT>{s};
+}
 
 inline void format_string_error(const char*) {}
 

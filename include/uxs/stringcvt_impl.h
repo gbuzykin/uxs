@@ -252,7 +252,7 @@ Ty to_float(const CharT* p, const CharT* end, const CharT*& last) {
 // ---- from value to string
 
 template<typename StrTy, typename Func>
-StrTy& adjust_numeric(StrTy& s, Func fn, unsigned len, unsigned n_prefix, const fmt_state& fmt) {
+StrTy& adjust_numeric(StrTy& s, Func fn, unsigned len, unsigned n_prefix, const fmt_opts& fmt) {
     unsigned left = fmt.width - len, right = left;
     int fill = fmt.fill;
     if (!(fmt.flags & fmt_flags::kLeadingZeroes)) {
@@ -278,7 +278,7 @@ StrTy& adjust_numeric(StrTy& s, Func fn, unsigned len, unsigned n_prefix, const 
 // ---- binary
 
 template<typename CharT, typename Ty>
-CharT* fmt_bin(CharT* p, Ty val, unsigned len, const fmt_state& fmt) {
+CharT* fmt_bin(CharT* p, Ty val, unsigned len, const fmt_opts& fmt) {
     CharT* last = (p += len);
     if (!!(fmt.flags & fmt_flags::kAlternate)) { *--p = !(fmt.flags & fmt_flags::kUpperCase) ? 'b' : 'B'; }
     do {
@@ -289,23 +289,23 @@ CharT* fmt_bin(CharT* p, Ty val, unsigned len, const fmt_state& fmt) {
 }
 
 template<typename CharT, typename Ty>
-basic_unlimbuf_appender<CharT>& fmt_bin(basic_unlimbuf_appender<CharT>& s, Ty val, unsigned len, const fmt_state& fmt) {
+basic_unlimbuf_appender<CharT>& fmt_bin(basic_unlimbuf_appender<CharT>& s, Ty val, unsigned len, const fmt_opts& fmt) {
     return s.setcurr(fmt_bin(s.curr(), val, len, fmt));
 }
 
 template<typename CharT, typename Alloc, typename Ty>
-basic_dynbuffer<CharT, Alloc>& fmt_bin(basic_dynbuffer<CharT, Alloc>& s, Ty val, unsigned len, const fmt_state& fmt) {
+basic_dynbuffer<CharT, Alloc>& fmt_bin(basic_dynbuffer<CharT, Alloc>& s, Ty val, unsigned len, const fmt_opts& fmt) {
     return s.setcurr(fmt_bin(s.reserve_at_curr(len), val, len, fmt));
 }
 
 template<typename StrTy, typename Ty>
-StrTy& fmt_bin(StrTy& s, Ty val, unsigned len, const fmt_state& fmt) {
+StrTy& fmt_bin(StrTy& s, Ty val, unsigned len, const fmt_opts& fmt) {
     typename StrTy::value_type buf[65];
     return s.append(buf, fmt_bin(buf, val, len, fmt));
 }
 
 template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
-StrTy& fmt_bin(StrTy& s, Ty val, const fmt_state& fmt) {
+StrTy& fmt_bin(StrTy& s, Ty val, const fmt_opts& fmt) {
     const unsigned len = (!!(fmt.flags & fmt_flags::kAlternate) ? 2 : 1) + ulog2(val);
     const auto fn = [val, len, &fmt](StrTy& s) -> StrTy& { return fmt_bin(s, val, len, fmt); };
     return fmt.width > len ? adjust_numeric(s, fn, len, 0, fmt) : fn(s);
@@ -314,7 +314,7 @@ StrTy& fmt_bin(StrTy& s, Ty val, const fmt_state& fmt) {
 // ---- octal
 
 template<typename CharT, typename Ty>
-CharT* fmt_oct(CharT* p, Ty val, unsigned len, const fmt_state& fmt) {
+CharT* fmt_oct(CharT* p, Ty val, unsigned len, const fmt_opts& fmt) {
     CharT* last = (p += len);
     do {
         *--p = '0' + static_cast<unsigned>(val & 7);
@@ -325,23 +325,23 @@ CharT* fmt_oct(CharT* p, Ty val, unsigned len, const fmt_state& fmt) {
 }
 
 template<typename CharT, typename Ty>
-basic_unlimbuf_appender<CharT>& fmt_oct(basic_unlimbuf_appender<CharT>& s, Ty val, unsigned len, const fmt_state& fmt) {
+basic_unlimbuf_appender<CharT>& fmt_oct(basic_unlimbuf_appender<CharT>& s, Ty val, unsigned len, const fmt_opts& fmt) {
     return s.setcurr(fmt_oct(s.curr(), val, len, fmt));
 }
 
 template<typename CharT, typename Alloc, typename Ty>
-basic_dynbuffer<CharT, Alloc>& fmt_oct(basic_dynbuffer<CharT, Alloc>& s, Ty val, unsigned len, const fmt_state& fmt) {
+basic_dynbuffer<CharT, Alloc>& fmt_oct(basic_dynbuffer<CharT, Alloc>& s, Ty val, unsigned len, const fmt_opts& fmt) {
     return s.setcurr(fmt_oct(s.reserve_at_curr(len), val, len, fmt));
 }
 
 template<typename StrTy, typename Ty>
-StrTy& fmt_oct(StrTy& s, Ty val, unsigned len, const fmt_state& fmt) {
+StrTy& fmt_oct(StrTy& s, Ty val, unsigned len, const fmt_opts& fmt) {
     typename StrTy::value_type buf[32];
     return s.append(buf, fmt_oct(buf, val, len, fmt));
 }
 
 template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
-StrTy& fmt_oct(StrTy& s, Ty val, const fmt_state& fmt) {
+StrTy& fmt_oct(StrTy& s, Ty val, const fmt_opts& fmt) {
     const unsigned len = (!!(fmt.flags & fmt_flags::kAlternate) ? 2 : 1) + ulog2(val) / 3;
     const auto fn = [val, len, &fmt](StrTy& s) -> StrTy& { return fmt_oct(s, val, len, fmt); };
     return fmt.width > len ? adjust_numeric(s, fn, len, 0, fmt) : fn(s);
@@ -350,7 +350,7 @@ StrTy& fmt_oct(StrTy& s, Ty val, const fmt_state& fmt) {
 // ---- hexadecimal
 
 template<typename CharT, typename Ty>
-CharT* fmt_hex(CharT* p, Ty val, unsigned len, const fmt_state& fmt) {
+CharT* fmt_hex(CharT* p, Ty val, unsigned len, const fmt_opts& fmt) {
     const char* digs = !!(fmt.flags & fmt_flags::kUpperCase) ? "0123456789ABCDEF" : "0123456789abcdef";
     CharT* last = (p += len);
     do {
@@ -364,23 +364,23 @@ CharT* fmt_hex(CharT* p, Ty val, unsigned len, const fmt_state& fmt) {
 }
 
 template<typename CharT, typename Ty>
-basic_unlimbuf_appender<CharT>& fmt_hex(basic_unlimbuf_appender<CharT>& s, Ty val, unsigned len, const fmt_state& fmt) {
+basic_unlimbuf_appender<CharT>& fmt_hex(basic_unlimbuf_appender<CharT>& s, Ty val, unsigned len, const fmt_opts& fmt) {
     return s.setcurr(fmt_hex(s.curr(), val, len, fmt));
 }
 
 template<typename CharT, typename Alloc, typename Ty>
-basic_dynbuffer<CharT, Alloc>& fmt_hex(basic_dynbuffer<CharT, Alloc>& s, Ty val, unsigned len, const fmt_state& fmt) {
+basic_dynbuffer<CharT, Alloc>& fmt_hex(basic_dynbuffer<CharT, Alloc>& s, Ty val, unsigned len, const fmt_opts& fmt) {
     return s.setcurr(fmt_hex(s.reserve_at_curr(len), val, len, fmt));
 }
 
 template<typename StrTy, typename Ty>
-StrTy& fmt_hex(StrTy& s, Ty val, unsigned len, const fmt_state& fmt) {
+StrTy& fmt_hex(StrTy& s, Ty val, unsigned len, const fmt_opts& fmt) {
     typename StrTy::value_type buf[32];
     return s.append(buf, fmt_hex(buf, val, len, fmt));
 }
 
 template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
-StrTy& fmt_hex(StrTy& s, Ty val, const fmt_state& fmt) {
+StrTy& fmt_hex(StrTy& s, Ty val, const fmt_opts& fmt) {
     const unsigned len = (!!(fmt.flags & fmt_flags::kAlternate) ? 3 : 1) + (ulog2(val) >> 2);
     const auto fn = [val, len, &fmt](StrTy& s) -> StrTy& { return fmt_hex(s, val, len, fmt); };
     return fmt.width > len ? adjust_numeric(s, fn, len, !!(fmt.flags & fmt_flags::kAlternate) ? 2 : 0, fmt) : fn(s);
@@ -446,7 +446,7 @@ StrTy& fmt_dec_unsigned(StrTy& s, Ty val, unsigned len) {
 }
 
 template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
-StrTy& fmt_dec_unsigned(StrTy& s, Ty val, const fmt_state& fmt) {
+StrTy& fmt_dec_unsigned(StrTy& s, Ty val, const fmt_opts& fmt) {
     const unsigned len = fmt_dec_unsigned_len(val);
     const auto fn = [val, len](StrTy& s) -> StrTy& { return fmt_dec_unsigned(s, val, len); };
     return fmt.width > len ? adjust_numeric(s, fn, len, 0, fmt) : fn(s);
@@ -478,7 +478,7 @@ StrTy& fmt_dec_signed(StrTy& s, Ty val, char sign, unsigned len) {
 }
 
 template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
-StrTy& fmt_dec_signed(StrTy& s, Ty val, const fmt_state& fmt) {
+StrTy& fmt_dec_signed(StrTy& s, Ty val, const fmt_opts& fmt) {
     char sign = '\0';
     if (val & (static_cast<Ty>(1) << (8 * sizeof(Ty) - 1))) {
         sign = '-', val = ~val + 1;  // negative value
@@ -494,7 +494,7 @@ StrTy& fmt_dec_signed(StrTy& s, Ty val, const fmt_state& fmt) {
 // --------------------------
 
 template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
-StrTy& fmt_unsigned(StrTy& s, Ty val, const fmt_state& fmt) {
+StrTy& fmt_unsigned(StrTy& s, Ty val, const fmt_opts& fmt) {
     switch (fmt.flags & fmt_flags::kBaseField) {
         case fmt_flags::kDec: return fmt_dec_unsigned(s, val, fmt);
         case fmt_flags::kBin: return fmt_bin(s, val, fmt);
@@ -505,7 +505,7 @@ StrTy& fmt_unsigned(StrTy& s, Ty val, const fmt_state& fmt) {
 }
 
 template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_signed<Ty>::value>>
-StrTy& fmt_signed(StrTy& s, Ty val, const fmt_state& fmt) {
+StrTy& fmt_signed(StrTy& s, Ty val, const fmt_opts& fmt) {
     switch (fmt.flags & fmt_flags::kBaseField) {
         case fmt_flags::kDec: return fmt_dec_signed(s, static_cast<typename std::make_unsigned<Ty>::type>(val), fmt);
         case fmt_flags::kBin: return fmt_bin(s, static_cast<typename std::make_unsigned<Ty>::type>(val), fmt);
@@ -518,7 +518,7 @@ StrTy& fmt_signed(StrTy& s, Ty val, const fmt_state& fmt) {
 // ---- char
 
 template<typename StrTy, typename Ty, typename = std::enable_if_t<sizeof(Ty) <= sizeof(typename StrTy::value_type)>>
-StrTy& fmt_char(StrTy& s, Ty val, const fmt_state& fmt) {
+StrTy& fmt_char(StrTy& s, Ty val, const fmt_opts& fmt) {
     const auto fn = [val](StrTy& s) -> StrTy& {
         s.push_back(val);
         return s;
@@ -702,7 +702,7 @@ UXS_EXPORT fp10_t fp2_to_fp10(dynbuffer& digs, fp_m64_t fp2, fmt_flags& fp_fmt, 
                               const int exp_bias);
 
 template<typename StrTy>
-StrTy& fmt_float_common(StrTy& s, uint64_t u64, const fmt_state& fmt, const unsigned bpm, const int exp_max) {
+StrTy& fmt_float_common(StrTy& s, uint64_t u64, const fmt_opts& fmt, const unsigned bpm, const int exp_max) {
     char sign = '\0';
     if (u64 & (static_cast<uint64_t>(1 + exp_max) << bpm)) {
         sign = '-';  // negative value
@@ -738,7 +738,7 @@ StrTy& fmt_float_common(StrTy& s, uint64_t u64, const fmt_state& fmt, const unsi
 }
 
 template<typename StrTy, typename Ty, typename = std::enable_if_t<std::is_floating_point<Ty>::value>>
-StrTy& fmt_float(StrTy& s, Ty val, const fmt_state& fmt) {
+StrTy& fmt_float(StrTy& s, Ty val, const fmt_opts& fmt) {
     return fmt_float_common(s, fp_traits<Ty>::to_u64(val), fmt, fp_traits<Ty>::kBitsPerMantissa, fp_traits<Ty>::kExpMax);
 }
 
@@ -754,7 +754,7 @@ StrTy& fmt_float(StrTy& s, Ty val, const fmt_state& fmt) {
         return static_cast<size_t>(last - s.data()); \
     } \
     template<typename StrTy> \
-    StrTy& string_converter<ty>::to_string(StrTy& s, ty val, const fmt_state& fmt) { \
+    StrTy& string_converter<ty>::to_string(StrTy& s, ty val, const fmt_opts& fmt) { \
         return scvt::to_string_func<StrTy, scvt::type_substitution<ty>::type>(s, val, fmt); \
     }
 UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(int8_t, to_integer, fmt_signed)
@@ -791,7 +791,7 @@ size_t string_converter<bool>::from_string(std::basic_string_view<CharT, Traits>
 }
 
 template<typename StrTy>
-StrTy& string_converter<bool>::to_string(StrTy& s, bool val, const fmt_state& fmt) {
+StrTy& string_converter<bool>::to_string(StrTy& s, bool val, const fmt_opts& fmt) {
     const std::string_view sval = val ? std::string_view(!(fmt.flags & fmt_flags::kUpperCase) ? "true" : "TRUE", 4) :
                                         std::string_view(!(fmt.flags & fmt_flags::kUpperCase) ? "false" : "FALSE", 5);
     const auto fn = [sval](StrTy& s) -> StrTy& { return s.append(sval.begin(), sval.end()); };
