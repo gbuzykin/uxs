@@ -5,6 +5,7 @@
 #include <array>
 #include <cstdlib>
 #include <cstring>
+#include <locale>
 
 #if defined(_MSC_VER) && defined(_M_X64)
 #    include <intrin.h>
@@ -22,6 +23,27 @@ __extension__ typedef unsigned __int128 uint128;
 
 namespace uxs {
 namespace scvt {
+
+template<typename CharT>
+struct default_numpunct;
+
+template<>
+struct default_numpunct<char> {
+    CONSTEXPR char decimal_point() const { return '.'; }
+    CONSTEXPR std::string_view infname(const bool upper = false) const { return upper ? "INF" : "inf"; }
+    CONSTEXPR std::string_view nanname(const bool upper = false) const { return upper ? "NAN" : "nan"; }
+    CONSTEXPR std::string_view truename(const bool upper = false) const { return upper ? "TRUE" : "true"; }
+    CONSTEXPR std::string_view falsename(const bool upper = false) const { return upper ? "FALSE" : "false"; }
+};
+
+template<>
+struct default_numpunct<wchar_t> {
+    CONSTEXPR wchar_t decimal_point() const { return '.'; }
+    CONSTEXPR std::wstring_view infname(const bool upper = false) const { return upper ? L"INF" : L"inf"; }
+    CONSTEXPR std::wstring_view nanname(const bool upper = false) const { return upper ? L"NAN" : L"nan"; }
+    CONSTEXPR std::wstring_view truename(const bool upper = false) const { return upper ? L"TRUE" : L"true"; }
+    CONSTEXPR std::wstring_view falsename(const bool upper = false) const { return upper ? L"FALSE" : L"false"; }
+};
 
 struct fp_m64_t {
     uint64_t m;
@@ -80,12 +102,13 @@ inline unsigned ulog2(uint64_t x) {
 // ---- from string to value
 
 template<typename CharT>
-const CharT* starts_with(const CharT* p, const CharT* end, const char* s, const size_t len) NOEXCEPT {
-    if (static_cast<size_t>(end - p) < len) { return p; }
-    for (const CharT* p1 = p; p1 < end; ++p1, ++s) {
-        if (to_lower(*p1) != *s) { return p; }
+const CharT* starts_with(const CharT* p, const CharT* end, std::basic_string_view<CharT> s) NOEXCEPT {
+    if (static_cast<size_t>(end - p) < s.size()) { return p; }
+    const CharT* p_s = s.data();
+    for (const CharT* p1 = p; p1 < end; ++p1, ++p_s) {
+        if (to_lower(*p1) != *p_s) { return p; }
     }
-    return p + len;
+    return p + s.size();
 }
 
 template<typename Ty, typename CharT>
@@ -134,7 +157,7 @@ const CharT* accum_mantissa(const CharT* p, const CharT* end, uint64_t& m, int& 
 template<typename CharT>
 const CharT* chars_to_fp10(const CharT* p, const CharT* end, fp_m64_t& fp10) NOEXCEPT {
     unsigned dig = 0;
-    const CharT dec_point = '.';
+    const CharT dec_point = default_numpunct<CharT>().decimal_point();
     if (p == end) { return p; }
     if ((dig = dig_v(*p)) < 10) {  // integral part
         fp10.m = dig;
@@ -174,9 +197,9 @@ uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, c
     const CharT* p1 = chars_to_fp10(p, end, fp10);
     if (p1 > p) {
         fp2 |= fp10_to_fp2(fp10, bpm, exp_max);
-    } else if ((p1 = starts_with(p, end, "inf", 3)) > p) {  // infinity
+    } else if ((p1 = starts_with(p, end, default_numpunct<CharT>().infname())) > p) {  // infinity
         fp2 |= static_cast<uint64_t>(exp_max) << bpm;
-    } else if ((p1 = starts_with(p, end, "nan", 3)) > p) {  // NaN
+    } else if ((p1 = starts_with(p, end, default_numpunct<CharT>().nanname())) > p) {  // NaN
         fp2 |= (static_cast<uint64_t>(exp_max) << bpm) | ((1ull << bpm) - 1);
     } else {
         return 0;
@@ -189,11 +212,11 @@ uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, c
 template<typename Ty, typename CharT>
 Ty to_bool(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
     unsigned dig = 0;
-    Ty val = false;
     const CharT* p0 = p;
-    if ((p = scvt::starts_with(p, end, "true", 4)) > p0) {
+    bool val = false;
+    if ((p = starts_with(p, end, default_numpunct<CharT>().truename())) > p0) {
         val = true;
-    } else if ((p = scvt::starts_with(p, end, "false", 5)) > p0) {
+    } else if ((p = starts_with(p, end, default_numpunct<CharT>().falsename())) > p0) {
     } else if (p < end && (dig = dig_v(*p)) < 10) {
         do {
             if (dig) { val = true; }
@@ -243,19 +266,51 @@ struct common_str_impl_enabler<basic_unlimbuf_appender<CharT>> : std::false_type
 template<typename CharT, typename Alloc>
 struct common_str_impl_enabler<basic_dynbuffer<CharT, Alloc>> : std::false_type {};
 
+template<typename CharT>
+struct grouping_t {
+    typename std::numpunct<CharT>::char_type thousands_sep;
+    std::string grouping;
+};
+
+inline unsigned calc_len_with_grouping(unsigned desired_len, const std::string& grouping) {
+    unsigned length = desired_len;
+    unsigned grp = 1;
+    for (char ch : grouping) {
+        grp = ch > 0 ? ch : 1;
+        if (desired_len <= grp) { return length; }
+        desired_len -= grp, ++length;
+    }
+    return length + ((desired_len - 1) / grp);
+}
+
 // ---- binary
 
 template<typename CharT, typename Ty>
-void fmt_gen_bin(CharT* p, Ty val, char sign, const fmt_opts& fmt) NOEXCEPT {
-    do {
+CharT* fmt_gen_bin(CharT* p, Ty val, char sign, const fmt_opts& fmt,
+                   const grouping_t<CharT>* grouping = nullptr) NOEXCEPT {
+    if (grouping) {
+        auto grp_it = grouping->grouping.begin();
+        int cnt = *grp_it;
         *--p = '0' + static_cast<unsigned>(val & 1);
-        val >>= 1;
-    } while (val != 0);
+        while ((val >>= 1) != 0) {
+            if (--cnt <= 0) {
+                *--p = grouping->thousands_sep;
+                cnt = std::next(grp_it) != grouping->grouping.end() ? *++grp_it : *grp_it;
+            }
+            *--p = '0' + static_cast<unsigned>(val & 1);
+        }
+    } else {
+        do {
+            *--p = '0' + static_cast<unsigned>(val & 1);
+            val >>= 1;
+        } while (val != 0);
+    }
     if (!!(fmt.flags & fmt_flags::kAlternate)) {
         *--p = !(fmt.flags & fmt_flags::kUpperCase) ? 'b' : 'B';
         *--p = '0';
     }
     if (sign) { *--p = sign; }
+    return p;
 }
 
 template<typename CharT, typename Ty>
@@ -290,6 +345,18 @@ StrTy& fmt_bin(StrTy& s, Ty val, bool is_signed, const fmt_opts& fmt) {
         }
     }
     const unsigned n_prefix = (sign != '\0' ? 1 : 0) + (!!(fmt.flags & fmt_flags::kAlternate) ? 2 : 0);
+    if (fmt.loc) {
+        using CharT = typename StrTy::value_type;
+        const auto& numpunct = std::use_facet<std::numpunct<CharT>>(*fmt.loc);
+        grouping_t<CharT> grouping{numpunct.thousands_sep(), numpunct.grouping()};
+        if (!grouping.grouping.empty()) {
+            std::array<CharT, 136> buf;
+            CharT *last = buf.data() + buf.size(), *first = fmt_gen_bin(last, val, sign, fmt, &grouping);
+            const unsigned len = static_cast<unsigned>(last - first);
+            const auto fn = [first, last](StrTy& s) -> StrTy& { return s.append(first, last); };
+            return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt) : fn(s);
+        }
+    }
     const unsigned len = 1 + n_prefix + ulog2(val);
     const auto fn = [val, sign, len, &fmt](StrTy& s) -> StrTy& { return fmt_gen_bin(s, val, sign, len, fmt); };
     return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt) : fn(s);
@@ -298,13 +365,28 @@ StrTy& fmt_bin(StrTy& s, Ty val, bool is_signed, const fmt_opts& fmt) {
 // ---- octal
 
 template<typename CharT, typename Ty>
-void fmt_gen_oct(CharT* p, Ty val, char sign, const fmt_opts& fmt) NOEXCEPT {
-    do {
+CharT* fmt_gen_oct(CharT* p, Ty val, char sign, const fmt_opts& fmt,
+                   const grouping_t<CharT>* grouping = nullptr) NOEXCEPT {
+    if (grouping) {
+        auto grp_it = grouping->grouping.begin();
+        int cnt = *grp_it;
         *--p = '0' + static_cast<unsigned>(val & 7);
-        val >>= 3;
-    } while (val != 0);
+        while ((val >>= 3) != 0) {
+            if (--cnt <= 0) {
+                *--p = grouping->thousands_sep;
+                cnt = std::next(grp_it) != grouping->grouping.end() ? *++grp_it : *grp_it;
+            }
+            *--p = '0' + static_cast<unsigned>(val & 7);
+        }
+    } else {
+        do {
+            *--p = '0' + static_cast<unsigned>(val & 7);
+            val >>= 3;
+        } while (val != 0);
+    }
     if (!!(fmt.flags & fmt_flags::kAlternate)) { *--p = '0'; }
     if (sign) { *--p = sign; }
+    return p;
 }
 
 template<typename CharT, typename Ty>
@@ -339,7 +421,19 @@ StrTy& fmt_oct(StrTy& s, Ty val, bool is_signed, const fmt_opts& fmt) {
         }
     }
     const unsigned n_prefix = sign != '\0' ? 1 : 0;
-    const unsigned len = n_prefix + (!!(fmt.flags & fmt_flags::kAlternate) ? 2 : 1) + ulog2(val) / 3;
+    if (fmt.loc) {
+        using CharT = typename StrTy::value_type;
+        const auto& numpunct = std::use_facet<std::numpunct<CharT>>(*fmt.loc);
+        grouping_t<CharT> grouping{numpunct.thousands_sep(), numpunct.grouping()};
+        if (!grouping.grouping.empty()) {
+            std::array<CharT, 48> buf;
+            CharT *last = buf.data() + buf.size(), *first = fmt_gen_oct(last, val, sign, fmt, &grouping);
+            const unsigned len = static_cast<unsigned>(last - first);
+            const auto fn = [first, last](StrTy& s) -> StrTy& { return s.append(first, last); };
+            return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt) : fn(s);
+        }
+    }
+    const unsigned len = (!!(fmt.flags & fmt_flags::kAlternate) ? 2 : 1) + n_prefix + ulog2(val) / 3;
     const auto fn = [val, sign, len, &fmt](StrTy& s) -> StrTy& { return fmt_gen_oct(s, val, sign, len, fmt); };
     return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt) : fn(s);
 }
@@ -347,17 +441,32 @@ StrTy& fmt_oct(StrTy& s, Ty val, bool is_signed, const fmt_opts& fmt) {
 // ---- hexadecimal
 
 template<typename CharT, typename Ty>
-void fmt_gen_hex(CharT* p, Ty val, char sign, const fmt_opts& fmt) NOEXCEPT {
+CharT* fmt_gen_hex(CharT* p, Ty val, char sign, const fmt_opts& fmt,
+                   const grouping_t<CharT>* grouping = nullptr) NOEXCEPT {
     const char* digs = !!(fmt.flags & fmt_flags::kUpperCase) ? "0123456789ABCDEF" : "0123456789abcdef";
-    do {
+    if (grouping) {
+        auto grp_it = grouping->grouping.begin();
+        int cnt = *grp_it;
         *--p = digs[val & 0xf];
-        val >>= 4;
-    } while (val != 0);
+        while ((val >>= 4) != 0) {
+            if (--cnt <= 0) {
+                *--p = grouping->thousands_sep;
+                cnt = std::next(grp_it) != grouping->grouping.end() ? *++grp_it : *grp_it;
+            }
+            *--p = digs[val & 0xf];
+        }
+    } else {
+        do {
+            *--p = digs[val & 0xf];
+            val >>= 4;
+        } while (val != 0);
+    }
     if (!!(fmt.flags & fmt_flags::kAlternate)) {
         *--p = !(fmt.flags & fmt_flags::kUpperCase) ? 'x' : 'X';
         *--p = '0';
     }
     if (sign) { *--p = sign; }
+    return p;
 }
 
 template<typename CharT, typename Ty>
@@ -392,6 +501,18 @@ StrTy& fmt_hex(StrTy& s, Ty val, bool is_signed, const fmt_opts& fmt) {
         }
     }
     const unsigned n_prefix = (sign != '\0' ? 1 : 0) + (!!(fmt.flags & fmt_flags::kAlternate) ? 2 : 0);
+    if (fmt.loc) {
+        using CharT = typename StrTy::value_type;
+        const auto& numpunct = std::use_facet<std::numpunct<CharT>>(*fmt.loc);
+        grouping_t<CharT> grouping{numpunct.thousands_sep(), numpunct.grouping()};
+        if (!grouping.grouping.empty()) {
+            std::array<CharT, 40> buf;
+            CharT *last = buf.data() + buf.size(), *first = fmt_gen_hex(last, val, sign, fmt, &grouping);
+            const unsigned len = static_cast<unsigned>(last - first);
+            const auto fn = [first, last](StrTy& s) -> StrTy& { return s.append(first, last); };
+            return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt) : fn(s);
+        }
+    }
     const unsigned len = 1 + n_prefix + (ulog2(val) >> 2);
     const auto fn = [val, sign, len, &fmt](StrTy& s) -> StrTy& { return fmt_gen_hex(s, val, sign, len, fmt); };
     return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt) : fn(s);
@@ -443,9 +564,25 @@ Ty gen_digits_n(CharT* p, Ty v, unsigned n) NOEXCEPT {
 }
 
 template<typename CharT, typename Ty>
-void fmt_gen_dec(CharT* p, Ty val, char sign) NOEXCEPT {
-    p = gen_digits(p, val);
+CharT* fmt_gen_dec(CharT* p, Ty val, char sign, const grouping_t<CharT>* grouping = nullptr) NOEXCEPT {
+    if (grouping) {
+        auto grp_it = grouping->grouping.begin();
+        int cnt = *grp_it;
+        Ty t = val / 10u;
+        *--p = '0' + static_cast<unsigned>(val - 10u * t);
+        while ((val = t) != 0) {
+            if (--cnt <= 0) {
+                *--p = grouping->thousands_sep,
+                cnt = std::next(grp_it) != grouping->grouping.end() ? *++grp_it : *grp_it;
+            }
+            t = val / 10u;
+            *--p = '0' + static_cast<unsigned>(val - 10u * t);
+        }
+    } else {
+        p = gen_digits(p, val);
+    }
     if (sign) { *--p = sign; }
+    return p;
 }
 
 template<typename CharT, typename Ty>
@@ -479,6 +616,18 @@ StrTy& fmt_dec(StrTy& s, Ty val, const bool is_signed, const fmt_opts& fmt) {
         }
     }
     const unsigned n_prefix = sign != '\0' ? 1 : 0;
+    if (fmt.loc) {
+        using CharT = typename StrTy::value_type;
+        const auto& numpunct = std::use_facet<std::numpunct<CharT>>(*fmt.loc);
+        grouping_t<CharT> grouping{numpunct.thousands_sep(), numpunct.grouping()};
+        if (!grouping.grouping.empty()) {
+            std::array<CharT, 40> buf;
+            CharT *last = buf.data() + buf.size(), *first = fmt_gen_dec(last, val, sign, &grouping);
+            const unsigned len = static_cast<unsigned>(last - first);
+            const auto fn = [first, last](StrTy& s) -> StrTy& { return s.append(first, last); };
+            return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt) : fn(s);
+        }
+    }
     const unsigned len = n_prefix + fmt_dec_unsigned_len(val);
     const auto fn = [val, sign, len](StrTy& s) -> StrTy& { return fmt_gen_dec(s, val, sign, len); };
     return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt) : fn(s);
@@ -524,34 +673,45 @@ class UXS_EXPORT fp_dec_fmt_t {
                (prec_ > 0 || alternate_ ? prec_ + 1 : 0);
     }
 
+    unsigned get_len_with_grouing(char sign, const std::string& grouping) const NOEXCEPT {
+        return (sign != '\0' ? 1 : 0) +
+               (fixed_ ? calc_len_with_grouping(1 + std::max(exp_, 0), grouping) :
+                         (exp_ <= -100 || exp_ >= 100 ? 6 : 5)) +
+               (prec_ > 0 || alternate_ ? prec_ + 1 : 0);
+    }
+
     template<typename CharT>
-    void generate(CharT* p, const fmt_opts& fmt) const NOEXCEPT;
+    void generate(CharT* p, const fmt_opts& fmt, const CharT dec_point,
+                  const grouping_t<CharT>* grouping) const NOEXCEPT;
 
     template<typename CharT>
     basic_unlimbuf_appender<CharT>& generate(basic_unlimbuf_appender<CharT>& s, char sign, unsigned len,
-                                             const fmt_opts& fmt) const NOEXCEPT {
+                                             const fmt_opts& fmt, const CharT dec_point,
+                                             const grouping_t<CharT>* grouping = nullptr) const NOEXCEPT {
         CharT* p = s.curr();
         if (sign != '\0') { *p = sign; }  // generate sign
-        generate(p + len, fmt);
+        generate(p + len, fmt, dec_point, grouping);
         return s.advance(len);
     }
 
     template<typename CharT, typename Alloc>
     basic_dynbuffer<CharT, Alloc>& generate(basic_dynbuffer<CharT, Alloc>& s, char sign, unsigned len,
-                                            const fmt_opts& fmt) const {
+                                            const fmt_opts& fmt, const CharT dec_point,
+                                            const grouping_t<CharT>* grouping = nullptr) const {
         CharT* p = s.reserve_at_curr(len);
         if (sign != '\0') { *p = sign; }  // generate sign
-        generate(p + len, fmt);
+        generate(p + len, fmt, dec_point, grouping);
         return s.advance(len);
     }
 
     template<typename StrTy, typename = std::enable_if_t<common_str_impl_enabler<StrTy>::value>>
-    StrTy& generate(StrTy& s, char sign, unsigned len, const fmt_opts& fmt) const {
+    StrTy& generate(StrTy& s, char sign, unsigned len, const fmt_opts& fmt, const typename StrTy::value_type dec_point,
+                    const grouping_t<typename StrTy::value_type>* grouping = nullptr) const {
         using CharT = typename StrTy::value_type;
         basic_inline_dynbuffer<CharT> buf;
         CharT* p = buf.reserve_at_curr(len);
         if (sign != '\0') { *p = sign; }  // generate sign
-        generate(p + len, fmt);
+        generate(p + len, fmt, dec_point, grouping);
         return s.append(buf.data(), buf.data() + len);
     }
 
@@ -567,8 +727,8 @@ class UXS_EXPORT fp_dec_fmt_t {
 };
 
 template<typename CharT>
-void fp_dec_fmt_t::generate(CharT* p, const fmt_opts& fmt) const NOEXCEPT {
-    const CharT dec_point = '.';
+void fp_dec_fmt_t::generate(CharT* p, const fmt_opts& fmt, const CharT dec_point,
+                            const grouping_t<CharT>* grouping) const NOEXCEPT {
     const CharT e_symb = !(fmt.flags & fmt_flags::kUpperCase) ? 'e' : 'E';
 
     if (!fixed_) {  // generate scientific representation
@@ -630,12 +790,55 @@ void fp_dec_fmt_t::generate(CharT* p, const fmt_opts& fmt) const NOEXCEPT {
     } else if (alternate_) {
         *--p = dec_point;
     }
-    if (!digs_) {  // generate integral part from significand
-        gen_digits(p, m);
-    } else if (n_zeroes > 0) {  // generate from chars
-        std::fill_n(std::copy_n(digs_, k - n_zeroes, p - k), n_zeroes, '0');
+
+    if (!grouping || k != 1 + exp_) {  // no grouping or integral part is fractional in fact
+        if (!digs_) {                  // generate integral part from significand
+            gen_digits(p, m);
+        } else if (n_zeroes > 0) {  // generate from chars
+            std::fill_n(std::copy_n(digs_, k - n_zeroes, p - k), n_zeroes, '0');
+        } else {
+            std::copy_n(digs_, k, p - k);
+        }
+        return;
+    }
+
+    auto grp_it = grouping->grouping.begin();
+    int cnt = *grp_it;
+    if (!digs_) {
+        uint64_t t = m / 10u;
+        *--p = '0' + static_cast<unsigned>(m - 10u * t);
+        while ((m = t) != 0) {
+            if (--cnt <= 0) {
+                *--p = grouping->thousands_sep;
+                cnt = std::next(grp_it) != grouping->grouping.end() ? *++grp_it : *grp_it;
+            }
+            t = m / 10u;
+            *--p = '0' + static_cast<unsigned>(m - 10u * t);
+        }
+        return;
+    }
+
+    const char* digs = digs_;
+    if (n_zeroes > 0) {
+        digs += k - n_zeroes;
+        *--p = '0';
+        while (--n_zeroes) {
+            if (--cnt <= 0) {
+                *--p = grouping->thousands_sep;
+                cnt = std::next(grp_it) != grouping->grouping.end() ? *++grp_it : *grp_it;
+            }
+            *--p = '0';
+        }
     } else {
-        std::copy_n(digs_, k, p - k);
+        digs += k;
+        *--p = *--digs;
+    }
+    while (digs != digs_) {
+        if (--cnt <= 0) {
+            *--p = grouping->thousands_sep;
+            cnt = std::next(grp_it) != grouping->grouping.end() ? *++grp_it : *grp_it;
+        }
+        *--p = *--digs;
     }
 }
 
@@ -648,23 +851,40 @@ StrTy& fmt_float_common(StrTy& s, uint64_t u64, const fmt_opts& fmt, const unsig
         sign = (fmt.flags & fmt_flags::kSignField) == fmt_flags::kSignPos ? '+' : ' ';
     }
 
+    using CharT = typename StrTy::value_type;
+
     // Binary exponent and mantissa
     const fp_m64_t fp2{u64 & ((1ull << bpm) - 1), static_cast<int>((u64 >> bpm) & exp_max)};
 
     if (fp2.exp == exp_max) {
-        const char* p0 = fp2.m == 0 ? (!(fmt.flags & fmt_flags::kUpperCase) ? "inf" : "INF") :
-                                      (!(fmt.flags & fmt_flags::kUpperCase) ? "nan" : "NAN");
-        const unsigned len = sign != '\0' ? 4 : 3;
-        const auto fn = [p0, sign](StrTy& s) -> StrTy& {
+        const auto sval = fp2.m == 0 ? default_numpunct<CharT>().infname(!!(fmt.flags & fmt_flags::kUpperCase)) :
+                                       default_numpunct<CharT>().nanname(!!(fmt.flags & fmt_flags::kUpperCase));
+        const unsigned len = (sign != '\0' ? 1 : 0) + static_cast<unsigned>(sval.size());
+        const auto fn = [&sval, sign](StrTy& s) -> StrTy& {
             if (sign != '\0') { s.push_back(sign); }
-            return s.append(p0, p0 + 3);
+            return s.append(sval.begin(), sval.end());
         };
         return fmt.width > len ? append_adjusted(s, fn, len, fmt) : fn(s);
     }
 
     fp_dec_fmt_t fp(fp2, fmt, bpm, exp_max >> 1);
+    CharT dec_point = default_numpunct<CharT>().decimal_point();
+    if (fmt.loc) {
+        const auto& numpunct = std::use_facet<std::numpunct<CharT>>(*fmt.loc);
+        grouping_t<CharT> grouping{numpunct.thousands_sep(), numpunct.grouping()};
+        dec_point = numpunct.decimal_point();
+        if (!grouping.grouping.empty()) {
+            const unsigned len = fp.get_len_with_grouing(sign, grouping.grouping);
+            const auto fn = [&fp, sign, len, &fmt, dec_point, &grouping](StrTy& s) -> StrTy& {
+                return fp.generate(s, sign, len, fmt, dec_point, &grouping);
+            };
+            return fmt.width > len ? adjust_numeric(s, fn, len, sign != '\0' ? 1 : 0, fmt) : fn(s);
+        }
+    }
     const unsigned len = fp.get_len(sign);
-    const auto fn = [&fp, sign, len, &fmt](StrTy& s) -> StrTy& { return fp.generate(s, sign, len, fmt); };
+    const auto fn = [&fp, sign, len, &fmt, dec_point](StrTy& s) -> StrTy& {
+        return fp.generate(s, sign, len, fmt, dec_point);
+    };
     return fmt.width > len ? adjust_numeric(s, fn, len, sign != '\0' ? 1 : 0, fmt) : fn(s);
 }
 
@@ -672,9 +892,16 @@ StrTy& fmt_float_common(StrTy& s, uint64_t u64, const fmt_opts& fmt, const unsig
 
 template<typename StrTy, typename Ty>
 StrTy& fmt_bool(StrTy& s, Ty val, const fmt_opts& fmt) {
-    const std::string_view sval = val ? std::string_view(!(fmt.flags & fmt_flags::kUpperCase) ? "true" : "TRUE", 4) :
-                                        std::string_view(!(fmt.flags & fmt_flags::kUpperCase) ? "false" : "FALSE", 5);
-    const auto fn = [sval](StrTy& s) -> StrTy& { return s.append(sval.begin(), sval.end()); };
+    using CharT = typename StrTy::value_type;
+    if (fmt.loc) {
+        const auto& numpunct = std::use_facet<std::numpunct<CharT>>(*fmt.loc);
+        const auto sval = val ? numpunct.truename() : numpunct.falsename();
+        const auto fn = [&sval](StrTy& s) -> StrTy& { return s.append(sval.begin(), sval.end()); };
+        return fmt.width > sval.size() ? append_adjusted(s, fn, static_cast<unsigned>(sval.size()), fmt) : fn(s);
+    }
+    const auto sval = val ? default_numpunct<CharT>().truename(!!(fmt.flags & fmt_flags::kUpperCase)) :
+                            default_numpunct<CharT>().falsename(!!(fmt.flags & fmt_flags::kUpperCase));
+    const auto fn = [&sval](StrTy& s) -> StrTy& { return s.append(sval.begin(), sval.end()); };
     return fmt.width > sval.size() ? append_adjusted(s, fn, static_cast<unsigned>(sval.size()), fmt) : fn(s);
 }
 

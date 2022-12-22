@@ -465,7 +465,8 @@ enum class parse_format_error_code { kSuccess = 0, kInvalidFormat, kOutOfArgList
 template<typename CharT, typename Traits, typename AppendFn, typename AppendArgFn, typename GetUIntArgFn>
 CONSTEXPR parse_format_error_code parse_format(std::basic_string_view<CharT, Traits> fmt, const size_t arg_count,
                                                const AppendFn& append_fn, const AppendArgFn& append_arg_fn,
-                                               const GetUIntArgFn& get_uint_arg_fn) {
+                                               const GetUIntArgFn& get_uint_arg_fn,
+                                               const std::locale* p_loc = nullptr) {
     unsigned n_arg_auto = 0;
     const CharT *first0 = fmt.data(), *first = first0, *last = first0 + fmt.size();
     while (first != last) {
@@ -493,6 +494,7 @@ CONSTEXPR parse_format_error_code parse_format(std::basic_string_view<CharT, Tra
                     if (specs.n_prec_arg >= arg_count) { return parse_format_error_code::kOutOfArgList; }
                     specs.fmt.prec = get_uint_arg_fn(specs.n_prec_arg);
                 }
+                if (!!(specs.flags & parse_flags::kUseLocale)) { specs.fmt.loc = p_loc; }
                 append_arg_fn(specs.n_arg, specs);
                 first0 = first + 1;
             } else if (*(first - 1) != *first) {
@@ -596,7 +598,7 @@ struct basic_format_string {
 
 template<typename StrTy, typename Traits>
 UXS_EXPORT StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type, Traits> fmt,
-                                span<const sfmt::arg_list_item<StrTy>> args);
+                                span<const sfmt::arg_list_item<StrTy>> args, const std::locale* p_loc);
 
 #if defined(_MSC_VER) && _MSC_VER <= 1800
 template<typename... Ts>
@@ -605,7 +607,12 @@ template<typename... Ts>
 using wformat_string = basic_format_string<wchar_t>;
 template<typename StrTy, typename... Ts>
 StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type> fmt, const Ts&... args) {
-    return basic_vformat<StrTy>(s, fmt.checked, sfmt::make_args<StrTy>(args...));
+    return basic_vformat<StrTy>(s, fmt.checked, sfmt::make_args<StrTy>(args...), nullptr);
+}
+template<typename StrTy, typename... Ts>
+StrTy& basic_format(StrTy& s, const std::locale& loc, basic_format_string<typename StrTy::value_type> fmt,
+                    const Ts&... args) {
+    return basic_vformat<StrTy>(s, fmt.checked, sfmt::make_args<StrTy>(args...), &loc);
 }
 #else   // defined(_MSC_VER) && _MSC_VER <= 1800
 template<typename... Ts>
@@ -614,9 +621,16 @@ template<typename... Ts>
 using wformat_string = basic_format_string<wchar_t, std::char_traits<wchar_t>, type_identity_t<Ts>...>;
 template<typename StrTy, typename Traits, typename... Ts>
 StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type, Traits, Ts...> fmt, const Ts&... args) {
-    return basic_vformat<StrTy>(s, fmt.checked, sfmt::make_args<StrTy>(args...));
+    return basic_vformat<StrTy>(s, fmt.checked, sfmt::make_args<StrTy>(args...), nullptr);
+}
+template<typename StrTy, typename Traits, typename... Ts>
+StrTy& basic_format(StrTy& s, const std::locale& loc,
+                    basic_format_string<typename StrTy::value_type, Traits, Ts...> fmt, const Ts&... args) {
+    return basic_vformat<StrTy>(s, fmt.checked, sfmt::make_args<StrTy>(args...), &loc);
 }
 #endif  // defined(_MSC_VER) && _MSC_VER <= 1800
+
+// ---- format
 
 template<typename... Ts>
 NODISCARD std::string format(format_string<Ts...> fmt, const Ts&... args) {
@@ -633,6 +647,22 @@ NODISCARD std::wstring format(wformat_string<Ts...> fmt, const Ts&... args) {
 }
 
 template<typename... Ts>
+NODISCARD std::string format(const std::locale& loc, format_string<Ts...> fmt, const Ts&... args) {
+    inline_dynbuffer buf;
+    basic_format(buf.base(), loc, fmt, args...);
+    return std::string(buf.data(), buf.size());
+}
+
+template<typename... Ts>
+NODISCARD std::wstring format(const std::locale& loc, wformat_string<Ts...> fmt, const Ts&... args) {
+    inline_wdynbuffer buf;
+    basic_format(buf.base(), loc, fmt, args...);
+    return std::wstring(buf.data(), buf.size());
+}
+
+// ---- format_to
+
+template<typename... Ts>
 char* format_to(char* buf, format_string<Ts...> fmt, const Ts&... args) {
     unlimbuf_appender appender(buf);
     return basic_format(appender, fmt, args...).curr();
@@ -643,6 +673,20 @@ wchar_t* format_to(wchar_t* buf, wformat_string<Ts...> fmt, const Ts&... args) {
     wunlimbuf_appender appender(buf);
     return basic_format(appender, fmt, args...).curr();
 }
+
+template<typename... Ts>
+char* format_to(char* buf, const std::locale& loc, format_string<Ts...> fmt, const Ts&... args) {
+    unlimbuf_appender appender(buf);
+    return basic_format(appender, loc, fmt, args...).curr();
+}
+
+template<typename... Ts>
+wchar_t* format_to(wchar_t* buf, const std::locale& loc, wformat_string<Ts...> fmt, const Ts&... args) {
+    wunlimbuf_appender appender(buf);
+    return basic_format(appender, loc, fmt, args...).curr();
+}
+
+// ---- format_to_n
 
 template<typename... Ts>
 char* format_to_n(char* buf, size_t n, format_string<Ts...> fmt, const Ts&... args) {
@@ -657,6 +701,20 @@ wchar_t* format_to_n(wchar_t* buf, size_t n, wformat_string<Ts...> fmt, const Ts
 }
 
 template<typename... Ts>
+char* format_to_n(char* buf, size_t n, const std::locale& loc, format_string<Ts...> fmt, const Ts&... args) {
+    limbuf_appender appender(buf, n);
+    return basic_format(appender, loc, fmt, args...).curr();
+}
+
+template<typename... Ts>
+wchar_t* format_to_n(wchar_t* buf, size_t n, const std::locale& loc, wformat_string<Ts...> fmt, const Ts&... args) {
+    wlimbuf_appender appender(buf, n);
+    return basic_format(appender, loc, fmt, args...).curr();
+}
+
+// ---- print
+
+template<typename... Ts>
 iobuf& print(iobuf& out, format_string<Ts...> fmt, const Ts&... args) {
     inline_dynbuffer buf;
     basic_format(buf.base(), fmt, args...);
@@ -669,6 +727,32 @@ wiobuf& print(wiobuf& out, wformat_string<Ts...> fmt, const Ts&... args) {
     basic_format(buf.base(), fmt, args...);
     return out.write(as_span(buf.data(), buf.size()));
 }
+
+template<typename... Ts>
+iobuf& print(format_string<Ts...> fmt, const Ts&... args) {
+    return print(stdbuf::out, fmt, args...);
+}
+
+template<typename... Ts>
+iobuf& print(iobuf& out, const std::locale& loc, format_string<Ts...> fmt, const Ts&... args) {
+    inline_dynbuffer buf;
+    basic_format(buf.base(), loc, fmt, args...);
+    return out.write(as_span(buf.data(), buf.size()));
+}
+
+template<typename... Ts>
+wiobuf& print(wiobuf& out, const std::locale& loc, wformat_string<Ts...> fmt, const Ts&... args) {
+    inline_wdynbuffer buf;
+    basic_format(buf.base(), loc, fmt, args...);
+    return out.write(as_span(buf.data(), buf.size()));
+}
+
+template<typename... Ts>
+iobuf& print(const std::locale& loc, format_string<Ts...> fmt, const Ts&... args) {
+    return print(stdbuf::out, loc, fmt, args...);
+}
+
+// ---- print
 
 template<typename... Ts>
 iobuf& println(iobuf& out, format_string<Ts...> fmt, const Ts&... args) {
@@ -687,13 +771,29 @@ wiobuf& println(wiobuf& out, wformat_string<Ts...> fmt, const Ts&... args) {
 }
 
 template<typename... Ts>
-iobuf& print(format_string<Ts...> fmt, const Ts&... args) {
-    return print(stdbuf::out, fmt, args...);
+iobuf& println(format_string<Ts...> fmt, const Ts&... args) {
+    return println(stdbuf::out, fmt, args...);
 }
 
 template<typename... Ts>
-iobuf& println(format_string<Ts...> fmt, const Ts&... args) {
-    return println(stdbuf::out, fmt, args...);
+iobuf& println(iobuf& out, const std::locale& loc, format_string<Ts...> fmt, const Ts&... args) {
+    inline_dynbuffer buf;
+    basic_format(buf.base(), loc, fmt, args...);
+    buf.push_back('\n');
+    return out.write(as_span(buf.data(), buf.size())).flush();
+}
+
+template<typename... Ts>
+wiobuf& println(wiobuf& out, const std::locale& loc, wformat_string<Ts...> fmt, const Ts&... args) {
+    inline_wdynbuffer buf;
+    basic_format(buf.base(), loc, fmt, args...);
+    buf.push_back('\n');
+    return out.write(as_span(buf.data(), buf.size())).flush();
+}
+
+template<typename... Ts>
+iobuf& println(const std::locale& loc, format_string<Ts...> fmt, const Ts&... args) {
+    return println(stdbuf::out, loc, fmt, args...);
 }
 
 }  // namespace uxs

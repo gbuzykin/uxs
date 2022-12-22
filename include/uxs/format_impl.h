@@ -4,6 +4,8 @@
 
 #include "uxs/format.h"
 
+#include <locale>
+
 namespace uxs {
 namespace sfmt {
 
@@ -68,7 +70,7 @@ StrTy& adjust_string(StrTy& s, span<const CharT> val, fmt_opts& fmt) {
 
 template<typename StrTy, typename Traits>
 StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type, Traits> fmt,
-                     span<const sfmt::arg_list_item<StrTy>> args) {
+                     span<const sfmt::arg_list_item<StrTy>> args, const std::locale* p_loc) {
     auto get_fmt_arg_integer_value = [&args](unsigned n_arg) -> unsigned {
         switch (args[n_arg].type_id) {
 #define UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(ty, type_id) \
@@ -97,6 +99,7 @@ StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type
         }
     };
     using CharT = typename StrTy::value_type;
+    const auto& loc = p_loc ? *p_loc : std::locale();
     const auto error_code = sfmt::parse_format(
         fmt, args.size(), [&s](const CharT* p0, const CharT* p) { s.append(p0, p); },
         [&s, &args](unsigned n_arg, sfmt::arg_specs& specs) {
@@ -186,7 +189,7 @@ StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type
             }
             args[n_arg].fmt_func(s, args[n_arg].p_arg, specs.fmt);
         },
-        get_fmt_arg_integer_value);
+        get_fmt_arg_integer_value, &loc);
     if (error_code == sfmt::parse_format_error_code::kSuccess) {
     } else if (error_code == sfmt::parse_format_error_code::kOutOfArgList) {
         throw format_error("out of argument list");

@@ -13,10 +13,13 @@ template UXS_EXPORT dynbuffer& adjust_string(dynbuffer&, uxs::span<const char>, 
 }  // namespace sfmt
 
 template UXS_EXPORT unlimbuf_appender& basic_vformat(unlimbuf_appender&, std::string_view,
-                                                     span<const sfmt::arg_list_item<unlimbuf_appender>>);
+                                                     span<const sfmt::arg_list_item<unlimbuf_appender>>,
+                                                     const std::locale*);
 template UXS_EXPORT limbuf_appender& basic_vformat(limbuf_appender&, std::string_view,
-                                                   span<const sfmt::arg_list_item<limbuf_appender>>);
-template UXS_EXPORT dynbuffer& basic_vformat(dynbuffer&, std::string_view, span<const sfmt::arg_list_item<dynbuffer>>);
+                                                   span<const sfmt::arg_list_item<limbuf_appender>>,
+                                                   const std::locale*);
+template UXS_EXPORT dynbuffer& basic_vformat(dynbuffer&, std::string_view, span<const sfmt::arg_list_item<dynbuffer>>,
+                                             const std::locale*);
 
 namespace sfmt {
 template UXS_EXPORT wunlimbuf_appender& adjust_string(wunlimbuf_appender&, uxs::span<const wchar_t>, fmt_opts&);
@@ -25,9 +28,11 @@ template UXS_EXPORT wdynbuffer& adjust_string(wdynbuffer&, uxs::span<const wchar
 }  // namespace sfmt
 
 template UXS_EXPORT wunlimbuf_appender& basic_vformat(wunlimbuf_appender&, std::wstring_view,
-                                                      span<const sfmt::arg_list_item<wunlimbuf_appender>>);
+                                                      span<const sfmt::arg_list_item<wunlimbuf_appender>>,
+                                                      const std::locale*);
 template UXS_EXPORT wlimbuf_appender& basic_vformat(wlimbuf_appender&, std::wstring_view,
-                                                    span<const sfmt::arg_list_item<wlimbuf_appender>>);
+                                                    span<const sfmt::arg_list_item<wlimbuf_appender>>,
+                                                    const std::locale*);
 template UXS_EXPORT wdynbuffer& basic_vformat(wdynbuffer&, std::wstring_view,
-                                              span<const sfmt::arg_list_item<wdynbuffer>>);
+                                              span<const sfmt::arg_list_item<wdynbuffer>>, const std::locale*);
 }  // namespace uxs

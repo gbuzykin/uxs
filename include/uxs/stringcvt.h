@@ -8,6 +8,10 @@
 #include <memory>
 #include <stdexcept>
 
+namespace std {
+class locale;
+}
+
 namespace uxs {
 
 // --------------------------
@@ -70,9 +74,12 @@ struct fmt_opts {
     CONSTEXPR fmt_opts() = default;
     CONSTEXPR fmt_opts(fmt_flags fl) : flags(fl) {}
     CONSTEXPR fmt_opts(fmt_flags fl, int p) : flags(fl), prec(p) {}
-    CONSTEXPR fmt_opts(fmt_flags fl, int p, unsigned w, int ch) : flags(fl), prec(p), width(w), fill(ch) {}
+    CONSTEXPR fmt_opts(fmt_flags fl, int p, const std::locale* l) : flags(fl), prec(p), loc(l) {}
+    CONSTEXPR fmt_opts(fmt_flags fl, int p, const std::locale* l, unsigned w, int ch)
+        : flags(fl), prec(p), loc(l), width(w), fill(ch) {}
     fmt_flags flags = fmt_flags::kDec;
     int prec = -1;
+    const std::locale* loc = nullptr;
     unsigned width = 0;
     int fill = ' ';
 };
