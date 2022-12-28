@@ -142,12 +142,13 @@ Ty to_integer_limited(const CharT* p, const CharT* end, const CharT*& last, Ty p
 }
 
 template<typename CharT>
-const CharT* accum_mantissa(const CharT* p, const CharT* end, uint64_t& m, int& exp) NOEXCEPT {
+const CharT* accum_mantissa(const CharT* p, const CharT* end, uint64_t& m, int& exp, bool& zero_tail) NOEXCEPT {
     const uint64_t max_mantissa10 = 1000000000000000000ull;
     for (unsigned dig = 0; p < end && (dig = dig_v(*p)) < 10; ++p) {
         if (m < max_mantissa10) {  // decimal mantissa can hold up to 19 digits
             m = 10u * m + dig;
         } else {
+            if (dig > 0) { zero_tail = false; }
             ++exp;
         }
     }
@@ -155,20 +156,20 @@ const CharT* accum_mantissa(const CharT* p, const CharT* end, uint64_t& m, int& 
 }
 
 template<typename CharT>
-const CharT* chars_to_fp10(const CharT* p, const CharT* end, fp_m64_t& fp10) NOEXCEPT {
+const CharT* chars_to_fp10(const CharT* p, const CharT* end, fp_m64_t& fp10, bool& zero_tail) NOEXCEPT {
     unsigned dig = 0;
     const CharT dec_point = default_numpunct<CharT>().decimal_point();
     if (p == end) { return p; }
     if ((dig = dig_v(*p)) < 10) {  // integral part
         fp10.m = dig;
-        p = accum_mantissa(++p, end, fp10.m, fp10.exp);
+        p = accum_mantissa(++p, end, fp10.m, fp10.exp, zero_tail);
         if (p < end && *p == dec_point) { ++p; }  // skip decimal point
     } else if (*p == dec_point && p + 1 < end && (dig = dig_v(*(p + 1))) < 10) {
         fp10.m = dig, fp10.exp = -1, p += 2;  // tenth
     } else {
         return p;
     }
-    const CharT* p1 = accum_mantissa(p, end, fp10.m, fp10.exp);  // fractional part
+    const CharT* p1 = accum_mantissa(p, end, fp10.m, fp10.exp, zero_tail);  // fractional part
     fp10.exp -= static_cast<unsigned>(p1 - p);
     if (p1 < end && (*p1 == 'e' || *p1 == 'E')) {  // optional exponent
         int exp_optional = to_integer<int>(p1 + 1, end, p);
@@ -177,7 +178,7 @@ const CharT* chars_to_fp10(const CharT* p, const CharT* end, fp_m64_t& fp10) NOE
     return p1;
 }
 
-UXS_EXPORT uint64_t fp10_to_fp2(fp_m64_t fp10, const unsigned bpm, const int exp_max) NOEXCEPT;
+UXS_EXPORT uint64_t fp10_to_fp2(fp_m64_t fp10, bool zero_tail, const unsigned bpm, const int exp_max) NOEXCEPT;
 
 template<typename CharT>
 uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, const unsigned bpm,
@@ -194,9 +195,10 @@ uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, c
     }
 
     fp_m64_t fp10{0, 0};
-    const CharT* p1 = chars_to_fp10(p, end, fp10);
+    bool zero_tail = true;
+    const CharT* p1 = chars_to_fp10(p, end, fp10, zero_tail);
     if (p1 > p) {
-        fp2 |= fp10_to_fp2(fp10, bpm, exp_max);
+        fp2 |= fp10_to_fp2(fp10, zero_tail, bpm, exp_max);
     } else if ((p1 = starts_with(p, end, default_numpunct<CharT>().infname())) > p) {  // infinity
         fp2 |= static_cast<uint64_t>(exp_max) << bpm;
     } else if ((p1 = starts_with(p, end, default_numpunct<CharT>().nanname())) > p) {  // NaN

@@ -335,7 +335,7 @@ UXS_EXPORT const char g_digits[][2] = {
 
 // --------------------------
 
-uint64_t fp10_to_fp2(fp_m64_t fp10, const unsigned bpm, const int exp_max) NOEXCEPT {
+uint64_t fp10_to_fp2(fp_m64_t fp10, bool zero_tail, const unsigned bpm, const int exp_max) NOEXCEPT {
     if (fp10.m == 0 || fp10.exp < -pow_table_t::kPow10Max) { return 0; }                      // perfect zero
     if (fp10.exp > pow_table_t::kPow10Max) { return static_cast<uint64_t>(exp_max) << bpm; }  // infinity
 
@@ -389,7 +389,8 @@ uint64_t fp10_to_fp2(fp_m64_t fp10, const unsigned bpm, const int exp_max) NOEXC
     // Note: we do not need to reset lower 32-bit part of `res128.lo`, because it is ignored further
     add64_carry(res128.lo, 0x80000000, carry);
     // Do banker's rounding
-    add64_carry(res128.hi, hi32(res128.lo) == 0 && ((res128.hi + carry) & (half << 1)) == 0 ? half - 1 : half, carry);
+    add64_carry(res128.hi,
+                zero_tail && hi32(res128.lo) == 0 && ((res128.hi + carry) & (half << 1)) == 0 ? half - 1 : half, carry);
     if (carry) {  // overflow while rounding
         // Note: the value can become normalized if `exp == 0` or infinity if `exp == exp_max - 1`
         // Note: in case of overflow 'fp2.m' will be `0`
