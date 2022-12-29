@@ -103,8 +103,8 @@ template<typename CharT, typename Traits>
 
 template<typename CharT>
 struct string_parser<guid, CharT> {
-    static guid default_value() { return {}; }
-    static const CharT* from_chars(const CharT* first, const CharT* last, guid& val) {
+    guid default_value() NOEXCEPT { return {}; }
+    const CharT* from_chars(const CharT* first, const CharT* last, guid& val) NOEXCEPT {
         const size_t len = 38;
         if (static_cast<size_t>(last - first) < len) { return 0; }
         const auto* p = first;
@@ -122,7 +122,7 @@ struct string_parser<guid, CharT> {
 template<typename CharT>
 struct formatter<guid, CharT> {
     template<typename StrTy>
-    static StrTy& format(StrTy& s, const guid& val, const fmt_opts& fmt) {
+    StrTy& format(StrTy& s, const guid& val, const fmt_opts& fmt) {
         const unsigned len = 38;
         const bool upper = !!(fmt.flags & fmt_flags::kUpperCase);
         std::array<typename StrTy::value_type, len> buf;
