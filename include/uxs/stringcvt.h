@@ -451,7 +451,7 @@ template<typename Ty, typename CharT>
 struct has_string_parser {
     template<typename U>
     static auto test(const U* first, const U* last, Ty& v)
-        -> std::is_same<decltype(string_parser<Ty, U>::from_chars(first, last, v)), const U*>;
+        -> std::is_same<decltype(string_parser<Ty, U>().from_chars(first, last, v)), const U*>;
     template<typename U>
     static auto test(...) -> std::false_type;
     using type = decltype(test<CharT>(nullptr, nullptr, std::declval<Ty&>()));
@@ -460,24 +460,24 @@ template<typename Ty, typename StrTy>
 struct has_formatter {
     template<typename U>
     static auto test(U& s, const Ty& v)
-        -> std::is_same<decltype(formatter<Ty, typename U::value_type>::format(s, v, fmt_opts{})), U&>;
+        -> std::is_same<decltype(formatter<Ty, typename U::value_type>().format(s, v, fmt_opts{})), U&>;
     template<typename U>
     static auto test(...) -> std::false_type;
     using type = decltype(test<StrTy>(std::declval<StrTy&>(), std::declval<Ty>()));
 };
 }  // namespace detail
 
-template<typename Ty, typename CharT>
+template<typename Ty, typename CharT = char>
 struct has_string_parser : detail::has_string_parser<Ty, CharT>::type {};
 
-template<typename Ty, typename StrTy>
+template<typename Ty, typename StrTy = dynbuffer>
 struct has_formatter : detail::has_formatter<Ty, StrTy>::type {};
 
 #define UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(ty, from_chars_func, fmt_func) \
     template<typename CharT> \
     struct string_parser<ty, CharT> { \
-        static ty default_value() NOEXCEPT { return {}; } \
-        static const CharT* from_chars(const CharT* first, const CharT* last, ty& val) NOEXCEPT { \
+        ty default_value() NOEXCEPT { return {}; } \
+        const CharT* from_chars(const CharT* first, const CharT* last, ty& val) NOEXCEPT { \
             auto t = scvt::from_chars_func<ty>(first, last, last); \
             if (last != first) { val = static_cast<ty>(t); } \
             return last; \
@@ -486,7 +486,7 @@ struct has_formatter : detail::has_formatter<Ty, StrTy>::type {};
     template<typename CharT> \
     struct formatter<ty, CharT> { \
         template<typename StrTy> \
-        static StrTy& format(StrTy& s, ty val, const fmt_opts& fmt) { \
+        StrTy& format(StrTy& s, ty val, const fmt_opts& fmt) { \
             using Ty = scvt::type_substitution<ty>::type; \
             return scvt::fmt_func<StrTy, Ty>(s, static_cast<Ty>(val), fmt); \
         } \
@@ -517,17 +517,17 @@ struct formatter<wchar_t, char>;  // = delete
 
 template<typename Ty>
 const char* from_chars(const char* first, const char* last, Ty& v) {
-    return string_parser<Ty, char>::from_chars(first, last);
+    return string_parser<Ty, char>().from_chars(first, last);
 }
 
 template<typename Ty>
 const wchar_t* from_wchars(const wchar_t* first, const wchar_t* last, Ty& v) {
-    return string_parser<Ty, wchar_t>::from_chars(first, last);
+    return string_parser<Ty, wchar_t>().from_chars(first, last);
 }
 
 template<typename Ty, typename CharT, typename Traits = std::char_traits<CharT>>
 size_t basic_stoval(std::basic_string_view<CharT, Traits> s, Ty& v) {
-    return string_parser<Ty, CharT>::from_chars(s.data(), s.data() + s.size(), v) - s.data();
+    return string_parser<Ty, CharT>().from_chars(s.data(), s.data() + s.size(), v) - s.data();
 }
 
 template<typename Ty>
@@ -542,7 +542,7 @@ size_t wstoval(std::wstring_view s, Ty& v) {
 
 template<typename Ty, typename CharT, typename Traits = std::char_traits<CharT>>
 NODISCARD Ty from_basic_string(std::basic_string_view<CharT, Traits> s) {
-    Ty result(string_parser<Ty, CharT>::default_value());
+    Ty result(string_parser<Ty, CharT>().default_value());
     basic_stoval(s, result);
     return result;
 }
@@ -559,45 +559,45 @@ NODISCARD Ty from_wstring(std::wstring_view s) {
 
 template<typename StrTy, typename Ty>
 StrTy& to_basic_string(StrTy& s, const Ty& val, const fmt_opts& fmt = fmt_opts{}) {
-    return formatter<Ty, typename StrTy::value_type>::format(s, val, fmt);
+    return formatter<Ty, typename StrTy::value_type>().format(s, val, fmt);
 }
 
 template<typename Ty, typename... Args>
 NODISCARD std::string to_string(const Ty& val, Args&&... args) {
     inline_dynbuffer buf;
-    to_basic_string(buf.base(), val, fmt_opts{std::forward<Args>(args)...});
+    to_basic_string(buf.base(), val, fmt_opts(std::forward<Args>(args)...));
     return std::string(buf.data(), buf.size());
 }
 
 template<typename Ty, typename... Args>
 NODISCARD std::wstring to_wstring(const Ty& val, Args&&... args) {
     inline_wdynbuffer buf;
-    to_basic_string(buf.base(), val, fmt_opts{std::forward<Args>(args)...});
+    to_basic_string(buf.base(), val, fmt_opts(std::forward<Args>(args)...));
     return std::wstring(buf.data(), buf.size());
 }
 
 template<typename Ty, typename... Args>
 char* to_chars(char* buf, const Ty& val, Args&&... args) {
     unlimbuf_appender appender(buf);
-    return to_basic_string(appender, val, fmt_opts{std::forward<Args>(args)...}).curr();
+    return to_basic_string(appender, val, fmt_opts(std::forward<Args>(args)...)).curr();
 }
 
 template<typename Ty, typename... Args>
 wchar_t* to_wchars(wchar_t* buf, const Ty& val, Args&&... args) {
     wunlimbuf_appender appender(buf);
-    return to_basic_string(appender, val, fmt_opts{std::forward<Args>(args)...}).curr();
+    return to_basic_string(appender, val, fmt_opts(std::forward<Args>(args)...)).curr();
 }
 
 template<typename Ty, typename... Args>
 char* to_chars_n(char* buf, size_t n, const Ty& val, Args&&... args) {
     limbuf_appender appender(buf, n);
-    return to_basic_string(appender, val, fmt_opts{std::forward<Args>(args)...}).curr();
+    return to_basic_string(appender, val, fmt_opts(std::forward<Args>(args)...)).curr();
 }
 
 template<typename Ty, typename... Args>
 wchar_t* to_wchars_n(wchar_t* buf, size_t n, const Ty& val, Args&&... args) {
     wlimbuf_appender appender(buf, n);
-    return to_basic_string(appender, val, fmt_opts{std::forward<Args>(args)...}).curr();
+    return to_basic_string(appender, val, fmt_opts(std::forward<Args>(args)...)).curr();
 }
 
 }  // namespace uxs
