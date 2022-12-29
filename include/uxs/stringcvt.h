@@ -476,8 +476,8 @@ struct has_formatter : detail::has_formatter<Ty, StrTy>::type {};
 #define UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(ty, from_chars_func, fmt_func) \
     template<typename CharT> \
     struct string_parser<ty, CharT> { \
-        ty default_value() NOEXCEPT { return {}; } \
-        const CharT* from_chars(const CharT* first, const CharT* last, ty& val) NOEXCEPT { \
+        ty default_value() const NOEXCEPT { return {}; } \
+        const CharT* from_chars(const CharT* first, const CharT* last, ty& val) const NOEXCEPT { \
             auto t = scvt::from_chars_func<ty>(first, last, last); \
             if (last != first) { val = static_cast<ty>(t); } \
             return last; \
@@ -486,7 +486,7 @@ struct has_formatter : detail::has_formatter<Ty, StrTy>::type {};
     template<typename CharT> \
     struct formatter<ty, CharT> { \
         template<typename StrTy> \
-        StrTy& format(StrTy& s, ty val, const fmt_opts& fmt) { \
+        StrTy& format(StrTy& s, ty val, const fmt_opts& fmt) const { \
             using Ty = scvt::type_substitution<ty>::type; \
             return scvt::fmt_func<StrTy, Ty>(s, static_cast<Ty>(val), fmt); \
         } \
