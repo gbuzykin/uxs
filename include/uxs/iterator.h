@@ -34,11 +34,26 @@ template<typename Iter>
 using is_random_access_iterator =
     std::is_base_of<std::random_access_iterator_tag, typename std::iterator_traits<Iter>::iterator_category>;
 
+namespace detail {
+template<typename Iter, typename Ty>
+struct is_output_iterator {
+    template<typename U>
+    static auto test(U& s, const Ty& v) -> always_true<typename std::iterator_traits<U>::iterator_category,
+                                                       decltype(*std::declval<U>() = std::declval<Ty>())>;
+    template<typename U>
+    static auto test(...) -> std::false_type;
+    using type = decltype(test<Iter>(std::declval<Iter&>(), std::declval<Ty>()));
+};
+}  // namespace detail
+
+template<typename Iter, typename Ty>
+using is_output_iterator = typename detail::is_output_iterator<Iter, Ty>::type;
+
 //-----------------------------------------------------------------------------
 // Iterator range
 
 #if __cplusplus < 201703L
-const size_t dynamic_extent = size_t(-1);
+const size_t dynamic_extent = ~size_t(0);
 #else   // __cplusplus < 201703L
 constexpr size_t dynamic_extent = std::numeric_limits<size_t>::max();
 #endif  // __cplusplus < 201703L
@@ -304,7 +319,6 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
     friend class array_iterator;
 
     array_iterator() NOEXCEPT {}
-    ~array_iterator() {}  // explicit destructor is required by standard
 
     void increment() NOEXCEPT {
         iterator_assert(ptr_ < end_);
@@ -465,12 +479,6 @@ class const_value_iterator : public iterator_facade<const_value_iterator<Val>, V
                                                     std::input_iterator_tag, const Val&, const Val*> {
  public:
     explicit const_value_iterator(const Val& v) NOEXCEPT : v_(std::addressof(v)) {}
-    ~const_value_iterator() {}
-    const_value_iterator(const const_value_iterator& it) NOEXCEPT : v_(it.v_) {}
-    const_value_iterator& operator=(const const_value_iterator& it) NOEXCEPT {
-        v_ = it.v_;
-        return *this;
-    }
 
     void increment() NOEXCEPT {}
     void advance(std::ptrdiff_t j) NOEXCEPT {}

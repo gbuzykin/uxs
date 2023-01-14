@@ -19,12 +19,16 @@
     static_assert(true, "")
 
 namespace uxs {
-template<typename Ty, typename TestTy = void>
+template<typename Ty, typename... Ts>
 struct type_identity {
     using type = Ty;
 };
-template<typename Ty, typename TestTy = void>
-using type_identity_t = typename type_identity<Ty, TestTy>::type;
+template<typename Ty, typename... Ts>
+using type_identity_t = typename type_identity<Ty, Ts...>::type;
+namespace detail {
+template<typename... Ts>
+struct always_true : std::true_type {};
+}  // namespace detail
 }  // namespace uxs
 
 #if __cplusplus < 201703L
@@ -70,8 +74,8 @@ template<class Ty>
 void as_const(const Ty&&) = delete;
 #    endif  // as const
 #    if (!defined(__GNUC__) || !defined(__cpp_lib_void_t)) && (!defined(_MSC_VER) || _MSC_VER <= 1800)
-template<typename TestTy>
-using void_t = typename uxs::type_identity<void, TestTy>::type;
+template<typename... Ts>
+using void_t = typename uxs::type_identity<void, Ts...>::type;
 #    endif  // void_t
 #    if (!defined(__GNUC__) || !defined(__cpp_lib_is_swappable)) && (!defined(_MSC_VER) || _MSC_VER > 1800)
 template<typename Ty>
