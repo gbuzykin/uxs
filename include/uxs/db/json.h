@@ -3,8 +3,6 @@
 #include "exception.h"
 
 #include "uxs/format.h"
-#include "uxs/io/iobuf.h"
-#include "uxs/stringcvt.h"
 
 namespace uxs {
 namespace db {
@@ -44,7 +42,7 @@ class UXS_EXPORT reader {
     int n_ln_ = 1;
     inline_dynbuffer str_;
     inline_dynbuffer stash_;
-    basic_inline_dynbuffer<int8_t> state_stack_;
+    inline_basic_dynbuffer<int8_t> state_stack_;
 
     int parse_token(std::string_view& lval);
 };
@@ -76,7 +74,7 @@ void reader::read(const ValueFunc& fn_value, const ArrItemFunc& fn_arr_item, con
     };
 
     std::string_view lval;
-    basic_inline_dynbuffer<char, 32> stack;
+    inline_basic_dynbuffer<char, 32> stack;
     if (tk_val == token_t::kEof) {
         int tt = parse_token(lval);
         if (fn_value_checked(tt, lval) != next_action_type::kStepInto) { return; }

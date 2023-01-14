@@ -35,14 +35,14 @@ int json::reader::parse_token(std::string_view& lval) {
                     ++n_ln_;
                     return false;
                 });
-                input_.bump(first - input_.first_avail());
+                input_.advance(first - input_.first_avail());
                 if (first != input_.last_avail()) { break; }
                 if (input_.peek() == iobuf::traits_type::eof()) { return static_cast<int>(token_t::kEof); }
                 first = input_.first_avail();
             }
             // just process a single character if it can't be recognized with analyzer
             if (lex_detail::Dtran[lex_detail::symb2meta[static_cast<unsigned char>(*first)]] < 0) {
-                input_.bump(1);
+                input_.advance(1);
                 if (*first != '\"') { return static_cast<unsigned char>(*first); }
                 state_stack_.push_back(lex_detail::sc_string);
                 continue;
@@ -67,7 +67,7 @@ int json::reader::parse_token(std::string_view& lval) {
             }
             if (input_.avail()) {  // append read buffer to stash
                 stash_.append(input_.first_avail(), input_.last_avail());
-                input_.bump(input_.avail());
+                input_.advance(input_.avail());
             }
             // read more characters from input
             input_.peek();
@@ -75,13 +75,13 @@ int json::reader::parse_token(std::string_view& lval) {
         }
         const char* lexeme = input_.first_avail();
         if (stash_.empty()) {  // the stash is empty
-            input_.bump(llen);
+            input_.advance(llen);
         } else {
             if (llen >= stash_.size()) {  // all characters in stash buffer are used
                 // concatenate full lexeme in stash
                 size_t len_rest = llen - stash_.size();
                 stash_.append(input_.first_avail(), input_.first_avail() + len_rest);
-                input_.bump(len_rest);
+                input_.advance(len_rest);
             } else {  // at least one character in stash is yet unused
                       // put unused chars back to `iobuf`
                 for (const char* p = stash_.last(); p != stash_.curr(); --p) { input_.unget(*(p - 1)); }

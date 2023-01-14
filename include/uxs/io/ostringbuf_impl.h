@@ -2,8 +2,6 @@
 
 #include "ostringbuf.h"
 
-#include <algorithm>
-
 namespace uxs {
 
 template<typename CharT, typename Alloc>

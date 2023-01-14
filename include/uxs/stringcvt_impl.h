@@ -710,7 +710,7 @@ class UXS_EXPORT fp_dec_fmt_t {
     StrTy& generate(StrTy& s, char sign, unsigned len, const fmt_opts& fmt, const typename StrTy::value_type dec_point,
                     const grouping_t<typename StrTy::value_type>* grouping = nullptr) const {
         using CharT = typename StrTy::value_type;
-        basic_inline_dynbuffer<CharT> buf;
+        inline_basic_dynbuffer<CharT> buf;
         CharT* p = buf.reserve_at_curr(len);
         if (sign != '\0') { *p = sign; }  // generate sign
         generate(p + len, fmt, dec_point, grouping);

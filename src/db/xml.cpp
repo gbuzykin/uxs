@@ -98,7 +98,7 @@ std::pair<xml::token_t, std::string_view> xml::reader::read_next() {
                         ch = input_.get();
                     } while (input_ && (ch != '-' || input_.peek() != '>'));
                     if (!input_) { break; }
-                    input_.bump(1);
+                    input_.advance(1);
                 } break;
                 default: UNREACHABLE_CODE;
             }
@@ -111,7 +111,7 @@ std::pair<xml::token_t, std::string_view> xml::reader::read_next() {
                 ++n_ln_;
                 return false;
             });
-            input_.bump(last - first);
+            input_.advance(last - first);
             return {token_t::kPlainText, std::string_view(first, last - first)};
         } else {
             return {token_t::kEof, {}};
@@ -144,7 +144,7 @@ int xml::reader::parse_token(std::string_view& lval) {
             }
             if (input_.avail()) {  // append read buffer to stash
                 stash_.append(input_.first_avail(), input_.last_avail());
-                input_.bump(input_.avail());
+                input_.advance(input_.avail());
             }
             // read more characters from input
             input_.peek();
@@ -152,13 +152,13 @@ int xml::reader::parse_token(std::string_view& lval) {
         }
         const char* lexeme = input_.first_avail();
         if (stash_.empty()) {  // the stash is empty
-            input_.bump(llen);
+            input_.advance(llen);
         } else {
             if (llen >= stash_.size()) {  // all characters in stash buffer are used
                 // concatenate full lexeme in stash
                 size_t len_rest = llen - stash_.size();
                 stash_.append(input_.first_avail(), input_.first_avail() + len_rest);
-                input_.bump(len_rest);
+                input_.advance(len_rest);
             } else {  // at least one character in stash is yet unused
                       // put unused chars back to `iobuf`
                 for (const char* p = stash_.last(); p != stash_.curr(); --p) { input_.unget(*(p - 1)); }
