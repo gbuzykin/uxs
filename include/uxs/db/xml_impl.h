@@ -153,29 +153,24 @@ void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_ele
             case dtype::kNull: output_.write("null"); break;
             case dtype::kBoolean: output_.write(v.value_.b ? "true" : "false"); break;
             case dtype::kInteger: {
-                inline_dynbuffer buf;
-                to_basic_string(buf.base(), v.value_.i);
-                output_.write(as_span(buf.data(), buf.size()));
+                membuffer_for_iobuf buf(output_);
+                to_basic_string(buf, v.value_.i);
             } break;
             case dtype::kUInteger: {
-                inline_dynbuffer buf;
-                to_basic_string(buf.base(), v.value_.u);
-                output_.write(as_span(buf.data(), buf.size()));
+                membuffer_for_iobuf buf(output_);
+                to_basic_string(buf, v.value_.u);
             } break;
             case dtype::kInteger64: {
-                inline_dynbuffer buf;
-                to_basic_string(buf.base(), v.value_.i64);
-                output_.write(as_span(buf.data(), buf.size()));
+                membuffer_for_iobuf buf(output_);
+                to_basic_string(buf, v.value_.i64);
             } break;
             case dtype::kUInteger64: {
-                inline_dynbuffer buf;
-                to_basic_string(buf.base(), v.value_.u64);
-                output_.write(as_span(buf.data(), buf.size()));
+                membuffer_for_iobuf buf(output_);
+                to_basic_string(buf, v.value_.u64);
             } break;
             case dtype::kDouble: {
-                inline_dynbuffer buf;
-                to_basic_string(buf.base(), v.value_.dbl, fmt_opts{fmt_flags::kAlternate});
-                output_.write(as_span(buf.data(), buf.size()));
+                membuffer_for_iobuf buf(output_);
+                to_basic_string(buf, v.value_.dbl, fmt_opts{fmt_flags::kAlternate});
             } break;
             case dtype::kString: {
                 print_xml_text<char>(output_, uxs::detail::utf8_string_converter<CharT>().to(v.str_view()));

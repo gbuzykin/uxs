@@ -685,31 +685,31 @@ bool basic_value<CharT, Alloc>::as_string(std::basic_string<char_type>& res) con
         } break;
         case dtype::kInteger: {
             inline_basic_dynbuffer<CharT> buf;
-            to_basic_string(buf.base(), value_.i);
+            to_basic_string(buf, value_.i);
             res.assign(buf.data(), buf.size());
             return true;
         } break;
         case dtype::kUInteger: {
             inline_basic_dynbuffer<CharT> buf;
-            to_basic_string(buf.base(), value_.u);
+            to_basic_string(buf, value_.u);
             res.assign(buf.data(), buf.size());
             return true;
         } break;
         case dtype::kInteger64: {
             inline_basic_dynbuffer<CharT> buf;
-            to_basic_string(buf.base(), value_.i64);
+            to_basic_string(buf, value_.i64);
             res.assign(buf.data(), buf.size());
             return true;
         } break;
         case dtype::kUInteger64: {
             inline_basic_dynbuffer<CharT> buf;
-            to_basic_string(buf.base(), value_.u64);
+            to_basic_string(buf, value_.u64);
             res.assign(buf.data(), buf.size());
             return true;
         } break;
         case dtype::kDouble: {
             inline_basic_dynbuffer<CharT> buf;
-            to_basic_string(buf.base(), value_.dbl, fmt_opts{fmt_flags::kAlternate});
+            to_basic_string(buf, value_.dbl, fmt_opts{fmt_flags::kAlternate});
             res.assign(buf.data(), buf.size());
             return true;
         } break;

@@ -805,69 +805,22 @@ template UXS_EXPORT uint64_t to_float_common(const wchar_t*, const wchar_t*, con
                                              const int) NOEXCEPT;
 template UXS_EXPORT bool to_bool(const wchar_t*, const wchar_t*, const wchar_t*& last) NOEXCEPT;
 
-template UXS_EXPORT unlimbuf_appender& fmt_integral(unlimbuf_appender&, int32_t, const fmt_opts&);
-template UXS_EXPORT limbuf_appender& fmt_integral(limbuf_appender&, int32_t, const fmt_opts&);
-template UXS_EXPORT dynbuffer& fmt_integral(dynbuffer&, int32_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral(membuffer&, int32_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral(membuffer&, int64_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral(membuffer&, uint32_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral(membuffer&, uint64_t, const fmt_opts&);
+template UXS_EXPORT void fmt_char(membuffer&, char, const fmt_opts&);
+template UXS_EXPORT void fmt_float_common(membuffer&, uint64_t, const fmt_opts&, const unsigned, const int);
+template UXS_EXPORT void fmt_bool(membuffer&, bool, const fmt_opts&);
 
-template UXS_EXPORT unlimbuf_appender& fmt_integral(unlimbuf_appender&, int64_t, const fmt_opts&);
-template UXS_EXPORT limbuf_appender& fmt_integral(limbuf_appender&, int64_t, const fmt_opts&);
-template UXS_EXPORT dynbuffer& fmt_integral(dynbuffer&, int64_t, const fmt_opts&);
-
-template UXS_EXPORT unlimbuf_appender& fmt_integral(unlimbuf_appender&, uint32_t, const fmt_opts&);
-template UXS_EXPORT limbuf_appender& fmt_integral(limbuf_appender&, uint32_t, const fmt_opts&);
-template UXS_EXPORT dynbuffer& fmt_integral(dynbuffer&, uint32_t, const fmt_opts&);
-
-template UXS_EXPORT unlimbuf_appender& fmt_integral(unlimbuf_appender&, uint64_t, const fmt_opts&);
-template UXS_EXPORT limbuf_appender& fmt_integral(limbuf_appender&, uint64_t, const fmt_opts&);
-template UXS_EXPORT dynbuffer& fmt_integral(dynbuffer&, uint64_t, const fmt_opts&);
-
-template UXS_EXPORT unlimbuf_appender& fmt_char(unlimbuf_appender&, char, const fmt_opts&);
-template UXS_EXPORT limbuf_appender& fmt_char(limbuf_appender&, char, const fmt_opts&);
-template UXS_EXPORT dynbuffer& fmt_char(dynbuffer&, char, const fmt_opts&);
-
-template UXS_EXPORT unlimbuf_appender& fmt_float_common(unlimbuf_appender&, uint64_t, const fmt_opts&, const unsigned,
-                                                        const int);
-template UXS_EXPORT limbuf_appender& fmt_float_common(limbuf_appender&, uint64_t, const fmt_opts&, const unsigned,
-                                                      const int);
-template UXS_EXPORT dynbuffer& fmt_float_common(dynbuffer&, uint64_t, const fmt_opts&, const unsigned, const int);
-
-template UXS_EXPORT unlimbuf_appender& fmt_bool(unlimbuf_appender&, bool, const fmt_opts&);
-template UXS_EXPORT limbuf_appender& fmt_bool(limbuf_appender&, bool, const fmt_opts&);
-template UXS_EXPORT dynbuffer& fmt_bool(dynbuffer&, bool, const fmt_opts&);
-
-template UXS_EXPORT wunlimbuf_appender& fmt_integral(wunlimbuf_appender&, int32_t, const fmt_opts&);
-template UXS_EXPORT wlimbuf_appender& fmt_integral(wlimbuf_appender&, int32_t, const fmt_opts&);
-template UXS_EXPORT wdynbuffer& fmt_integral(wdynbuffer&, int32_t, const fmt_opts&);
-
-template UXS_EXPORT wunlimbuf_appender& fmt_integral(wunlimbuf_appender&, int64_t, const fmt_opts&);
-template UXS_EXPORT wlimbuf_appender& fmt_integral(wlimbuf_appender&, int64_t, const fmt_opts&);
-template UXS_EXPORT wdynbuffer& fmt_integral(wdynbuffer&, int64_t, const fmt_opts&);
-
-template UXS_EXPORT wunlimbuf_appender& fmt_integral(wunlimbuf_appender&, uint32_t, const fmt_opts&);
-template UXS_EXPORT wlimbuf_appender& fmt_integral(wlimbuf_appender&, uint32_t, const fmt_opts&);
-template UXS_EXPORT wdynbuffer& fmt_integral(wdynbuffer&, uint32_t, const fmt_opts&);
-
-template UXS_EXPORT wunlimbuf_appender& fmt_integral(wunlimbuf_appender&, uint64_t, const fmt_opts&);
-template UXS_EXPORT wlimbuf_appender& fmt_integral(wlimbuf_appender&, uint64_t, const fmt_opts&);
-template UXS_EXPORT wdynbuffer& fmt_integral(wdynbuffer&, uint64_t, const fmt_opts&);
-
-template UXS_EXPORT wunlimbuf_appender& fmt_char(wunlimbuf_appender&, char, const fmt_opts&);
-template UXS_EXPORT wlimbuf_appender& fmt_char(wlimbuf_appender&, char, const fmt_opts&);
-template UXS_EXPORT wdynbuffer& fmt_char(wdynbuffer&, char, const fmt_opts&);
-
-template UXS_EXPORT wunlimbuf_appender& fmt_char(wunlimbuf_appender&, wchar_t, const fmt_opts&);
-template UXS_EXPORT wlimbuf_appender& fmt_char(wlimbuf_appender&, wchar_t, const fmt_opts&);
-template UXS_EXPORT wdynbuffer& fmt_char(wdynbuffer&, wchar_t, const fmt_opts&);
-
-template UXS_EXPORT wunlimbuf_appender& fmt_float_common(wunlimbuf_appender&, uint64_t, const fmt_opts&, const unsigned,
-                                                         const int);
-template UXS_EXPORT wlimbuf_appender& fmt_float_common(wlimbuf_appender&, uint64_t, const fmt_opts&, const unsigned,
-                                                       const int);
-template UXS_EXPORT wdynbuffer& fmt_float_common(wdynbuffer&, uint64_t, const fmt_opts&, const unsigned, const int);
-
-template UXS_EXPORT wunlimbuf_appender& fmt_bool(wunlimbuf_appender&, bool, const fmt_opts&);
-template UXS_EXPORT wlimbuf_appender& fmt_bool(wlimbuf_appender&, bool, const fmt_opts&);
-template UXS_EXPORT wdynbuffer& fmt_bool(wdynbuffer&, bool, const fmt_opts&);
+template UXS_EXPORT void fmt_integral(wmembuffer&, int32_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral(wmembuffer&, int64_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral(wmembuffer&, uint32_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral(wmembuffer&, uint64_t, const fmt_opts&);
+template UXS_EXPORT void fmt_char(wmembuffer&, char, const fmt_opts&);
+template UXS_EXPORT void fmt_char(wmembuffer&, wchar_t, const fmt_opts&);
+template UXS_EXPORT void fmt_float_common(wmembuffer&, uint64_t, const fmt_opts&, const unsigned, const int);
+template UXS_EXPORT void fmt_bool(wmembuffer&, bool, const fmt_opts&);
 
 }  // namespace scvt
 

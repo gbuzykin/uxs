@@ -30,7 +30,7 @@ struct count_utf_chars<wchar_t> {
 #endif  // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
 
 template<typename CharT, typename StrTy>
-StrTy& adjust_string(StrTy& s, span<const CharT> val, fmt_opts& fmt) {
+void adjust_string(StrTy& s, span<const CharT> val, fmt_opts& fmt) {
     const CharT *first = val.data(), *last = first + val.size();
     size_t len = 0;
     unsigned count = 0;
@@ -61,24 +61,23 @@ StrTy& adjust_string(StrTy& s, span<const CharT> val, fmt_opts& fmt) {
             case fmt_flags::kLeft:
             default: left = 0; break;
         }
-        return s.append(left, fmt.fill).append(first, last).append(right, fmt.fill);
+        s.append(left, fmt.fill).append(first, last).append(right, fmt.fill);
+    } else {
+        s.append(first, last);
     }
-    return s.append(first, last);
 }
 
-}  // namespace sfmt
-
-template<typename StrTy, typename Traits>
-StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type, Traits> fmt,
-                     span<const sfmt::arg_list_item<StrTy>> args, const std::locale* p_loc) {
+template<typename CharT>
+basic_membuffer<CharT>& vformat(basic_membuffer<CharT>& s, span<const CharT> fmt,
+                                basic_format_args<basic_membuffer<CharT>> args, const std::locale* p_loc) {
     auto get_fmt_arg_integer_value = [&args](unsigned n_arg) -> unsigned {
         switch (args[n_arg].type_id) {
 #define UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(ty, type_id) \
-    case sfmt::arg_type_id::type_id: { \
+    case arg_type_id::type_id: { \
         return static_cast<unsigned>(*static_cast<const ty*>(args[n_arg].p_arg)); \
     } break;
 #define UXS_FMT_ARG_INTEGER_VALUE_CASE(ty, type_id) \
-    case sfmt::arg_type_id::type_id: { \
+    case arg_type_id::type_id: { \
         ty val = *static_cast<const ty*>(args[n_arg].p_arg); \
         if (val < 0) { throw format_error("negative argument specified"); } \
         return static_cast<unsigned>(val); \
@@ -98,30 +97,29 @@ StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type
             default: throw format_error("argument is not an integer");
         }
     };
-    using CharT = typename StrTy::value_type;
     const auto& loc = p_loc ? *p_loc : std::locale();
-    const auto error_code = sfmt::parse_format(
+    const auto error_code = parse_format<CharT>(
         fmt, args.size(), [&s](const CharT* p0, const CharT* p) { s.append(p0, p); },
-        [&s, &args](unsigned n_arg, sfmt::arg_specs& specs) {
-            const sfmt::arg_type_id id = args[n_arg].type_id;
+        [&s, &args](unsigned n_arg, arg_specs& specs) {
+            const arg_type_id id = args[n_arg].type_id;
             const auto type_error = []() { throw format_error("invalid argument type specifier"); };
             const auto signed_needed = []() { throw format_error("argument format requires signed argument"); };
             const auto numeric_needed = []() { throw format_error("argument format requires numeric argument"); };
-            switch (specs.flags & sfmt::parse_flags::kSpecMask) {
-                case sfmt::parse_flags::kSpecIntegral: {
-                    if (id <= sfmt::arg_type_id::kSignedLongLong) {
-                        if (!!(specs.fmt.flags & fmt_flags::kSignField) && id < sfmt::arg_type_id::kSignedChar) {
+            switch (specs.flags & parse_flags::kSpecMask) {
+                case parse_flags::kSpecIntegral: {
+                    if (id <= arg_type_id::kSignedLongLong) {
+                        if (!!(specs.fmt.flags & fmt_flags::kSignField) && id < arg_type_id::kSignedChar) {
                             signed_needed();
                         }
-                    } else if (id == sfmt::arg_type_id::kChar) {
+                    } else if (id == arg_type_id::kChar) {
                         uxs::to_basic_string(s, static_cast<int>(*static_cast<const char*>(args[n_arg].p_arg)),
                                              specs.fmt);
                         return;
-                    } else if (id == sfmt::arg_type_id::kWChar) {
+                    } else if (id == arg_type_id::kWChar) {
                         uxs::to_basic_string(s, static_cast<int>(*static_cast<const wchar_t*>(args[n_arg].p_arg)),
                                              specs.fmt);
                         return;
-                    } else if (id == sfmt::arg_type_id::kBool) {
+                    } else if (id == arg_type_id::kBool) {
                         if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
                         uxs::to_basic_string(s, static_cast<int>(*static_cast<const bool*>(args[n_arg].p_arg)),
                                              specs.fmt);
@@ -130,17 +128,17 @@ StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type
                         type_error();
                     }
                 } break;
-                case sfmt::parse_flags::kSpecFloat: {
-                    if (id < sfmt::arg_type_id::kFloat || id > sfmt::arg_type_id::kLongDouble) { type_error(); }
+                case parse_flags::kSpecFloat: {
+                    if (id < arg_type_id::kFloat || id > arg_type_id::kLongDouble) { type_error(); }
                 } break;
-                case sfmt::parse_flags::kSpecChar: {
+                case parse_flags::kSpecChar: {
                     if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
                     if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes)) { numeric_needed(); }
-                    if (id <= sfmt::arg_type_id::kSignedLongLong) {
+                    if (id <= arg_type_id::kSignedLongLong) {
                         int64_t code = 0;
                         switch (id) {
 #define UXS_FMT_ARG_INTEGER_VALUE_CASE(ty, type_id) \
-    case sfmt::arg_type_id::type_id: { \
+    case arg_type_id::type_id: { \
         code = *static_cast<const ty*>(args[n_arg].p_arg); \
     } break;
                             UXS_FMT_ARG_INTEGER_VALUE_CASE(unsigned char, kUnsignedChar)
@@ -162,27 +160,27 @@ StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type
                         }
                         uxs::to_basic_string(s, static_cast<CharT>(code), specs.fmt);
                         return;
-                    } else if (id > sfmt::arg_type_id::kWChar) {
+                    } else if (id > arg_type_id::kWChar) {
                         type_error();
                     }
                 } break;
-                case sfmt::parse_flags::kSpecPointer: {
+                case parse_flags::kSpecPointer: {
                     if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
-                    if (id != sfmt::arg_type_id::kPointer) { type_error(); }
+                    if (id != arg_type_id::kPointer) { type_error(); }
                 } break;
-                case sfmt::parse_flags::kSpecString: {
+                case parse_flags::kSpecString: {
                     if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
                     if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes)) { numeric_needed(); }
-                    if (id != sfmt::arg_type_id::kBool && id != sfmt::arg_type_id::kString) { type_error(); }
+                    if (id != arg_type_id::kBool && id != arg_type_id::kString) { type_error(); }
                 } break;
                 default: {
                     if (!!(specs.fmt.flags & fmt_flags::kSignField) &&
-                        (id < sfmt::arg_type_id::kSignedChar || id > sfmt::arg_type_id::kSignedLongLong) &&
-                        (id < sfmt::arg_type_id::kFloat || id > sfmt::arg_type_id::kLongDouble)) {
+                        (id < arg_type_id::kSignedChar || id > arg_type_id::kSignedLongLong) &&
+                        (id < arg_type_id::kFloat || id > arg_type_id::kLongDouble)) {
                         signed_needed();
                     }
-                    if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes) && id > sfmt::arg_type_id::kSignedLongLong &&
-                        (id < sfmt::arg_type_id::kFloat || id > sfmt::arg_type_id::kPointer)) {
+                    if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes) && id > arg_type_id::kSignedLongLong &&
+                        (id < arg_type_id::kFloat || id > arg_type_id::kPointer)) {
                         numeric_needed();
                     }
                 } break;
@@ -190,8 +188,8 @@ StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type
             args[n_arg].fmt_func(s, args[n_arg].p_arg, specs.fmt);
         },
         get_fmt_arg_integer_value, &loc);
-    if (error_code == sfmt::parse_format_error_code::kSuccess) {
-    } else if (error_code == sfmt::parse_format_error_code::kOutOfArgList) {
+    if (error_code == parse_format_error_code::kSuccess) {
+    } else if (error_code == parse_format_error_code::kOutOfArgList) {
         throw format_error("out of argument list");
     } else {
         throw format_error("invalid specifier syntax");
@@ -199,4 +197,5 @@ StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type
     return s;
 }
 
+}  // namespace sfmt
 }  // namespace uxs
