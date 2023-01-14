@@ -714,6 +714,33 @@ wchar_t* format_to_n(wchar_t* buf, size_t n, const std::locale& loc, wformat_str
 
 // ---- print
 
+template<typename CharT>
+basic_iobuf<CharT>& print_quoted_text(basic_iobuf<CharT>& out, std::basic_string_view<CharT> text) {
+    const CharT *p1 = text.data(), *pend = text.data() + text.size();
+    out.put('\"');
+    for (const CharT* p2 = text.data(); p2 != pend; ++p2) {
+        std::string_view esc;
+        switch (*p2) {
+            case '\"': esc = "\\\""; break;
+            case '\\': esc = "\\\\"; break;
+            case '\a': esc = "\\a"; break;
+            case '\b': esc = "\\b"; break;
+            case '\f': esc = "\\f"; break;
+            case '\n': esc = "\\n"; break;
+            case '\r': esc = "\\r"; break;
+            case '\t': esc = "\\t"; break;
+            case '\v': esc = "\\v"; break;
+            default: continue;
+        }
+        out.write(as_span(p1, p2 - p1));
+        for (char ch : esc) { out.put(ch); }
+        p1 = p2 + 1;
+    }
+    out.write(as_span(p1, pend - p1));
+    out.put('\"');
+    return out;
+}
+
 template<typename... Ts>
 iobuf& print(iobuf& out, format_string<Ts...> fmt, const Ts&... args) {
     inline_dynbuffer buf;
@@ -752,7 +779,7 @@ iobuf& print(const std::locale& loc, format_string<Ts...> fmt, const Ts&... args
     return print(stdbuf::out, loc, fmt, args...);
 }
 
-// ---- print
+// ---- println
 
 template<typename... Ts>
 iobuf& println(iobuf& out, format_string<Ts...> fmt, const Ts&... args) {

@@ -265,11 +265,11 @@ using dynbuffer = basic_dynbuffer<char>;
 using wdynbuffer = basic_dynbuffer<wchar_t>;
 
 template<typename Ty, size_t InlineBufSize = 0, typename Alloc = std::allocator<Ty>>
-class basic_inline_dynbuffer : public basic_dynbuffer<Ty, Alloc> {
+class inline_basic_dynbuffer : public basic_dynbuffer<Ty, Alloc> {
  public:
-    basic_inline_dynbuffer()
+    inline_basic_dynbuffer()
         : basic_dynbuffer<Ty>(reinterpret_cast<Ty*>(&buf_), reinterpret_cast<Ty*>(&buf_[kInlineBufSize]), true) {}
-    explicit basic_inline_dynbuffer(const Alloc& al)
+    explicit inline_basic_dynbuffer(const Alloc& al)
         : basic_dynbuffer<Ty>(reinterpret_cast<Ty*>(&buf_), reinterpret_cast<Ty*>(&buf_[kInlineBufSize]), true, al) {}
     basic_dynbuffer<Ty>& base() { return *this; }
 
@@ -284,8 +284,8 @@ class basic_inline_dynbuffer : public basic_dynbuffer<Ty, Alloc> {
     typename std::aligned_storage<sizeof(Ty), std::alignment_of<Ty>::value>::type buf_[kInlineBufSize];
 };
 
-using inline_dynbuffer = basic_inline_dynbuffer<char>;
-using inline_wdynbuffer = basic_inline_dynbuffer<wchar_t>;
+using inline_dynbuffer = inline_basic_dynbuffer<char>;
+using inline_wdynbuffer = inline_basic_dynbuffer<wchar_t>;
 
 // --------------------------
 

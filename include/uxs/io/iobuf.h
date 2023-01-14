@@ -5,6 +5,8 @@
 #include "uxs/span.h"
 #include "uxs/string_view.h"
 
+#include <algorithm>
+
 namespace uxs {
 
 template<typename CharT>
@@ -80,17 +82,32 @@ class UXS_EXPORT basic_iobuf : public iostate {
         return *this;
     }
 
-    basic_iobuf& bump(size_type n) {
+    basic_iobuf& advance(size_type n) {
         assert(n <= static_cast<size_type>(last_ - curr_));
         curr_ += n;
         return *this;
     }
 
+    template<typename InputIt, typename = std::enable_if_t<is_random_access_iterator<InputIt>::value>>
+    basic_iobuf& write(InputIt first, InputIt last) {
+        size_type count = last - first;
+        if (!count) { return *this; }
+        for (size_type n_avail = avail(); count > n_avail; n_avail = avail()) {
+            if (n_avail) { curr_ = std::copy_n(first, n_avail, curr_), first += n_avail, count -= n_avail; }
+            if (!this->good() || overflow() < 0) {
+                this->setstate(iostate_bits::kBad);
+                return *this;
+            }
+        }
+        curr_ = std::copy(first, last, curr_);
+        return *this;
+    }
+
     size_type read(span<char_type> s);
-    size_type skip(size_type n);
+    size_type skip(size_type count);
     basic_iobuf& write(span<const char_type> s);
     basic_iobuf& write(const char_type* cstr) { return write(std::basic_string_view<char_type>(cstr)); }
-    basic_iobuf& fill_n(size_type n, char_type ch);
+    basic_iobuf& fill_n(size_type count, char_type ch);
     basic_iobuf& flush();
     basic_iobuf& endl() { return put('\n').flush(); }
 
@@ -127,33 +144,6 @@ class UXS_EXPORT basic_iobuf : public iostate {
 using iobuf = basic_iobuf<char>;
 using wiobuf = basic_iobuf<wchar_t>;
 using u8iobuf = basic_iobuf<uint8_t>;
-
-template<typename CharT>
-basic_iobuf<CharT>& print_quoted_text(basic_iobuf<CharT>& out, std::basic_string_view<CharT> text) {
-    const CharT *p1 = text.data(), *pend = text.data() + text.size();
-    out.put('\"');
-    for (const CharT* p2 = text.data(); p2 != pend; ++p2) {
-        std::string_view esc;
-        switch (*p2) {
-            case '\"': esc = "\\\""; break;
-            case '\\': esc = "\\\\"; break;
-            case '\a': esc = "\\a"; break;
-            case '\b': esc = "\\b"; break;
-            case '\f': esc = "\\f"; break;
-            case '\n': esc = "\\n"; break;
-            case '\r': esc = "\\r"; break;
-            case '\t': esc = "\\t"; break;
-            case '\v': esc = "\\v"; break;
-            default: continue;
-        }
-        out.write(as_span(p1, p2 - p1));
-        for (char ch : esc) { out.put(ch); }
-        p1 = p2 + 1;
-    }
-    out.write(as_span(p1, pend - p1));
-    out.put('\"');
-    return out;
-}
 
 namespace stdbuf {
 extern UXS_EXPORT iobuf& out;

@@ -51,7 +51,7 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
     };
 
     basic_value<CharT, Alloc> result;
-    basic_inline_dynbuffer<basic_value<CharT, Alloc>*, 32> stack;
+    inline_basic_dynbuffer<basic_value<CharT, Alloc>*, 32> stack;
 
     auto* val = &result;
     stack.push_back(val);
@@ -96,7 +96,7 @@ struct writer_stack_item_t {
 
 template<typename CharT, typename Alloc>
 void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
-    basic_inline_dynbuffer<writer_stack_item_t<CharT, Alloc>, 32> stack;
+    inline_basic_dynbuffer<writer_stack_item_t<CharT, Alloc>, 32> stack;
 
     auto write_value = [this, &stack, &indent](const basic_value<CharT, Alloc>& v) {
         switch (v.type_) {
