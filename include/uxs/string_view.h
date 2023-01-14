@@ -22,7 +22,7 @@ class basic_string_view {
     using size_type = size_t;
     using difference_type = std::ptrdiff_t;
 
-    static const size_t npos = size_t(-1);
+    static const size_t npos = ~size_t(0);
 
     basic_string_view() NOEXCEPT {}
     basic_string_view(const CharT* s, size_t count) : begin_(s), size_(count) {}
