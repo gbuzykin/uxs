@@ -122,7 +122,7 @@ struct string_parser<guid, CharT> {
 template<typename CharT>
 struct formatter<guid, CharT> {
     template<typename StrTy>
-    StrTy& format(StrTy& s, const guid& val, const fmt_opts& fmt) const {
+    void format(StrTy& s, const guid& val, const fmt_opts& fmt) const {
         const unsigned len = 38;
         const bool upper = !!(fmt.flags & fmt_flags::kUpperCase);
         std::array<typename StrTy::value_type, len> buf;
@@ -135,8 +135,8 @@ struct formatter<guid, CharT> {
         to_hex(val.data8(9), p + 22, 2, upper);
         p += 25;
         for (unsigned i = 10; i < 16; ++i, p += 2) { to_hex(val.data8(i), p, 2, upper); }
-        const auto fn = [&buf](StrTy& s) -> StrTy& { return s.append(buf.data(), buf.data() + buf.size()); };
-        return fmt.width > len ? append_adjusted(s, fn, len, fmt) : fn(s);
+        const auto fn = [&buf](StrTy& s) { s.append(buf.data(), buf.data() + buf.size()); };
+        fmt.width > len ? append_adjusted(s, fn, len, fmt) : fn(s);
     }
 };
 

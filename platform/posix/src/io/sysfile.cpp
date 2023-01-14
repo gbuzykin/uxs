@@ -82,7 +82,7 @@ int sysfile::ctrlesc_color(span<uint8_t> v) {
     buf += "\033[";
     join_basic_strings(
         buf, v, ';',
-        std::bind(to_basic_string<uxs::dynbuffer, uint8_t>, std::placeholders::_1, std::placeholders::_2, fmt_opts{}));
+        std::bind(to_basic_string<uxs::membuffer, uint8_t>, std::placeholders::_1, std::placeholders::_2, fmt_opts{}));
     buf += 'm';
     return ::write(fd_, buf.data(), buf.size()) < 0 ? -1 : 0;
 }
