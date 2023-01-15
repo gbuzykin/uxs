@@ -27,7 +27,7 @@ struct basic_devbuf<CharT, Alloc>::flexbuf_t {
     char_type data[1];
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<flexbuf_t>;
     static size_t get_alloc_sz(size_t sz) {
-        return (offsetof(flexbuf_t, data[sz]) + sizeof(flexbuf_t) - 1) / sizeof(flexbuf_t);
+        return (offsetof(flexbuf_t, data) + sz * sizeof(char_type) + sizeof(flexbuf_t) - 1) / sizeof(flexbuf_t);
     }
     static flexbuf_t* alloc(alloc_type al, size_t sz) {
         const size_t alloc_sz = get_alloc_sz(sz);
