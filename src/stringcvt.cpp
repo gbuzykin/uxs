@@ -520,7 +520,9 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, cons
         std::array<uint64_t, 16> buf;  // so, 16 are enough for sure
 
         // The first digit can belong [1, 20) range, reserve one additional cell to store it.
-        char* const p0 = n_digs + 1 > sizeof(digs_buf_) ? static_cast<char*>(std::malloc(n_digs + 1)) : digs_buf_;
+        char* const p0 = static_cast<size_t>(n_digs + 1) > sizeof(digs_buf_) ?
+                             static_cast<char*>(std::malloc(n_digs + 1)) :
+                             digs_buf_;
         char* p = p0;
 
         uint64_t* num = &buf[0];  // numerator

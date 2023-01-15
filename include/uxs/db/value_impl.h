@@ -50,7 +50,7 @@ template<typename Ty>
 template<typename CharT, typename Alloc>
 template<typename Ty>
 /*static*/ size_t basic_value<CharT, Alloc>::flexarray_t<Ty>::get_alloc_sz(size_t cap) {
-    return (offsetof(flexarray_t, buf[cap]) + sizeof(flexarray_t) - 1) / sizeof(flexarray_t);
+    return (offsetof(flexarray_t, buf) + cap * sizeof(Ty) + sizeof(flexarray_t) - 1) / sizeof(flexarray_t);
 }
 
 template<typename CharT, typename Alloc>
@@ -312,7 +312,8 @@ template<typename CharT, typename Alloc>
 
 template<typename CharT, typename Alloc>
 /*static*/ size_t basic_value<CharT, Alloc>::record_t::get_alloc_sz(size_t bckt_cnt) {
-    return (offsetof(record_t, hashtbl[bckt_cnt]) + sizeof(record_t) - 1) / sizeof(record_t);
+    return (offsetof(record_t, hashtbl) + bckt_cnt * sizeof(list_links_type*) + sizeof(record_t) - 1) /
+           sizeof(record_t);
 }
 
 template<typename CharT, typename Alloc>
@@ -373,7 +374,8 @@ template<typename CharT, typename Alloc>
 
 template<typename CharT, typename Alloc>
 /*static*/ size_t basic_value<CharT, Alloc>::list_node_type::get_alloc_sz(size_t name_sz) {
-    return (offsetof(list_node_type, v.name_chars[name_sz]) + sizeof(list_node_type) - 1) / sizeof(list_node_type);
+    return (offsetof(list_node_type, v.name_chars) + name_sz * sizeof(char_type) + sizeof(list_node_type) - 1) /
+           sizeof(list_node_type);
 }
 
 template<typename CharT, typename Alloc>
