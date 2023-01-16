@@ -214,7 +214,7 @@ int xml::reader::parse_token(std::string_view& lval) {
                 unsigned unicode = 0;
                 for (char ch : std::string_view(lexeme + 2, llen - 3)) { unicode = 10 * unicode + dig_v(ch); }
                 if (state_stack_.back() == lex_detail::sc_initial) {
-                    lval = std::string_view(str_.first(), to_utf8(unicode, str_.first()));
+                    lval = std::string_view(str_.data(), to_utf8(unicode, str_.data()));
                     return kEntity;
                 }
                 to_utf8(unicode, std::back_inserter(str_));
@@ -223,7 +223,7 @@ int xml::reader::parse_token(std::string_view& lval) {
                 unsigned unicode = 0;
                 for (char ch : std::string_view(lexeme + 3, llen - 4)) { unicode = (unicode << 4) + dig_v(ch); }
                 if (state_stack_.back() == lex_detail::sc_initial) {
-                    lval = std::string_view(str_.first(), to_utf8(unicode, str_.first()));
+                    lval = std::string_view(str_.data(), to_utf8(unicode, str_.data()));
                     return kEntity;
                 }
                 to_utf8(unicode, std::back_inserter(str_));

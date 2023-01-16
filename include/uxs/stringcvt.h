@@ -110,7 +110,7 @@ class basic_membuffer {
     Ty* last() NOEXCEPT { return last_; }
     Ty& back() NOEXCEPT { return *(curr_ - 1); }
 
-    basic_membuffer& advance(size_t n) {
+    basic_membuffer& advance(size_t n) NOEXCEPT {
         assert(n <= avail());
         curr_ += n;
         return *this;
@@ -208,8 +208,7 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
     size_t size() const NOEXCEPT { return this->curr() - first_; }
     size_t capacity() const NOEXCEPT { return this->last() - first_; }
     const Ty* data() const NOEXCEPT { return first_; }
-    const Ty* first() const NOEXCEPT { return first_; }
-    Ty* first() NOEXCEPT { return first_; }
+    Ty* data() NOEXCEPT { return first_; }
     void clear() NOEXCEPT { this->set(first_); }
 
     bool try_grow(size_t extra) override {
