@@ -5,25 +5,29 @@
 #include <cstring>
 #include <locale>
 
+#define SCVT_USE_COMPILER_128BIT_EXTENSIONS 1
+
 #if !defined(_MSC_VER) || _MSC_VER > 1800
 #    define SCVT_CONSTEXPR_DATA constexpr
 #else  // !defined(_MSC_VER) || _MSC_VER > 1800
 #    define SCVT_CONSTEXPR_DATA const
 #endif  // !defined(_MSC_VER) || _MSC_VER> 1800
 
-#if defined(_MSC_VER) && defined(_M_X64)
-#    include <intrin.h>
-#elif defined(__GNUC__) && defined(__x86_64__)
+#if SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0
+#    if defined(_MSC_VER) && defined(_M_X64)
+#        include <intrin.h>
+#    elif defined(__GNUC__) && defined(__x86_64__)
 namespace gcc_ints {
 __extension__ typedef unsigned __int128 uint128;
 }  // namespace gcc_ints
-#endif
+#    endif
+#endif  // SCVT_USE_COMPILER_128BIT_EXTENSIONS
 
 #ifdef __has_builtin
 #    define SCVT_HAS_BUILTIN(x) __has_builtin(x)
-#else
+#else  // __has_builtin
 #    define SCVT_HAS_BUILTIN(x) 0
-#endif
+#endif  // __has_builtin
 
 namespace uxs {
 namespace scvt {
@@ -62,7 +66,7 @@ CONSTEXPR uint64_t make64(TyH hi, TyL lo) {
     return (static_cast<uint64_t>(hi) << 32) | static_cast<uint64_t>(lo);
 }
 
-#if defined(_MSC_VER) && defined(_M_X64)
+#if SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
 inline unsigned ulog2(uint32_t x) {
     unsigned long ret;
     _BitScanReverse(&ret, x | 1);
@@ -73,7 +77,7 @@ inline unsigned ulog2(uint64_t x) {
     _BitScanReverse64(&ret, x | 1);
     return ret;
 }
-#elif defined(__GNUC__) && defined(__x86_64__)
+#elif SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
 inline unsigned ulog2(uint32_t x) { return __builtin_clz(x | 1) ^ 31; }
 inline unsigned ulog2(uint64_t x) { return __builtin_clzll(x | 1) ^ 63; }
 #else
@@ -145,6 +149,8 @@ Ty to_integer_limited(const CharT* p, const CharT* end, const CharT*& last, Ty p
     last = p;
     return val;
 }
+
+SCVT_CONSTEXPR_DATA int kMaxPow10Size = 13;
 
 template<typename CharT>
 const CharT* accum_mantissa(const CharT* p, const CharT* end, uint64_t& m, int& exp, bool& zero_tail) NOEXCEPT {
@@ -359,7 +365,7 @@ void fmt_bin(basic_membuffer<CharT>& s, Ty val, bool is_signed, const fmt_opts& 
         }
     }
     const unsigned n_prefix = (sign ? 1 : 0) + (!!(fmt.flags & fmt_flags::kAlternate) ? 2 : 0);
-    const auto fn = [val, &fmt, sign](basic_membuffer<CharT>& s, unsigned len, const grouping_t<CharT>* grouping) {
+    const auto fn = [val, sign, &fmt](basic_membuffer<CharT>& s, unsigned len, const grouping_t<CharT>* grouping) {
         if (s.avail() >= len || s.try_grow(len)) {
             fmt_gen_bin(s.curr() + len, val, fmt, grouping);
             if (sign) { *s.curr() = sign; }
@@ -418,7 +424,7 @@ void fmt_oct(basic_membuffer<CharT>& s, Ty val, bool is_signed, const fmt_opts& 
         }
     }
     const unsigned n_prefix = sign ? 1 : 0;
-    const auto fn = [val, &fmt, sign](basic_membuffer<CharT>& s, unsigned len, const grouping_t<CharT>* grouping) {
+    const auto fn = [val, sign, &fmt](basic_membuffer<CharT>& s, unsigned len, const grouping_t<CharT>* grouping) {
         if (s.avail() >= len || s.try_grow(len)) {
             fmt_gen_oct(s.curr() + len, val, fmt, grouping);
             if (sign) { *s.curr() = sign; }
@@ -482,7 +488,7 @@ void fmt_hex(basic_membuffer<CharT>& s, Ty val, bool is_signed, const fmt_opts& 
         }
     }
     const unsigned n_prefix = (sign ? 1 : 0) + (!!(fmt.flags & fmt_flags::kAlternate) ? 2 : 0);
-    const auto fn = [val, &fmt, sign](basic_membuffer<CharT>& s, unsigned len, const grouping_t<CharT>* grouping) {
+    const auto fn = [val, sign, &fmt](basic_membuffer<CharT>& s, unsigned len, const grouping_t<CharT>* grouping) {
         if (s.avail() >= len || s.try_grow(len)) {
             fmt_gen_hex(s.curr() + len, val, fmt, grouping);
             if (sign) { *s.curr() = sign; }
@@ -631,7 +637,8 @@ void fmt_char(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt) {
 
 // ---- float
 
-const int kMaxDoubleDigits = 767;
+SCVT_CONSTEXPR_DATA int kMaxDoubleDigits = 767;
+SCVT_CONSTEXPR_DATA int kDigsPer64 = 18;  // size of 64-bit digit pack
 
 class UXS_EXPORT fp_dec_fmt_t {
  public:
@@ -659,7 +666,7 @@ class UXS_EXPORT fp_dec_fmt_t {
     int n_zeroes_;
     bool fixed_;
     bool alternate_;
-    char digs_buf_[kMaxDoubleDigits + 9 /* size of digit pack */ - 1];
+    char digs_buf_[kMaxDoubleDigits + kDigsPer64 - 1];
 
     void format_long_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT;
 };
@@ -807,7 +814,7 @@ void fmt_float_common(basic_membuffer<CharT>& s, uint64_t u64, const fmt_opts& f
     fp_dec_fmt_t fp(fp2, fmt, bpm, exp_max >> 1);
     CharT dec_point = default_numpunct<CharT>().decimal_point();
     const unsigned n_prefix = sign ? 1 : 0;
-    const auto fn = [&fp, &fmt, sign](basic_membuffer<CharT>& s, unsigned len, const CharT dec_point,
+    const auto fn = [&fp, sign, &fmt](basic_membuffer<CharT>& s, unsigned len, const CharT dec_point,
                                       const grouping_t<CharT>* grouping) {
         if (s.avail() >= len || s.try_grow(len)) {
             fp.generate(s.curr() + len, fmt, dec_point, grouping);
