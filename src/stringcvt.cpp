@@ -214,6 +214,27 @@ inline uint64_t bignum_shift_left(uint64_t* x, unsigned sz, unsigned shift) {
     return higher;
 }
 
+inline uint64_t shr128(uint64_t x_hi, uint64_t x_lo, unsigned shift) {
+#if SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
+    return __shiftright128(x_lo, x_hi, shift);
+#elif SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
+    gcc_ints::uint128 x = ((static_cast<gcc_ints::uint128>(x_hi) << 64) | x_lo) >> shift;
+    return static_cast<uint64_t>(x);
+#else
+    return (x_hi << (64 - shift)) | (x_lo >> shift);
+#endif
+}
+
+inline uint64_t bignum_shift_right(uint64_t higher, uint64_t* x, unsigned sz, unsigned shift) {
+    assert(sz > 0);
+    uint64_t* x0 = x;
+    x += sz - 1;
+    uint64_t lower = *x << (64 - shift);
+    while (x != x0) { *x = shr128(*(x - 1), *x, shift), --x; }
+    *x = shr128(higher, *x, shift);
+    return lower;
+}
+
 // --------------------------
 
 struct bignum_t {
@@ -537,6 +558,9 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, cons
     } else if (n_digs >= kDigsPer64) {  // long decimal mantissa
         format_long_decimal(fp2, n_digs, fp_fmt);
         return;
+    } else if (!optimal) {  // short decimal mantissa
+        format_short_decimal(fp2, n_digs, fp_fmt);
+        return;
     }
 
     // Calculate decimal mantissa representation :
@@ -628,18 +652,6 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, cons
     if (significand_ == 0) {
         exp_ = 0, n_zeroes_ = prec_ + 1;
         return;
-    } else if (!optimal) {
-        if (fp_fmt == fmt_flags::kDefault || fp_fmt == fmt_flags::kGeneral) {
-            // Select format for number representation
-            if (exp_ >= -4 && exp_ <= prec_) { fixed_ = true, prec_ -= exp_; }
-            if (!alternate_) {
-                prec_ -= remove_trailing_zeros(significand_);
-                if (prec_ < 0) { significand_ *= get_pow10(-prec_), prec_ = 0; }
-            } else if (prec_ == 0) {
-                significand_ *= 10u, prec_ = 1;
-            }
-        }
-        return;
     }
 
     // Select format for number representation
@@ -692,6 +704,93 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, cons
     }
 
     if (alternate_ && prec_ == 0) { significand_ *= 10u, prec_ = 1; }
+}
+
+void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT {
+    assert(n_digs < kDigsPer64);
+    ++n_digs;  // one additional digit for rounding
+
+    // `kMaxPow10Size` uint64-s are enough to hold all (normalized!) 10^n, n <= 324 + kDigsPer64
+    uint64_t num[kMaxPow10Size + 1];  // +1 to multiply by uint64
+    unsigned sz_num = 1;
+
+    const int exp_aligned = kDigsPer64 + exp_ - n_digs -
+                            ((kDigsPer64 * 1000000 + exp_ - n_digs) %
+                             kDigsPer64);  // upper kDigsPer64-aligned decimal exponent
+    const uint64_t mul10 = get_pow10(exp_aligned - exp_ + n_digs - 1);
+
+    auto mul_and_shift = [&num, &sz_num](uint64_t m, uint64_t mul, int shift) {
+        uint64_t digs;
+        num[0] = umul128(m, mul, digs);
+        if (shift > 0) {
+            digs = shl128(digs, num[0], shift), num[0] <<= shift;
+        } else if (shift < 0) {
+            num[1] = num[0] << (64 + shift), num[0] = shr128(digs, num[0], -shift), digs >>= -shift, ++sz_num;
+        }
+        return digs;
+    };
+
+    uint64_t digs;
+    if (exp_aligned > 0) {
+        const bignum_t denominator = get_bigpow10((exp_aligned / kDigsPer64) - 1);
+        digs = bignum_divmod(mul_and_shift(fp2.m, mul10, fp2.exp - denominator.exp), num, denominator.x, sz_num,
+                             denominator.sz);
+        if (digs && sz_num < denominator.sz) { sz_num = denominator.sz; }
+    } else if (exp_aligned < 0) {
+        const bignum_t multiplier = get_bigpow10((-exp_aligned / kDigsPer64) - 1);
+        const int shift = 2 + fp2.exp + multiplier.exp;
+        sz_num += multiplier.sz;
+        num[0] = bignum_mul(num + 1, multiplier.x, sz_num - 1, fp2.m);
+        digs = bignum_mul(num, sz_num, mul10);
+        if (shift > 0) {
+            digs = (digs << shift) | bignum_shift_left(num, sz_num, shift);
+        } else if (shift < 0) {
+            num[sz_num] = bignum_shift_right(digs, num, sz_num, -shift);
+            digs >>= -shift, ++sz_num;
+        }
+    } else {
+        digs = mul_and_shift(fp2.m, mul10, 1 + fp2.exp);
+    }
+
+    // Note, that the first digit formally can belong [1, 20) range, so we can get one digit more
+    if (fp_fmt != fmt_flags::kFixed && digs >= get_pow10(n_digs)) {
+        ++exp_, significand_ = digs / 100u;  // one excess digit
+        // Remove one excess digit for scientific format
+        const unsigned r = static_cast<unsigned>(digs - 100u * significand_);
+        if (r > 50u || (r == 50u && ((significand_ & 1) || bignum_trim_unused(num, sz_num) /* nearest even */))) {
+            ++significand_;
+        }
+    } else {
+        significand_ = digs / 10u;
+        const unsigned r = static_cast<unsigned>(digs - 10u * significand_);
+        if (r > 5u || (r == 5u && ((significand_ & 1) || bignum_trim_unused(num, sz_num) /* nearest even */))) {
+            ++significand_;
+        }
+        if (significand_ >= get_pow10(n_digs - 1)) {
+            ++exp_;  // one excess digit
+            if (fp_fmt != fmt_flags::kFixed) {
+                // Remove one excess digit for scientific format
+                // Note: `significand_` is exact power of 10 in this case
+                significand_ /= 10u;
+            }
+        }
+    }
+
+    if (significand_ == 0) {
+        exp_ = 0, n_zeroes_ = prec_ + 1;
+        return;
+    }
+
+    if (fp_fmt == fmt_flags::kDefault || fp_fmt == fmt_flags::kGeneral) {
+        // Select format for number representation
+        if (exp_ >= -4 && exp_ <= prec_) { fixed_ = true, prec_ -= exp_; }
+        if (!alternate_) {
+            prec_ -= remove_trailing_zeros(significand_);
+            if (prec_ < 0) { significand_ *= get_pow10(-prec_), prec_ = 0; }
+        } else if (prec_ == 0) {
+            significand_ *= 10u, prec_ = 1;
+        }
+    }
 }
 
 void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT {
