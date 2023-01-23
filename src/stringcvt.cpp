@@ -822,7 +822,8 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fm
     };
 
     if (exp_aligned > 0) {
-        const bignum_t denominator = get_bigpow10((exp_aligned / kDigsPer64) - 1);
+        unsigned index = (exp_aligned / kDigsPer64) - 1;
+        bignum_t denominator = get_bigpow10(index);
         const unsigned shift = fp2.exp - denominator.exp;
         uint64_t digs = fp2.m >> (64 - shift);
         num[0] = fp2.m << shift;
@@ -834,12 +835,22 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fm
 
         sz_num = denominator.sz;
         while (n_digs > 0 && (sz_num = bignum_trim_unused(num, sz_num))) {
+            assert(index >= 0);
             const unsigned digs_len = std::min(n_digs, kDigsPer64);
-            digs = bignum_divmod(bignum_mul(num, sz_num, get_pow10(digs_len)), num, denominator.x, sz_num,
-                                 denominator.sz);
-            if (digs) { sz_num = denominator.sz; }
+            if (digs_len < kDigsPer64) {
+                digs = bignum_divmod(bignum_mul(num, sz_num, get_pow10(digs_len)), num, denominator.x, sz_num,
+                                     denominator.sz);
+            } else if (index > 0) {
+                const unsigned prev_denominator_exp = denominator.exp;
+                denominator = get_bigpow10(index - 1);
+                digs = bignum_divmod(bignum_shift_left(num, sz_num, prev_denominator_exp - denominator.exp), num,
+                                     denominator.x, sz_num, denominator.sz);
+                if (digs && sz_num < denominator.sz) { sz_num = denominator.sz; }
+            } else {  // division will be not needed in this case (division by 1)
+                digs = bignum_shift_left(num, sz_num, 1 + denominator.exp);
+            }
             std::fill(p, gen_digits(p + digs_len, digs), '0');
-            p += digs_len, n_digs -= digs_len;
+            p += digs_len, n_digs -= digs_len, --index;
         }
     } else {
         uint64_t digs;
