@@ -240,10 +240,10 @@ function_call_iterator<Func> function_caller(const Func& func) {
     return function_call_iterator<Func>(func);
 }
 
-#ifdef USE_CHECKED_ITERATORS
+#if UXS_USE_CHECKED_ITERATORS != 0
 template<typename Func>
 struct std::_Is_checked_helper<function_call_iterator<Func>> : std::true_type {};
-#endif  // USE_CHECKED_ITERATORS
+#endif  // UXS_USE_CHECKED_ITERATORS
 
 template<typename BaseIt, typename = void>
 class limited_output_iterator {
@@ -323,9 +323,9 @@ limited_output_iterator<BaseIt> limit_output_iterator(const BaseIt& base, std::p
     return limited_output_iterator<BaseIt>(base, limit);
 }
 
-#ifdef USE_CHECKED_ITERATORS
+#if UXS_USE_CHECKED_ITERATORS != 0
 template<typename BaseIt>
 struct std::_Is_checked_helper<limited_output_iterator<BaseIt>> : std::true_type {};
-#endif  // USE_CHECKED_ITERATORS
+#endif  // UXS_USE_CHECKED_ITERATORS
 
 }  // namespace uxs

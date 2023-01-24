@@ -39,10 +39,10 @@ using ibuf_iterator = basic_ibuf_iterator<char>;
 using wibuf_iterator = basic_ibuf_iterator<wchar_t>;
 using u8ibuf_iterator = basic_ibuf_iterator<uint8_t>;
 
-#ifdef USE_CHECKED_ITERATORS
+#if UXS_USE_CHECKED_ITERATORS != 0
 template<typename CharT>
 struct std::_Is_checked_helper<basic_ibuf_iterator<CharT>> : std::true_type {};
-#endif  // USE_CHECKED_ITERATORS
+#endif  // UXS_USE_CHECKED_ITERATORS
 
 template<typename CharT>
 class basic_obuf_iterator {
@@ -79,9 +79,9 @@ using obuf_iterator = basic_obuf_iterator<char>;
 using wobuf_iterator = basic_obuf_iterator<wchar_t>;
 using u8obuf_iterator = basic_obuf_iterator<uint8_t>;
 
-#ifdef USE_CHECKED_ITERATORS
+#if UXS_USE_CHECKED_ITERATORS != 0
 template<typename CharT>
 struct std::_Is_checked_helper<basic_obuf_iterator<CharT>> : std::true_type {};
-#endif  // USE_CHECKED_ITERATORS
+#endif  // UXS_USE_CHECKED_ITERATORS
 
 }  // namespace uxs
