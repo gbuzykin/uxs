@@ -13,7 +13,7 @@
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
 
 #if defined(_MSC_VER) && _MSC_VER <= 1800
-#    define USE_CHECKED_ITERATORS
+#    define UXS_USE_CHECKED_ITERATORS 1
 #endif  // defined(_MSC_VER) && _MSC_VER <= 1800
 
 namespace uxs {
@@ -402,10 +402,10 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
 };
 
-#ifdef USE_CHECKED_ITERATORS
+#if UXS_USE_CHECKED_ITERATORS != 0
 template<typename Traits, bool Const>
 struct std::_Is_checked_helper<array_iterator<Traits, Const>> : std::true_type {};
-#endif  // USE_CHECKED_ITERATORS
+#endif  // UXS_USE_CHECKED_ITERATORS
 
 //-----------------------------------------------------------------------------
 // List iterator
@@ -466,10 +466,10 @@ class list_iterator : public container_iterator_facade<Traits, list_iterator<Tra
     node_type* node_ = nullptr;
 };
 
-#ifdef USE_CHECKED_ITERATORS
+#if UXS_USE_CHECKED_ITERATORS != 0
 template<typename Traits, typename NodeTraits, bool Const>
 struct std::_Is_checked_helper<list_iterator<Traits, NodeTraits, Const>> : std::true_type {};
-#endif  // USE_CHECKED_ITERATORS
+#endif  // UXS_USE_CHECKED_ITERATORS
 
 //-----------------------------------------------------------------------------
 // Const value iterator
@@ -497,9 +497,9 @@ const_value_iterator<Val> const_value(const Val& v) NOEXCEPT {
     return const_value_iterator<Val>(v);
 }
 
-#ifdef USE_CHECKED_ITERATORS
+#if UXS_USE_CHECKED_ITERATORS != 0
 template<typename Val>
 struct std::_Is_checked_helper<const_value_iterator<Val>> : std::true_type {};
-#endif  // USE_CHECKED_ITERATORS
+#endif  // UXS_USE_CHECKED_ITERATORS
 
 }  // namespace uxs
