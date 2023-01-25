@@ -124,6 +124,16 @@ inline uint64_t udiv128(uint128_t x, uint64_t y) {
 
 // --------------------------
 
+// Is used by `accum_mantissa<>` template
+uint64_t bignum_mul32(uint64_t* x, unsigned sz, uint32_t mul, uint32_t bias) {
+    assert(sz > 0);
+    uint64_t higher = bias;
+    uint64_t* x0 = x;
+    x += sz;
+    do { --x, *x = umul64x32(*x, mul, static_cast<uint32_t>(higher), higher); } while (x != x0);
+    return higher;
+}
+
 inline uint64_t bignum_mul(uint64_t* x, unsigned sz, uint64_t mul) {
     assert(sz > 0);
     uint64_t higher;
@@ -142,6 +152,23 @@ inline uint64_t bignum_mul(uint64_t* x, const uint64_t* y, unsigned sz, uint64_t
     *x = umul128(*y, mul, higher);
     while (x != x0) { --x, --y, *x = umul128(*y, mul, higher, higher); }
     return higher;
+}
+
+inline uint64_t bignum_addmul(uint64_t* x, const uint64_t* y, unsigned sz, uint64_t mul) {
+    assert(sz > 0);
+    uint64_t higher;
+    uint64_t* x0 = x;
+    x += sz - 1, y += sz;
+    one_bit_t carry = add64_carry(*x, umul128(*--y, mul, higher), *x);
+    while (x != x0) { --x, carry = add64_carry(*x, umul128(*--y, mul, higher, higher), *x, carry); }
+    return higher + carry;
+}
+
+inline void bignum_mul_vec(uint64_t* x, const uint64_t* y, unsigned sz_x, unsigned sz_y) {
+    uint64_t* x0 = x;
+    x += sz_x - 1;
+    *x = bignum_mul(x + 1, y, sz_y, *x);
+    while (x != x0) { --x, *x = bignum_addmul(x + 1, y, sz_y, *x); }
 }
 
 inline unsigned bignum_trim_unused(const uint64_t* x, unsigned sz) {
@@ -284,8 +311,7 @@ inline bignum_t get_bigpow10(unsigned index) NOEXCEPT {
 
 // --------------------------
 
-SCVT_CONSTEXPR_DATA int kPrecLimit = 19;
-SCVT_CONSTEXPR_DATA int kPow10Max = 324 + kPrecLimit - 1;
+SCVT_CONSTEXPR_DATA int kPow10Max = 328;
 
 struct uint96_t {
     uint64_t hi;
@@ -401,74 +427,112 @@ inline int exp10to2(int exp) {
     return static_cast<int>(hi32(ln10_ln2 * exp));
 }
 
-uint64_t fp10_to_fp2(fp_m64_t fp10, bool zero_tail, const unsigned bpm, const int exp_max) NOEXCEPT {
-    if (fp10.m == 0 || fp10.exp < -kPow10Max) { return 0; }                      // perfect zero
-    if (fp10.exp > kPow10Max) { return static_cast<uint64_t>(exp_max) << bpm; }  // infinity
+uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) NOEXCEPT {
+    uint64_t* m10 = &fp10.bits[kMaxFp10MantissaSize - fp10.bits_used];
+    // Note, that decimal mantissa can contain up to 772 digits. So, all numbers with
+    // powers less than -772 - 324 = -1096 are zeroes in fact. We round this power to -1100
+    if (*m10 == 0 || fp10.exp < -1100) {
+        return 0;                                      // zero
+    } else if (fp10.exp > 310) {                       // too big power even for one specified digit
+        return static_cast<uint64_t>(exp_max) << bpm;  // infinity
+    }
 
-    unsigned log = 1 + ulog2(fp10.m);
-    fp10.m <<= 64 - log;
+    const int exp_aligned = fp10.exp - ((kDigsPer64 * 1000000 + fp10.exp) %
+                                        kDigsPer64);  // lower kDigsPer64-aligned decimal exponent
 
-    // Convert decimal mantissa to binary :
-    // Note: coefficients in `coef10to2_t` are normalized and belong [1, 2) range
-    // Note: multiplication of 64-bit mantissa by 96-bit coefficient gives 160-bit result,
-    // but we drop the lowest 32 bits
-    int exp2 = exp10to2(fp10.exp);
-    uint128_t res128 = umul96x64_higher128(g_coef10to2.m[kPow10Max + fp10.exp], fp10.m);
-    res128.hi += fp10.m;  // apply implicit 1 term of normalized coefficient
-    // Note: overflow is possible while summing `res128.hi += fp10.m`
-    // Move binary mantissa to the left position so the most significant `1` is hidden
-    if (res128.hi >= fp10.m) {
-        res128.hi = (res128.hi << 1) | (res128.lo >> 63);
-        res128.lo <<= 1, --log;
+    unsigned sz_num = fp10.bits_used;
+    const uint64_t mul10 = get_pow10(fp10.exp - exp_aligned);
+    if (mul10 != 1) {
+        const uint64_t higher = bignum_mul(m10, sz_num, mul10);
+        if (higher) { *--m10 = higher, ++sz_num; }
     }
 
     // Obtain binary exponent
     const int exp_bias = exp_max >> 1;
-    fp_m64_t fp2{0, static_cast<int>(exp_bias + log + exp2)};
-    if (fp2.exp >= exp_max) {
-        return static_cast<uint64_t>(exp_max) << bpm;  // infinity
-    } else if (fp2.exp <= -static_cast<int>(bpm)) {
-        // corner cases: perfect zero or the smallest possible floating point number
-        return fp2.exp == -static_cast<int>(bpm) ? 1ull : 0;
+    const int log = ulog2(*m10);
+    int exp2 = exp_bias + log + (static_cast<int>(sz_num - 1) << 6 /* *64 */);
+
+    // Align numerator so 2 left bits are zero (reserved)
+    if (log < 61) {
+        bignum_shift_left(m10, sz_num, 61 - log);
+    } else if (log > 61) {
+        const uint64_t lower = bignum_shift_right(0, m10, sz_num, log - 61);
+        if (lower) { m10[sz_num++] = lower; }
     }
 
-    // General case: obtain rounded binary mantissa bits
+    uint64_t m;
+    --sz_num;  // count only numerator uint64_t-s with index > 0
+    if (exp_aligned < 0) {
+        const int index0 = (-exp_aligned / kDigsPer64) - 1;
+        int index = std::min<int>(index0, kBigpow10TblSize - 1);
+        bignum_t denominator = get_bigpow10(index);
 
-    // When `exp <= 0` mantissa will be denormalized further, so store the real mantissa length
-    const unsigned n_bits = fp2.exp > 0 ? bpm : bpm + fp2.exp - 1;
-
-    // Do banker's or `nearest even` rounding :
-    // It seems that exact halves detection is not possible without exact integral numbers tracking.
-    // So we use some heuristic to detect exact halves. But there are reasons to believe that this approach can
-    // be theoretically justified. If we take long enough range of bits after the point where we need to break the
-    // series then analyzing this bits we can make the decision in which direction to round. The following bits:
-    //               x x x x x x 1 0 0 0 0 0 0 0 0 0 . . . . . . we consider as exact half
-    //               x x x x x x 0 1 1 1 1 1 1 1 1 1 . . . . . . and this is exact half too
-    //              | needed    | to be truncated   | unknown   |
-    // In our case we need `n_bits` left bits in `res128.hi`, all other bits are rounded and dropped.
-    // To decide in which direction to round we use reliable bits after `n_bits`. Totally 96 bits are
-    // reliable, because `coef10to2_t` has 96-bit precision. So, we use only `res128.hi` and higher 32-bit
-    // part of `res128.lo`.
-    const uint64_t half = 1ull << (63 - n_bits);
-    // Drop unreliable bits and resolve the case of periodical `1`
-    // Note: we do not need to reset lower 32-bit part of `res128.lo`, because it is ignored further
-    one_bit_t carry = add64_carry(res128.lo, 0x80000000, res128.lo);
-    // Do banker's rounding
-    carry = add64_carry(res128.hi,
-                        zero_tail && hi32(res128.lo) == 0 && ((res128.hi + carry) & (half << 1)) == 0 ? half - 1 : half,
-                        res128.hi, carry);
-    if (carry) {  // overflow while rounding
-        // Note: the value can become normalized if `exp == 0` or infinity if `exp == exp_max - 1`
-        // Note: in case of overflow 'fp2.m' will be `0`
-        ++fp2.exp;
+        uint64_t big_denominator[kMaxFp10MantissaSize + 1];  // all powers >= -1100 (aligned to -1116) will fit
+        if (index < index0) {
+            // Calculate big denominator multiplying powers of 10 from table
+            std::memcpy(big_denominator, denominator.x, denominator.sz * sizeof(uint64_t));
+            do {
+                const int index2 = std::min<int>(index0 - index - 1, kBigpow10TblSize - 1);
+                const bignum_t denominator2 = get_bigpow10(index2);
+                bignum_mul_vec(big_denominator, denominator2.x, denominator.sz, denominator2.sz);
+                denominator.sz += denominator2.sz;
+                if (!big_denominator[denominator.sz - 1]) { --denominator.sz; }
+                denominator.exp += 1 + denominator2.exp, index += index2 + 1;
+            } while (index < index0);
+            const unsigned shift = 63 - ulog2(big_denominator[0]);
+            if (shift > 0) {
+                bignum_shift_left(big_denominator, denominator.sz, shift);
+                if (!big_denominator[denominator.sz - 1]) { --denominator.sz; }
+                denominator.exp -= shift;
+            }
+            denominator.x = big_denominator;
+        }
+        // After `bignum_divmod` the result can have 1 or 2 left zero bits
+        m = bignum_divmod(m10[0], m10 + 1, denominator.x, sz_num, denominator.sz);
+        sz_num = std::max(sz_num, denominator.sz), exp2 -= denominator.exp;
     } else {
-        // shift mantissa to the right position
-        fp2.m = res128.hi >> (64 - bpm);
+        if (exp_aligned > 0) {
+            const int index = (exp_aligned / kDigsPer64) - 1;
+            if (index >= kBigpow10TblSize) { return static_cast<uint64_t>(exp_max) << bpm; }  // infinity
+            const bignum_t multiplier = get_bigpow10(index);
+            sz_num = bignum_trim_unused(m10 + 1, sz_num);
+            bignum_mul_vec(m10, multiplier.x, sz_num + 1, multiplier.sz);
+            sz_num += multiplier.sz, exp2 += 1 + multiplier.exp;
+        }
+        // After multiplication the result can have 2 or 3 left zero bits,
+        // so shift it left by 1 bit
+        m = m10[0] << 1;
+    }
+
+    // Align mantissa so only 1 left bit is zero
+    if (!(m & (1ull << 62))) { m <<= 1, --exp2; }
+
+    if (exp2 >= exp_max) {
+        return static_cast<uint64_t>(exp_max) << bpm;  // infinity
+    } else if (exp2 < -static_cast<int>(bpm)) {
+        return 0;  // zero
+    }
+
+    // When `exp2 <= 0` mantissa will be denormalized further, so store the real mantissa length
+    const unsigned n_bits = exp2 > 0 ? 1 + bpm : bpm + exp2;
+
+    // Do banker's or `nearest even` rounding
+    const uint64_t lsb = 1ull << (63 - n_bits);
+    const uint64_t half = lsb >> 1;
+    const uint64_t frac = m & (lsb - 1);
+    m >>= 63 - n_bits;  // shift mantissa to the right position
+    if (frac > half || (frac == half && (!fp10.zero_tail || (m & 1) || bignum_trim_unused(m10 + 1, sz_num)))) {
+        ++m;                         // round to upper
+        if (m & (1ull << n_bits)) {  // overflow
+            // Note: the value can become normalized if `exp == 0` or infinity if `exp == exp_max - 1`
+            // Note: in case of overflow mantissa will be zero
+            ++exp2;
+        }
     }
 
     // Compose floating point value
-    if (fp2.exp <= 0) { return (fp2.m | (1ull << bpm)) >> (1 - fp2.exp); }  // denormalized
-    return (static_cast<uint64_t>(fp2.exp) << bpm) | fp2.m;
+    if (exp2 <= 0) { return m; }                                              // denormalized
+    return (static_cast<uint64_t>(exp2) << bpm) | (m & ((1ull << bpm) - 1));  // normalized
 }
 
 // --------------------------

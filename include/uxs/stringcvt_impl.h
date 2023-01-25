@@ -151,45 +151,67 @@ Ty to_integer_limited(const CharT* p, const CharT* end, const CharT*& last, Ty p
 }
 
 SCVT_CONSTEXPR_DATA int kMaxPow10Size = 13;
+SCVT_CONSTEXPR_DATA int kMaxFp10MantissaSize = 41;  // ceil(log2(10^(768 + 18)))
+SCVT_CONSTEXPR_DATA int kFp10BitsSize = kMaxFp10MantissaSize + kMaxPow10Size;
+struct fp10_t {
+    int exp = 0;
+    unsigned bits_used = 1;
+    uint64_t bits[kFp10BitsSize];
+    bool zero_tail = true;
+};
+
+UXS_EXPORT uint64_t bignum_mul32(uint64_t* x, unsigned sz, uint32_t mul, uint32_t bias);
 
 template<typename CharT>
-const CharT* accum_mantissa(const CharT* p, const CharT* end, uint64_t& m, int& exp, bool& zero_tail) NOEXCEPT {
-    const uint64_t max_mantissa10 = 1000000000000000000ull;
+const CharT* accum_mantissa(const CharT* p, const CharT* end, fp10_t& fp10) NOEXCEPT {
+    SCVT_CONSTEXPR_DATA uint64_t short_lim = 1000000000000000000ull;
+    uint64_t* m10 = &fp10.bits[kMaxFp10MantissaSize - fp10.bits_used];
+    if (fp10.bits_used == 1) {
+        uint64_t m = *m10;
+        for (unsigned dig = 0; p < end && (dig = dig_v(*p)) < 10 && m < short_lim; ++p) { m = 10u * m + dig; }
+        *m10 = m;
+    }
     for (unsigned dig = 0; p < end && (dig = dig_v(*p)) < 10; ++p) {
-        if (m < max_mantissa10) {  // decimal mantissa can hold up to 19 digits
-            m = 10u * m + dig;
+        if (fp10.bits_used < kMaxFp10MantissaSize) {
+            const uint64_t higher = bignum_mul32(m10, fp10.bits_used, 10u, dig);
+            if (higher) { *--m10 = higher, ++fp10.bits_used; }
         } else {
-            if (dig > 0) { zero_tail = false; }
-            ++exp;
+            if (dig > 0) { fp10.zero_tail = false; }
+            ++fp10.exp;
         }
     }
     return p;
 }
 
 template<typename CharT>
-const CharT* chars_to_fp10(const CharT* p, const CharT* end, fp_m64_t& fp10, bool& zero_tail) NOEXCEPT {
+const CharT* chars_to_fp10(const CharT* p, const CharT* end, fp10_t& fp10) NOEXCEPT {
+    const CharT* p0;
     unsigned dig = 0;
     const CharT dec_point = default_numpunct<CharT>().decimal_point();
     if (p == end) { return p; }
     if ((dig = dig_v(*p)) < 10) {  // integral part
-        fp10.m = dig;
-        p = accum_mantissa(++p, end, fp10.m, fp10.exp, zero_tail);
-        if (p < end && *p == dec_point) { ++p; }  // skip decimal point
+        fp10.bits[kMaxFp10MantissaSize - 1] = dig;
+        p = accum_mantissa(++p, end, fp10);
+        if (p == end) { return p; }
+        if (*p != dec_point) { goto parse_exponent; }
     } else if (*p == dec_point && p + 1 < end && (dig = dig_v(*(p + 1))) < 10) {
-        fp10.m = dig, fp10.exp = -1, p += 2;  // tenth
+        fp10.bits[kMaxFp10MantissaSize - 1] = dig, fp10.exp = -1, ++p;  // tenth
     } else {
         return p;
     }
-    const CharT* p1 = accum_mantissa(p, end, fp10.m, fp10.exp, zero_tail);  // fractional part
-    fp10.exp -= static_cast<unsigned>(p1 - p);
-    if (p1 < end && (*p1 == 'e' || *p1 == 'E')) {  // optional exponent
-        int exp_optional = to_integer<int>(p1 + 1, end, p);
-        if (p > p1 + 1) { fp10.exp += exp_optional, p1 = p; }
+    p0 = p + 1, p = accum_mantissa(p0, end, fp10);  // fractional part
+    fp10.exp -= static_cast<unsigned>(p - p0);
+    if (p == end) { return p; }
+parse_exponent:
+    p0 = p;
+    if (*p == 'e' || *p == 'E') {  // optional exponent
+        int exp_optional = to_integer<int>(p + 1, end, p);
+        if (p > p0 + 1) { fp10.exp += exp_optional, p0 = p; }
     }
-    return p1;
+    return p0;
 }
 
-UXS_EXPORT uint64_t fp10_to_fp2(fp_m64_t fp10, bool zero_tail, const unsigned bpm, const int exp_max) NOEXCEPT;
+UXS_EXPORT uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) NOEXCEPT;
 
 template<typename CharT>
 uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, const unsigned bpm,
@@ -205,11 +227,10 @@ uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, c
         ++p, fp2 = static_cast<uint64_t>(1 + exp_max) << bpm;  // negative sign
     }
 
-    fp_m64_t fp10{0, 0};
-    bool zero_tail = true;
-    const CharT* p1 = chars_to_fp10(p, end, fp10, zero_tail);
+    fp10_t fp10;
+    const CharT* p1 = chars_to_fp10(p, end, fp10);
     if (p1 > p) {
-        fp2 |= fp10_to_fp2(fp10, zero_tail, bpm, exp_max);
+        fp2 |= fp10_to_fp2(fp10, bpm, exp_max);
     } else if ((p1 = starts_with(p, end, default_numpunct<CharT>().infname())) > p) {  // infinity
         fp2 |= static_cast<uint64_t>(exp_max) << bpm;
     } else if ((p1 = starts_with(p, end, default_numpunct<CharT>().nanname())) > p) {  // NaN
