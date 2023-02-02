@@ -819,42 +819,35 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, cons
     const int64_t delta_minus = coef.hi >> (bpm + shift - 30);
     const int64_t delta_plus = fp2.exp > 1 - exp_bias && fp2.m == msb64 ? (delta_minus >> 1) : delta_minus;
 
-    // Trim trailing insignificant digits until the error in acceptable error range
-    int cnt = 0;
-    const uint64_t unit = 1ull << 32;
-    bool remove_zeroes = true;
-    int64_t err = hi32(frac), err_mul = unit;
-    if (unit - err < err) { ++significand_, err -= unit; }
-    do {
-        uint64_t t = significand_ / 10u;
-        const unsigned mod = static_cast<unsigned>(significand_ - 10u * t);
-        if (mod > 0) {
-            const int64_t err0 = err, err_mul0 = err_mul;
-            err += err_mul * mod;
-            err_mul *= 10;
-            const int64_t err2 = err_mul - err;
-            assert(err >= 0 && err2 >= 0);
-            if (err < delta_plus) {
-                if (err2 < err) { ++t, err = -err2; }
-            } else if (err2 < delta_minus) {
-                ++t, err = -err2;
-            } else {
-                err = err0, err_mul = err_mul0, remove_zeroes = false;
-                break;
-            }
+    // Try to remove two digits at once
+    const int64_t err0 = hi32(frac);
+    const uint64_t div100 = significand_ / 100u;
+    const int64_t err100_p = make64(significand_ - 100u * div100, err0), err100_m = (100ll << 32) - err100_p;
+    if (err100_p < delta_plus) {
+        significand_ = div100, prec_ -= 2;
+        if (err100_m < err100_p || (err100_m == err100_p && (significand_ & 1))) { ++significand_; }
+    } else if (err100_m < delta_minus) {
+        significand_ = div100 + 1, prec_ -= 2;
+    } else {
+        // Try to remove only one digit
+        const uint64_t div10 = significand_ / 10u;
+        const int64_t err10_p = make64(significand_ - 10u * div10, err0), err10_m = (10ll << 32) - err10_p;
+        if (err10_p < delta_plus) {
+            significand_ = div10, --prec_;
+            if (err10_m < err10_p || (err10_m == err10_p && (significand_ & 1))) { ++significand_; }
+        } else if (err10_m < delta_minus) {
+            significand_ = div10 + 1, --prec_;
         } else {
-            err_mul *= 10;
+            const int64_t half = 1ll << 31;
+            if (err0 > half || (err0 == half && (significand_ & 1))) { ++significand_; }
         }
-        --prec_, significand_ = t, ++cnt;
-    } while (err_mul + err < delta_plus || err_mul - err < delta_minus);
-
-    if (err_mul - err == err && (significand_ & 1) /* nearest even */) { ++significand_; }
+    }
 
     // Reevaluate real digit count: it can be one more than expected
     if (significand_ >= get_pow10(1 + prec_)) { ++prec_, ++exp_; }
 
     // Get rid of redundant trailing zeroes
-    if (remove_zeroes) { prec_ -= remove_trailing_zeros(significand_, prec_ - (exp_ <= 4 ? exp_ : 0)); }
+    prec_ -= remove_trailing_zeros(significand_, prec_ - (exp_ <= 4 ? exp_ : 0));
 
     // Select format for number representation
     if (exp_ >= -4 && exp_ <= prec_) { fixed_ = true, prec_ -= exp_; }
