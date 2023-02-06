@@ -345,38 +345,39 @@ inline uint64_t umul96x64_higher128(uint96_t x, uint64_t y, uint64_t& result_hi)
 #endif
 }
 
-SCVT_CONSTEXPR_DATA int kPow10Max = 328;
+SCVT_CONSTEXPR_DATA int kPow10Max = 344;
 inline uint96_t get_cached_pow10(int pow) NOEXCEPT {
     assert(pow >= -kPow10Max && pow <= kPow10Max);
     static SCVT_CONSTEXPR_DATA uint64_t higher64[] = {
-        0xa9c98d8ccb009506, 0xfd00b897478238d0, 0xbc807527ed3e12bc, 0x8c71dcd9ba0b4925, 0xd1476e2c07286faa,
-        0x9becce62836ac577, 0xe858ad248f5c22c9, 0xad1c8eab5ee43b66, 0x80fa687f881c7f8e, 0xc0314325637a1939,
-        0x8f31cc0937ae58d2, 0xd5605fcdcf32e1d6, 0x9efa548d26e5a6e1, 0xece53cec4a314ebd, 0xb080392cc4349dec,
-        0x8380dea93da4bc60, 0xc3f490aa77bd60fc, 0x91ff83775423cc06, 0xd98ddaee19068c76, 0xa21727db38cb002f,
-        0xf18899b1bc3f8ca1, 0xb3f4e093db73a093, 0x8613fd0145877585, 0xc7caba6e7c5382c8, 0x94db483840b717ef,
-        0xddd0467c64bce4a0, 0xa54394fe1eedb8fe, 0xf64335bcf065d37d, 0xb77ada0617e3bbcb, 0x88b402f7fd75539b,
-        0xcbb41ef979346bca, 0x97c560ba6b0919a5, 0xe2280b6c20dd5232, 0xa87fea27a539e9a5, 0xfb158592be068d2e,
-        0xbb127c53b17ec159, 0x8b61313bbabce2c6, 0xcfb11ead453994ba, 0x9abe14cd44753b52, 0xe69594bec44de15b,
-        0xabcc77118461cefc, 0x8000000000000000, 0xbebc200000000000, 0x8e1bc9bf04000000, 0xd3c21bcecceda100,
-        0x9dc5ada82b70b59d, 0xeb194f8e1ae525fd, 0xaf298d050e4395d6, 0x82818f1281ed449f, 0xc2781f49ffcfa6d5,
-        0x90e40fbeea1d3a4a, 0xd7e77a8f87daf7fb, 0xa0dc75f1778e39d6, 0xefb3ab16c59b14a2, 0xb2977ee300c50fe7,
-        0x850fadc09923329e, 0xc646d63501a1511d, 0x93ba47c980e98cdf, 0xdc21a1171d42645d, 0xa402b9c5a8d3a6e7,
-        0xf46518c2ef5b8cd1, 0xb616a12b7fe617aa, 0x87aa9aff79042286, 0xca28a291859bbf93, 0x969eb7c47859e743,
-        0xe070f78d3927556a, 0xa738c6bebb12d16c, 0xf92e0c3537826145, 0xb9a74a0637ce2ee1, 0x8a5296ffe33cc92f,
-        0xce1de40642e3f4b9, 0x9991a6f3d6bf1765, 0xe4d5e82392a40515, 0xaa7eebfb9df9de8d, 0xfe0efb53d30dd4d7,
-        0xbd49d14aa79dbc82, 0x8d07e33455637eb2, 0xd226fc195c6a2f8c, 0x9c935e00d4b9d8d2, 0xe950df20247c83fd,
-        0xadd57a27d29339f6, 0x81842f29f2cce375, 0xc0fe908895cf3b44};
+        0x98ee4a22ecf3188b, 0xe3e27a444d8d98b7, 0xa9c98d8ccb009506, 0xfd00b897478238d0, 0xbc807527ed3e12bc,
+        0x8c71dcd9ba0b4925, 0xd1476e2c07286faa, 0x9becce62836ac577, 0xe858ad248f5c22c9, 0xad1c8eab5ee43b66,
+        0x80fa687f881c7f8e, 0xc0314325637a1939, 0x8f31cc0937ae58d2, 0xd5605fcdcf32e1d6, 0x9efa548d26e5a6e1,
+        0xece53cec4a314ebd, 0xb080392cc4349dec, 0x8380dea93da4bc60, 0xc3f490aa77bd60fc, 0x91ff83775423cc06,
+        0xd98ddaee19068c76, 0xa21727db38cb002f, 0xf18899b1bc3f8ca1, 0xb3f4e093db73a093, 0x8613fd0145877585,
+        0xc7caba6e7c5382c8, 0x94db483840b717ef, 0xddd0467c64bce4a0, 0xa54394fe1eedb8fe, 0xf64335bcf065d37d,
+        0xb77ada0617e3bbcb, 0x88b402f7fd75539b, 0xcbb41ef979346bca, 0x97c560ba6b0919a5, 0xe2280b6c20dd5232,
+        0xa87fea27a539e9a5, 0xfb158592be068d2e, 0xbb127c53b17ec159, 0x8b61313bbabce2c6, 0xcfb11ead453994ba,
+        0x9abe14cd44753b52, 0xe69594bec44de15b, 0xabcc77118461cefc, 0x8000000000000000, 0xbebc200000000000,
+        0x8e1bc9bf04000000, 0xd3c21bcecceda100, 0x9dc5ada82b70b59d, 0xeb194f8e1ae525fd, 0xaf298d050e4395d6,
+        0x82818f1281ed449f, 0xc2781f49ffcfa6d5, 0x90e40fbeea1d3a4a, 0xd7e77a8f87daf7fb, 0xa0dc75f1778e39d6,
+        0xefb3ab16c59b14a2, 0xb2977ee300c50fe7, 0x850fadc09923329e, 0xc646d63501a1511d, 0x93ba47c980e98cdf,
+        0xdc21a1171d42645d, 0xa402b9c5a8d3a6e7, 0xf46518c2ef5b8cd1, 0xb616a12b7fe617aa, 0x87aa9aff79042286,
+        0xca28a291859bbf93, 0x969eb7c47859e743, 0xe070f78d3927556a, 0xa738c6bebb12d16c, 0xf92e0c3537826145,
+        0xb9a74a0637ce2ee1, 0x8a5296ffe33cc92f, 0xce1de40642e3f4b9, 0x9991a6f3d6bf1765, 0xe4d5e82392a40515,
+        0xaa7eebfb9df9de8d, 0xfe0efb53d30dd4d7, 0xbd49d14aa79dbc82, 0x8d07e33455637eb2, 0xd226fc195c6a2f8c,
+        0x9c935e00d4b9d8d2, 0xe950df20247c83fd, 0xadd57a27d29339f6, 0x81842f29f2cce375, 0xc0fe908895cf3b44,
+        0x8fcac257558ee4e6, 0xd6444e39c3db9b09};
     static SCVT_CONSTEXPR_DATA uint32_t lower32[] = {
-        0x680efdaf, 0x8920b099, 0xc6050837, 0x9ff0c08b, 0x1af5af66, 0x4ee367f9, 0xd1b34010, 0xda324365, 0x7ce66635,
-        0xfa911156, 0xd1b2ecb9, 0xfb1e4a9b, 0xc47bc501, 0xa4f8bf56, 0xbd8d794e, 0x4247cb9e, 0xbedbfc44, 0x7b6306a3,
-        0x3badd625, 0xb8ada00e, 0xdc44e6c4, 0x59ed2167, 0xbd06742d, 0xfe64a52f, 0xa8c2a44f, 0xac7cb3f7, 0xc2974eb5,
-        0x4d4617b6, 0x09ce6ebb, 0x11dbcb02, 0x4f2b40a0, 0xdccd87a0, 0x25c6da64, 0x3f2398d7, 0xeed6e2f1, 0x5560c018,
-        0x2323ac4b, 0x67de18ee, 0xc4926a96, 0x4c2ebe68, 0xfdc20d2b, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-        0xf0200000, 0x5dcfab08, 0x9670b12b, 0xbff8f10e, 0x3cbf6b72, 0xbc8955e9, 0xdc33745f, 0x696361ae, 0xc5cfe94f,
-        0x58edec92, 0x03e2cf6c, 0xb281e1fd, 0xc66f336c, 0x76707544, 0x5f16206d, 0x7eb25866, 0x577b986b, 0x90fb44d3,
-        0x7d7b8f75, 0x9f644ae6, 0x85bbe254, 0xb428f8ac, 0xa7709a57, 0x6d953e2c, 0x82bd6b71, 0x36251261, 0xacca6da2,
-        0x0fabaf40, 0xddbb901c, 0xed238cd4, 0x4b2d8645, 0xdb0b487b, 0x73832eec, 0x6ed1bf9a, 0x47c6b82f, 0x79c5db9b,
-        0xe6a11583, 0x505f522e};
+        0x9028bed3, 0xfd1b1b23, 0x680efdaf, 0x8920b099, 0xc6050837, 0x9ff0c08b, 0x1af5af66, 0x4ee367f9, 0xd1b34010,
+        0xda324365, 0x7ce66635, 0xfa911156, 0xd1b2ecb9, 0xfb1e4a9b, 0xc47bc501, 0xa4f8bf56, 0xbd8d794e, 0x4247cb9e,
+        0xbedbfc44, 0x7b6306a3, 0x3badd625, 0xb8ada00e, 0xdc44e6c4, 0x59ed2167, 0xbd06742d, 0xfe64a52f, 0xa8c2a44f,
+        0xac7cb3f7, 0xc2974eb5, 0x4d4617b6, 0x09ce6ebb, 0x11dbcb02, 0x4f2b40a0, 0xdccd87a0, 0x25c6da64, 0x3f2398d7,
+        0xeed6e2f1, 0x5560c018, 0x2323ac4b, 0x67de18ee, 0xc4926a96, 0x4c2ebe68, 0xfdc20d2b, 0x00000000, 0x00000000,
+        0x00000000, 0x00000000, 0xf0200000, 0x5dcfab08, 0x9670b12b, 0xbff8f10e, 0x3cbf6b72, 0xbc8955e9, 0xdc33745f,
+        0x696361ae, 0xc5cfe94f, 0x58edec92, 0x03e2cf6c, 0xb281e1fd, 0xc66f336c, 0x76707544, 0x5f16206d, 0x7eb25866,
+        0x577b986b, 0x90fb44d3, 0x7d7b8f75, 0x9f644ae6, 0x85bbe254, 0xb428f8ac, 0xa7709a57, 0x6d953e2c, 0x82bd6b71,
+        0x36251261, 0xacca6da2, 0x0fabaf40, 0xddbb901c, 0xed238cd4, 0x4b2d8645, 0xdb0b487b, 0x73832eec, 0x6ed1bf9a,
+        0x47c6b82f, 0x79c5db9b, 0xe6a11583, 0x505f522e, 0x213a4f0b, 0x848ce346};
     SCVT_CONSTEXPR_DATA int step_pow = 3;
     int n = (kPow10Max + pow) >> step_pow, k = pow & ((1 << step_pow) - 1);
     uint96_t result{higher64[n], lower32[n]};
@@ -649,6 +650,59 @@ void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, const f
     assert(n_digs < kDigsPer64);
     ++n_digs;  // one additional digit for rounding
 
+    // Calculate decimal mantissa representation :
+    // Note: powers of 10 are normalized and belong [0.5, 1) range
+    // To get the desired count of digits we get greater power of 10, it's equivalent to
+    // multiplying the result by a certain power of 10
+    const int cached_exp = n_digs - exp_ - 1;
+    const uint96_t coef = get_cached_pow10(cached_exp);
+    uint64_t frac = umul96x64_higher128(coef, fp2.m, significand_);
+    const unsigned shift = 62 - fp2.exp - exp10to2(cached_exp);
+    assert(shift > 0 && shift < 64);
+    frac = shr128(significand_, frac, shift), significand_ >>= shift;
+    significand_ += add64_carry(frac, 1ull << 31, frac);  // round mantissa
+    frac >>= 32;                                          // drop lower 32 bits
+
+    // Note, that the first digit formally can belong [1, 20) range, so we can get one digit more
+    if (fp_fmt != fmt_flags::kFixed && significand_ >= get_pow10(n_digs)) {  // one excess digit
+        // Remove one excess digit for scientific format
+        const uint64_t err = frac + (divmod<100u>(significand_) << 32);
+        if (err > (50ull << 32)) {
+            ++significand_;
+        } else if (err >= (50ull << 32) - 1) {
+            format_short_decimal_slow(fp2, n_digs, fp_fmt);
+            goto finish;
+        }
+        ++exp_;
+    } else {
+        const uint64_t err = frac + (divmod<10u>(significand_) << 32);
+        if (err > (5ull << 32)) {
+            ++significand_;
+        } else if (err >= (5ull << 32) - 1) {
+            format_short_decimal_slow(fp2, n_digs, fp_fmt);
+            goto finish;
+        }
+        if (significand_ >= get_pow10(n_digs - 1)) {
+            ++exp_;  // one excess digit
+            if (fp_fmt != fmt_flags::kFixed) {
+                // Remove one excess digit for scientific format
+                // Note: `significand` is exact power of 10 in this case
+                significand_ /= 10u;
+            }
+        }
+    }
+
+finish:
+    if (significand_ == 0) {
+        exp_ = 0, n_zeroes_ = prec_ + 1;
+    } else if (fp_fmt == fmt_flags::kDefault || fp_fmt == fmt_flags::kGeneral) {
+        // Select format for number representation
+        if (exp_ >= -4 && exp_ <= prec_) { fixed_ = true, prec_ -= exp_; }
+        if (!alternate_) { prec_ -= remove_trailing_zeros(significand_, prec_); }
+    }
+}
+
+void fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT {
     // `kMaxPow10Size` uint64-s are enough to hold all (normalized!) 10^n, n <= 324 + kDigsPer64
     uint64_t num[kMaxPow10Size + 1];  // +1 to multiply by uint64
     unsigned sz_num = 1;
@@ -707,21 +761,10 @@ void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, const f
             ++exp_;  // one excess digit
             if (fp_fmt != fmt_flags::kFixed) {
                 // Remove one excess digit for scientific format
-                // Note: `significand_` is exact power of 10 in this case
+                // Note: `significand` is exact power of 10 in this case
                 significand_ /= 10u;
             }
         }
-    }
-
-    if (significand_ == 0) {
-        exp_ = 0, n_zeroes_ = prec_ + 1;
-        return;
-    }
-
-    if (fp_fmt == fmt_flags::kDefault || fp_fmt == fmt_flags::kGeneral) {
-        // Select format for number representation
-        if (exp_ >= -4 && exp_ <= prec_) { fixed_ = true, prec_ -= exp_; }
-        if (!alternate_) { prec_ -= remove_trailing_zeros(significand_, prec_); }
     }
 }
 

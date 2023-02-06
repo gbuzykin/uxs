@@ -686,6 +686,7 @@ class UXS_EXPORT fp_dec_fmt_t {
     char digs_buf_[kMaxDoubleDigits + kDigsPer64 - 1];
 
     void format_short_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT;
+    void format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT;
     void format_long_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT;
 };
 
