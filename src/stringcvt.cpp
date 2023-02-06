@@ -400,18 +400,11 @@ inline int exp10to2(int exp) {
     return static_cast<int>(hi32(ln10_ln2 * exp));
 }
 
-uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) NOEXCEPT {
-    uint64_t* m10 = &fp10.bits[kMaxFp10MantissaSize - fp10.bits_used];
-    // Note, that decimal mantissa can contain up to 772 digits. So, all numbers with
-    // powers less than -772 - 324 = -1096 are zeroes in fact. We round this power to -1100
-    if (*m10 == 0 || fp10.exp < -1100) {
-        return 0;                                      // zero
-    } else if (fp10.exp > 310) {                       // too big power even for one specified digit
-        return static_cast<uint64_t>(exp_max) << bpm;  // infinity
-    }
+static uint64_t fp10_to_fp2_slow(fp10_t& fp10, const unsigned bpm, const int exp_max) NOEXCEPT {
+    unsigned sz_num = fp10.bits_used;
+    uint64_t* m10 = &fp10.bits[kMaxFp10MantissaSize - sz_num];
 
     // Calculate lower kDigsPer64-aligned decimal exponent
-    unsigned sz_num = fp10.bits_used;
     int index = kDigsPer64 * 1000000 + fp10.exp;
     const uint64_t mul10 = get_pow10(divmod<kDigsPer64>(index));
     index -= 1000000;
@@ -422,7 +415,7 @@ uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) NOEXCE
 
     // Obtain binary exponent
     const int exp_bias = exp_max >> 1;
-    const int log = ulog2(*m10);
+    const int log = ulog2(m10[0]);
     int exp2 = exp_bias + log + (static_cast<int>(sz_num - 1) << 6 /* *64 */);
 
     // Align numerator so 2 left bits are zero (reserved)
@@ -500,6 +493,69 @@ uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) NOEXCE
             // Note: in case of overflow mantissa will be zero
             ++exp2;
         }
+    }
+
+    // Compose floating point value
+    if (exp2 <= 0) { return m; }                                              // denormalized
+    return (static_cast<uint64_t>(exp2) << bpm) | (m & ((1ull << bpm) - 1));  // normalized
+}
+
+uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) NOEXCEPT {
+    unsigned sz_num = fp10.bits_used;
+    uint64_t m = fp10.bits[kMaxFp10MantissaSize - sz_num];
+
+    // Note, that decimal mantissa can contain up to 772 digits. So, all numbers with
+    // powers less than -772 - 324 = -1096 are zeroes in fact. We round this power to -1100
+    if (m == 0 || fp10.exp < -1100) {
+        return 0;                                      // zero
+    } else if (fp10.exp > 310) {                       // too big power even for one specified digit
+        return static_cast<uint64_t>(exp_max) << bpm;  // infinity
+    }
+
+    // If too many digits are specified or decimal power is too great use slow algorithm
+    if (sz_num > 1 || fp10.exp < -kPow10Max || fp10.exp > kPow10Max) { return fp10_to_fp2_slow(fp10, bpm, exp_max); }
+
+    // Obtain binary exponent
+    const int exp_bias = exp_max >> 1;
+    const int log = ulog2(m);
+    int exp2 = 1 + exp_bias + log + exp10to2(fp10.exp);
+    if (log < 63) { m <<= 63 - log; }
+
+    // Obtain binary mantissa
+    unsigned shift = 64;
+    const uint96_t coef = get_cached_pow10(fp10.exp);
+    uint64_t frac = umul96x64_higher128(coef, m, m);
+    if (!(m & msb64)) { --shift, --exp2; }
+
+    if (exp2 >= exp_max) {
+        return static_cast<uint64_t>(exp_max) << bpm;  // infinity
+    } else if (exp2 < -static_cast<int>(bpm)) {
+        return 0;  // zero
+    }
+
+    // When `exp2 <= 0` mantissa will be denormalized further, so store the real mantissa length
+    const unsigned n_bits = exp2 > 0 ? 1 + bpm : bpm + exp2;
+
+    // Shift mantissa to the right position
+    const uint64_t half = 1ull << 31;
+    shift -= n_bits;
+    if (shift < 64) {
+        frac = shr128(m, frac, shift), m >>= shift;
+        m += add64_carry(frac, half, frac);  // round mantissa
+    } else {                                 // shift == 64
+        m = add64_carry(m, half, frac);      // round mantissa
+    }
+
+    frac >>= 32;  // drop lower 32 bits
+    if (frac > half) {
+        ++m;                        // round to upper
+    } else if (frac >= half - 1) {  // round direction is undefined: use slow algorithm
+        return fp10_to_fp2_slow(fp10, bpm, exp_max);
+    }
+    if (m & (1ull << n_bits)) {  // overflow
+        // Note: the value can become normalized if `exp == 0` or infinity if `exp == exp_max - 1`
+        // Note: in case of overflow mantissa will be zero
+        ++exp2;
     }
 
     // Compose floating point value
