@@ -549,13 +549,16 @@ void copy2(CharT* tgt, const char* src) {
 
 inline void copy2(char* tgt, const char* src) { std::memcpy(tgt, src, 2); }
 
+template<unsigned N, typename Ty>
+inline Ty divmod(Ty& v) {
+    const Ty v0 = v;
+    v /= N;
+    return v0 - N * v;
+}
+
 template<typename CharT, typename Ty>
 CharT* gen_digits(CharT* p, Ty v) NOEXCEPT {
-    while (v >= 100u) {
-        const Ty t = v / 100u;
-        copy2(p -= 2, get_digits(static_cast<unsigned>(v - 100u * t)));
-        v = t;
-    }
+    while (v >= 100u) { copy2(p -= 2, get_digits(static_cast<unsigned>(divmod<100u>(v)))); }
     if (v >= 10u) {
         copy2(p -= 2, get_digits(static_cast<unsigned>(v)));
         return p;
@@ -567,15 +570,10 @@ CharT* gen_digits(CharT* p, Ty v) NOEXCEPT {
 template<typename CharT, typename Ty>
 Ty gen_digits_n(CharT* p, Ty v, unsigned n) NOEXCEPT {
     CharT* p0 = p - (n & ~1);
-    while (p != p0) {
-        const Ty t = v / 100u;
-        copy2(p -= 2, get_digits(static_cast<unsigned>(v - 100u * t)));
-        v = t;
-    }
+    while (p != p0) { copy2(p -= 2, get_digits(static_cast<unsigned>(divmod<100u>(v)))); }
     if (!(n & 1)) { return v; }
-    const Ty t = v / 10u;
-    *--p = '0' + static_cast<unsigned>(v - 10u * t);
-    return t;
+    *--p = '0' + static_cast<unsigned>(divmod<10u>(v));
+    return v;
 }
 
 template<typename CharT, typename Ty>
@@ -583,15 +581,13 @@ void fmt_gen_dec(CharT* p, Ty val, const grouping_t<CharT>* grouping) NOEXCEPT {
     if (grouping) {
         auto grp_it = grouping->grouping.begin();
         int cnt = *grp_it;
-        Ty t = val / 10u;
-        *--p = '0' + static_cast<unsigned>(val - 10u * t);
-        while ((val = t) != 0) {
+        *--p = '0' + static_cast<unsigned>(divmod<10u>(val));
+        while (val) {
             if (--cnt <= 0) {
                 *--p = grouping->thousands_sep,
                 cnt = std::next(grp_it) != grouping->grouping.end() ? *++grp_it : *grp_it;
             }
-            t = val / 10u;
-            *--p = '0' + static_cast<unsigned>(val - 10u * t);
+            *--p = '0' + static_cast<unsigned>(divmod<10u>(val));
         }
     } else {
         gen_digits(p, val);
@@ -772,15 +768,13 @@ void fp_dec_fmt_t::generate(CharT* p, const fmt_opts& fmt, const CharT dec_point
     auto grp_it = grouping->grouping.begin();
     int cnt = *grp_it;
     if (significand_) {
-        uint64_t t = m / 10u;
-        *--p = '0' + static_cast<unsigned>(m - 10u * t);
-        while ((m = t) != 0) {
+        *--p = '0' + static_cast<unsigned>(divmod<10u>(m));
+        while (m) {
             if (--cnt <= 0) {
                 *--p = grouping->thousands_sep;
                 cnt = std::next(grp_it) != grouping->grouping.end() ? *++grp_it : *grp_it;
             }
-            t = m / 10u;
-            *--p = '0' + static_cast<unsigned>(m - 10u * t);
+            *--p = '0' + static_cast<unsigned>(divmod<10u>(m));
         }
         return;
     }
