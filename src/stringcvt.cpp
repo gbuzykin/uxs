@@ -409,11 +409,11 @@ uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) NOEXCE
         return static_cast<uint64_t>(exp_max) << bpm;  // infinity
     }
 
-    const int exp_aligned = fp10.exp - ((kDigsPer64 * 1000000 + fp10.exp) %
-                                        kDigsPer64);  // lower kDigsPer64-aligned decimal exponent
-
+    // Calculate lower kDigsPer64-aligned decimal exponent
     unsigned sz_num = fp10.bits_used;
-    const uint64_t mul10 = get_pow10(fp10.exp - exp_aligned);
+    int index = kDigsPer64 * 1000000 + fp10.exp;
+    const uint64_t mul10 = get_pow10(divmod<kDigsPer64>(index));
+    index -= 1000000;
     if (mul10 != 1) {
         const uint64_t higher = bignum_mul(m10, sz_num, mul10);
         if (higher) { *--m10 = higher, ++sz_num; }
@@ -433,10 +433,10 @@ uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) NOEXCE
     }
 
     uint64_t m;
-    --sz_num;  // count only numerator uint64_t-s with index > 0
-    if (exp_aligned < 0) {
-        const int index0 = (-exp_aligned / kDigsPer64) - 1;
-        int index = std::min<int>(index0, kBigpow10TblSize - 1);
+    --sz_num;  // count only m10[n] where n > 0
+    if (index < 0) {
+        const int index0 = -1 - index;
+        index = std::min<int>(index0, kBigpow10TblSize - 1);
         bignum_t denominator = get_bigpow10(index);
 
         uint64_t big_denominator[kMaxFp10MantissaSize + 1];  // all powers >= -1100 (aligned to -1116) will fit
@@ -463,9 +463,8 @@ uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) NOEXCE
         m = bignum_divmod(m10[0], m10 + 1, denominator.x, sz_num, denominator.sz);
         sz_num = std::max(sz_num, denominator.sz), exp2 -= denominator.exp;
     } else {
-        if (exp_aligned > 0) {
-            const int index = (exp_aligned / kDigsPer64) - 1;
-            if (index >= kBigpow10TblSize) { return static_cast<uint64_t>(exp_max) << bpm; }  // infinity
+        if (index > 0) {
+            if (--index >= kBigpow10TblSize) { return static_cast<uint64_t>(exp_max) << bpm; }  // infinity
             const bignum_t multiplier = get_bigpow10(index);
             sz_num = bignum_trim_unused(m10 + 1, sz_num);
             bignum_mul_vec(m10, multiplier.x, sz_num + 1, multiplier.sz);
@@ -594,40 +593,41 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, cons
     // Note: powers of 10 are normalized and belong [0.5, 1) range
     // To get the desired count of digits we get greater power of 10, it's equivalent to
     // multiplying the result by a certain power of 10
+    const uint64_t half = 1ull << 31;
     const int cached_exp = prec_ - exp_;
     const uint96_t coef = get_cached_pow10(cached_exp);
     uint64_t frac = umul96x64_higher128(coef, fp2.m, significand_);
     const unsigned shift = 62 - fp2.exp - exp10to2(cached_exp);
     assert(shift > 0 && shift < 64);
     frac = shr128(significand_, frac, shift), significand_ >>= shift;
-    significand_ += add64_carry(frac, 1ull << 31, frac);  // round mantissa
+    significand_ += add64_carry(frac, half, frac);  // round mantissa
+    frac >>= 32;                                    // drop lower 32 bits
 
     // Evaluate acceptable error range to pass roundtrip test
     assert(bpm + shift >= 30);
-    const int64_t delta_minus = coef.hi >> (bpm + shift - 30);
-    const int64_t delta_plus = fp2.exp > 1 - exp_bias && fp2.m == msb64 ? (delta_minus >> 1) : delta_minus;
+    const uint64_t delta_minus = coef.hi >> (bpm + shift - 30);
+    const uint64_t delta_plus = fp2.exp > 1 - exp_bias && fp2.m == msb64 ? (delta_minus >> 1) : delta_minus;
 
     // Try to remove two digits at once
-    const int64_t err0 = hi32(frac);
-    const uint64_t div100 = significand_ / 100u;
-    const int64_t err100_p = make64(significand_ - 100u * div100, err0), err100_m = (100ll << 32) - err100_p;
+    const uint64_t significand0 = significand_;
+    const uint64_t err100_p = frac + (divmod<100u>(significand_) << 32), err100_m = (100ull << 32) - err100_p;
     if (err100_p < delta_plus) {
-        significand_ = div100, prec_ -= 2;
         if (err100_m < err100_p || (err100_m == err100_p && (significand_ & 1))) { ++significand_; }
+        prec_ -= 2;
     } else if (err100_m < delta_minus) {
-        significand_ = div100 + 1, prec_ -= 2;
+        ++significand_, prec_ -= 2;
     } else {
         // Try to remove only one digit
-        const uint64_t div10 = significand_ / 10u;
-        const int64_t err10_p = make64(significand_ - 10u * div10, err0), err10_m = (10ll << 32) - err10_p;
+        significand_ = significand0;
+        const uint64_t err10_p = frac + (divmod<10u>(significand_) << 32), err10_m = (10ull << 32) - err10_p;
         if (err10_p < delta_plus) {
-            significand_ = div10, --prec_;
             if (err10_m < err10_p || (err10_m == err10_p && (significand_ & 1))) { ++significand_; }
+            --prec_;
         } else if (err10_m < delta_minus) {
-            significand_ = div10 + 1, --prec_;
+            ++significand_, --prec_;
         } else {
-            const int64_t half = 1ll << 31;
-            if (err0 > half || (err0 == half && (significand_ & 1))) { ++significand_; }
+            significand_ = significand0;
+            if (frac > half || (frac == half && (significand_ & 1))) { ++significand_; }
         }
     }
 
@@ -653,10 +653,10 @@ void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, const f
     uint64_t num[kMaxPow10Size + 1];  // +1 to multiply by uint64
     unsigned sz_num = 1;
 
-    const int exp_aligned = kDigsPer64 + exp_ - n_digs -
-                            ((kDigsPer64 * 1000000 + exp_ - n_digs) %
-                             kDigsPer64);  // upper kDigsPer64-aligned decimal exponent
-    const uint64_t mul10 = get_pow10(exp_aligned - exp_ + n_digs - 1);
+    // Calculate upper kDigsPer64-aligned decimal exponent and multiplier for correction
+    int index = kDigsPer64 * 1000000 + exp_ - n_digs;
+    const uint64_t mul10 = get_pow10(kDigsPer64 - 1 - divmod<kDigsPer64>(index));
+    index -= 999999;
 
     auto mul_and_shift = [&num, &sz_num](uint64_t m, uint64_t mul, int shift) {
         uint64_t digs;
@@ -669,39 +669,37 @@ void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, const f
         return digs;
     };
 
-    uint64_t digs;
-    if (exp_aligned > 0) {
-        const bignum_t denominator = get_bigpow10((exp_aligned / kDigsPer64) - 1);
-        digs = bignum_divmod(mul_and_shift(fp2.m, mul10, fp2.exp - denominator.exp), num, denominator.x, sz_num,
-                             denominator.sz);
-        if (digs && sz_num < denominator.sz) { sz_num = denominator.sz; }
-    } else if (exp_aligned < 0) {
-        const bignum_t multiplier = get_bigpow10((-exp_aligned / kDigsPer64) - 1);
+    if (index > 0) {
+        const bignum_t denominator = get_bigpow10(index - 1);
+        significand_ = bignum_divmod(mul_and_shift(fp2.m, mul10, fp2.exp - denominator.exp), num, denominator.x, sz_num,
+                                     denominator.sz);
+        if (significand_ && sz_num < denominator.sz) { sz_num = denominator.sz; }
+    } else if (index < 0) {
+        const bignum_t multiplier = get_bigpow10(-1 - index);
         const int shift = 2 + fp2.exp + multiplier.exp;
         sz_num += multiplier.sz;
         num[0] = bignum_mul(num + 1, multiplier.x, sz_num - 1, fp2.m);
-        digs = bignum_mul(num, sz_num, mul10);
+        significand_ = bignum_mul(num, sz_num, mul10);
         if (shift > 0) {
-            digs = (digs << shift) | bignum_shift_left(num, sz_num, shift);
+            significand_ = (significand_ << shift) | bignum_shift_left(num, sz_num, shift);
         } else if (shift < 0) {
-            num[sz_num] = bignum_shift_right(digs, num, sz_num, -shift);
-            digs >>= -shift, ++sz_num;
+            num[sz_num] = bignum_shift_right(significand_, num, sz_num, -shift);
+            significand_ >>= -shift, ++sz_num;
         }
     } else {
-        digs = mul_and_shift(fp2.m, mul10, 1 + fp2.exp);
+        significand_ = mul_and_shift(fp2.m, mul10, 1 + fp2.exp);
     }
 
     // Note, that the first digit formally can belong [1, 20) range, so we can get one digit more
-    if (fp_fmt != fmt_flags::kFixed && digs >= get_pow10(n_digs)) {
-        ++exp_, significand_ = digs / 100u;  // one excess digit
+    if (fp_fmt != fmt_flags::kFixed && significand_ >= get_pow10(n_digs)) {
+        ++exp_;  // one excess digit
         // Remove one excess digit for scientific format
-        const unsigned r = static_cast<unsigned>(digs - 100u * significand_);
+        const unsigned r = static_cast<unsigned>(divmod<100u>(significand_));
         if (r > 50u || (r == 50u && ((significand_ & 1) || bignum_trim_unused(num, sz_num) /* nearest even */))) {
             ++significand_;
         }
     } else {
-        significand_ = digs / 10u;
-        const unsigned r = static_cast<unsigned>(digs - 10u * significand_);
+        const unsigned r = static_cast<unsigned>(divmod<10u>(significand_));
         if (r > 5u || (r == 5u && ((significand_ & 1) || bignum_trim_unused(num, sz_num) /* nearest even */))) {
             ++significand_;
         }
@@ -737,32 +735,32 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fm
 
     // Digits are generated by packs: the first pack length can be in range
     // [1, kDigsPer64], all next are of kDigsPer64 length
-    const int exp_aligned = exp_ -
-                            ((kDigsPer64 * 1000000 + exp_) % kDigsPer64);  // lower kDigsPer64-aligned decimal exponent
+
+    // Calculate lower kDigsPer64-aligned decimal exponent
+    int index = kDigsPer64 * 1000000 + exp_;
+    const unsigned digs_first_len = 1 + divmod<kDigsPer64>(index);  // first digit pack length
+    assert(digs_first_len <= kDigsPer64);
+    index -= 1000000;
 
     char* p = digs_buf_;
-    auto gen_first_digit_pack = [this, fp_fmt, exp_aligned, &p, &n_digs](uint64_t digs) {
-        const unsigned digs_len = 1 + exp_ - exp_aligned;  // first digit pack length
-        assert(digs_len <= kDigsPer64);
+    auto gen_first_digit_pack = [this, fp_fmt, digs_first_len, &p, &n_digs](uint64_t digs) {
         // Note, that the first digit formally can belong [1, 20) range,
         // so we can get one digit more while calculating the first pack
-        if (digs < get_pow10(digs_len)) {
-            gen_digits(p + digs_len, digs);
+        if (digs < get_pow10(digs_first_len)) {
+            gen_digits(p + digs_first_len, digs);
         } else {
-            ++exp_, gen_digits(++p + digs_len, digs);
+            ++exp_, gen_digits(++p + digs_first_len, digs);
             if (fp_fmt != fmt_flags::kFixed) { --n_digs; }
         }
-        p += digs_len, n_digs -= digs_len;
+        p += digs_first_len, n_digs -= digs_first_len;
     };
 
-    if (exp_aligned > 0) {
-        unsigned index = (exp_aligned / kDigsPer64) - 1;
-        bignum_t denominator = get_bigpow10(index);
+    if (index > 0) {
+        bignum_t denominator = get_bigpow10(--index);
         const unsigned shift = fp2.exp - denominator.exp;
-        uint64_t digs = fp2.m >> (64 - shift);
-        num[0] = fp2.m << shift;
 
-        digs = bignum_divmod(digs, num, denominator.x, 1, denominator.sz);
+        num[0] = fp2.m << shift;
+        uint64_t digs = bignum_divmod(fp2.m >> (64 - shift), num, denominator.x, 1, denominator.sz);
         assert(digs);
 
         gen_first_digit_pack(digs);
@@ -788,8 +786,8 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fm
         }
     } else {
         uint64_t digs;
-        if (exp_aligned < 0) {
-            const bignum_t multiplier = get_bigpow10((-exp_aligned / kDigsPer64) - 1);
+        if (index < 0) {
+            const bignum_t multiplier = get_bigpow10(-1 - index);
             const unsigned shift = 2 + fp2.exp + multiplier.exp;
             sz_num += multiplier.sz;
             num[0] = bignum_mul(num + 1, multiplier.x, sz_num - 1, fp2.m);
