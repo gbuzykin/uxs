@@ -464,8 +464,7 @@ enum class parse_format_error_code { kSuccess = 0, kInvalidFormat, kOutOfArgList
 
 template<typename CharT, typename AppendFn, typename AppendArgFn, typename GetUIntArgFn>
 CONSTEXPR parse_format_error_code parse_format(span<const CharT> fmt, const size_t arg_count, const AppendFn& append_fn,
-                                               const AppendArgFn& append_arg_fn, const GetUIntArgFn& get_uint_arg_fn,
-                                               const std::locale* p_loc = nullptr) {
+                                               const AppendArgFn& append_arg_fn, const GetUIntArgFn& get_uint_arg_fn) {
     unsigned n_arg_auto = 0;
     const CharT *first0 = fmt.data(), *first = first0, *last = first0 + fmt.size();
     while (first != last) {
@@ -475,25 +474,28 @@ CONSTEXPR parse_format_error_code parse_format(span<const CharT> fmt, const size
             if (first == last) { return parse_format_error_code::kInvalidFormat; }
             if (*(first - 1) == '{' && *first != '{') {
                 arg_specs specs;
-                if (*first != '}' && !(first = parse_arg_spec(first, last, specs))) {
+                if (*first == '}') {  // most usual `{}` specifier
+                    specs.n_arg = n_arg_auto++;
+                    if (specs.n_arg >= arg_count) { return parse_format_error_code::kOutOfArgList; }
+                } else if ((first = parse_arg_spec(first, last, specs))) {
+                    // obtain argument number
+                    if (!(specs.flags & parse_flags::kArgNumSpecified)) { specs.n_arg = n_arg_auto++; }
+                    if (specs.n_arg >= arg_count) { return parse_format_error_code::kOutOfArgList; }
+                    if (!!(specs.flags & parse_flags::kDynamicWidth)) {
+                        // obtain argument number for width
+                        if (!(specs.flags & parse_flags::kWidthArgNumSpecified)) { specs.n_width_arg = n_arg_auto++; }
+                        if (specs.n_width_arg >= arg_count) { return parse_format_error_code::kOutOfArgList; }
+                        specs.fmt.width = get_uint_arg_fn(specs.n_width_arg);
+                    }
+                    if (!!(specs.flags & parse_flags::kDynamicPrec)) {
+                        // obtain argument number for precision
+                        if (!(specs.flags & parse_flags::kPrecArgNumSpecified)) { specs.n_prec_arg = n_arg_auto++; }
+                        if (specs.n_prec_arg >= arg_count) { return parse_format_error_code::kOutOfArgList; }
+                        specs.fmt.prec = get_uint_arg_fn(specs.n_prec_arg);
+                    }
+                } else {
                     return parse_format_error_code::kInvalidFormat;
                 }
-                // obtain argument number
-                if (!(specs.flags & parse_flags::kArgNumSpecified)) { specs.n_arg = n_arg_auto++; }
-                if (specs.n_arg >= arg_count) { return parse_format_error_code::kOutOfArgList; }
-                if (!!(specs.flags & parse_flags::kDynamicWidth)) {
-                    // obtain argument number for width
-                    if (!(specs.flags & parse_flags::kWidthArgNumSpecified)) { specs.n_width_arg = n_arg_auto++; }
-                    if (specs.n_width_arg >= arg_count) { return parse_format_error_code::kOutOfArgList; }
-                    specs.fmt.width = get_uint_arg_fn(specs.n_width_arg);
-                }
-                if (!!(specs.flags & parse_flags::kDynamicPrec)) {
-                    // obtain argument number for precision
-                    if (!(specs.flags & parse_flags::kPrecArgNumSpecified)) { specs.n_prec_arg = n_arg_auto++; }
-                    if (specs.n_prec_arg >= arg_count) { return parse_format_error_code::kOutOfArgList; }
-                    specs.fmt.prec = get_uint_arg_fn(specs.n_prec_arg);
-                }
-                if (!!(specs.flags & parse_flags::kUseLocale)) { specs.fmt.loc = p_loc; }
                 append_arg_fn(specs.n_arg, specs);
                 first0 = first + 1;
             } else if (*(first - 1) != *first) {

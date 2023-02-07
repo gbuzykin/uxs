@@ -4,6 +4,7 @@
 
 #include "uxs/format.h"
 
+#include <cstring>
 #include <locale>
 
 namespace uxs {
@@ -68,8 +69,21 @@ void adjust_string(StrTy& s, span<const CharT> val, fmt_opts& fmt) {
 }
 
 template<typename CharT>
+bool compare2(const CharT* lhs, const char* rhs) {
+    return lhs[0] == rhs[0] && lhs[1] == rhs[1];
+}
+
+inline bool compare2(const char* lhs, const char* rhs) { return std::memcmp(lhs, rhs, 2) == 0; }
+
+template<typename CharT>
 basic_membuffer<CharT>& vformat(basic_membuffer<CharT>& s, span<const CharT> fmt,
                                 basic_format_args<basic_membuffer<CharT>> args, const std::locale* p_loc) {
+    if (fmt.size() == 2 && compare2(fmt.data(), "{}")) {
+        if (args.empty()) { throw format_error("out of argument list"); }
+        fmt_opts fmt;
+        args[0].fmt_func(s, args[0].p_arg, fmt);
+        return s;
+    }
     auto get_fmt_arg_integer_value = [&args](unsigned n_arg) -> unsigned {
         switch (args[n_arg].type_id) {
 #define UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(ty, type_id) \
@@ -97,10 +111,9 @@ basic_membuffer<CharT>& vformat(basic_membuffer<CharT>& s, span<const CharT> fmt
             default: throw format_error("argument is not an integer");
         }
     };
-    const auto& loc = p_loc ? *p_loc : std::locale();
     const auto error_code = parse_format<CharT>(
         fmt, args.size(), [&s](const CharT* p0, const CharT* p) { s.append(p0, p); },
-        [&s, &args](unsigned n_arg, arg_specs& specs) {
+        [&s, &args, p_loc](unsigned n_arg, arg_specs& specs) {
             const arg_type_id id = args[n_arg].type_id;
             const auto type_error = []() { throw format_error("invalid argument type specifier"); };
             const auto signed_needed = []() { throw format_error("argument format requires signed argument"); };
@@ -185,9 +198,15 @@ basic_membuffer<CharT>& vformat(basic_membuffer<CharT>& s, span<const CharT> fmt
                     }
                 } break;
             }
-            args[n_arg].fmt_func(s, args[n_arg].p_arg, specs.fmt);
+            if (!(specs.flags & parse_flags::kUseLocale)) {
+                args[n_arg].fmt_func(s, args[n_arg].p_arg, specs.fmt);
+            } else {
+                std::locale loc(p_loc ? *p_loc : std::locale());
+                specs.fmt.loc = &loc;
+                args[n_arg].fmt_func(s, args[n_arg].p_arg, specs.fmt);
+            }
         },
-        get_fmt_arg_integer_value, &loc);
+        get_fmt_arg_integer_value);
     if (error_code == parse_format_error_code::kSuccess) {
     } else if (error_code == parse_format_error_code::kOutOfArgList) {
         throw format_error("out of argument list");

@@ -8,6 +8,8 @@ UXS_EXPORT const char_tbl_t g_char_tbl;
 #endif  // __cplusplus < 201703L
 namespace scvt {
 
+UXS_EXPORT const fmt_opts g_default_opts;
+
 #if __cplusplus < 201703L && !(defined(_MSC_VER) && defined(_M_X64)) && !(defined(__GNUC__) && defined(__x86_64__))
 const UXS_EXPORT ulog2_table_t g_ulog2_tbl;
 #endif
