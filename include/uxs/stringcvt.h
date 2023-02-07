@@ -304,6 +304,8 @@ struct fp_traits<float> {
     static float from_u64(const uint64_t& u64) { return *reinterpret_cast<const float*>(&u64); }
 };
 
+extern UXS_EXPORT const fmt_opts g_default_opts;
+
 // --------------------------
 
 template<typename Ty>
@@ -536,9 +538,16 @@ NODISCARD Ty from_wstring(std::wstring_view s) {
 }
 
 template<typename StrTy, typename Ty>
-StrTy& to_basic_string(StrTy& s, const Ty& val, const fmt_opts& fmt = fmt_opts{}) {
+StrTy& to_basic_string(StrTy& s, const Ty& val, const fmt_opts& fmt = scvt::g_default_opts) {
     formatter<Ty, typename StrTy::value_type>().format(s, val, fmt);
     return s;
+}
+
+template<typename Ty>
+NODISCARD std::string to_string(const Ty& val) {
+    inline_dynbuffer buf;
+    to_basic_string(buf, val);
+    return std::string(buf.data(), buf.size());
 }
 
 template<typename Ty, typename... Args>
@@ -548,11 +557,24 @@ NODISCARD std::string to_string(const Ty& val, Args&&... args) {
     return std::string(buf.data(), buf.size());
 }
 
+template<typename Ty>
+NODISCARD std::wstring to_wstring(const Ty& val) {
+    inline_wdynbuffer buf;
+    to_basic_string(buf, val);
+    return std::wstring(buf.data(), buf.size());
+}
+
 template<typename Ty, typename... Args>
 NODISCARD std::wstring to_wstring(const Ty& val, Args&&... args) {
     inline_wdynbuffer buf;
     to_basic_string(buf, val, fmt_opts(std::forward<Args>(args)...));
     return std::wstring(buf.data(), buf.size());
+}
+
+template<typename Ty>
+char* to_chars(char* p, const Ty& val) {
+    membuffer buf(p);
+    return to_basic_string(buf, val).curr();
 }
 
 template<typename Ty, typename... Args>
@@ -561,16 +583,34 @@ char* to_chars(char* p, const Ty& val, Args&&... args) {
     return to_basic_string(buf, val, fmt_opts(std::forward<Args>(args)...)).curr();
 }
 
+template<typename Ty>
+wchar_t* to_wchars(wchar_t* p, const Ty& val) {
+    wmembuffer buf(p);
+    return to_basic_string(buf, val).curr();
+}
+
 template<typename Ty, typename... Args>
 wchar_t* to_wchars(wchar_t* p, const Ty& val, Args&&... args) {
     wmembuffer buf(p);
     return to_basic_string(buf, val, fmt_opts(std::forward<Args>(args)...)).curr();
 }
 
+template<typename Ty>
+char* to_chars_n(char* p, size_t n, const Ty& val) {
+    membuffer buf(p, p + n);
+    return to_basic_string(buf, val).curr();
+}
+
 template<typename Ty, typename... Args>
 char* to_chars_n(char* p, size_t n, const Ty& val, Args&&... args) {
     membuffer buf(p, p + n);
     return to_basic_string(buf, val, fmt_opts(std::forward<Args>(args)...)).curr();
+}
+
+template<typename Ty>
+wchar_t* to_wchars_n(wchar_t* p, size_t n, const Ty& val) {
+    wmembuffer buf(p, p + n);
+    return to_basic_string(buf, val).curr();
 }
 
 template<typename Ty, typename... Args>
