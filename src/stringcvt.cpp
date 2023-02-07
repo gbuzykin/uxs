@@ -271,7 +271,7 @@ struct bignum_t {
 };
 
 SCVT_CONSTEXPR_DATA int kBigpow10TblSize = 19;
-inline bignum_t get_bigpow10(unsigned index) NOEXCEPT {
+SCVT_FORCE_INLINE bignum_t get_bigpow10(unsigned index) NOEXCEPT {
     static SCVT_CONSTEXPR_DATA uint64_t bigpow10[] = {
         0xde0b6b3a76400000, 0xc097ce7bc90715b3, 0x4b9f100000000000, 0xa70c3c40a64e6c51, 0x999090b65f67d924,
         0x90e40fbeea1d3a4a, 0xbc8955e946fe31cd, 0xcf66f634e1000000, 0xfb5878494ace3a5f, 0x04ab48a04065c723,
@@ -346,7 +346,7 @@ inline uint64_t umul96x64_higher128(uint96_t x, uint64_t y, uint64_t& result_hi)
 }
 
 SCVT_CONSTEXPR_DATA int kPow10Max = 344;
-inline uint96_t get_cached_pow10(int pow) NOEXCEPT {
+SCVT_FORCE_INLINE uint96_t get_cached_pow10(int pow) NOEXCEPT {
     assert(pow >= -kPow10Max && pow <= kPow10Max);
     static SCVT_CONSTEXPR_DATA uint64_t higher64[] = {
         0x98ee4a22ecf3188b, 0xe3e27a444d8d98b7, 0xa9c98d8ccb009506, 0xfd00b897478238d0, 0xbc807527ed3e12bc,
@@ -575,7 +575,7 @@ inline uint64_t rotr1(uint64_t n) { return (n >> 1) | (n << 63); }
 inline uint64_t rotr2(uint64_t n) { return (n >> 2) | (n << 62); }
 
 // Removes trailing zeros and returns the number of zeros removed
-inline int remove_trailing_zeros(uint64_t& n, int max_remove) {
+SCVT_FORCE_INLINE int remove_trailing_zeros(uint64_t& n, int max_remove) {
     int s = max_remove;
     SCVT_CONSTEXPR_DATA uint64_t mod_inv_5 = 0xcccccccccccccccd;
     SCVT_CONSTEXPR_DATA uint64_t mod_inv_25 = 0x8f5c28f5c28f5c29;
@@ -663,7 +663,7 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, cons
     // Evaluate acceptable error range to pass roundtrip test
     assert(bpm + shift >= 30);
     const uint64_t delta_minus = coef.hi >> (bpm + shift - 30);
-    const uint64_t delta_plus = fp2.exp > 1 - exp_bias && fp2.m == msb64 ? (delta_minus >> 1) : delta_minus;
+    const uint64_t delta_plus = fp2.m == msb64 && fp2.exp > 1 - exp_bias ? (delta_minus >> 1) : delta_minus;
 
     // Try to remove two digits at once
     const uint64_t significand0 = significand_;

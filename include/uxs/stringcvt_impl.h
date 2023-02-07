@@ -7,6 +7,14 @@
 
 #define SCVT_USE_COMPILER_128BIT_EXTENSIONS 1
 
+#if defined(_MSC_VER)
+#    define SCVT_FORCE_INLINE __forceinline
+#elif defined(__GNUC__)
+#    define SCVT_FORCE_INLINE __attribute__((always_inline)) inline
+#else
+#    define SCVT_FORCE_INLINE inline
+#endif
+
 #if !defined(_MSC_VER) || _MSC_VER > 1800
 #    define SCVT_CONSTEXPR_DATA constexpr
 #else  // !defined(_MSC_VER) || _MSC_VER > 1800
@@ -263,7 +271,7 @@ Ty to_bool(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
 // ---- from value to string
 
 // minimal digit count for numbers 2^N <= x < 2^(N+1), N = 0, 1, 2, ...
-inline unsigned get_exp2_dig_count(unsigned exp) NOEXCEPT {
+SCVT_FORCE_INLINE unsigned get_exp2_dig_count(unsigned exp) NOEXCEPT {
     static SCVT_CONSTEXPR_DATA unsigned dig_count[] = {
         1,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  4,  5,  5,  5,  6,  6,  6,  7,  7,
         7,  7,  8,  8,  8,  9,  9,  9,  10, 10, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 13, 13,
@@ -273,7 +281,7 @@ inline unsigned get_exp2_dig_count(unsigned exp) NOEXCEPT {
 }
 
 // powers of ten 10^N, N = 0, 1, 2, ...
-inline uint64_t get_pow10(int pow) NOEXCEPT {
+SCVT_FORCE_INLINE uint64_t get_pow10(int pow) NOEXCEPT {
 #define UXS_SCVT_POWERS_OF_10(base) \
     base, (base)*10, (base)*100, (base)*1000, (base)*10000, (base)*100000, (base)*1000000, (base)*10000000, \
         (base)*100000000, (base)*1000000000
@@ -285,7 +293,7 @@ inline uint64_t get_pow10(int pow) NOEXCEPT {
 }
 
 // digit pairs
-inline const char* get_digits(unsigned n) NOEXCEPT {
+SCVT_FORCE_INLINE const char* get_digits(unsigned n) NOEXCEPT {
     static SCVT_CONSTEXPR_DATA char digs[][2] = {
         {'0', '0'}, {'0', '1'}, {'0', '2'}, {'0', '3'}, {'0', '4'}, {'0', '5'}, {'0', '6'}, {'0', '7'}, {'0', '8'},
         {'0', '9'}, {'1', '0'}, {'1', '1'}, {'1', '2'}, {'1', '3'}, {'1', '4'}, {'1', '5'}, {'1', '6'}, {'1', '7'},
@@ -348,26 +356,56 @@ inline unsigned calc_len_with_grouping(unsigned desired_len, const std::string& 
     return length + ((desired_len - 1) / grp);
 }
 
+template<typename CharT, typename Ty, typename PrintFn>
+struct print_functor {
+    Ty val;
+    char sign;
+    PrintFn print_fn;
+    template<typename... Args>
+    SCVT_FORCE_INLINE void operator()(basic_membuffer<CharT>& s, unsigned len, Args&&... args) {
+        if (s.avail() >= len || s.try_grow(len)) {
+            print_fn(s.curr() + len, val, std::forward<Args>(args)...);
+            if (sign) { *s.curr() = sign; }
+            s.advance(len);
+        } else if (s.avail()) {
+            CharT buf[256];
+            print_fn(buf + len, val, std::forward<Args>(args)...);
+            if (sign) { buf[0] = sign; }
+            s.append_by_chunks(buf, buf + len);
+        }
+    }
+};
+
+template<typename CharT, typename Ty, typename PrintFn>
+print_functor<CharT, Ty, PrintFn> make_print_functor(Ty val, char sign, PrintFn print_fn) {
+    return print_functor<CharT, Ty, PrintFn>{val, sign, print_fn};
+}
+
 // ---- binary
 
 template<typename CharT, typename Ty>
-void fmt_gen_bin(CharT* p, Ty val, const fmt_opts& fmt, const grouping_t<CharT>* grouping) NOEXCEPT {
-    if (grouping) {
-        auto grp_it = grouping->grouping.begin();
-        int cnt = *grp_it;
+void fmt_gen_bin(CharT* p, Ty val, const fmt_opts& fmt) NOEXCEPT {
+    do {
         *--p = '0' + static_cast<unsigned>(val & 1);
-        while ((val >>= 1) != 0) {
-            if (--cnt <= 0) {
-                *--p = grouping->thousands_sep;
-                cnt = std::next(grp_it) != grouping->grouping.end() ? *++grp_it : *grp_it;
-            }
-            *--p = '0' + static_cast<unsigned>(val & 1);
+        val >>= 1;
+    } while (val != 0);
+    if (!!(fmt.flags & fmt_flags::kAlternate)) {
+        *--p = !(fmt.flags & fmt_flags::kUpperCase) ? 'b' : 'B';
+        *--p = '0';
+    }
+}
+
+template<typename CharT, typename Ty>
+void fmt_gen_bin_with_grouping(CharT* p, Ty val, const fmt_opts& fmt, const grouping_t<CharT>& grouping) NOEXCEPT {
+    auto grp_it = grouping.grouping.begin();
+    int cnt = *grp_it;
+    *--p = '0' + static_cast<unsigned>(val & 1);
+    while ((val >>= 1) != 0) {
+        if (--cnt <= 0) {
+            *--p = grouping.thousands_sep;
+            cnt = std::next(grp_it) != grouping.grouping.end() ? *++grp_it : *grp_it;
         }
-    } else {
-        do {
-            *--p = '0' + static_cast<unsigned>(val & 1);
-            val >>= 1;
-        } while (val != 0);
+        *--p = '0' + static_cast<unsigned>(val & 1);
     }
     if (!!(fmt.flags & fmt_flags::kAlternate)) {
         *--p = !(fmt.flags & fmt_flags::kUpperCase) ? 'b' : 'B';
@@ -386,50 +424,43 @@ void fmt_bin(basic_membuffer<CharT>& s, Ty val, bool is_signed, const fmt_opts& 
         }
     }
     const unsigned n_prefix = (sign ? 1 : 0) + (!!(fmt.flags & fmt_flags::kAlternate) ? 2 : 0);
-    const auto fn = [val, sign, &fmt](basic_membuffer<CharT>& s, unsigned len, const grouping_t<CharT>* grouping) {
-        if (s.avail() >= len || s.try_grow(len)) {
-            fmt_gen_bin(s.curr() + len, val, fmt, grouping);
-            if (sign) { *s.curr() = sign; }
-            s.advance(len);
-        } else if (s.avail()) {
-            CharT buf[160];
-            fmt_gen_bin(buf + len, val, fmt, grouping);
-            if (sign) { buf[0] = sign; }
-            s.append_by_chunks(buf, buf + len);
-        }
-    };
     if (fmt.loc) {
         const auto& numpunct = std::use_facet<std::numpunct<CharT>>(*fmt.loc);
         grouping_t<CharT> grouping{numpunct.thousands_sep(), numpunct.grouping()};
         if (!grouping.grouping.empty()) {
             const unsigned len = n_prefix + calc_len_with_grouping(1 + ulog2(val), grouping.grouping);
-            return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt, &grouping) : fn(s, len, &grouping);
+            auto fn = make_print_functor<CharT>(val, sign, fmt_gen_bin_with_grouping<CharT, Ty>);
+            return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt, fmt, grouping) :
+                                     fn(s, len, fmt, grouping);
         }
     }
     const unsigned len = 1 + n_prefix + ulog2(val);
-    return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt, nullptr) : fn(s, len, nullptr);
+    auto fn = make_print_functor<CharT>(val, sign, fmt_gen_bin<CharT, Ty>);
+    return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt, fmt) : fn(s, len, fmt);
 }
 
 // ---- octal
 
 template<typename CharT, typename Ty>
-void fmt_gen_oct(CharT* p, Ty val, const fmt_opts& fmt, const grouping_t<CharT>* grouping) NOEXCEPT {
-    if (grouping) {
-        auto grp_it = grouping->grouping.begin();
-        int cnt = *grp_it;
+void fmt_gen_oct(CharT* p, Ty val, const fmt_opts& fmt) NOEXCEPT {
+    do {
         *--p = '0' + static_cast<unsigned>(val & 7);
-        while ((val >>= 3) != 0) {
-            if (--cnt <= 0) {
-                *--p = grouping->thousands_sep;
-                cnt = std::next(grp_it) != grouping->grouping.end() ? *++grp_it : *grp_it;
-            }
-            *--p = '0' + static_cast<unsigned>(val & 7);
+        val >>= 3;
+    } while (val != 0);
+    if (!!(fmt.flags & fmt_flags::kAlternate)) { *--p = '0'; }
+}
+
+template<typename CharT, typename Ty>
+void fmt_gen_oct_with_grouping(CharT* p, Ty val, const fmt_opts& fmt, const grouping_t<CharT>& grouping) NOEXCEPT {
+    auto grp_it = grouping.grouping.begin();
+    int cnt = *grp_it;
+    *--p = '0' + static_cast<unsigned>(val & 7);
+    while ((val >>= 3) != 0) {
+        if (--cnt <= 0) {
+            *--p = grouping.thousands_sep;
+            cnt = std::next(grp_it) != grouping.grouping.end() ? *++grp_it : *grp_it;
         }
-    } else {
-        do {
-            *--p = '0' + static_cast<unsigned>(val & 7);
-            val >>= 3;
-        } while (val != 0);
+        *--p = '0' + static_cast<unsigned>(val & 7);
     }
     if (!!(fmt.flags & fmt_flags::kAlternate)) { *--p = '0'; }
 }
@@ -445,52 +476,49 @@ void fmt_oct(basic_membuffer<CharT>& s, Ty val, bool is_signed, const fmt_opts& 
         }
     }
     const unsigned n_prefix = sign ? 1 : 0;
-    const auto fn = [val, sign, &fmt](basic_membuffer<CharT>& s, unsigned len, const grouping_t<CharT>* grouping) {
-        if (s.avail() >= len || s.try_grow(len)) {
-            fmt_gen_oct(s.curr() + len, val, fmt, grouping);
-            if (sign) { *s.curr() = sign; }
-            s.advance(len);
-        } else if (s.avail()) {
-            CharT buf[64];
-            fmt_gen_oct(buf + len, val, fmt, grouping);
-            if (sign) { buf[0] = sign; }
-            s.append_by_chunks(buf, buf + len);
-        }
-    };
     if (fmt.loc) {
         const auto& numpunct = std::use_facet<std::numpunct<CharT>>(*fmt.loc);
         grouping_t<CharT> grouping{numpunct.thousands_sep(), numpunct.grouping()};
         if (!grouping.grouping.empty()) {
             const unsigned len = (!!(fmt.flags & fmt_flags::kAlternate) ? 1 : 0) + n_prefix +
                                  calc_len_with_grouping(1 + ulog2(val) / 3, grouping.grouping);
-            return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt, &grouping) : fn(s, len, &grouping);
+            auto fn = make_print_functor<CharT>(val, sign, fmt_gen_oct_with_grouping<CharT, Ty>);
+            return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt, fmt, grouping) :
+                                     fn(s, len, fmt, grouping);
         }
     }
     const unsigned len = (!!(fmt.flags & fmt_flags::kAlternate) ? 2 : 1) + n_prefix + ulog2(val) / 3;
-    return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt, nullptr) : fn(s, len, nullptr);
+    auto fn = make_print_functor<CharT>(val, sign, fmt_gen_oct<CharT, Ty>);
+    return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt, fmt) : fn(s, len, fmt);
 }
 
 // ---- hexadecimal
 
 template<typename CharT, typename Ty>
-void fmt_gen_hex(CharT* p, Ty val, const fmt_opts& fmt, const grouping_t<CharT>* grouping) NOEXCEPT {
+void fmt_gen_hex(CharT* p, Ty val, const fmt_opts& fmt) NOEXCEPT {
     const char* digs = !!(fmt.flags & fmt_flags::kUpperCase) ? "0123456789ABCDEF" : "0123456789abcdef";
-    if (grouping) {
-        auto grp_it = grouping->grouping.begin();
-        int cnt = *grp_it;
+    do {
         *--p = digs[val & 0xf];
-        while ((val >>= 4) != 0) {
-            if (--cnt <= 0) {
-                *--p = grouping->thousands_sep;
-                cnt = std::next(grp_it) != grouping->grouping.end() ? *++grp_it : *grp_it;
-            }
-            *--p = digs[val & 0xf];
+        val >>= 4;
+    } while (val != 0);
+    if (!!(fmt.flags & fmt_flags::kAlternate)) {
+        *--p = !(fmt.flags & fmt_flags::kUpperCase) ? 'x' : 'X';
+        *--p = '0';
+    }
+}
+
+template<typename CharT, typename Ty>
+void fmt_gen_hex_with_grouping(CharT* p, Ty val, const fmt_opts& fmt, const grouping_t<CharT>& grouping) NOEXCEPT {
+    const char* digs = !!(fmt.flags & fmt_flags::kUpperCase) ? "0123456789ABCDEF" : "0123456789abcdef";
+    auto grp_it = grouping.grouping.begin();
+    int cnt = *grp_it;
+    *--p = digs[val & 0xf];
+    while ((val >>= 4) != 0) {
+        if (--cnt <= 0) {
+            *--p = grouping.thousands_sep;
+            cnt = std::next(grp_it) != grouping.grouping.end() ? *++grp_it : *grp_it;
         }
-    } else {
-        do {
-            *--p = digs[val & 0xf];
-            val >>= 4;
-        } while (val != 0);
+        *--p = digs[val & 0xf];
     }
     if (!!(fmt.flags & fmt_flags::kAlternate)) {
         *--p = !(fmt.flags & fmt_flags::kUpperCase) ? 'x' : 'X';
@@ -509,28 +537,19 @@ void fmt_hex(basic_membuffer<CharT>& s, Ty val, bool is_signed, const fmt_opts& 
         }
     }
     const unsigned n_prefix = (sign ? 1 : 0) + (!!(fmt.flags & fmt_flags::kAlternate) ? 2 : 0);
-    const auto fn = [val, sign, &fmt](basic_membuffer<CharT>& s, unsigned len, const grouping_t<CharT>* grouping) {
-        if (s.avail() >= len || s.try_grow(len)) {
-            fmt_gen_hex(s.curr() + len, val, fmt, grouping);
-            if (sign) { *s.curr() = sign; }
-            s.advance(len);
-        } else if (s.avail()) {
-            CharT buf[64];
-            fmt_gen_hex(buf + len, val, fmt, grouping);
-            if (sign) { *buf = sign; }
-            s.append_by_chunks(buf, buf + len);
-        }
-    };
     if (fmt.loc) {
         const auto& numpunct = std::use_facet<std::numpunct<CharT>>(*fmt.loc);
         grouping_t<CharT> grouping{numpunct.thousands_sep(), numpunct.grouping()};
         if (!grouping.grouping.empty()) {
             const unsigned len = n_prefix + calc_len_with_grouping(1 + (ulog2(val) >> 2), grouping.grouping);
-            return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt, &grouping) : fn(s, len, &grouping);
+            auto fn = make_print_functor<CharT>(val, sign, fmt_gen_hex_with_grouping<CharT, Ty>);
+            return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt, fmt, grouping) :
+                                     fn(s, len, fmt, grouping);
         }
     }
     const unsigned len = 1 + n_prefix + (ulog2(val) >> 2);
-    return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt, nullptr) : fn(s, len, nullptr);
+    auto fn = make_print_functor<CharT>(val, sign, fmt_gen_hex<CharT, Ty>);
+    return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt, fmt) : fn(s, len, fmt);
 }
 
 // ---- decimal
@@ -550,14 +569,14 @@ void copy2(CharT* tgt, const char* src) {
 inline void copy2(char* tgt, const char* src) { std::memcpy(tgt, src, 2); }
 
 template<unsigned N, typename Ty>
-inline Ty divmod(Ty& v) {
+Ty divmod(Ty& v) {
     const Ty v0 = v;
     v /= N;
     return v0 - N * v;
 }
 
 template<typename CharT, typename Ty>
-CharT* gen_digits(CharT* p, Ty v) NOEXCEPT {
+SCVT_FORCE_INLINE CharT* gen_digits(CharT* p, Ty v) NOEXCEPT {
     while (v >= 100u) { copy2(p -= 2, get_digits(static_cast<unsigned>(divmod<100u>(v)))); }
     if (v >= 10u) {
         copy2(p -= 2, get_digits(static_cast<unsigned>(v)));
@@ -568,7 +587,7 @@ CharT* gen_digits(CharT* p, Ty v) NOEXCEPT {
 }
 
 template<typename CharT, typename Ty>
-Ty gen_digits_n(CharT* p, Ty v, unsigned n) NOEXCEPT {
+SCVT_FORCE_INLINE Ty gen_digits_n(CharT* p, Ty v, unsigned n) NOEXCEPT {
     CharT* p0 = p - (n & ~1);
     while (p != p0) { copy2(p -= 2, get_digits(static_cast<unsigned>(divmod<100u>(v)))); }
     if (!(n & 1)) { return v; }
@@ -577,20 +596,15 @@ Ty gen_digits_n(CharT* p, Ty v, unsigned n) NOEXCEPT {
 }
 
 template<typename CharT, typename Ty>
-void fmt_gen_dec(CharT* p, Ty val, const grouping_t<CharT>* grouping) NOEXCEPT {
-    if (grouping) {
-        auto grp_it = grouping->grouping.begin();
-        int cnt = *grp_it;
-        *--p = '0' + static_cast<unsigned>(divmod<10u>(val));
-        while (val) {
-            if (--cnt <= 0) {
-                *--p = grouping->thousands_sep,
-                cnt = std::next(grp_it) != grouping->grouping.end() ? *++grp_it : *grp_it;
-            }
-            *--p = '0' + static_cast<unsigned>(divmod<10u>(val));
+void fmt_gen_dec_with_grouping(CharT* p, Ty val, const grouping_t<CharT>& grouping) NOEXCEPT {
+    auto grp_it = grouping.grouping.begin();
+    int cnt = *grp_it;
+    *--p = '0' + static_cast<unsigned>(divmod<10u>(val));
+    while (val) {
+        if (--cnt <= 0) {
+            *--p = grouping.thousands_sep, cnt = std::next(grp_it) != grouping.grouping.end() ? *++grp_it : *grp_it;
         }
-    } else {
-        gen_digits(p, val);
+        *--p = '0' + static_cast<unsigned>(divmod<10u>(val));
     }
 }
 
@@ -605,28 +619,18 @@ void fmt_dec(basic_membuffer<CharT>& s, Ty val, const bool is_signed, const fmt_
         }
     }
     const unsigned n_prefix = sign ? 1 : 0;
-    const auto fn = [val, sign](basic_membuffer<CharT>& s, unsigned len, const grouping_t<CharT>* grouping) {
-        if (s.avail() >= len || s.try_grow(len)) {
-            fmt_gen_dec(s.curr() + len, val, grouping);
-            if (sign) { *s.curr() = sign; }
-            s.advance(len);
-        } else if (s.avail()) {
-            CharT buf[64];
-            fmt_gen_dec(buf + len, val, grouping);
-            if (sign) { buf[0] = sign; }
-            s.append_by_chunks(buf, buf + len);
-        }
-    };
     if (fmt.loc) {
         const auto& numpunct = std::use_facet<std::numpunct<CharT>>(*fmt.loc);
         grouping_t<CharT> grouping{numpunct.thousands_sep(), numpunct.grouping()};
         if (!grouping.grouping.empty()) {
             const unsigned len = n_prefix + calc_len_with_grouping(fmt_dec_unsigned_len(val), grouping.grouping);
-            return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt, &grouping) : fn(s, len, &grouping);
+            auto fn = make_print_functor<CharT>(val, sign, fmt_gen_dec_with_grouping<CharT, Ty>);
+            return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt, grouping) : fn(s, len, grouping);
         }
     }
     const unsigned len = n_prefix + fmt_dec_unsigned_len(val);
-    return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt, nullptr) : fn(s, len, nullptr);
+    auto fn = make_print_functor<CharT>(val, sign, gen_digits<CharT, Ty>);
+    return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt) : fn(s, len);
 }
 
 // --------------------------
@@ -674,7 +678,20 @@ class UXS_EXPORT fp_dec_fmt_t {
 
     template<typename CharT>
     void generate(CharT* p, const fmt_opts& fmt, const CharT dec_point,
-                  const grouping_t<CharT>* grouping) const NOEXCEPT;
+                  const grouping_t<CharT>* grouping) const NOEXCEPT {
+        if (!fixed_) {
+            generate_scientific(p, fmt, dec_point);
+        } else {
+            generate_fixed<CharT>(p, fmt, dec_point, grouping);
+        }
+    }
+
+    template<typename CharT>
+    void generate_scientific(CharT* p, const fmt_opts& fmt, const CharT dec_point) const NOEXCEPT;
+
+    template<typename CharT>
+    void generate_fixed(CharT* p, const fmt_opts& fmt, const CharT dec_point,
+                        const grouping_t<CharT>* grouping) const NOEXCEPT;
 
  private:
     uint64_t significand_;
@@ -691,45 +708,42 @@ class UXS_EXPORT fp_dec_fmt_t {
 };
 
 template<typename CharT>
-void fp_dec_fmt_t::generate(CharT* p, const fmt_opts& fmt, const CharT dec_point,
-                            const grouping_t<CharT>* grouping) const NOEXCEPT {
+void fp_dec_fmt_t::generate_scientific(CharT* p, const fmt_opts& fmt, const CharT dec_point) const NOEXCEPT {
     const CharT e_symb = !(fmt.flags & fmt_flags::kUpperCase) ? 'e' : 'E';
 
-    if (!fixed_) {  // generate scientific representation
-        // generate exponent
-        int exp10 = exp_;
-        char exp_sign = '+';
-        if (exp10 < 0) { exp_sign = '-', exp10 = -exp10; }
-        if (exp10 < 100) {
-            copy2(p -= 2, get_digits(exp10));
-        } else {
-            const int t = (656 * exp10) >> 16;
-            copy2(p -= 2, get_digits(exp10 - 100 * t));
-            *--p = '0' + t;
-        }
-        *--p = exp_sign;
-        *--p = e_symb;
-
-        if (prec_ > 0) {         // has fractional part
-            if (significand_) {  // generate from significand
-                p = gen_digits(p, significand_);
-            } else {  // generate from chars
-                p -= prec_ + 1;
-                std::fill_n(std::copy_n(digs_buf_, prec_ + 1 - n_zeroes_, p), n_zeroes_, '0');
-            }
-            // insert decimal point
-            *(p - 1) = *p;
-            *p = dec_point;
-        } else {  // only one digit
-            if (alternate_) { *--p = dec_point; }
-            *--p = '0' + static_cast<unsigned>(significand_);
-        }
-
-        return;
+    // generate exponent
+    int exp10 = exp_;
+    char exp_sign = '+';
+    if (exp10 < 0) { exp_sign = '-', exp10 = -exp10; }
+    if (exp10 < 100) {
+        copy2(p -= 2, get_digits(exp10));
+    } else {
+        const int t = (656 * exp10) >> 16;
+        copy2(p -= 2, get_digits(exp10 - 100 * t));
+        *--p = '0' + t;
     }
+    *--p = exp_sign;
+    *--p = e_symb;
 
-    // generate fixed representation
+    if (prec_ > 0) {         // has fractional part
+        if (significand_) {  // generate from significand
+            p = gen_digits(p, significand_);
+        } else {  // generate from chars
+            p -= prec_ + 1;
+            std::fill_n(std::copy_n(digs_buf_, prec_ + 1 - n_zeroes_, p), n_zeroes_, '0');
+        }
+        // insert decimal point
+        *(p - 1) = *p;
+        *p = dec_point;
+    } else {  // only one digit
+        if (alternate_) { *--p = dec_point; }
+        *--p = '0' + static_cast<unsigned>(significand_);
+    }
+}
 
+template<typename CharT>
+void fp_dec_fmt_t::generate_fixed(CharT* p, const fmt_opts& fmt, const CharT dec_point,
+                                  const grouping_t<CharT>* grouping) const NOEXCEPT {
     uint64_t m = significand_;
     int k = 1 + exp_, n_zeroes = n_zeroes_;
     if (prec_ > 0) {             // has fractional part
@@ -755,8 +769,8 @@ void fp_dec_fmt_t::generate(CharT* p, const fmt_opts& fmt, const CharT dec_point
         *--p = dec_point;
     }
 
-    if (!grouping || k != 1 + exp_) {  // no grouping or integral part is fractional in fact
-        if (significand_) {            // generate integral part from significand
+    if (!grouping || exp_ <= 0) {  // no grouping is needed
+        if (significand_) {        // generate integral part from significand
             gen_digits(p, m);
         } else if (n_zeroes > 0) {  // generate from chars
             std::fill_n(std::copy_n(digs_buf_, k - n_zeroes, p - k), n_zeroes, '0');
@@ -805,6 +819,27 @@ void fp_dec_fmt_t::generate(CharT* p, const fmt_opts& fmt, const CharT dec_point
 }
 
 template<typename CharT>
+struct print_float_functor {
+    const fp_dec_fmt_t& fp;
+    char sign;
+    const fmt_opts& fmt;
+    template<typename... Args>
+    SCVT_FORCE_INLINE void operator()(basic_membuffer<CharT>& s, unsigned len, Args&&... args) {
+        if (s.avail() >= len || s.try_grow(len)) {
+            fp.generate<CharT>(s.curr() + len, fmt, std::forward<Args>(args)...);
+            if (sign) { *s.curr() = sign; }
+            s.advance(len);
+        } else if (s.avail()) {
+            inline_basic_dynbuffer<CharT> buf;
+            if (buf.avail() < len) { buf.try_grow(len); }
+            fp.generate<CharT>(buf.data() + len, fmt, std::forward<Args>(args)...);
+            if (sign) { *buf.data() = sign; }
+            s.append_by_chunks(buf.data(), buf.data() + len);
+        }
+    }
+};
+
+template<typename CharT>
 void fmt_float_common(basic_membuffer<CharT>& s, uint64_t u64, const fmt_opts& fmt, const unsigned bpm,
                       const int exp_max) {
     char sign = '\0';
@@ -831,20 +866,7 @@ void fmt_float_common(basic_membuffer<CharT>& s, uint64_t u64, const fmt_opts& f
     fp_dec_fmt_t fp(fp2, fmt, bpm, exp_max >> 1);
     CharT dec_point = default_numpunct<CharT>().decimal_point();
     const unsigned n_prefix = sign ? 1 : 0;
-    const auto fn = [&fp, sign, &fmt](basic_membuffer<CharT>& s, unsigned len, const CharT dec_point,
-                                      const grouping_t<CharT>* grouping) {
-        if (s.avail() >= len || s.try_grow(len)) {
-            fp.generate(s.curr() + len, fmt, dec_point, grouping);
-            if (sign) { *s.curr() = sign; }
-            s.advance(len);
-        } else if (s.avail()) {
-            inline_basic_dynbuffer<CharT> buf;
-            if (buf.avail() < len) { buf.try_grow(len); }
-            fp.generate(buf.data() + len, fmt, dec_point, grouping);
-            if (sign) { *buf.data() = sign; }
-            s.append_by_chunks(buf.data(), buf.data() + len);
-        }
-    };
+    print_float_functor<CharT> fn{fp, sign, fmt};
     if (fmt.loc) {
         const auto& numpunct = std::use_facet<std::numpunct<CharT>>(*fmt.loc);
         grouping_t<CharT> grouping{numpunct.thousands_sep(), numpunct.grouping()};
