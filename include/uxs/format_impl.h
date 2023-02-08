@@ -81,18 +81,18 @@ basic_membuffer<CharT>& vformat(basic_membuffer<CharT>& s, span<const CharT> fmt
     if (fmt.size() == 2 && compare2(fmt.data(), "{}")) {
         if (args.empty()) { throw format_error("out of argument list"); }
         fmt_opts fmt;
-        args[0].fmt_func(s, args[0].p_arg, fmt);
+        args[0].fmt_func(s, args[0].value, fmt);
         return s;
     }
     auto get_fmt_arg_integer_value = [&args](unsigned n_arg) -> unsigned {
         switch (args[n_arg].type_id) {
 #define UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(ty, type_id) \
     case arg_type_id::type_id: { \
-        return static_cast<unsigned>(*static_cast<const ty*>(args[n_arg].p_arg)); \
+        return static_cast<unsigned>(args[n_arg].value.template as<ty>()); \
     } break;
 #define UXS_FMT_ARG_INTEGER_VALUE_CASE(ty, type_id) \
     case arg_type_id::type_id: { \
-        ty val = *static_cast<const ty*>(args[n_arg].p_arg); \
+        ty val = args[n_arg].value.template as<ty>(); \
         if (val < 0) { throw format_error("negative argument specified"); } \
         return static_cast<unsigned>(val); \
     } break;
@@ -125,17 +125,14 @@ basic_membuffer<CharT>& vformat(basic_membuffer<CharT>& s, span<const CharT> fmt
                             signed_needed();
                         }
                     } else if (id == arg_type_id::kChar) {
-                        uxs::to_basic_string(s, static_cast<int>(*static_cast<const char*>(args[n_arg].p_arg)),
-                                             specs.fmt);
+                        uxs::to_basic_string(s, static_cast<int>(args[n_arg].value.template as<char>()), specs.fmt);
                         return;
                     } else if (id == arg_type_id::kWChar) {
-                        uxs::to_basic_string(s, static_cast<int>(*static_cast<const wchar_t*>(args[n_arg].p_arg)),
-                                             specs.fmt);
+                        uxs::to_basic_string(s, static_cast<int>(args[n_arg].value.template as<wchar_t>()), specs.fmt);
                         return;
                     } else if (id == arg_type_id::kBool) {
                         if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
-                        uxs::to_basic_string(s, static_cast<int>(*static_cast<const bool*>(args[n_arg].p_arg)),
-                                             specs.fmt);
+                        uxs::to_basic_string(s, static_cast<int>(args[n_arg].value.template as<bool>()), specs.fmt);
                         return;
                     } else {
                         type_error();
@@ -152,7 +149,7 @@ basic_membuffer<CharT>& vformat(basic_membuffer<CharT>& s, span<const CharT> fmt
                         switch (id) {
 #define UXS_FMT_ARG_INTEGER_VALUE_CASE(ty, type_id) \
     case arg_type_id::type_id: { \
-        code = *static_cast<const ty*>(args[n_arg].p_arg); \
+        code = args[n_arg].value.template as<ty>(); \
     } break;
                             UXS_FMT_ARG_INTEGER_VALUE_CASE(unsigned char, kUnsignedChar)
                             UXS_FMT_ARG_INTEGER_VALUE_CASE(unsigned short, kUnsignedShort)
@@ -199,11 +196,11 @@ basic_membuffer<CharT>& vformat(basic_membuffer<CharT>& s, span<const CharT> fmt
                 } break;
             }
             if (!(specs.flags & parse_flags::kUseLocale)) {
-                args[n_arg].fmt_func(s, args[n_arg].p_arg, specs.fmt);
+                args[n_arg].fmt_func(s, args[n_arg].value, specs.fmt);
             } else {
                 std::locale loc(p_loc ? *p_loc : std::locale());
                 specs.fmt.loc = &loc;
-                args[n_arg].fmt_func(s, args[n_arg].p_arg, specs.fmt);
+                args[n_arg].fmt_func(s, args[n_arg].value, specs.fmt);
             }
         },
         get_fmt_arg_integer_value);
