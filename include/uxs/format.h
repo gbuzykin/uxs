@@ -1,5 +1,6 @@
 #pragma once
 
+#include "alignment.h"
 #include "io/iobuf.h"
 #include "stringcvt.h"
 
@@ -77,21 +78,45 @@ template<typename CharT, typename Traits, typename Alloc>
 struct type_id_t<std::basic_string<CharT, Traits, Alloc>, void>
     : std::integral_constant<arg_type_id, arg_type_id::kString> {};
 
+struct arg_store_value {
+    template<typename... Ts>
+    using aligned_storage_t = typename std::aligned_storage<size_of<Ts...>::value, alignment_of<Ts...>::value>::type;
+    aligned_storage_t<double, long long, void*> data;
+    arg_store_value() = default;
+    template<typename Ty>
+    explicit arg_store_value(const Ty& v) {
+        ::new (&data) Ty(v);
+    }
+    template<typename Ty>
+    Ty as() const {
+        return Ty(*reinterpret_cast<const Ty*>(&data));
+    }
+};
+
 template<typename StrTy, typename Ty, typename = void>
 struct arg_fmt_func_t;
 
 template<typename StrTy, typename Ty>
-struct arg_fmt_func_t<StrTy, Ty, std::enable_if_t<has_formatter<Ty, StrTy>::value>> {
-    static void func(StrTy& s, const void* val, fmt_opts& fmt) {
-        uxs::to_basic_string(s, *static_cast<const Ty*>(val), fmt);
+struct arg_fmt_func_t<
+    StrTy, Ty, std::enable_if_t<has_formatter<Ty, StrTy>::value && (type_id_t<Ty>::value < arg_type_id::kPointer)>> {
+    static void func(StrTy& s, arg_store_value val, fmt_opts& fmt) {
+        uxs::to_basic_string(s, val.as<Ty>(), fmt);  // stored by value
+    }
+};
+
+template<typename StrTy, typename Ty>
+struct arg_fmt_func_t<
+    StrTy, Ty, std::enable_if_t<has_formatter<Ty, StrTy>::value && (type_id_t<Ty>::value >= arg_type_id::kPointer)>> {
+    static void func(StrTy& s, arg_store_value val, fmt_opts& fmt) {
+        uxs::to_basic_string(s, *val.as<const Ty*>(), fmt);  // stored by pointer
     }
 };
 
 template<typename StrTy, typename Ty>
 struct arg_fmt_func_t<StrTy, Ty*, std::enable_if_t<!is_character<Ty>::value>> {
-    static void func(StrTy& s, const void* val, fmt_opts& fmt) {
+    static void func(StrTy& s, arg_store_value val, fmt_opts& fmt) {
         fmt.flags |= fmt_flags::kHex | fmt_flags::kAlternate;
-        uxs::to_basic_string(s, reinterpret_cast<uintptr_t>(val), fmt);
+        uxs::to_basic_string(s, val.as<uintptr_t>(), fmt);
     }
 };
 
@@ -100,39 +125,27 @@ UXS_EXPORT void adjust_string(StrTy& s, span<const CharT> val, fmt_opts& fmt);
 
 template<typename StrTy>
 struct arg_fmt_func_t<StrTy, typename StrTy::value_type*, void> {
-    static void func(StrTy& s, const void* val, fmt_opts& fmt) {
+    static void func(StrTy& s, arg_store_value val, fmt_opts& fmt) {
         using CharT = typename StrTy::value_type;
-        adjust_string<CharT>(s, std::basic_string_view<CharT>(static_cast<const CharT*>(val)), fmt);
+        adjust_string<CharT>(s, std::basic_string_view<CharT>(val.as<const CharT*>()), fmt);
     }
 };
 
 template<typename StrTy, typename Traits>
 struct arg_fmt_func_t<StrTy, std::basic_string_view<typename StrTy::value_type, Traits>, void> {
-    static void func(StrTy& s, const void* val, fmt_opts& fmt) {
+    static void func(StrTy& s, arg_store_value val, fmt_opts& fmt) {
         using CharT = typename StrTy::value_type;
-        adjust_string<CharT>(s, *static_cast<const std::basic_string_view<CharT, Traits>*>(val), fmt);
+        adjust_string<CharT>(s, *val.as<const std::basic_string_view<CharT, Traits>*>(), fmt);
     }
 };
 
 template<typename StrTy, typename Traits, typename Alloc>
 struct arg_fmt_func_t<StrTy, std::basic_string<typename StrTy::value_type, Traits, Alloc>, void> {
-    static void func(StrTy& s, const void* val, fmt_opts& fmt) {
+    static void func(StrTy& s, arg_store_value val, fmt_opts& fmt) {
         using CharT = typename StrTy::value_type;
-        adjust_string<CharT>(s, *static_cast<const std::basic_string<CharT, Traits, Alloc>*>(val), fmt);
+        adjust_string<CharT>(s, *val.as<const std::basic_string<CharT, Traits, Alloc>*>(), fmt);
     }
 };
-
-template<typename Ty>
-const void* get_arg_ptr(const Ty& arg) {
-    return static_cast<const void*>(&arg);
-}
-
-template<typename Ty>
-const void* get_arg_ptr(Ty* arg) {
-    return arg;
-}
-
-inline const void* get_arg_ptr(std::nullptr_t arg) { return arg; }
 
 template<typename Ty, typename = void>
 struct arg_type {
@@ -154,15 +167,34 @@ struct arg_type<std::nullptr_t, void> {
     using type = void*;
 };
 
+template<typename Ty>
+std::enable_if_t<(type_id_t<typename arg_type<Ty>::type>::value < arg_type_id::kPointer), arg_store_value>
+make_arg_store_value(const Ty& v) {
+    return arg_store_value{v};  // store by value
+}
+
+template<typename Ty>
+std::enable_if_t<(type_id_t<typename arg_type<Ty>::type>::value >= arg_type_id::kPointer), arg_store_value>
+make_arg_store_value(const Ty& v) {
+    return arg_store_value{&v};  // store by pointer
+}
+
+template<typename Ty>
+arg_store_value make_arg_store_value(Ty* v) {
+    return arg_store_value{v};  // store the pointer
+}
+
+inline arg_store_value make_arg_store_value(std::nullptr_t) { return arg_store_value{static_cast<void*>(nullptr)}; }
+
 template<typename StrTy>
 struct arg_store_item {
-#if __cplusplus < 201703L
     arg_store_item() = default;
-    arg_store_item(const void* p, void (*fn)(StrTy&, const void*, fmt_opts&), arg_type_id id)
-        : p_arg(p), fmt_func(fn), type_id(id) {}
-#endif  // __cplusplus < 201703L
-    const void* p_arg = nullptr;
-    void (*fmt_func)(StrTy&, const void*, fmt_opts&) = nullptr;
+    template<typename Ty>
+    explicit arg_store_item(const Ty& arg)
+        : value(make_arg_store_value(arg)), fmt_func(arg_fmt_func_t<StrTy, typename arg_type<Ty>::type>::func),
+          type_id(type_id_t<typename arg_type<Ty>::type>::value) {}
+    arg_store_value value;
+    void (*fmt_func)(StrTy&, arg_store_value, fmt_opts&) = nullptr;
     arg_type_id type_id = arg_type_id::kUnsignedChar;
 };
 
@@ -526,8 +558,7 @@ using wformat_args = basic_format_args<wmembuffer>;
 
 template<typename StrTy, typename... Args>
 sfmt::arg_store<StrTy, Args...> make_basic_format_args(const Args&... args) NOEXCEPT {
-    return {{{sfmt::get_arg_ptr(args), sfmt::arg_fmt_func_t<StrTy, typename sfmt::arg_type<Args>::type>::func,
-              sfmt::type_id_t<typename sfmt::arg_type<Args>::type>::value}...}};
+    return {{sfmt::arg_store_item<StrTy>{args}...}};
 }
 
 template<typename StrTy = membuffer, typename... Args>
