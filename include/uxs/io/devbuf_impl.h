@@ -322,9 +322,9 @@ void basic_devbuf<CharT, Alloc>::parse_ctrlesc(const char_type* first, const cha
 template<typename CharT, typename Alloc>
 int basic_devbuf<CharT, Alloc>::flush_buffer() {
     int ret = 0;
-    const char_type *from = this->first(), *top = this->curr(), *mid = top;
+    const char_type *from = this->first(), *top = this->curr();
     if (!(this->mode() & (iomode::kCrLf | iomode::kCtrlEsc))) {
-        if ((ret = write_buf(from, mid - from)) < 0) { return ret; }
+        if ((ret = write_buf(from, top - from)) < 0) { return ret; }
         this->setcurr(this->first());
         return ret;
     }
@@ -336,10 +336,11 @@ int basic_devbuf<CharT, Alloc>::flush_buffer() {
                 *to++ = '\r';
             } else if (*from == '\033' && !!(this->mode() & iomode::kCtrlEsc)) {
                 const char_type* end_of_esc = find_end_of_ctrlesc(from + 1, top);
-                if (end_of_esc == from + 1) {
-                    mid = from;
-                    from = top;
-                    break;
+                if (end_of_esc == from + 1) {                  // escape sequence is unfinished
+                    if (from == this->first()) { return -1; }  // too long escape sequence
+                    if ((ret = write_buf(to0, to - to0)) < 0) { return ret; }
+                    this->setcurr(std::copy(from, top, this->first()));  // move it to the beginning
+                    return ret;
                 }
                 if ((this->mode() & iomode::kSkipCtrlEsc) != iomode::kSkipCtrlEsc) {
                     if ((ret = write_buf(to0, to - to0)) < 0) { return ret; }
@@ -353,7 +354,7 @@ int basic_devbuf<CharT, Alloc>::flush_buffer() {
         }
         if ((ret = write_buf(to0, to - to0)) < 0) { return ret; }
     } while (from != top);
-    this->setcurr(std::copy(mid, top, this->first()));
+    this->setcurr(this->first());
     return ret;
 }
 
