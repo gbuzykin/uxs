@@ -565,6 +565,41 @@ uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) NOEXCE
 
 // --------------------------
 
+fp_hex_fmt_t::fp_hex_fmt_t(const fp_m64_t& fp2, const fmt_opts& fmt, const unsigned bpm, const int exp_bias) NOEXCEPT
+    : significand_(fp2.m),
+      exp_(fp2.exp),
+      prec_(fmt.prec),
+      n_zeroes_(0),
+      alternate_(!!(fmt.flags & fmt_flags::kAlternate)) {
+    if (significand_ == 0 && exp_ == 0) {  // real zero
+        exp_ = 0, prec_ = n_zeroes_ = prec_ < 0 ? 0 : (prec_ & 0xffff);
+        return;
+    }
+
+    // Align, so 4 left bits are an integer part:
+    // 1 (or 2 after round) for normalized, 0 for denormalized
+    significand_ <<= 60 - bpm;
+    if (exp_ > 0) {
+        significand_ |= 1ull << 60, exp_ -= exp_bias;
+    } else {
+        exp_ = 1 - exp_bias;
+    }
+    if (prec_ < 0) {
+        prec_ = 15;
+        while (!(significand_ & 0xf)) { significand_ >>= 4, --prec_; }
+    } else if (prec_ < 15) {  // round
+        const uint64_t half = 1ull << (59 - 4 * prec_);
+        const uint64_t frac = significand_ & ((half << 1) - 1);
+        significand_ >>= 60 - 4 * prec_;
+        if (frac > half || (frac == half && (significand_ & 1))) { ++significand_; }
+    } else {
+        prec_ &= 0xffff;
+        n_zeroes_ = prec_ - 15;
+    }
+}
+
+// --------------------------
+
 inline int exp2to10(int exp) {
     SCVT_CONSTEXPR_DATA int64_t ln2_ln10 = 0x4d104d42;  // 2^32 * ln(2) / ln(10)
     return static_cast<int>(hi32(ln2_ln10 * exp));
