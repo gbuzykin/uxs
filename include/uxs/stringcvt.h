@@ -211,6 +211,10 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
     Ty* data() NOEXCEPT { return first_; }
     void clear() NOEXCEPT { this->set(first_); }
 
+    void reserve(size_t extra = 1) {
+        if (extra > this->avail()) { try_grow(extra); }
+    }
+
     bool try_grow(size_t extra) override {
         size_t sz = size(), cap = capacity(), delta_sz = std::max(extra, sz >> 1);
         const size_t max_avail = std::allocator_traits<alloc_type>::max_size(*this) - sz;
