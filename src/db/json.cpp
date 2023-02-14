@@ -59,7 +59,7 @@ int json::reader::parse_token(std::string_view& lval) {
             if (pat >= lex_detail::predef_pat_default) {
                 break;
             } else if (stack_limitation) {  // enlarge state stack and continue analysis
-                state_stack_.try_grow(llen);
+                state_stack_.reserve(llen);
                 first = last;
                 continue;
             } else if (!input_) {
