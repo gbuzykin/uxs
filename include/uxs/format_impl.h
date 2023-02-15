@@ -1,8 +1,7 @@
 #pragma once
 
+#include "format.h"
 #include "utf.h"
-
-#include "uxs/format.h"
 
 #include <cstring>
 #include <locale>
@@ -31,7 +30,7 @@ struct count_utf_chars<wchar_t> {
 #endif  // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
 
 template<typename CharT, typename StrTy>
-void adjust_string(StrTy& s, span<const CharT> val, fmt_opts& fmt) {
+void adjust_string(StrTy& s, std::basic_string_view<CharT> val, fmt_opts& fmt) {
     const CharT *first = val.data(), *last = first + val.size();
     size_t len = 0;
     unsigned count = 0;
@@ -75,91 +74,115 @@ bool compare2(const CharT* lhs, const char* rhs) {
 
 inline bool compare2(const char* lhs, const char* rhs) { return std::memcmp(lhs, rhs, 2) == 0; }
 
-template<typename CharT>
-basic_membuffer<CharT>& vformat(basic_membuffer<CharT>& s, span<const CharT> fmt,
-                                basic_format_args<basic_membuffer<CharT>> args, const std::locale* p_loc) {
+template<typename Ty>
+Ty get_arg_value(const void* data) {
+    return *static_cast<const Ty*>(data);
+}
+
+template<typename StrTy>
+void format_arg_value(StrTy& s, type_id type, const void* data, fmt_opts& fmt) {
+    using CharT = typename StrTy::value_type;
+    switch (type) {
+#define UXS_FMT_FORMAT_ARG_VALUE(ty, id) \
+    case type_id::id: { \
+        uxs::to_basic_string(s, get_arg_value<ty>(data), fmt); \
+    } break;
+        UXS_FMT_FORMAT_ARG_VALUE(unsigned, kUnsigned)
+        UXS_FMT_FORMAT_ARG_VALUE(unsigned long long, kUnsignedLongLong)
+        UXS_FMT_FORMAT_ARG_VALUE(signed, kSigned)
+        UXS_FMT_FORMAT_ARG_VALUE(signed long long, kSignedLongLong)
+        UXS_FMT_FORMAT_ARG_VALUE(CharT, kChar)
+        UXS_FMT_FORMAT_ARG_VALUE(bool, kBool)
+        UXS_FMT_FORMAT_ARG_VALUE(float, kFloat)
+        UXS_FMT_FORMAT_ARG_VALUE(double, kDouble)
+#undef UXS_FMT_FORMAT_ARG_VALUE
+        case type_id::kPointer: {
+            fmt.flags |= fmt_flags::kHex | fmt_flags::kAlternate;
+            uxs::to_basic_string(s, get_arg_value<uintptr_t>(data), fmt);
+        } break;
+        case type_id::kCString: {
+            adjust_string<CharT>(s, get_arg_value<const CharT*>(data), fmt);
+        } break;
+        case type_id::kString: {
+            adjust_string<CharT>(s, get_arg_value<std::basic_string_view<CharT>>(data), fmt);
+        } break;
+        case type_id::kCustom: {
+            const auto* custom = static_cast<const arg_custom_value<StrTy>*>(data);
+            custom->print_fn(s, custom->val, fmt);
+        } break;
+        default: UNREACHABLE_CODE;
+    }
+}
+
+template<typename StrTy>
+StrTy& vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt, basic_format_args<StrTy> args,
+               const std::locale* p_loc) {
+    using CharT = typename StrTy::value_type;
     if (fmt.size() == 2 && compare2(fmt.data(), "{}")) {
         if (args.empty()) { throw format_error("out of argument list"); }
-        fmt_opts fmt;
-        args[0].fmt_func(s, args[0].value, fmt);
+        fmt_opts arg_fmt;
+        format_arg_value(s, args.type(0), args.data(0), arg_fmt);
         return s;
     }
     auto get_fmt_arg_integer_value = [&args](unsigned n_arg) -> unsigned {
-        switch (args[n_arg].type_id) {
-#define UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(ty, type_id) \
-    case arg_type_id::type_id: { \
-        return static_cast<unsigned>(args[n_arg].value.template as<ty>()); \
+        switch (args.type(n_arg)) {
+#define UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(ty, id) \
+    case type_id::id: { \
+        return static_cast<unsigned>(get_arg_value<ty>(args.data(n_arg))); \
     } break;
-#define UXS_FMT_ARG_INTEGER_VALUE_CASE(ty, type_id) \
-    case arg_type_id::type_id: { \
-        ty val = args[n_arg].value.template as<ty>(); \
+#define UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE(ty, id) \
+    case type_id::id: { \
+        ty val = get_arg_value<ty>(args.data(n_arg)); \
         if (val < 0) { throw format_error("negative argument specified"); } \
         return static_cast<unsigned>(val); \
     } break;
-            UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(unsigned char, kUnsignedChar)
-            UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(unsigned short, kUnsignedShort)
             UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(unsigned, kUnsigned)
-            UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(unsigned long, kUnsignedLong)
             UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(unsigned long long, kUnsignedLongLong)
-            UXS_FMT_ARG_INTEGER_VALUE_CASE(signed char, kSignedChar)
-            UXS_FMT_ARG_INTEGER_VALUE_CASE(signed short, kSignedShort)
-            UXS_FMT_ARG_INTEGER_VALUE_CASE(signed, kSigned)
-            UXS_FMT_ARG_INTEGER_VALUE_CASE(signed long, kSignedLong)
-            UXS_FMT_ARG_INTEGER_VALUE_CASE(signed long long, kSignedLongLong)
-#undef UXS_FMT_ARG_INTEGER_VALUE_CASE
+            UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE(signed, kSigned)
+            UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE(signed long long, kSignedLongLong)
 #undef UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE
+#undef UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE
             default: throw format_error("argument is not an integer");
         }
     };
     const auto error_code = parse_format<CharT>(
         fmt, args.size(), [&s](const CharT* p0, const CharT* p) { s.append(p0, p); },
         [&s, &args, p_loc](unsigned n_arg, arg_specs& specs) {
-            const arg_type_id id = args[n_arg].type_id;
+            const type_id id = args.type(n_arg);
             const auto type_error = []() { throw format_error("invalid argument type specifier"); };
             const auto signed_needed = []() { throw format_error("argument format requires signed argument"); };
             const auto numeric_needed = []() { throw format_error("argument format requires numeric argument"); };
             switch (specs.flags & parse_flags::kSpecMask) {
                 case parse_flags::kSpecIntegral: {
-                    if (id <= arg_type_id::kSignedLongLong) {
-                        if (!!(specs.fmt.flags & fmt_flags::kSignField) && id < arg_type_id::kSignedChar) {
-                            signed_needed();
-                        }
-                    } else if (id == arg_type_id::kChar) {
-                        uxs::to_basic_string(s, static_cast<int>(args[n_arg].value.template as<char>()), specs.fmt);
+                    if (id <= type_id::kSignedLongLong) {
+                        if (!!(specs.fmt.flags & fmt_flags::kSignField) && id < type_id::kSigned) { signed_needed(); }
+                    } else if (id == type_id::kChar) {
+                        uxs::to_basic_string(s, static_cast<int>(get_arg_value<CharT>(args.data(n_arg))), specs.fmt);
                         return;
-                    } else if (id == arg_type_id::kWChar) {
-                        uxs::to_basic_string(s, static_cast<int>(args[n_arg].value.template as<wchar_t>()), specs.fmt);
-                        return;
-                    } else if (id == arg_type_id::kBool) {
+                    } else if (id == type_id::kBool) {
                         if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
-                        uxs::to_basic_string(s, static_cast<int>(args[n_arg].value.template as<bool>()), specs.fmt);
+                        uxs::to_basic_string(s, static_cast<int>(get_arg_value<bool>(args.data(n_arg))), specs.fmt);
                         return;
                     } else {
                         type_error();
                     }
                 } break;
                 case parse_flags::kSpecFloat: {
-                    if (id < arg_type_id::kFloat || id > arg_type_id::kLongDouble) { type_error(); }
+                    if (id < type_id::kFloat || id > type_id::kLongDouble) { type_error(); }
                 } break;
                 case parse_flags::kSpecChar: {
                     if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
                     if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes)) { numeric_needed(); }
-                    if (id <= arg_type_id::kSignedLongLong) {
+                    if (id <= type_id::kSignedLongLong) {
                         int64_t code = 0;
                         switch (id) {
-#define UXS_FMT_ARG_INTEGER_VALUE_CASE(ty, type_id) \
-    case arg_type_id::type_id: { \
-        code = args[n_arg].value.template as<ty>(); \
+#define UXS_FMT_ARG_INTEGER_VALUE_CASE(ty, id) \
+    case type_id::id: { \
+        code = get_arg_value<ty>(args.data(n_arg)); \
     } break;
-                            UXS_FMT_ARG_INTEGER_VALUE_CASE(unsigned char, kUnsignedChar)
-                            UXS_FMT_ARG_INTEGER_VALUE_CASE(unsigned short, kUnsignedShort)
                             UXS_FMT_ARG_INTEGER_VALUE_CASE(unsigned, kUnsigned)
-                            UXS_FMT_ARG_INTEGER_VALUE_CASE(unsigned long, kUnsignedLong)
                             UXS_FMT_ARG_INTEGER_VALUE_CASE(unsigned long long, kUnsignedLongLong)
-                            UXS_FMT_ARG_INTEGER_VALUE_CASE(signed char, kSignedChar)
-                            UXS_FMT_ARG_INTEGER_VALUE_CASE(signed short, kSignedShort)
                             UXS_FMT_ARG_INTEGER_VALUE_CASE(signed, kSigned)
-                            UXS_FMT_ARG_INTEGER_VALUE_CASE(signed long, kSignedLong)
                             UXS_FMT_ARG_INTEGER_VALUE_CASE(signed long long, kSignedLongLong)
 #undef UXS_FMT_ARG_INTEGER_VALUE_CASE
                             default: UNREACHABLE_CODE;
@@ -170,37 +193,37 @@ basic_membuffer<CharT>& vformat(basic_membuffer<CharT>& s, span<const CharT> fmt
                         }
                         uxs::to_basic_string(s, static_cast<CharT>(code), specs.fmt);
                         return;
-                    } else if (id > arg_type_id::kWChar) {
+                    } else if (id > type_id::kChar) {
                         type_error();
                     }
                 } break;
                 case parse_flags::kSpecPointer: {
                     if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
-                    if (id != arg_type_id::kPointer) { type_error(); }
+                    if (id != type_id::kPointer) { type_error(); }
                 } break;
                 case parse_flags::kSpecString: {
                     if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
                     if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes)) { numeric_needed(); }
-                    if (id != arg_type_id::kBool && id != arg_type_id::kString) { type_error(); }
+                    if (id != type_id::kBool && id != type_id::kCString && id != type_id::kString) { type_error(); }
                 } break;
                 default: {
                     if (!!(specs.fmt.flags & fmt_flags::kSignField) &&
-                        (id < arg_type_id::kSignedChar || id > arg_type_id::kSignedLongLong) &&
-                        (id < arg_type_id::kFloat || id > arg_type_id::kLongDouble)) {
+                        (id < type_id::kSigned || id > type_id::kSignedLongLong) &&
+                        (id < type_id::kFloat || id > type_id::kLongDouble)) {
                         signed_needed();
                     }
-                    if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes) && id > arg_type_id::kSignedLongLong &&
-                        (id < arg_type_id::kFloat || id > arg_type_id::kPointer)) {
+                    if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes) && id > type_id::kSignedLongLong &&
+                        (id < type_id::kFloat || id > type_id::kPointer)) {
                         numeric_needed();
                     }
                 } break;
             }
             if (!(specs.flags & parse_flags::kUseLocale)) {
-                args[n_arg].fmt_func(s, args[n_arg].value, specs.fmt);
+                format_arg_value(s, args.type(n_arg), args.data(n_arg), specs.fmt);
             } else {
                 std::locale loc(p_loc ? *p_loc : std::locale());
                 specs.fmt.loc = &loc;
-                args[n_arg].fmt_func(s, args[n_arg].value, specs.fmt);
+                format_arg_value(s, args.type(n_arg), args.data(n_arg), specs.fmt);
             }
         },
         get_fmt_arg_integer_value);

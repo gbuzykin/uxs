@@ -8,6 +8,10 @@
 namespace std {
 template<typename CharT, typename Traits = std::char_traits<CharT>>
 class basic_string_view {
+    static_assert(is_same<CharT, typename Traits::char_type>::value, "bad char_traits for basic_string_view");
+    static_assert(!is_array<CharT>::value && is_trivial<CharT>::value && is_standard_layout<CharT>::value,
+                  "the character type of basic_string_view must be a non-array trivial standard-layout type");
+
  public:
     using traits_type = Traits;
     using value_type = CharT;
@@ -31,11 +35,6 @@ class basic_string_view {
     }
     template<typename Alloc>
     basic_string_view(const basic_string<CharT, Traits, Alloc>& s) NOEXCEPT : basic_string_view(s.data(), s.size()) {}
-    basic_string_view(const basic_string_view& v) NOEXCEPT : begin_(v.begin_), size_(v.size_) {}
-    basic_string_view& operator=(const basic_string_view& v) NOEXCEPT {
-        begin_ = v.begin_, size_ = v.size_;
-        return *this;
-    }
 
     size_t size() const NOEXCEPT { return size_; }
     size_t length() const NOEXCEPT { return size_; }

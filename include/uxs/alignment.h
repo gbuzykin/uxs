@@ -15,7 +15,7 @@ template<size_t Alignment>
 struct aligned {
     template<size_t Size>
     struct type : std::integral_constant<size_t, (Size + Alignment - 1) & ~(Alignment - 1)> {};
-    static size_t size(size_t sz) { return (sz + Alignment - 1) & ~(Alignment - 1); }
+    static size_t value(size_t sz) { return (sz + Alignment - 1) & ~(Alignment - 1); }
 };
 
 }  // namespace uxs

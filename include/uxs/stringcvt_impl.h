@@ -1,7 +1,8 @@
 #pragma once
 
-#include "uxs/stringcvt.h"
+#include "stringcvt.h"
 
+#include <array>
 #include <cstring>
 #include <locale>
 
@@ -90,9 +91,9 @@ inline unsigned ulog2(uint32_t x) { return __builtin_clz(x | 1) ^ 31; }
 inline unsigned ulog2(uint64_t x) { return __builtin_clzll(x | 1) ^ 63; }
 #else
 struct ulog2_table_t {
-    unsigned n_bit[256];
-    CONSTEXPR ulog2_table_t() : n_bit() {
-        for (uint32_t n = 0; n < 256; ++n) {
+    std::array<unsigned, 256> n_bit;
+    CONSTEXPR ulog2_table_t() {
+        for (uint32_t n = 0; n < n_bit.size(); ++n) {
             uint32_t u8 = n;
             n_bit[n] = 0;
             while (u8 >>= 1) { ++n_bit[n]; }
@@ -129,7 +130,7 @@ const CharT* starts_with(const CharT* p, const CharT* end, std::basic_string_vie
 }
 
 template<typename Ty, typename CharT>
-Ty to_integer_limited(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) NOEXCEPT {
+Ty to_integral_common(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) NOEXCEPT {
     bool neg = false;
     last = p;
     if (p == end) {
@@ -153,6 +154,23 @@ Ty to_integer_limited(const CharT* p, const CharT* end, const CharT*& last, Ty p
         val = ~val + 1;                                // apply sign
     } else if (val > pos_limit) {
         return 0;  // positive integer is out of range
+    }
+    last = p;
+    return val;
+}
+
+template<typename Ty, typename CharT>
+Ty to_bool(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
+    unsigned dig = 0;
+    const CharT* p0 = p;
+    bool val = false;
+    if ((p = starts_with(p, end, default_numpunct<CharT>().truename())) > p0) {
+        val = true;
+    } else if ((p = starts_with(p, end, default_numpunct<CharT>().falsename())) > p0) {
+    } else if (p < end && (dig = dig_v(*p)) < 10) {
+        do {
+            if (dig) { val = true; }
+        } while (++p < end && (dig = dig_v(*p)) < 10);
     }
     last = p;
     return val;
@@ -213,7 +231,7 @@ const CharT* chars_to_fp10(const CharT* p, const CharT* end, fp10_t& fp10) NOEXC
 parse_exponent:
     p0 = p;
     if (*p == 'e' || *p == 'E') {  // optional exponent
-        int exp_optional = to_integer<int>(p + 1, end, p);
+        int exp_optional = to_integral<int>(p + 1, end, p);
         if (p > p0 + 1) { fp10.exp += exp_optional, p0 = p; }
     }
     return p0;
@@ -249,23 +267,6 @@ uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, c
 
     last = p1;
     return fp2;
-}
-
-template<typename Ty, typename CharT>
-Ty to_bool(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
-    unsigned dig = 0;
-    const CharT* p0 = p;
-    bool val = false;
-    if ((p = starts_with(p, end, default_numpunct<CharT>().truename())) > p0) {
-        val = true;
-    } else if ((p = starts_with(p, end, default_numpunct<CharT>().falsename())) > p0) {
-    } else if (p < end && (dig = dig_v(*p)) < 10) {
-        do {
-            if (dig) { val = true; }
-        } while (++p < end && (dig = dig_v(*p)) < 10);
-    }
-    last = p;
-    return val;
 }
 
 // ---- from value to string
@@ -635,10 +636,10 @@ void fmt_dec(basic_membuffer<CharT>& s, Ty val, const bool is_signed, const fmt_
     return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt) : fn(s, len);
 }
 
-// --------------------------
+// ---- integral
 
 template<typename CharT, typename Ty>
-void fmt_integral(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt) {
+void fmt_integral_common(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt) {
     using UTy = typename std::make_unsigned<Ty>::type;
     const bool is_signed = std::is_signed<Ty>::value;
     switch (fmt.flags & fmt_flags::kBaseField) {
@@ -689,7 +690,7 @@ void fp_hex_fmt_t::generate(CharT* p, const bool upper_case, const CharT dec_poi
     int exp2 = exp_;
     char exp_sign = '+';
     if (exp2 < 0) { exp_sign = '-', exp2 = -exp2; }
-    p = gen_digits(p, exp2);
+    p = gen_digits(p, static_cast<unsigned>(exp2));
     *--p = exp_sign;
     *--p = upper_case ? 'P' : 'p';
     uint64_t m = significand_;

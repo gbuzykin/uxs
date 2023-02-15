@@ -112,6 +112,11 @@ struct remove_cv<std::pair<Ty1, Ty2>> {
     using type = std::pair<std::remove_cv_t<Ty1>, std::remove_cv_t<Ty2>>;
 };
 
+template<typename Ty, typename = void>
+struct is_boolean : std::false_type {};
+template<typename Ty>
+struct is_boolean<Ty, std::enable_if_t<std::is_same<std::remove_cv_t<Ty>, bool>::value>> : std::true_type {};
+
 namespace detail {
 template<typename... Ts>
 void dummy_variadic(Ts&&...) {}

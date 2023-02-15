@@ -977,31 +977,30 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fm
     n_zeroes_ = n_digs;
 }
 
-template UXS_EXPORT uint32_t to_integer_limited(const char*, const char*, const char*&, uint32_t) NOEXCEPT;
-template UXS_EXPORT uint64_t to_integer_limited(const char*, const char*, const char*&, uint64_t) NOEXCEPT;
+template UXS_EXPORT uint32_t to_integral_common(const char*, const char*, const char*&, uint32_t) NOEXCEPT;
+template UXS_EXPORT uint64_t to_integral_common(const char*, const char*, const char*&, uint64_t) NOEXCEPT;
 template UXS_EXPORT uint64_t to_float_common(const char*, const char*, const char*& last, const unsigned,
                                              const int) NOEXCEPT;
 template UXS_EXPORT bool to_bool(const char*, const char*, const char*& last) NOEXCEPT;
 
-template UXS_EXPORT uint32_t to_integer_limited(const wchar_t*, const wchar_t*, const wchar_t*&, uint32_t) NOEXCEPT;
-template UXS_EXPORT uint64_t to_integer_limited(const wchar_t*, const wchar_t*, const wchar_t*&, uint64_t) NOEXCEPT;
+template UXS_EXPORT uint32_t to_integral_common(const wchar_t*, const wchar_t*, const wchar_t*&, uint32_t) NOEXCEPT;
+template UXS_EXPORT uint64_t to_integral_common(const wchar_t*, const wchar_t*, const wchar_t*&, uint64_t) NOEXCEPT;
 template UXS_EXPORT uint64_t to_float_common(const wchar_t*, const wchar_t*, const wchar_t*& last, const unsigned,
                                              const int) NOEXCEPT;
 template UXS_EXPORT bool to_bool(const wchar_t*, const wchar_t*, const wchar_t*& last) NOEXCEPT;
 
-template UXS_EXPORT void fmt_integral(membuffer&, int32_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integral(membuffer&, int64_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integral(membuffer&, uint32_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integral(membuffer&, uint64_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral_common(membuffer&, int32_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral_common(membuffer&, int64_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral_common(membuffer&, uint32_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral_common(membuffer&, uint64_t, const fmt_opts&);
 template UXS_EXPORT void fmt_char(membuffer&, char, const fmt_opts&);
 template UXS_EXPORT void fmt_float_common(membuffer&, uint64_t, const fmt_opts&, const unsigned, const int);
 template UXS_EXPORT void fmt_bool(membuffer&, bool, const fmt_opts&);
 
-template UXS_EXPORT void fmt_integral(wmembuffer&, int32_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integral(wmembuffer&, int64_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integral(wmembuffer&, uint32_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integral(wmembuffer&, uint64_t, const fmt_opts&);
-template UXS_EXPORT void fmt_char(wmembuffer&, char, const fmt_opts&);
+template UXS_EXPORT void fmt_integral_common(wmembuffer&, int32_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral_common(wmembuffer&, int64_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral_common(wmembuffer&, uint32_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral_common(wmembuffer&, uint64_t, const fmt_opts&);
 template UXS_EXPORT void fmt_char(wmembuffer&, wchar_t, const fmt_opts&);
 template UXS_EXPORT void fmt_float_common(wmembuffer&, uint64_t, const fmt_opts&, const unsigned, const int);
 template UXS_EXPORT void fmt_bool(wmembuffer&, bool, const fmt_opts&);
