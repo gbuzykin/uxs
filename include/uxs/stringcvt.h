@@ -311,64 +311,54 @@ extern UXS_EXPORT const fmt_opts g_default_opts;
 
 // --------------------------
 
+template<typename Ty, typename = void>
+struct reduce_type {
+    using type = std::remove_cv_t<Ty>;
+};
 template<typename Ty>
-struct type_substitution {
-    using type = Ty;
+struct reduce_type<Ty, std::enable_if_t<std::is_integral<Ty>::value && std::is_unsigned<Ty>::value &&
+                                        !is_boolean<Ty>::value && !is_character<Ty>::value>> {
+    using type = std::conditional_t<(sizeof(Ty) <= sizeof(uint32_t)), uint32_t, uint64_t>;
 };
+template<typename Ty>
+struct reduce_type<Ty, std::enable_if_t<std::is_integral<Ty>::value && std::is_signed<Ty>::value &&
+                                        !is_boolean<Ty>::value && !is_character<Ty>::value>> {
+    using type = std::conditional_t<(sizeof(Ty) <= sizeof(int32_t)), int32_t, int64_t>;
+};
+template<typename Ty>
+struct reduce_type<Ty, std::enable_if_t<std::is_array<Ty>::value>> {
+    using type = typename std::add_pointer<std::remove_cv_t<typename std::remove_extent<Ty>::type>>::type;
+};
+
+template<typename Ty>
+struct reduce_type<Ty*, void> {
+    using type = typename std::add_pointer<std::remove_cv_t<Ty>>::type;
+};
+
 template<>
-struct type_substitution<unsigned char> {
-    using type = uint32_t;
+struct reduce_type<std::nullptr_t, void> {
+    using type = void*;
 };
-template<>
-struct type_substitution<unsigned short> {
-    using type = uint32_t;
-};
-template<>
-struct type_substitution<unsigned> {
-    using type = uint32_t;
-};
-template<>
-struct type_substitution<unsigned long> {
-    using type = std::conditional_t<sizeof(long) == sizeof(int32_t), uint32_t, uint64_t>;
-};
-template<>
-struct type_substitution<unsigned long long> {
-    using type = uint64_t;
-};
-template<>
-struct type_substitution<signed char> {
-    using type = int32_t;
-};
-template<>
-struct type_substitution<signed short> {
-    using type = int32_t;
-};
-template<>
-struct type_substitution<signed> {
-    using type = int32_t;
-};
-template<>
-struct type_substitution<signed long> {
-    using type = std::conditional_t<sizeof(long) == sizeof(int32_t), int32_t, int64_t>;
-};
-template<>
-struct type_substitution<signed long long> {
-    using type = int64_t;
-};
-template<>
-struct type_substitution<long double> {
-    using type = double;
-};
+
+template<typename Ty>
+using reduce_type_t = typename reduce_type<Ty>::type;
 
 // --------------------------
 
 template<typename Ty, typename CharT>
-UXS_EXPORT Ty to_integer_limited(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) NOEXCEPT;
+UXS_EXPORT Ty to_integral_common(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) NOEXCEPT;
+
+template<typename CharT>
+UXS_EXPORT uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, const unsigned bpm,
+                                    const int exp_max) NOEXCEPT;
 
 template<typename Ty, typename CharT>
-Ty to_integer(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
+UXS_EXPORT Ty to_bool(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT;
+
+template<typename Ty, typename CharT>
+Ty to_integral(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
     using UTy = typename std::make_unsigned<Ty>::type;
-    return to_integer_limited<typename type_substitution<UTy>::type>(p, end, last, std::numeric_limits<UTy>::max());
+    return static_cast<Ty>(to_integral_common<reduce_type_t<UTy>>(p, end, last, std::numeric_limits<UTy>::max()));
 }
 
 template<typename Ty, typename CharT>
@@ -379,39 +369,39 @@ Ty to_char(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
     return *p;
 }
 
-template<typename CharT>
-UXS_EXPORT uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, const unsigned bpm,
-                                    const int exp_max) NOEXCEPT;
-
 template<typename Ty, typename CharT>
 Ty to_float(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
-    using SubstTy = typename type_substitution<Ty>::type;
-    return fp_traits<SubstTy>::from_u64(
-        to_float_common(p, end, last, fp_traits<SubstTy>::kBitsPerMantissa, fp_traits<SubstTy>::kExpMax));
+    using FpTy = std::conditional_t<(sizeof(Ty) <= sizeof(double)), Ty, double>;
+    return static_cast<Ty>(fp_traits<FpTy>::from_u64(
+        to_float_common(p, end, last, fp_traits<FpTy>::kBitsPerMantissa, fp_traits<FpTy>::kExpMax)));
 }
-
-template<typename Ty, typename CharT>
-UXS_EXPORT Ty to_bool(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT;
 
 // --------------------------
 
 template<typename CharT, typename Ty>
-UXS_EXPORT void fmt_integral(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt);
+UXS_EXPORT void fmt_integral_common(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt);
 
 template<typename CharT, typename Ty>
 UXS_EXPORT void fmt_char(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt);
+
+template<typename CharT, typename Ty>
+UXS_EXPORT void fmt_bool(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt);
 
 template<typename CharT>
 UXS_EXPORT void fmt_float_common(basic_membuffer<CharT>& s, uint64_t u64, const fmt_opts& fmt, const unsigned bpm,
                                  const int exp_max);
 
 template<typename CharT, typename Ty>
-void fmt_float(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt) {
-    fmt_float_common(s, fp_traits<Ty>::to_u64(val), fmt, fp_traits<Ty>::kBitsPerMantissa, fp_traits<Ty>::kExpMax);
+void fmt_integral(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt) {
+    fmt_integral_common(s, static_cast<reduce_type_t<Ty>>(val), fmt);
 }
 
 template<typename CharT, typename Ty>
-UXS_EXPORT void fmt_bool(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt);
+void fmt_float(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt) {
+    using FpTy = std::conditional_t<(sizeof(Ty) <= sizeof(double)), Ty, double>;
+    fmt_float_common(s, fp_traits<Ty>::to_u64(static_cast<FpTy>(val)), fmt, fp_traits<Ty>::kBitsPerMantissa,
+                     fp_traits<Ty>::kExpMax);
+}
 
 }  // namespace scvt
 
@@ -456,7 +446,7 @@ struct has_formatter : detail::has_formatter<Ty, StrTy>::type {};
         ty default_value() const NOEXCEPT { return {}; } \
         const CharT* from_chars(const CharT* first, const CharT* last, ty& val) const NOEXCEPT { \
             auto t = scvt::from_chars_func<ty>(first, last, last); \
-            if (last != first) { val = static_cast<ty>(t); } \
+            if (last != first) { val = t; } \
             return last; \
         } \
     }; \
@@ -469,34 +459,26 @@ struct has_formatter : detail::has_formatter<Ty, StrTy>::type {};
             s.append(buf.data(), buf.data() + buf.size()); \
         } \
         void format(basic_membuffer<CharT>& s, ty val, const fmt_opts& fmt) const { \
-            using Ty = scvt::type_substitution<ty>::type; \
-            scvt::fmt_func<CharT, Ty>(s, static_cast<Ty>(val), fmt); \
+            scvt::fmt_func<CharT, ty>(s, val, fmt); \
         } \
     };
 
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned char, to_integer, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned short, to_integer, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned, to_integer, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned long, to_integer, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned long long, to_integer, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed char, to_integer, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed short, to_integer, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed, to_integer, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed long, to_integer, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed long long, to_integer, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(char, to_char, fmt_char)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(wchar_t, to_char, fmt_char)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned char, to_integral, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned short, to_integral, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned, to_integral, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned long, to_integral, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned long long, to_integral, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed char, to_integral, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed short, to_integral, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed, to_integral, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed long, to_integral, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed long long, to_integral, fmt_integral)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(CharT, to_char, fmt_char)
 UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(bool, to_bool, fmt_bool)
 UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(float, to_float, fmt_float)
 UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(double, to_float, fmt_float)
 UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(long double, to_float, fmt_float)
 #undef SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER
-
-template<>
-struct string_parser<char, wchar_t>;  // = delete
-
-template<>
-struct formatter<wchar_t, char>;  // = delete
 
 template<typename Ty>
 const char* from_chars(const char* first, const char* last, Ty& v) {

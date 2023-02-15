@@ -6,12 +6,12 @@
 
 namespace uxs {
 
-template<typename CharT>
+template<typename CharT, typename = void>
 struct is_character : std::false_type {};
-template<>
-struct is_character<char> : std::true_type {};
-template<>
-struct is_character<wchar_t> : std::true_type {};
+template<typename CharT>
+struct is_character<CharT, std::enable_if_t<std::is_same<std::remove_cv_t<CharT>, char>::value>> : std::true_type {};
+template<typename CharT>
+struct is_character<CharT, std::enable_if_t<std::is_same<std::remove_cv_t<CharT>, wchar_t>::value>> : std::true_type {};
 
 namespace detail {
 enum char_bits {

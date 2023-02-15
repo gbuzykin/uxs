@@ -123,7 +123,8 @@ void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
                 to_basic_string(buf, v.value_.dbl, fmt_opts{fmt_flags::kAlternate});
             } break;
             case dtype::kString: {
-                print_quoted_text<char>(output_, uxs::detail::utf8_string_converter<CharT>::to(v.str_view()));
+                print_quoted_text(output_,
+                                  std::string_view{uxs::detail::utf8_string_converter<CharT>::to(v.str_view())});
             } break;
             case dtype::kArray: {
                 output_.put('[');
@@ -162,7 +163,7 @@ loop:
         while (el != range.end()) {
             if (el != range.begin()) { output_.put(','); }
             output_.put('\n').fill_n(indent, indent_char_);
-            print_quoted_text<char>(output_, uxs::detail::utf8_string_converter<CharT>::to(el->first));
+            print_quoted_text(output_, std::string_view{uxs::detail::utf8_string_converter<CharT>::to(el->first)});
             output_.put(':').put(' ');
             if (write_value((el++)->second)) {
                 (stack.curr() - 2)->record_it = el;

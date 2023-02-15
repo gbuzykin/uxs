@@ -16,193 +16,213 @@ class format_error : public std::runtime_error {
 
 namespace sfmt {
 
-enum class arg_type_id {
-    kUnsignedChar = 0,
-    kUnsignedShort,
-    kUnsigned,
-    kUnsignedLong,
+enum class type_id : uint8_t {
+    kUnsigned = 0,
     kUnsignedLongLong,
-    kSignedChar,
-    kSignedShort,
     kSigned,
-    kSignedLong,
     kSignedLongLong,
     kChar,
-    kWChar,
     kBool,
     kFloat,
     kDouble,
     kLongDouble,
     kPointer,
+    kCString,
     kString,
     kCustom
 };
 
-template<typename Ty, typename = void>
-struct type_id_t : std::integral_constant<arg_type_id, arg_type_id::kCustom> {};
-
-#define UXS_FMT_DECLARE_TYPE_ID(ty, type_id) \
-    template<> \
-    struct type_id_t<ty, void> : std::integral_constant<arg_type_id, arg_type_id::type_id> {};
-UXS_FMT_DECLARE_TYPE_ID(unsigned char, kUnsignedChar)
-UXS_FMT_DECLARE_TYPE_ID(unsigned short, kUnsignedShort)
-UXS_FMT_DECLARE_TYPE_ID(unsigned, kUnsigned)
-UXS_FMT_DECLARE_TYPE_ID(unsigned long, kUnsignedLong)
-UXS_FMT_DECLARE_TYPE_ID(unsigned long long, kUnsignedLongLong)
-UXS_FMT_DECLARE_TYPE_ID(signed char, kSignedChar)
-UXS_FMT_DECLARE_TYPE_ID(signed short, kSignedShort)
-UXS_FMT_DECLARE_TYPE_ID(signed, kSigned)
-UXS_FMT_DECLARE_TYPE_ID(signed long, kSignedLong)
-UXS_FMT_DECLARE_TYPE_ID(signed long long, kSignedLongLong)
-UXS_FMT_DECLARE_TYPE_ID(char, kChar)
-UXS_FMT_DECLARE_TYPE_ID(wchar_t, kWChar)
-UXS_FMT_DECLARE_TYPE_ID(bool, kBool)
-UXS_FMT_DECLARE_TYPE_ID(float, kFloat)
-UXS_FMT_DECLARE_TYPE_ID(double, kDouble)
-UXS_FMT_DECLARE_TYPE_ID(long double, kLongDouble)
-#undef UXS_FMT_DECLARE_TYPE_ID
-
-template<typename Ty>
-struct type_id_t<Ty*, std::enable_if_t<!is_character<Ty>::value>>
-    : std::integral_constant<arg_type_id, arg_type_id::kPointer> {};
-
-template<typename CharT>
-struct type_id_t<CharT*, std::enable_if_t<is_character<CharT>::value>>
-    : std::integral_constant<arg_type_id, arg_type_id::kString> {};
-
-template<typename CharT, typename Traits>
-struct type_id_t<std::basic_string_view<CharT, Traits>, void>
-    : std::integral_constant<arg_type_id, arg_type_id::kString> {};
-
-template<typename CharT, typename Traits, typename Alloc>
-struct type_id_t<std::basic_string<CharT, Traits, Alloc>, void>
-    : std::integral_constant<arg_type_id, arg_type_id::kString> {};
-
-struct arg_store_value {
-    template<typename... Ts>
-    using aligned_storage_t = typename std::aligned_storage<size_of<Ts...>::value, alignment_of<Ts...>::value>::type;
-    aligned_storage_t<double, long long, void*> data;
-    arg_store_value() = default;
-    template<typename Ty>
-    explicit arg_store_value(const Ty& v) {
-        ::new (&data) Ty(v);
-    }
-    template<typename Ty>
-    Ty as() const {
-        return Ty(*reinterpret_cast<const Ty*>(&data));
-    }
-};
-
-template<typename StrTy, typename Ty, typename = void>
-struct arg_fmt_func_t;
-
-template<typename StrTy, typename Ty>
-struct arg_fmt_func_t<
-    StrTy, Ty, std::enable_if_t<has_formatter<Ty, StrTy>::value && (type_id_t<Ty>::value < arg_type_id::kPointer)>> {
-    static void func(StrTy& s, arg_store_value val, fmt_opts& fmt) {
-        uxs::to_basic_string(s, val.as<Ty>(), fmt);  // stored by value
-    }
-};
-
-template<typename StrTy, typename Ty>
-struct arg_fmt_func_t<
-    StrTy, Ty, std::enable_if_t<has_formatter<Ty, StrTy>::value && (type_id_t<Ty>::value >= arg_type_id::kPointer)>> {
-    static void func(StrTy& s, arg_store_value val, fmt_opts& fmt) {
-        uxs::to_basic_string(s, *val.as<const Ty*>(), fmt);  // stored by pointer
-    }
-};
-
-template<typename StrTy, typename Ty>
-struct arg_fmt_func_t<StrTy, Ty*, std::enable_if_t<!is_character<Ty>::value>> {
-    static void func(StrTy& s, arg_store_value val, fmt_opts& fmt) {
-        fmt.flags |= fmt_flags::kHex | fmt_flags::kAlternate;
-        uxs::to_basic_string(s, val.as<uintptr_t>(), fmt);
-    }
-};
-
-template<typename CharT, typename StrTy>
-UXS_EXPORT void adjust_string(StrTy& s, span<const CharT> val, fmt_opts& fmt);
-
 template<typename StrTy>
-struct arg_fmt_func_t<StrTy, typename StrTy::value_type*, void> {
-    static void func(StrTy& s, arg_store_value val, fmt_opts& fmt) {
-        using CharT = typename StrTy::value_type;
-        adjust_string<CharT>(s, std::basic_string_view<CharT>(val.as<const CharT*>()), fmt);
-    }
+struct arg_custom_value {
+    arg_custom_value(const void* v, void (*fn)(StrTy&, const void*, fmt_opts&)) NOEXCEPT : val(v), print_fn(fn) {}
+    const void* val;                                   // value pointer
+    void (*print_fn)(StrTy&, const void*, fmt_opts&);  // printing function pointer
 };
 
-template<typename StrTy, typename Traits>
-struct arg_fmt_func_t<StrTy, std::basic_string_view<typename StrTy::value_type, Traits>, void> {
-    static void func(StrTy& s, arg_store_value val, fmt_opts& fmt) {
-        using CharT = typename StrTy::value_type;
-        adjust_string<CharT>(s, *val.as<const std::basic_string_view<CharT, Traits>*>(), fmt);
-    }
+namespace detail {
+template<typename Ty>
+struct arg_type_id : std::integral_constant<type_id, type_id::kCustom> {};
+
+template<typename StrTy, typename Ty>
+struct arg_store_type {
+    using type = arg_custom_value<StrTy>;
 };
 
-template<typename StrTy, typename Traits, typename Alloc>
-struct arg_fmt_func_t<StrTy, std::basic_string<typename StrTy::value_type, Traits, Alloc>, void> {
-    static void func(StrTy& s, arg_store_value val, fmt_opts& fmt) {
-        using CharT = typename StrTy::value_type;
-        adjust_string<CharT>(s, *val.as<const std::basic_string<CharT, Traits, Alloc>*>(), fmt);
-    }
-};
-
-template<typename Ty, typename = void>
-struct arg_type {
-    using type = Ty;
-};
+#define UXS_FMT_DECLARE_ARG_TYPE_ID(ty, store_ty, id) \
+    template<> \
+    struct arg_type_id<ty> : std::integral_constant<type_id, type_id::id> {}; \
+    template<typename StrTy> \
+    struct arg_store_type<StrTy, ty> { \
+        using type = store_ty; \
+    };
+UXS_FMT_DECLARE_ARG_TYPE_ID(uint32_t, uint32_t, kUnsigned)
+UXS_FMT_DECLARE_ARG_TYPE_ID(uint64_t, uint64_t, kUnsignedLongLong)
+UXS_FMT_DECLARE_ARG_TYPE_ID(int32_t, int32_t, kSigned)
+UXS_FMT_DECLARE_ARG_TYPE_ID(int64_t, int64_t, kSignedLongLong)
+UXS_FMT_DECLARE_ARG_TYPE_ID(char, typename StrTy::value_type, kChar)
+UXS_FMT_DECLARE_ARG_TYPE_ID(wchar_t, typename StrTy::value_type, kChar)
+UXS_FMT_DECLARE_ARG_TYPE_ID(bool, bool, kBool)
+UXS_FMT_DECLARE_ARG_TYPE_ID(float, float, kFloat)
+UXS_FMT_DECLARE_ARG_TYPE_ID(double, double, kDouble)
+UXS_FMT_DECLARE_ARG_TYPE_ID(long double, long double, kLongDouble)
+#undef UXS_FMT_DECLARE_ARG_TYPE_ID
 
 template<typename Ty>
-struct arg_type<Ty, std::enable_if_t<std::is_array<Ty>::value>> {
-    using type = typename std::add_pointer<std::remove_cv_t<typename std::remove_extent<Ty>::type>>::type;
-};
+struct arg_type_id<Ty*>
+    : std::integral_constant<type_id, is_character<Ty>::value ? type_id::kCString : type_id::kPointer> {};
+template<typename CharT, typename Traits>
+struct arg_type_id<std::basic_string_view<CharT, Traits>> : std::integral_constant<type_id, type_id::kString> {};
+template<typename CharT, typename Traits, typename Alloc>
+struct arg_type_id<std::basic_string<CharT, Traits, Alloc>> : std::integral_constant<type_id, type_id::kString> {};
 
-template<typename Ty>
-struct arg_type<Ty*, void> {
-    using type = typename std::add_pointer<std::remove_cv_t<Ty>>::type;
-};
-
-template<>
-struct arg_type<std::nullptr_t, void> {
+template<typename StrTy, typename Ty>
+struct arg_store_type<StrTy, Ty*> {
     using type = void*;
 };
+template<typename StrTy, typename CharT, typename Traits>
+struct arg_store_type<StrTy, std::basic_string_view<CharT, Traits>> {
+    using type = std::basic_string_view<CharT>;
+};
+template<typename StrTy, typename CharT, typename Traits, typename Alloc>
+struct arg_store_type<StrTy, std::basic_string<CharT, Traits, Alloc>> {
+    using type = std::basic_string_view<CharT>;
+};
+}  // namespace detail
 
 template<typename Ty>
-std::enable_if_t<(type_id_t<typename arg_type<Ty>::type>::value < arg_type_id::kPointer), arg_store_value>
-make_arg_store_value(const Ty& v) {
-    return arg_store_value{v};  // store by value
-}
+using arg_type_id = detail::arg_type_id<scvt::reduce_type_t<Ty>>;
 
-template<typename Ty>
-std::enable_if_t<(type_id_t<typename arg_type<Ty>::type>::value >= arg_type_id::kPointer), arg_store_value>
-make_arg_store_value(const Ty& v) {
-    return arg_store_value{&v};  // store by pointer
-}
+template<typename StrTy, typename Ty>
+using arg_store_type_t = typename detail::arg_store_type<StrTy, scvt::reduce_type_t<Ty>>::type;
 
-template<typename Ty>
-arg_store_value make_arg_store_value(Ty* v) {
-    return arg_store_value{v};  // store the pointer
-}
+template<typename StrTy, typename Ty>
+using arg_size = uxs::size_of<arg_store_type_t<StrTy, Ty>>;
 
-inline arg_store_value make_arg_store_value(std::nullptr_t) { return arg_store_value{static_cast<void*>(nullptr)}; }
+template<typename StrTy, typename Ty>
+using arg_alignment = std::alignment_of<arg_store_type_t<StrTy, Ty>>;
 
+template<typename StrTy, size_t, typename...>
+struct arg_store_size_evaluator;
 template<typename StrTy>
-struct arg_store_item {
-    arg_store_item() = default;
-    template<typename Ty>
-    explicit arg_store_item(const Ty& arg)
-        : value(make_arg_store_value(arg)), fmt_func(arg_fmt_func_t<StrTy, typename arg_type<Ty>::type>::func),
-          type_id(type_id_t<typename arg_type<Ty>::type>::value) {}
-    arg_store_value value;
-    void (*fmt_func)(StrTy&, arg_store_value, fmt_opts&) = nullptr;
-    arg_type_id type_id = arg_type_id::kUnsignedChar;
+struct arg_store_size_evaluator<StrTy, 0> : std::integral_constant<size_t, 1> {};
+template<typename StrTy, size_t Size>
+struct arg_store_size_evaluator<StrTy, Size> : std::integral_constant<size_t, Size> {};
+template<typename StrTy, size_t Size, typename Ty, typename... Rest>
+struct arg_store_size_evaluator<StrTy, Size, Ty, Rest...>
+    : std::integral_constant<
+          size_t, arg_store_size_evaluator<StrTy,
+                                           uxs::aligned<arg_alignment<StrTy, Ty>::value>::template type<Size>::value +
+                                               arg_size<StrTy, Ty>::value,
+                                           Rest...>::value> {};
+
+template<typename StrTy, typename...>
+struct arg_store_alignment_evaluator;
+template<typename StrTy>
+struct arg_store_alignment_evaluator<StrTy> : std::integral_constant<size_t, 1> {};
+template<typename StrTy, typename Ty>
+struct arg_store_alignment_evaluator<StrTy, Ty> : arg_alignment<StrTy, Ty> {};
+template<typename StrTy, typename Ty1, typename Ty2, typename... Rest>
+struct arg_store_alignment_evaluator<StrTy, Ty1, Ty2, Rest...>
+    : std::conditional<(arg_alignment<StrTy, Ty1>::value > arg_alignment<StrTy, Ty2>::value),
+                       arg_store_alignment_evaluator<StrTy, Ty1, Rest...>,
+                       arg_store_alignment_evaluator<StrTy, Ty2, Rest...>>::type {};
+
+template<typename StrTy, typename Ty>
+struct arg_fmt_func_t {
+    static void func(StrTy& s, const void* val, fmt_opts& fmt) {
+        uxs::to_basic_string(s, *static_cast<const Ty*>(val), fmt);
+    }
 };
 
 template<typename StrTy, typename... Args>
-using arg_store = std::array<const arg_store_item<StrTy>, sizeof...(Args)>;
+class arg_store {
+ public:
+    using char_type = typename StrTy::value_type;
+    static const size_t kArgCount = sizeof...(Args);
+    static const size_t kStorageSize = arg_store_size_evaluator<StrTy, kArgCount * sizeof(unsigned), Args...>::value;
+    static const size_t kStorageAlignment = arg_store_alignment_evaluator<StrTy, unsigned, Args...>::value;
+
+    explicit arg_store(const Args&... args) NOEXCEPT { store_values(0, kArgCount * sizeof(unsigned), args...); }
+
+    const void* data() const NOEXCEPT { return reinterpret_cast<const void*>(&storage_); }
+
+ private:
+    typename std::aligned_storage<kStorageSize, kStorageAlignment>::type storage_;
+
+    template<typename Ty>
+    static void store_value(const Ty& v,
+                            std::enable_if_t<(arg_type_id<Ty>::value < type_id::kPointer), void*> data) NOEXCEPT {
+        static_assert(arg_type_id<Ty>::value != type_id::kChar || sizeof(Ty) <= sizeof(char_type),
+                      "inconsistent character argument type");
+        ::new (data) arg_store_type_t<StrTy, Ty>(v);
+    }
+
+    template<typename Ty>
+    static void store_value(const Ty& v,
+                            std::enable_if_t<(arg_type_id<Ty>::value == type_id::kCustom), void*> data) NOEXCEPT {
+        static_assert(has_formatter<scvt::reduce_type_t<Ty>, StrTy>::value, "value of this type cannot be formatted");
+        ::new (data) arg_custom_value<StrTy>(&v, &arg_fmt_func_t<StrTy, scvt::reduce_type_t<Ty>>::func);
+    }
+
+    template<typename Ty>
+    static void store_value(Ty* v, void* data) NOEXCEPT {
+        static_assert(!is_character<Ty>::value || std::is_same<std::remove_cv_t<Ty>, char_type>::value,
+                      "inconsistent string argument type");
+        ::new (data) const void*(v);
+    }
+
+    static void store_value(std::nullptr_t, void* data) NOEXCEPT { ::new (data) const void*(nullptr); }
+
+    template<typename CharT, typename Traits>
+    static void store_value(const std::basic_string_view<CharT, Traits>& s, void* data) NOEXCEPT {
+        using Ty = std::basic_string_view<CharT, Traits>;
+        static_assert(std::is_same<CharT, char_type>::value, "inconsistent string argument type");
+        static_assert(std::is_trivially_copyable<Ty>::value && std::is_trivially_destructible<Ty>::value,
+                      "std::basic_string_view<> is assumed to be trivially copyable and destructible");
+        ::new (data) Ty(s.data(), s.size());
+    }
+
+    template<typename CharT, typename Traits, typename Alloc>
+    static void store_value(const std::basic_string<CharT, Traits, Alloc>& s, void* data) NOEXCEPT {
+        using Ty = std::basic_string_view<CharT, Traits>;
+        static_assert(std::is_same<CharT, char_type>::value, "inconsistent string argument type");
+        static_assert(std::is_trivially_copyable<Ty>::value && std::is_trivially_destructible<Ty>::value,
+                      "std::basic_string_view<> is assumed to be trivially copyable and destructible");
+        ::new (data) Ty(s.data(), s.size());
+    }
+
+    void store_values(size_t i, size_t offset) NOEXCEPT {}
+
+    template<typename Ty, typename... Ts>
+    void store_values(size_t i, size_t offset, const Ty& v, const Ts&... other) NOEXCEPT {
+        offset = uxs::aligned<arg_alignment<StrTy, Ty>::value>::value(offset);
+        reinterpret_cast<unsigned*>(&storage_)[i] = static_cast<unsigned>(offset << 8) |
+                                                    static_cast<unsigned>(arg_type_id<Ty>::value);
+        store_value(v, reinterpret_cast<uint8_t*>(&storage_) + offset);
+        store_values(i + 1, offset + arg_size<StrTy, Ty>::value, other...);
+    }
+};
 
 template<typename StrTy>
-using arg_list = span<const arg_store_item<StrTy>>;
+class arg_list {
+ public:
+    template<typename... Args>
+    arg_list(const arg_store<StrTy, Args...>& store) NOEXCEPT : data_(store.data()),
+                                                                size_(arg_store<StrTy, Args...>::kArgCount) {}
+
+    size_t size() const NOEXCEPT { return size_; }
+    bool empty() const NOEXCEPT { return !size_; }
+    type_id type(size_t i) const NOEXCEPT {
+        return static_cast<type_id>(static_cast<const unsigned*>(data_)[i] & 0xff);
+    }
+    const void* data(size_t i) const NOEXCEPT {
+        return static_cast<const uint8_t*>(data_) + (static_cast<const unsigned*>(data_)[i] >> 8);
+    }
+
+ private:
+    const void* data_;
+    size_t size_;
+};
 
 enum class parse_flags : unsigned {
     kDefault = 0,
@@ -264,7 +284,7 @@ struct meta_tbl_t {
         kCloseBr,
         kOther
     };
-    std::array<uint8_t, 128> tbl{};
+    std::array<uint8_t, 128> tbl;
     CONSTEXPR meta_tbl_t() {
         for (unsigned ch = 0; ch < tbl.size(); ++ch) { tbl[ch] = code_t::kOther; }
         tbl['<'] = code_t::kLeft, tbl['^'] = code_t::kMid, tbl['>'] = code_t::kRight;
@@ -288,7 +308,7 @@ static constexpr meta_tbl_t g_meta_tbl{};
 #endif  // __cplusplus < 201703L
 
 template<typename CharT, typename Ty>
-CONSTEXPR const CharT* accum_num(const CharT* p, const CharT* last, Ty& num) {
+CONSTEXPR const CharT* accum_num(const CharT* p, const CharT* last, Ty& num) NOEXCEPT {
     for (unsigned dig = 0; p != last && (dig = dig_v(*p)) < 10; ++p) { num = 10 * num + dig; }
     return p;
 }
@@ -495,8 +515,9 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
 enum class parse_format_error_code { kSuccess = 0, kInvalidFormat, kOutOfArgList };
 
 template<typename CharT, typename AppendFn, typename AppendArgFn, typename GetUIntArgFn>
-CONSTEXPR parse_format_error_code parse_format(span<const CharT> fmt, const size_t arg_count, const AppendFn& append_fn,
-                                               const AppendArgFn& append_arg_fn, const GetUIntArgFn& get_uint_arg_fn) {
+CONSTEXPR parse_format_error_code parse_format(std::basic_string_view<CharT> fmt, const size_t arg_count,
+                                               const AppendFn& append_fn, const AppendArgFn& append_arg_fn,
+                                               const GetUIntArgFn& get_uint_arg_fn) {
     unsigned n_arg_auto = 0;
     const CharT *first0 = fmt.data(), *first = first0, *last = first0 + fmt.size();
     while (first != last) {
@@ -540,109 +561,100 @@ CONSTEXPR parse_format_error_code parse_format(span<const CharT> fmt, const size
     return parse_format_error_code::kSuccess;
 }
 
-template<typename CharT>
-UXS_EXPORT basic_membuffer<CharT>& vformat(basic_membuffer<CharT>& s, span<const CharT> fmt,
-                                           arg_list<basic_membuffer<CharT>> args, const std::locale* p_loc = nullptr);
+template<typename StrTy>
+UXS_EXPORT StrTy& vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt, arg_list<StrTy> args,
+                          const std::locale* p_loc = nullptr);
 
 }  // namespace sfmt
-
-template<typename StrTy>
-using basic_format_arg = sfmt::arg_store_item<StrTy>;
-using format_arg = basic_format_arg<membuffer>;
-using wformat_arg = basic_format_arg<wmembuffer>;
 
 template<typename StrTy>
 using basic_format_args = sfmt::arg_list<StrTy>;
 using format_args = basic_format_args<membuffer>;
 using wformat_args = basic_format_args<wmembuffer>;
 
-template<typename StrTy, typename... Args>
-sfmt::arg_store<StrTy, Args...> make_basic_format_args(const Args&... args) NOEXCEPT {
-    return {{sfmt::arg_store_item<StrTy>{args}...}};
-}
-
 template<typename StrTy = membuffer, typename... Args>
 sfmt::arg_store<StrTy, Args...> make_format_args(const Args&... args) NOEXCEPT {
-    return make_basic_format_args<StrTy>(args...);
+    return sfmt::arg_store<StrTy, Args...>(args...);
 }
 
 template<typename StrTy = wmembuffer, typename... Args>
 sfmt::arg_store<StrTy, Args...> make_wformat_args(const Args&... args) NOEXCEPT {
-    return make_basic_format_args<StrTy>(args...);
+    return sfmt::arg_store<StrTy, Args...>(args...);
 }
 
-template<typename CharT, typename Traits = std::char_traits<CharT>>
+template<typename CharT>
 struct basic_runtime_string {
-    std::basic_string_view<CharT, Traits> s;
+    std::basic_string_view<CharT> s;
 };
 
 template<typename Str, typename = std::enable_if_t<
                            std::is_convertible<const Str&, std::basic_string_view<typename Str::value_type>>::value>>
-basic_runtime_string<typename Str::value_type> make_runtime_string(const Str& s) {
+basic_runtime_string<typename Str::value_type> make_runtime_string(const Str& s) NOEXCEPT {
     return basic_runtime_string<typename Str::value_type>{s};
 }
 
 template<typename CharT>
-basic_runtime_string<CharT> make_runtime_string(const CharT* s) {
+basic_runtime_string<CharT> make_runtime_string(const CharT* s) NOEXCEPT {
     return basic_runtime_string<CharT>{s};
 }
 
 inline void format_string_error(const char*) {}
 
-template<typename CharT, typename Traits = std::char_traits<CharT>, typename... Args>
+template<typename CharT, typename... Args>
 class basic_format_string {
  public:
     template<typename Ty,
-             typename = std::enable_if_t<std::is_convertible<const Ty&, std::basic_string_view<CharT, Traits>>::value>>
-    CONSTEVAL basic_format_string(const Ty& fmt) : checked(fmt) {
+             typename = std::enable_if_t<std::is_convertible<const Ty&, std::basic_string_view<CharT>>::value>>
+    CONSTEVAL basic_format_string(const Ty& fmt) NOEXCEPT : checked(fmt) {
 #if defined(HAS_CONSTEVAL)
-        const std::array<sfmt::arg_type_id, sizeof...(Args)> arg_type_ids{
-            sfmt::type_id_t<typename sfmt::arg_type<Args>::type>::value...};
+        const std::array<sfmt::type_id, sizeof...(Args)> arg_type_ids = {sfmt::arg_type_id<Args>::value...};
         const auto error_code = sfmt::parse_format<CharT>(
             checked, sizeof...(Args), [](const CharT*, const CharT*) constexpr {},
             [&arg_type_ids](unsigned n_arg, sfmt::arg_specs& specs) constexpr {
-                const sfmt::arg_type_id id = arg_type_ids[n_arg];
+                const sfmt::type_id id = arg_type_ids[n_arg];
                 const sfmt::parse_flags flag = specs.flags & sfmt::parse_flags::kSpecMask;
                 auto signed_needed = []() { format_string_error("argument format requires signed argument"); };
                 const auto numeric_needed = []() { throw format_error("argument format requires numeric argument"); };
                 if (flag == sfmt::parse_flags::kDefault) {
                     if (!!(specs.fmt.flags & fmt_flags::kSignField) &&
-                        (id < sfmt::arg_type_id::kSignedChar || id > sfmt::arg_type_id::kSignedLongLong) &&
-                        (id < sfmt::arg_type_id::kFloat || id > sfmt::arg_type_id::kLongDouble)) {
+                        (id < sfmt::type_id::kSigned || id > sfmt::type_id::kSignedLongLong) &&
+                        (id < sfmt::type_id::kFloat || id > sfmt::type_id::kLongDouble)) {
                         signed_needed();
                     }
-                    if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes) && id > sfmt::arg_type_id::kSignedLongLong &&
-                        (id < sfmt::arg_type_id::kFloat || id > sfmt::arg_type_id::kPointer)) {
+                    if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes) && id > sfmt::type_id::kSignedLongLong &&
+                        (id < sfmt::type_id::kFloat || id > sfmt::type_id::kPointer)) {
                         numeric_needed();
                     }
                     return;
                 } else if (flag == sfmt::parse_flags::kSpecIntegral) {
-                    if (id <= sfmt::arg_type_id::kBool) {
+                    if (id <= sfmt::type_id::kBool) {
                         if (!!(specs.fmt.flags & fmt_flags::kSignField) &&
-                            (id < sfmt::arg_type_id::kSignedChar || id > sfmt::arg_type_id::kWChar) &&
-                            (id < sfmt::arg_type_id::kFloat || id > sfmt::arg_type_id::kLongDouble)) {
+                            (id < sfmt::type_id::kSigned || id > sfmt::type_id::kChar) &&
+                            (id < sfmt::type_id::kFloat || id > sfmt::type_id::kLongDouble)) {
                             signed_needed();
                         }
                         return;
                     }
                 } else if (flag == sfmt::parse_flags::kSpecFloat) {
-                    if (id >= sfmt::arg_type_id::kFloat && id <= sfmt::arg_type_id::kLongDouble) { return; }
+                    if (id >= sfmt::type_id::kFloat && id <= sfmt::type_id::kLongDouble) { return; }
                 } else if (flag == sfmt::parse_flags::kSpecChar) {
                     if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
                     if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes)) { numeric_needed(); }
-                    if (id >= sfmt::arg_type_id::kUnsignedChar && id <= sfmt::arg_type_id::kWChar) { return; }
+                    if (id >= sfmt::type_id::kUnsigned && id <= sfmt::type_id::kChar) { return; }
                 } else if (flag == sfmt::parse_flags::kSpecPointer) {
                     if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
-                    if (id == sfmt::arg_type_id::kPointer) { return; }
+                    if (id == sfmt::type_id::kPointer) { return; }
                 } else if (flag == sfmt::parse_flags::kSpecString) {
                     if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
                     if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes)) { numeric_needed(); }
-                    if (id == sfmt::arg_type_id::kBool || id == sfmt::arg_type_id::kString) { return; }
+                    if (id == sfmt::type_id::kBool || id == sfmt::type_id::kCString || id == sfmt::type_id::kString) {
+                        return;
+                    }
                 }
                 format_string_error("invalid argument format specifier");
             },
             [&arg_type_ids](unsigned n_arg) constexpr->unsigned {
-                if (arg_type_ids[n_arg] > sfmt::arg_type_id::kSignedLongLong) {
+                if (arg_type_ids[n_arg] > sfmt::type_id::kSignedLongLong) {
                     format_string_error("argument is not an integer");
                 }
                 return 0;
@@ -655,11 +667,11 @@ class basic_format_string {
         }
 #endif  // defined(HAS_CONSTEVAL)
     }
-    basic_format_string(basic_runtime_string<CharT, Traits> fmt) : checked(fmt.s) {}
-    std::basic_string_view<CharT, Traits> get() const { return checked; }
+    basic_format_string(basic_runtime_string<CharT> fmt) NOEXCEPT : checked(fmt.s) {}
+    std::basic_string_view<CharT> get() const NOEXCEPT { return checked; }
 
  private:
-    std::basic_string_view<CharT, Traits> checked;
+    std::basic_string_view<CharT> checked;
 };
 
 #if defined(_MSC_VER) && _MSC_VER <= 1800
@@ -669,9 +681,9 @@ template<typename... Args>
 using wformat_string = basic_format_string<wchar_t>;
 #else   // defined(_MSC_VER) && _MSC_VER <= 1800
 template<typename... Args>
-using format_string = basic_format_string<char, std::char_traits<char>, type_identity_t<Args>...>;
+using format_string = basic_format_string<char, type_identity_t<Args>...>;
 template<typename... Args>
-using wformat_string = basic_format_string<wchar_t, std::char_traits<wchar_t>, type_identity_t<Args>...>;
+using wformat_string = basic_format_string<wchar_t, type_identity_t<Args>...>;
 #endif  // defined(_MSC_VER) && _MSC_VER <= 1800
 
 // ---- vformat
@@ -679,28 +691,28 @@ using wformat_string = basic_format_string<wchar_t, std::char_traits<wchar_t>, t
 template<typename... Args>
 NODISCARD std::string vformat(std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    sfmt::vformat<char>(buf, fmt, args);
+    sfmt::vformat<membuffer>(buf, fmt, args);
     return std::string(buf.data(), buf.size());
 }
 
 template<typename... Args>
 NODISCARD std::wstring vformat(std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    sfmt::vformat<wchar_t>(buf, fmt, args);
+    sfmt::vformat<wmembuffer>(buf, fmt, args);
     return std::wstring(buf.data(), buf.size());
 }
 
 template<typename... Args>
 NODISCARD std::string vformat(const std::locale& loc, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    sfmt::vformat<char>(buf, fmt, args, &loc);
+    sfmt::vformat<membuffer>(buf, fmt, args, &loc);
     return std::string(buf.data(), buf.size());
 }
 
 template<typename... Args>
 NODISCARD std::wstring vformat(const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    sfmt::vformat<wchar_t>(buf, fmt, args, &loc);
+    sfmt::vformat<wmembuffer>(buf, fmt, args, &loc);
     return std::wstring(buf.data(), buf.size());
 }
 
@@ -731,56 +743,56 @@ NODISCARD std::wstring format(const std::locale& loc, wformat_string<Args...> fm
 template<typename... Args>
 char* vformat_to(char* p, std::string_view fmt, format_args args) {
     membuffer buf(p);
-    return sfmt::vformat<char>(buf, fmt, args).curr();
+    return sfmt::vformat<membuffer>(buf, fmt, args).curr();
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
 OutputIt vformat_to(OutputIt out, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    sfmt::vformat<char>(buf, fmt, args);
+    sfmt::vformat<membuffer>(buf, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
 template<typename... Args>
 wchar_t* vformat_to(wchar_t* p, std::wstring_view fmt, wformat_args args) {
     wmembuffer buf(p);
-    return sfmt::vformat<wchar_t>(buf, fmt, args).curr();
+    return sfmt::vformat<wmembuffer>(buf, fmt, args).curr();
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
 OutputIt vformat_to(OutputIt out, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    sfmt::vformat<wchar_t>(buf, fmt, args);
+    sfmt::vformat<wmembuffer>(buf, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
 template<typename... Args>
 char* vformat_to(char* p, const std::locale& loc, std::string_view fmt, format_args args) {
     membuffer buf(p);
-    return sfmt::vformat<char>(buf, fmt, args, &loc).curr();
+    return sfmt::vformat<membuffer>(buf, fmt, args, &loc).curr();
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
 OutputIt vformat_to(OutputIt out, const std::locale& loc, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    sfmt::vformat<char>(buf, fmt, args, &loc);
+    sfmt::vformat<membuffer>(buf, fmt, args, &loc);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
 template<typename... Args>
 wchar_t* vformat_to(wchar_t* p, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     wmembuffer buf(p);
-    return sfmt::vformat<wchar_t>(buf, fmt, args, &loc).curr();
+    return sfmt::vformat<wmembuffer>(buf, fmt, args, &loc).curr();
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
 OutputIt vformat_to(OutputIt out, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    sfmt::vformat<wchar_t>(buf, fmt, args, &loc);
+    sfmt::vformat<wmembuffer>(buf, fmt, args, &loc);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
@@ -815,56 +827,56 @@ OutputIt format_to(OutputIt out, const std::locale& loc, wformat_string<Args...>
 template<typename... Args>
 char* vformat_to_n(char* p, size_t n, std::string_view fmt, format_args args) {
     membuffer buf(p, p + n);
-    return sfmt::vformat<char>(buf, fmt, args).curr();
+    return sfmt::vformat<membuffer>(buf, fmt, args).curr();
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
 OutputIt vformat_to_n(OutputIt out, size_t n, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    sfmt::vformat<char>(buf, fmt, args);
+    sfmt::vformat<membuffer>(buf, fmt, args);
     return std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out));
 }
 
 template<typename... Args>
 wchar_t* vformat_to_n(wchar_t* p, size_t n, std::wstring_view fmt, wformat_args args) {
     wmembuffer buf(p, p + n);
-    return sfmt::vformat<wchar_t>(buf, fmt, args).curr();
+    return sfmt::vformat<wmembuffer>(buf, fmt, args).curr();
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
 OutputIt vformat_to_n(OutputIt out, size_t n, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    sfmt::vformat<wchar_t>(buf, fmt, args);
+    sfmt::vformat<wmembuffer>(buf, fmt, args);
     return std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out));
 }
 
 template<typename... Args>
 char* vformat_to_n(char* p, size_t n, const std::locale& loc, std::string_view fmt, format_args args) {
     membuffer buf(p, p + n);
-    return sfmt::vformat<char>(buf, fmt, args, &loc).curr();
+    return sfmt::vformat<membuffer>(buf, fmt, args, &loc).curr();
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
 OutputIt vformat_to_n(OutputIt out, size_t n, const std::locale& loc, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    sfmt::vformat<char>(buf, fmt, args, &loc);
+    sfmt::vformat<membuffer>(buf, fmt, args, &loc);
     return std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out));
 }
 
 template<typename... Args>
 wchar_t* vformat_to_n(wchar_t* p, size_t n, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     wmembuffer buf(p, p + n);
-    return sfmt::vformat<wchar_t>(buf, fmt, args, &loc).curr();
+    return sfmt::vformat<wmembuffer>(buf, fmt, args, &loc).curr();
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
 OutputIt vformat_to_n(OutputIt out, size_t n, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    sfmt::vformat<wchar_t>(buf, fmt, args, &loc);
+    sfmt::vformat<wmembuffer>(buf, fmt, args, &loc);
     return std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out));
 }
 
@@ -896,8 +908,8 @@ OutputIt format_to_n(OutputIt out, size_t n, const std::locale& loc, wformat_str
 
 // ---- vprint
 
-template<typename CharT>
-basic_iobuf<CharT>& print_quoted_text(basic_iobuf<CharT>& out, std::basic_string_view<CharT> text) {
+template<typename CharT, typename Traits = std::char_traits<CharT>>
+basic_iobuf<CharT>& print_quoted_text(basic_iobuf<CharT>& out, std::basic_string_view<CharT, Traits> text) {
     const CharT *p1 = text.data(), *pend = text.data() + text.size();
     out.put('\"');
     for (const CharT* p2 = text.data(); p2 != pend; ++p2) {
@@ -948,28 +960,28 @@ using wmembuffer_for_iobuf = basic_membuffer_for_iobuf<wchar_t>;
 template<typename... Args>
 iobuf& vprint(iobuf& out, std::string_view fmt, format_args args) {
     membuffer_for_iobuf buf(out);
-    sfmt::vformat<char>(buf, fmt, args);
+    sfmt::vformat<membuffer>(buf, fmt, args);
     return out;
 }
 
 template<typename... Args>
 wiobuf& vprint(wiobuf& out, std::wstring_view fmt, wformat_args args) {
     wmembuffer_for_iobuf buf(out);
-    sfmt::vformat<wchar_t>(buf, fmt, args);
+    sfmt::vformat<wmembuffer>(buf, fmt, args);
     return out;
 }
 
 template<typename... Args>
 iobuf& vprint(iobuf& out, const std::locale& loc, std::string_view fmt, format_args args) {
     membuffer_for_iobuf buf(out);
-    sfmt::vformat<char>(buf, fmt, args, &loc);
+    sfmt::vformat<membuffer>(buf, fmt, args, &loc);
     return out;
 }
 
 template<typename... Args>
 wiobuf& vprint(wiobuf& out, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     wmembuffer_for_iobuf buf(out);
-    sfmt::vformat<wchar_t>(buf, fmt, args, &loc);
+    sfmt::vformat<wmembuffer>(buf, fmt, args, &loc);
     return out;
 }
 
