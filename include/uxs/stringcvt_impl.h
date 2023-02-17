@@ -92,7 +92,7 @@ inline unsigned ulog2(uint64_t x) { return __builtin_clzll(x | 1) ^ 63; }
 #else
 struct ulog2_table_t {
     std::array<unsigned, 256> n_bit;
-    CONSTEXPR ulog2_table_t() {
+    CONSTEXPR ulog2_table_t() : n_bit() {
         for (uint32_t n = 0; n < n_bit.size(); ++n) {
             uint32_t u8 = n;
             n_bit[n] = 0;

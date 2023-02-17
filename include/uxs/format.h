@@ -285,7 +285,7 @@ struct meta_tbl_t {
         kOther
     };
     std::array<uint8_t, 128> tbl;
-    CONSTEXPR meta_tbl_t() {
+    CONSTEXPR meta_tbl_t() : tbl() {
         for (unsigned ch = 0; ch < tbl.size(); ++ch) { tbl[ch] = code_t::kOther; }
         tbl['<'] = code_t::kLeft, tbl['^'] = code_t::kMid, tbl['>'] = code_t::kRight;
         tbl['{'] = code_t::kOpenBr, tbl['}'] = code_t::kCloseBr, tbl['.'] = code_t::kDot;
