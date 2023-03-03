@@ -111,7 +111,7 @@ template<typename StrTy, size_t Size, typename Ty, typename... Rest>
 struct arg_store_size_evaluator<StrTy, Size, Ty, Rest...>
     : std::integral_constant<
           size_t, arg_store_size_evaluator<StrTy,
-                                           uxs::aligned<arg_alignment<StrTy, Ty>::value>::template type<Size>::value +
+                                           uxs::align_up<arg_alignment<StrTy, Ty>::value>::template type<Size>::value +
                                                arg_size<StrTy, Ty>::value,
                                            Rest...>::value> {};
 
@@ -195,7 +195,7 @@ class arg_store {
 
     template<typename Ty, typename... Ts>
     void store_values(size_t i, size_t offset, const Ty& v, const Ts&... other) NOEXCEPT {
-        offset = uxs::aligned<arg_alignment<StrTy, Ty>::value>::value(offset);
+        offset = uxs::align_up<arg_alignment<StrTy, Ty>::value>::value(offset);
         reinterpret_cast<unsigned*>(&storage_)[i] = static_cast<unsigned>(offset << 8) |
                                                     static_cast<unsigned>(arg_type_id<Ty>::value);
         store_value(v, reinterpret_cast<uint8_t*>(&storage_) + offset);
