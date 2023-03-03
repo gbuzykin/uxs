@@ -74,8 +74,8 @@ template<class Ty>
 void as_const(const Ty&&) = delete;
 #    endif  // as const
 #    if (!defined(__GNUC__) || !defined(__cpp_lib_void_t)) && (!defined(_MSC_VER) || _MSC_VER <= 1800)
-template<typename... Ts>
-using void_t = typename uxs::type_identity<void, Ts...>::type;
+template<typename Ty, typename... Ts>
+using void_t = typename uxs::type_identity<void, Ty, Ts...>::type;
 #    endif  // void_t
 #    if (!defined(__GNUC__) || !defined(__cpp_lib_is_swappable)) && (!defined(_MSC_VER) || _MSC_VER > 1800)
 template<typename Ty>
