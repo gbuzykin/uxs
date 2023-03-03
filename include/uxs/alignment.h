@@ -12,7 +12,7 @@ template<typename... Ts>
 struct alignment_of : maximum<std::alignment_of<Ts>...> {};
 
 template<size_t Alignment>
-struct aligned {
+struct align_up {
     template<size_t Size>
     struct type : std::integral_constant<size_t, (Size + Alignment - 1) & ~(Alignment - 1)> {};
     static size_t value(size_t sz) { return (sz + Alignment - 1) & ~(Alignment - 1); }
