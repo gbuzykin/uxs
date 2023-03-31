@@ -482,260 +482,235 @@ inline bool is_integral(double d) {
 }  // namespace detail
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::as_bool(bool& res) const {
+uxs::optional<bool> basic_value<CharT, Alloc>::get_bool() const {
     switch (type_) {
-        case dtype::kNull: return false;
-        case dtype::kBoolean: res = value_.b; return true;
-        case dtype::kInteger: res = !!value_.i; return true;
-        case dtype::kUInteger: res = !!value_.u; return true;
-        case dtype::kInteger64: res = !!value_.i64; return true;
-        case dtype::kUInteger64: res = !!value_.u64; return true;
-        case dtype::kDouble: res = value_.dbl != 0.; return true;
-        case dtype::kString: return basic_stoval(str_view(), res) != 0;
-        case dtype::kArray: return false;
-        case dtype::kRecord: return false;
+        case dtype::kNull: return uxs::nullopt();
+        case dtype::kBoolean: return value_.b;
+        case dtype::kInteger: return value_.i != 0;
+        case dtype::kUInteger: return value_.u != 0;
+        case dtype::kInteger64: return value_.i64 != 0;
+        case dtype::kUInteger64: return value_.u64 != 0;
+        case dtype::kDouble: return value_.dbl != 0;
+        case dtype::kString: {
+            uxs::optional<bool> result(uxs::in_place());
+            return basic_stoval(str_view(), *result) ? result : uxs::nullopt();
+        } break;
+        case dtype::kArray: return uxs::nullopt();
+        case dtype::kRecord: return uxs::nullopt();
         default: UNREACHABLE_CODE;
     }
 }
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::as_int(int32_t& res) const {
+uxs::optional<int32_t> basic_value<CharT, Alloc>::get_int() const {
     switch (type_) {
-        case dtype::kNull: return false;
-        case dtype::kBoolean: res = value_.b ? 1 : 0; return true;
-        case dtype::kInteger: res = value_.i; return true;
-        case dtype::kUInteger: {
-            if (value_.u <= static_cast<uint32_t>(std::numeric_limits<int32_t>::max())) {
-                res = static_cast<int32_t>(value_.u);
-                return true;
-            }
+        case dtype::kNull: return uxs::nullopt();
+        case dtype::kBoolean: return value_.b ? 1 : 0;
+        case dtype::kInteger: return value_.i;
+        case dtype::kUInteger:
+            return value_.u <= static_cast<uint32_t>(std::numeric_limits<int32_t>::max()) ?
+                       uxs::make_optional(static_cast<int32_t>(value_.u)) :
+                       uxs::nullopt();
+        case dtype::kInteger64:
+            return value_.i64 >= std::numeric_limits<int32_t>::min() &&
+                           value_.i64 <= std::numeric_limits<int32_t>::max() ?
+                       uxs::make_optional(static_cast<int32_t>(value_.i64)) :
+                       uxs::nullopt();
+        case dtype::kUInteger64:
+            return value_.u64 <= static_cast<uint64_t>(std::numeric_limits<int32_t>::max()) ?
+                       uxs::make_optional(static_cast<int32_t>(value_.u64)) :
+                       uxs::nullopt();
+        case dtype::kDouble:
+            return value_.dbl >= std::numeric_limits<int32_t>::min() &&
+                           value_.dbl <= std::numeric_limits<int32_t>::max() ?
+                       uxs::make_optional(static_cast<int32_t>(value_.dbl)) :
+                       uxs::nullopt();
+        case dtype::kString: {
+            uxs::optional<int32_t> result(uxs::in_place());
+            return basic_stoval(str_view(), *result) ? result : uxs::nullopt();
         } break;
-        case dtype::kInteger64: {
-            if (value_.i64 >= std::numeric_limits<int32_t>::min() && value_.i64 <= std::numeric_limits<int32_t>::max()) {
-                res = static_cast<int32_t>(value_.i64);
-                return true;
-            }
-        } break;
-        case dtype::kUInteger64: {
-            if (value_.u64 <= static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
-                res = static_cast<int32_t>(value_.u64);
-                return true;
-            }
-        } break;
-        case dtype::kDouble: {
-            if (value_.dbl >= std::numeric_limits<int32_t>::min() && value_.dbl <= std::numeric_limits<int32_t>::max()) {
-                res = static_cast<int32_t>(value_.dbl);
-                return true;
-            }
-        } break;
-        case dtype::kString: return basic_stoval(str_view(), res) != 0;
-        case dtype::kArray: return false;
-        case dtype::kRecord: return false;
+        case dtype::kArray: return uxs::nullopt();
+        case dtype::kRecord: return uxs::nullopt();
         default: UNREACHABLE_CODE;
     }
-    return false;
 }
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::as_uint(uint32_t& res) const {
+uxs::optional<uint32_t> basic_value<CharT, Alloc>::get_uint() const {
     switch (type_) {
-        case dtype::kNull: return false;
-        case dtype::kBoolean: res = value_.b ? 1 : 0; return true;
-        case dtype::kInteger: {
-            if (value_.i >= 0) {
-                res = static_cast<uint32_t>(value_.i);
-                return true;
-            }
+        case dtype::kNull: return uxs::nullopt();
+        case dtype::kBoolean: return value_.b ? 1 : 0;
+        case dtype::kInteger:
+            return value_.i >= 0 ? uxs::make_optional(static_cast<uint32_t>(value_.i)) : uxs::nullopt();
+        case dtype::kUInteger: return value_.u;
+        case dtype::kInteger64:
+            return value_.i64 >= 0 && value_.i64 <= static_cast<int64_t>(std::numeric_limits<uint32_t>::max()) ?
+                       uxs::make_optional(static_cast<uint32_t>(value_.i64)) :
+                       uxs::nullopt();
+        case dtype::kUInteger64:
+            return value_.u64 <= std::numeric_limits<uint32_t>::max() ?
+                       uxs::make_optional(static_cast<uint32_t>(value_.u64)) :
+                       uxs::nullopt();
+        case dtype::kDouble:
+            return value_.dbl >= 0 && value_.dbl <= std::numeric_limits<uint32_t>::max() ?
+                       uxs::make_optional(static_cast<uint32_t>(value_.dbl)) :
+                       uxs::nullopt();
+        case dtype::kString: {
+            uxs::optional<uint32_t> result(uxs::in_place());
+            return basic_stoval(str_view(), *result) ? result : uxs::nullopt();
         } break;
-        case dtype::kUInteger: res = value_.u; return true;
-        case dtype::kInteger64: {
-            if (value_.i64 >= 0 && value_.i64 <= static_cast<int64_t>(std::numeric_limits<uint32_t>::max())) {
-                res = static_cast<uint32_t>(value_.i64);
-                return true;
-            }
-        } break;
-        case dtype::kUInteger64: {
-            if (value_.u64 <= std::numeric_limits<uint32_t>::max()) {
-                res = static_cast<uint32_t>(value_.u64);
-                return true;
-            }
-        } break;
-        case dtype::kDouble: {
-            if (value_.dbl >= 0 && value_.dbl <= std::numeric_limits<uint32_t>::max()) {
-                res = static_cast<uint32_t>(value_.dbl);
-                return true;
-            }
-        } break;
-        case dtype::kString: return basic_stoval(str_view(), res) != 0;
-        case dtype::kArray: return false;
-        case dtype::kRecord: return false;
+        case dtype::kArray: return uxs::nullopt();
+        case dtype::kRecord: return uxs::nullopt();
         default: UNREACHABLE_CODE;
     }
-    return false;
 }
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::as_int64(int64_t& res) const {
+uxs::optional<int64_t> basic_value<CharT, Alloc>::get_int64() const {
     switch (type_) {
-        case dtype::kNull: return false;
-        case dtype::kBoolean: res = value_.b ? 1 : 0; return true;
-        case dtype::kInteger: res = value_.i; return true;
-        case dtype::kUInteger: res = static_cast<int64_t>(value_.u); return true;
-        case dtype::kInteger64: res = value_.i64; return true;
-        case dtype::kUInteger64: {
-            if (value_.u64 <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
-                res = static_cast<int64_t>(value_.u64);
-                return true;
-            }
-        } break;
-        case dtype::kDouble: {
+        case dtype::kNull: return uxs::nullopt();
+        case dtype::kBoolean: return value_.b ? 1 : 0;
+        case dtype::kInteger: return value_.i;
+        case dtype::kUInteger: return static_cast<int64_t>(value_.u);
+        case dtype::kInteger64: return value_.i64;
+        case dtype::kUInteger64:
+            return value_.u64 <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) ?
+                       uxs::make_optional(static_cast<int64_t>(value_.u64)) :
+                       uxs::nullopt();
+        case dtype::kDouble:
             // Note that double(2^63 - 1) will be rounded up to 2^63, so maximum is excluded
-            if (value_.dbl >= static_cast<double>(std::numeric_limits<int64_t>::min()) &&
-                value_.dbl < static_cast<double>(std::numeric_limits<int64_t>::max())) {
-                res = static_cast<int64_t>(value_.dbl);
-                return true;
-            }
+            return value_.dbl >= static_cast<double>(std::numeric_limits<int64_t>::min()) &&
+                           value_.dbl < static_cast<double>(std::numeric_limits<int64_t>::max()) ?
+                       uxs::make_optional(static_cast<int64_t>(value_.dbl)) :
+                       uxs::nullopt();
+        case dtype::kString: {
+            uxs::optional<int64_t> result(uxs::in_place());
+            return basic_stoval(str_view(), *result) ? result : uxs::nullopt();
         } break;
-        case dtype::kString: return basic_stoval(str_view(), res) != 0;
-        case dtype::kArray: return false;
-        case dtype::kRecord: return false;
+        case dtype::kArray: return uxs::nullopt();
+        case dtype::kRecord: return uxs::nullopt();
         default: UNREACHABLE_CODE;
     }
-    return false;
 }
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::as_uint64(uint64_t& res) const {
+uxs::optional<uint64_t> basic_value<CharT, Alloc>::get_uint64() const {
     switch (type_) {
-        case dtype::kNull: return false;
-        case dtype::kBoolean: res = value_.b ? 1 : 0; return true;
-        case dtype::kInteger: {
-            if (value_.i >= 0) {
-                res = static_cast<uint64_t>(value_.i);
-                return true;
-            }
-        } break;
-        case dtype::kUInteger: res = value_.u; return true;
-        case dtype::kInteger64: {
-            if (value_.i64 >= 0) {
-                res = static_cast<uint64_t>(value_.i64);
-                return true;
-            }
-        } break;
-        case dtype::kUInteger64: res = value_.u64; return true;
-        case dtype::kDouble: {
+        case dtype::kNull: return uxs::nullopt();
+        case dtype::kBoolean: return value_.b ? 1 : 0;
+        case dtype::kInteger:
+            return value_.i >= 0 ? uxs::make_optional(static_cast<uint64_t>(value_.i)) : uxs::nullopt();
+        case dtype::kUInteger: return value_.u;
+        case dtype::kInteger64:
+            return value_.i64 >= 0 ? uxs::make_optional(static_cast<uint64_t>(value_.i64)) : uxs::nullopt();
+        case dtype::kUInteger64: return value_.u64;
+        case dtype::kDouble:
             // Note that double(2^64 - 1) will be rounded up to 2^64, so maximum is excluded
-            if (value_.dbl >= 0 && value_.dbl < static_cast<double>(std::numeric_limits<uint64_t>::max())) {
-                res = static_cast<uint64_t>(value_.dbl);
-                return true;
-            }
+            return value_.dbl >= 0 && value_.dbl < static_cast<double>(std::numeric_limits<uint64_t>::max()) ?
+                       uxs::make_optional(static_cast<uint64_t>(value_.dbl)) :
+                       uxs::nullopt();
+        case dtype::kString: {
+            uxs::optional<uint64_t> result(uxs::in_place());
+            return basic_stoval(str_view(), *result) ? result : uxs::nullopt();
         } break;
-        case dtype::kString: return basic_stoval(str_view(), res) != 0;
-        case dtype::kArray: return false;
-        case dtype::kRecord: return false;
+        case dtype::kArray: return uxs::nullopt();
+        case dtype::kRecord: return uxs::nullopt();
         default: UNREACHABLE_CODE;
     }
-    return false;
 }
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::as_float(float& res) const {
+uxs::optional<float> basic_value<CharT, Alloc>::get_float() const {
     switch (type_) {
-        case dtype::kNull: return false;
-        case dtype::kBoolean: res = value_.b ? 1.f : 0.f; return true;
-        case dtype::kInteger: res = static_cast<float>(value_.i); return true;
-        case dtype::kUInteger: res = static_cast<float>(value_.u); return true;
-        case dtype::kInteger64: res = static_cast<float>(value_.i64); return true;
-        case dtype::kUInteger64: res = static_cast<float>(value_.u64); return true;
-        case dtype::kDouble: res = static_cast<float>(value_.dbl); return true;
-        case dtype::kString: return basic_stoval(str_view(), res) != 0;
-        case dtype::kArray: return false;
-        case dtype::kRecord: return false;
+        case dtype::kNull: return uxs::nullopt();
+        case dtype::kBoolean: return value_.b ? 1.f : 0.f;
+        case dtype::kInteger: return static_cast<float>(value_.i);
+        case dtype::kUInteger: return static_cast<float>(value_.u);
+        case dtype::kInteger64: return static_cast<float>(value_.i64);
+        case dtype::kUInteger64: return static_cast<float>(value_.u64);
+        case dtype::kDouble: return static_cast<float>(value_.dbl);
+        case dtype::kString: {
+            uxs::optional<float> result(uxs::in_place());
+            return basic_stoval(str_view(), *result) ? result : uxs::nullopt();
+        } break;
+        case dtype::kArray: return uxs::nullopt();
+        case dtype::kRecord: return uxs::nullopt();
         default: UNREACHABLE_CODE;
     }
 }
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::as_double(double& res) const {
+uxs::optional<double> basic_value<CharT, Alloc>::get_double() const {
     switch (type_) {
-        case dtype::kNull: return false;
-        case dtype::kBoolean: res = value_.b ? 1. : 0.; return true;
-        case dtype::kInteger: res = static_cast<double>(value_.i); return true;
-        case dtype::kUInteger: res = static_cast<double>(value_.u); return true;
-        case dtype::kInteger64: res = static_cast<double>(value_.i64); return true;
-        case dtype::kUInteger64: res = static_cast<double>(value_.u64); return true;
-        case dtype::kDouble: res = value_.dbl; return true;
-        case dtype::kString: return basic_stoval(str_view(), res) != 0;
-        case dtype::kArray: return false;
-        case dtype::kRecord: return false;
+        case dtype::kNull: return uxs::nullopt();
+        case dtype::kBoolean: return value_.b ? 1. : 0.;
+        case dtype::kInteger: return value_.i;
+        case dtype::kUInteger: return value_.u;
+        case dtype::kInteger64: return static_cast<double>(value_.i64);
+        case dtype::kUInteger64: return static_cast<double>(value_.u64);
+        case dtype::kDouble: return value_.dbl;
+        case dtype::kString: {
+            uxs::optional<double> result(uxs::in_place());
+            return basic_stoval(str_view(), *result) ? result : uxs::nullopt();
+        } break;
+        case dtype::kArray: return uxs::nullopt();
+        case dtype::kRecord: return uxs::nullopt();
         default: UNREACHABLE_CODE;
     }
 }
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::as_string(std::basic_string<char_type>& res) const {
+uxs::optional<std::basic_string<CharT>> basic_value<CharT, Alloc>::get_string() const {
     switch (type_) {
         case dtype::kNull: {
             auto sval = std::make_pair("null", 4u);
-            res.assign(sval.first, sval.first + sval.second);
-            return true;
+            return uxs::make_optional<std::basic_string<CharT>>(sval.first, sval.first + sval.second);
         } break;
         case dtype::kBoolean: {
             auto sval = value_.b ? std::make_pair("true", 4u) : std::make_pair("false", 5u);
-            res.assign(sval.first, sval.first + sval.second);
-            return true;
+            return uxs::make_optional<std::basic_string<CharT>>(sval.first, sval.first + sval.second);
         } break;
         case dtype::kInteger: {
             inline_basic_dynbuffer<CharT> buf;
             to_basic_string(buf, value_.i);
-            res.assign(buf.data(), buf.size());
-            return true;
+            return uxs::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::kUInteger: {
             inline_basic_dynbuffer<CharT> buf;
             to_basic_string(buf, value_.u);
-            res.assign(buf.data(), buf.size());
-            return true;
+            return uxs::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::kInteger64: {
             inline_basic_dynbuffer<CharT> buf;
             to_basic_string(buf, value_.i64);
-            res.assign(buf.data(), buf.size());
-            return true;
+            return uxs::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::kUInteger64: {
             inline_basic_dynbuffer<CharT> buf;
             to_basic_string(buf, value_.u64);
-            res.assign(buf.data(), buf.size());
-            return true;
+            return uxs::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::kDouble: {
             inline_basic_dynbuffer<CharT> buf;
             to_basic_string(buf, value_.dbl, fmt_opts{fmt_flags::kAlternate});
-            res.assign(buf.data(), buf.size());
-            return true;
+            return uxs::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
-        case dtype::kString: {
-            res = std::basic_string<char_type>(str_view());
-            return true;
-        } break;
-        case dtype::kArray: return false;
-        case dtype::kRecord: return false;
+        case dtype::kString: return uxs::make_optional<std::basic_string<CharT>>(str_view());
+        case dtype::kArray: return uxs::nullopt();
+        case dtype::kRecord: return uxs::nullopt();
         default: UNREACHABLE_CODE;
     }
 }
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::as_string_view(std::basic_string_view<char_type>& res) const {
-    if (type_ != dtype::kString) { return false; }
-    res = str_view();
-    return true;
+uxs::optional<std::basic_string_view<CharT>> basic_value<CharT, Alloc>::get_string_view() const {
+    return type_ == dtype::kString ? uxs::make_optional(str_view()) : uxs::nullopt();
 }
 
 // --------------------------
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::is_int() const {
+bool basic_value<CharT, Alloc>::is_int() const NOEXCEPT {
     switch (type_) {
         case dtype::kInteger: return true;
         case dtype::kUInteger: return value_.u <= static_cast<uint32_t>(std::numeric_limits<int32_t>::max());
@@ -752,7 +727,7 @@ bool basic_value<CharT, Alloc>::is_int() const {
 }
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::is_uint() const {
+bool basic_value<CharT, Alloc>::is_uint() const NOEXCEPT {
     switch (type_) {
         case dtype::kInteger: return value_.i >= 0;
         case dtype::kUInteger: return true;
@@ -768,7 +743,7 @@ bool basic_value<CharT, Alloc>::is_uint() const {
 }
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::is_int64() const {
+bool basic_value<CharT, Alloc>::is_int64() const NOEXCEPT {
     switch (type_) {
         case dtype::kInteger:
         case dtype::kUInteger:
@@ -785,7 +760,7 @@ bool basic_value<CharT, Alloc>::is_int64() const {
 }
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::is_uint64() const {
+bool basic_value<CharT, Alloc>::is_uint64() const NOEXCEPT {
     switch (type_) {
         case dtype::kInteger: return value_.i >= 0;
         case dtype::kUInteger: return true;
@@ -801,7 +776,7 @@ bool basic_value<CharT, Alloc>::is_uint64() const {
 }
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::is_integral() const {
+bool basic_value<CharT, Alloc>::is_integral() const NOEXCEPT {
     switch (type_) {
         case dtype::kInteger:
         case dtype::kUInteger:
@@ -823,7 +798,7 @@ template<typename CharT, typename Alloc>
 bool basic_value<CharT, Alloc>::convert(dtype type) {
     if (type == type_) { return true; }
     switch (type) {
-        case dtype::kNull: *this = basic_value(); break;
+        case dtype::kNull: *this = std::nullptr_t{}; break;
         case dtype::kBoolean: *this = as_bool(); break;
         case dtype::kInteger: *this = as_int(); break;
         case dtype::kUInteger: *this = as_uint(); break;

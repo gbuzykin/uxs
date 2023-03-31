@@ -4,6 +4,7 @@
 
 #include "uxs/allocator.h"
 #include "uxs/dllist.h"
+#include "uxs/optional.h"
 #include "uxs/span.h"
 #include "uxs/string_view.h"
 
@@ -185,14 +186,13 @@ class UXS_EXPORT basic_value : protected std::allocator_traits<Alloc>::template 
     using const_record_iterator = list_iterator<record_t, list_node_traits, true>;
 
     basic_value() NOEXCEPT_IF(std::is_nothrow_default_constructible<alloc_type>::value)
-        : alloc_type(), type_(dtype::kNull) {
-        value_.i = 0;
-    }
+        : alloc_type(), type_(dtype::kNull) {}
     basic_value(bool b) : alloc_type(), type_(dtype::kBoolean) { value_.b = b; }
     basic_value(int32_t i) : alloc_type(), type_(dtype::kInteger) { value_.i = i; }
     basic_value(uint32_t u) : alloc_type(), type_(dtype::kUInteger) { value_.u = u; }
     basic_value(int64_t i) : alloc_type(), type_(dtype::kInteger64) { value_.i64 = i; }
     basic_value(uint64_t u) : alloc_type(), type_(dtype::kUInteger64) { value_.u64 = u; }
+    basic_value(float f) : alloc_type(), type_(dtype::kDouble) { value_.dbl = f; }
     basic_value(double d) : alloc_type(), type_(dtype::kDouble) { value_.dbl = d; }
     basic_value(std::basic_string_view<char_type> s) : alloc_type(), type_(dtype::kString) {
         value_.str = alloc_string(s);
@@ -200,7 +200,8 @@ class UXS_EXPORT basic_value : protected std::allocator_traits<Alloc>::template 
     basic_value(const char_type* cstr) : alloc_type(), type_(dtype::kString) {
         value_.str = alloc_string(std::basic_string_view<char_type>(cstr));
     }
-    basic_value(std::nullptr_t) : alloc_type(), type_(dtype::kNull) {}
+    basic_value(std::nullptr_t) NOEXCEPT_IF(std::is_nothrow_default_constructible<alloc_type>::value)
+        : alloc_type(), type_(dtype::kNull) {}
 
     explicit basic_value(const Alloc& al) NOEXCEPT : alloc_type(al), type_(dtype::kNull) {}
     basic_value(bool b, const Alloc& al) : alloc_type(al), type_(dtype::kBoolean) { value_.b = b; }
@@ -208,6 +209,7 @@ class UXS_EXPORT basic_value : protected std::allocator_traits<Alloc>::template 
     basic_value(uint32_t u, const Alloc& al) : alloc_type(al), type_(dtype::kUInteger) { value_.u = u; }
     basic_value(int64_t i, const Alloc& al) : alloc_type(al), type_(dtype::kInteger64) { value_.i64 = i; }
     basic_value(uint64_t u, const Alloc& al) : alloc_type(al), type_(dtype::kUInteger64) { value_.u64 = u; }
+    basic_value(float f, const Alloc& al) : alloc_type(al), type_(dtype::kDouble) { value_.dbl = f; }
     basic_value(double d, const Alloc& al) : alloc_type(al), type_(dtype::kDouble) { value_.dbl = d; }
     basic_value(std::basic_string_view<char_type> s, const Alloc& al) : alloc_type(al), type_(dtype::kString) {
         value_.str = alloc_string(s);
@@ -215,7 +217,7 @@ class UXS_EXPORT basic_value : protected std::allocator_traits<Alloc>::template 
     basic_value(const char_type* cstr, const Alloc& al) : alloc_type(al), type_(dtype::kString) {
         value_.str = alloc_string(std::basic_string_view<char_type>(cstr));
     }
-    basic_value(std::nullptr_t, const Alloc& al) : alloc_type(al), type_(dtype::kNull) {}
+    basic_value(std::nullptr_t, const Alloc& al) NOEXCEPT : alloc_type(al), type_(dtype::kNull) {}
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     basic_value(InputIt first, InputIt last, const Alloc& al = Alloc()) : alloc_type(al) {
@@ -277,6 +279,7 @@ class UXS_EXPORT basic_value : protected std::allocator_traits<Alloc>::template 
     UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(uint32_t, kUInteger, u)
     UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(int64_t, kInteger64, i64)
     UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(uint64_t, kUInteger64, u64)
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(float, kDouble, dbl)
     UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(double, kDouble, dbl)
 #undef UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT
 
@@ -305,40 +308,63 @@ class UXS_EXPORT basic_value : protected std::allocator_traits<Alloc>::template 
     allocator_type get_allocator() const NOEXCEPT { return allocator_type(*this); }
 
     template<typename Ty>
-    bool is() const;
+    bool is() const NOEXCEPT;
 
     template<typename Ty>
     Ty as() const;
 
     template<typename Ty>
-    Ty get(Ty def) const;
+    uxs::optional<Ty> get() const;
+
+    template<typename Ty, typename U>
+    Ty value_or(U&& default_value) const {
+        auto result = get<Ty>();
+        return result ? *result : Ty(std::forward<U>(default_value));
+    }
+
+    template<typename Ty, typename U>
+    Ty value_or(std::basic_string_view<char_type> name, U&& default_value) const {
+        auto it = find(name);
+        if (it != nil()) {
+            auto result = get<Ty>();
+            if (result) { return *result; }
+        }
+        return Ty(std::forward<U>(default_value));
+    }
 
     template<typename Ty>
-    Ty get(std::basic_string_view<char_type> name, Ty def) const;
+    Ty value() const {
+        return value_or<Ty>(Ty());
+    }
 
-    bool is_null() const { return type_ == dtype::kNull; }
-    bool is_bool() const { return type_ == dtype::kBoolean; }
-    bool is_int() const;
-    bool is_uint() const;
-    bool is_int64() const;
-    bool is_uint64() const;
-    bool is_integral() const;
-    bool is_float() const { return is_numeric(); }
-    bool is_double() const { return is_numeric(); }
-    bool is_numeric() const { return type_ >= dtype::kInteger && type_ <= dtype::kDouble; }
-    bool is_string() const { return type_ == dtype::kString; }
-    bool is_array() const { return type_ == dtype::kArray; }
-    bool is_record() const { return type_ == dtype::kRecord; }
+    template<typename Ty>
+    Ty value(std::basic_string_view<char_type> name) const {
+        return value_or<Ty>(name, Ty());
+    }
 
-    bool as_bool(bool& res) const;
-    bool as_int(int32_t& res) const;
-    bool as_uint(uint32_t& res) const;
-    bool as_int64(int64_t& res) const;
-    bool as_uint64(uint64_t& res) const;
-    bool as_float(float& res) const;
-    bool as_double(double& res) const;
-    bool as_string(std::basic_string<char_type>& res) const;
-    bool as_string_view(std::basic_string_view<char_type>& res) const;
+    bool is_null() const NOEXCEPT { return type_ == dtype::kNull; }
+    bool is_bool() const NOEXCEPT { return type_ == dtype::kBoolean; }
+    bool is_int() const NOEXCEPT;
+    bool is_uint() const NOEXCEPT;
+    bool is_int64() const NOEXCEPT;
+    bool is_uint64() const NOEXCEPT;
+    bool is_integral() const NOEXCEPT;
+    bool is_float() const NOEXCEPT { return is_numeric(); }
+    bool is_double() const NOEXCEPT { return is_numeric(); }
+    bool is_numeric() const NOEXCEPT { return type_ >= dtype::kInteger && type_ <= dtype::kDouble; }
+    bool is_string() const NOEXCEPT { return type_ == dtype::kString; }
+    bool is_array() const NOEXCEPT { return type_ == dtype::kArray; }
+    bool is_record() const NOEXCEPT { return type_ == dtype::kRecord; }
+
+    uxs::optional<bool> get_bool() const;
+    uxs::optional<int32_t> get_int() const;
+    uxs::optional<uint32_t> get_uint() const;
+    uxs::optional<int64_t> get_int64() const;
+    uxs::optional<uint64_t> get_uint64() const;
+    uxs::optional<float> get_float() const;
+    uxs::optional<double> get_double() const;
+    uxs::optional<std::basic_string<char_type>> get_string() const;
+    uxs::optional<std::basic_string_view<char_type>> get_string_view() const;
 
     bool as_bool() const;
     int32_t as_int() const;
@@ -1069,78 +1095,53 @@ template<typename CharT, typename Alloc>
 }
 
 namespace detail {
-template<typename ValTy, typename Ty>
+template<typename, typename, typename>
 struct value_getters_specializer;
-#define UXS_DB_VALUE_IMPLEMENT_GETTER_SPECIALIZER(ty, is_func, as_func) \
-    template<typename ValTy> \
-    struct value_getters_specializer<ValTy, ty> { \
-        static bool is(const ValTy& v) { return v.is_func(); } \
-        static ty as(const ValTy& v) { return v.as_func(); } \
-        static ty get(const ValTy& v, ty& def) { \
-            ty res(std::move(def)); \
-            v.as_func(res); \
-            return res; \
-        } \
-        static ty get(const ValTy& v, std::basic_string_view<typename ValTy::char_type> name, ty& def) { \
-            ty res(std::move(def)); \
-            auto it = v.find(name); \
-            if (it != v.nil()) { it->second.as_func(res); } \
-            return res; \
-        } \
-    };
-UXS_DB_VALUE_IMPLEMENT_GETTER_SPECIALIZER(bool, is_bool, as_bool)
-UXS_DB_VALUE_IMPLEMENT_GETTER_SPECIALIZER(int32_t, is_int, as_int)
-UXS_DB_VALUE_IMPLEMENT_GETTER_SPECIALIZER(uint32_t, is_uint, as_uint)
-UXS_DB_VALUE_IMPLEMENT_GETTER_SPECIALIZER(int64_t, is_int64, as_int64)
-UXS_DB_VALUE_IMPLEMENT_GETTER_SPECIALIZER(uint64_t, is_uint64, as_uint64)
-UXS_DB_VALUE_IMPLEMENT_GETTER_SPECIALIZER(float, is_float, as_float)
-UXS_DB_VALUE_IMPLEMENT_GETTER_SPECIALIZER(double, is_double, as_double)
-UXS_DB_VALUE_IMPLEMENT_GETTER_SPECIALIZER(std::basic_string<typename ValTy::char_type>, is_string, as_string)
-UXS_DB_VALUE_IMPLEMENT_GETTER_SPECIALIZER(std::basic_string_view<typename ValTy::char_type>, is_string, as_string_view)
-#undef UXS_DB_VALUE_IMPLEMENT_SCALAR_IS_GET
-}  // namespace detail
+}
+
+#define UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(ty, func) \
+    template<typename CharT, typename Alloc> \
+    ty basic_value<CharT, Alloc>::as##func() const { \
+        auto result = this->get##func(); \
+        if (result) { return *result; } \
+        throw exception("bad value conversion"); \
+    } \
+    namespace detail { \
+    template<typename CharT, typename Alloc> \
+    struct value_getters_specializer<CharT, Alloc, ty> { \
+        static bool is(const basic_value<CharT, Alloc>& v) { return v.is##func(); } \
+        static ty as(const basic_value<CharT, Alloc>& v) { return v.as##func(); } \
+        static uxs::optional<ty> get(const basic_value<CharT, Alloc>& v) { return v.get##func(); } \
+    }; \
+    }
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(bool, _bool)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(int32_t, _int)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(uint32_t, _uint)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(int64_t, _int64)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(uint64_t, _uint64)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(float, _float)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(double, _double)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::basic_string<CharT>, _string)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::basic_string_view<CharT>, _string_view)
+#undef UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS
 
 template<typename CharT, typename Alloc>
 template<typename Ty>
-bool basic_value<CharT, Alloc>::is() const {
-    return detail::value_getters_specializer<basic_value, Ty>::is(*this);
+bool basic_value<CharT, Alloc>::is() const NOEXCEPT {
+    return detail::value_getters_specializer<CharT, Alloc, Ty>::is(*this);
 }
 
 template<typename CharT, typename Alloc>
 template<typename Ty>
 Ty basic_value<CharT, Alloc>::as() const {
-    return detail::value_getters_specializer<basic_value, Ty>::as(*this);
+    return detail::value_getters_specializer<CharT, Alloc, Ty>::as(*this);
 }
 
 template<typename CharT, typename Alloc>
 template<typename Ty>
-Ty basic_value<CharT, Alloc>::get(Ty def) const {
-    return detail::value_getters_specializer<basic_value, Ty>::get(*this, def);
+uxs::optional<Ty> basic_value<CharT, Alloc>::get() const {
+    return detail::value_getters_specializer<CharT, Alloc, Ty>::get(*this);
 }
-
-template<typename CharT, typename Alloc>
-template<typename Ty>
-Ty basic_value<CharT, Alloc>::get(std::basic_string_view<char_type> name, Ty def) const {
-    return detail::value_getters_specializer<basic_value, Ty>::get(*this, name, def);
-}
-
-#define UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_GET(ty, as_func) \
-    template<typename CharT, typename Alloc> \
-    ty basic_value<CharT, Alloc>::as_func() const { \
-        ty res; \
-        if (!this->as_func(res)) { throw exception("not convertible to " #ty); } \
-        return res; \
-    }
-UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_GET(bool, as_bool)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_GET(int32_t, as_int)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_GET(uint32_t, as_uint)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_GET(int64_t, as_int64)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_GET(uint64_t, as_uint64)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_GET(float, as_float)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_GET(double, as_double)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_GET(std::basic_string<CharT>, as_string)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_GET(std::basic_string_view<CharT>, as_string_view)
-#undef UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_GET
 
 template<typename CharT, typename Alloc>
 bool operator!=(const basic_value<CharT, Alloc>& lhs, const basic_value<CharT, Alloc>& rhs) {
