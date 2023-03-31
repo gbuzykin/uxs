@@ -21,8 +21,8 @@ class cow_ptr {
  public:
     cow_ptr() : ptr_(new object_body_t) {}
     ~cow_ptr() { reset(nullptr); }
-    cow_ptr(const cow_ptr& other) : ptr_(other.ref()) {}
-    cow_ptr& operator=(const cow_ptr& other) {
+    cow_ptr(const cow_ptr& other) NOEXCEPT : ptr_(other.ref()) {}
+    cow_ptr& operator=(const cow_ptr& other) NOEXCEPT {
         if (&other != this) { reset(other.ref()); }
         return *this;
     }
@@ -35,9 +35,9 @@ class cow_ptr {
         return *this;
     }
 
-    operator bool() const { return !!ptr_; }
+    operator bool() const NOEXCEPT { return ptr_ != nullptr; }
 
-    const Ty& operator*() const {
+    const Ty& operator*() const NOEXCEPT {
         assert(ptr_);
         return ptr_->obj;
     }
@@ -48,7 +48,7 @@ class cow_ptr {
         return ptr_->obj;
     }
 
-    const Ty* operator->() const { return std::addressof(**this); }
+    const Ty* operator->() const NOEXCEPT { return std::addressof(**this); }
     Ty* operator->() { return std::addressof(**this); }
 
  private:
