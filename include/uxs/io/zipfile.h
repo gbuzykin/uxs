@@ -19,8 +19,8 @@ class UXS_EXPORT zipfile : public iodevice {
         return *this;
     }
 
-    bool valid() const { return !!zip_fd_; }
-    explicit operator bool() const { return !!zip_fd_; }
+    bool valid() const { return zip_fd_ != nullptr; }
+    explicit operator bool() const { return zip_fd_ != nullptr; }
 
     bool open(ziparch& arch, const char* fname);
     bool open(ziparch& arch, const wchar_t* fname);

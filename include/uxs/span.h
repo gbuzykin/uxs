@@ -42,8 +42,8 @@ class span {
         return begin_[pos];
     }
     reference at(size_type pos) const {
-        if (pos >= size_) { throw std::out_of_range("invalid pos"); }
-        return begin_[pos];
+        if (pos < size_) { return begin_[pos]; }
+        throw std::out_of_range("index out of range");
     }
     CONSTEXPR reference front() const {
         assert(size_ > 0);

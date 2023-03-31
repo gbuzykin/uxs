@@ -6,6 +6,9 @@
 #include <cstddef>
 #include <cstdint>
 
+#define TOKENPASTE(x, y)  x##y
+#define TOKENPASTE2(x, y) TOKENPASTE(x, y)
+
 #if !defined(NOEXCEPT)
 #    if defined(_MSC_VER) && _MSC_VER <= 1800
 #        define NOEXCEPT throw()
