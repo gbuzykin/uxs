@@ -105,14 +105,14 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
 
     const mapped_type& at(const key_type& key) const {
         auto it = this->find(key);
-        if (it == this->end()) { throw std::out_of_range("invalid map key"); }
-        return it->second;
+        if (it != this->end()) { return it->second; }
+        throw std::out_of_range("invalid map key");
     }
 
     mapped_type& at(const key_type& key) {
         auto it = this->find(key);
-        if (it == this->end()) { throw std::out_of_range("invalid map key"); }
-        return it->second;
+        if (it != this->end()) { return it->second; }
+        throw std::out_of_range("invalid map key");
     }
 
     mapped_type& operator[](const key_type& key) { return try_emplace_impl(key).first->second; }

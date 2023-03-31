@@ -22,8 +22,8 @@ class UXS_EXPORT ziparch {
         return *this;
     }
 
-    bool valid() const { return !!zip_; }
-    explicit operator bool() const { return !!zip_; }
+    bool valid() const { return zip_ != nullptr; }
+    explicit operator bool() const { return zip_ != nullptr; }
 
     bool open(const char* name, iomode mode);
     bool open(const wchar_t* name, iomode mode);

@@ -60,8 +60,8 @@ class basic_string_view {
         return begin_[pos];
     }
     const_reference at(size_t pos) const {
-        if (pos >= size_) { throw out_of_range("invalid pos"); }
-        return begin_[pos];
+        if (pos < size_) { return begin_[pos]; }
+        throw out_of_range("index out of range");
     }
     const_reference front() const {
         assert(size_ > 0);

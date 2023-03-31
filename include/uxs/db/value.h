@@ -370,14 +370,14 @@ class UXS_EXPORT basic_value : protected std::allocator_traits<Alloc>::template 
 
     const basic_value& at(size_t i) const {
         auto range = as_array();
-        if (i >= range.size()) { throw exception("index out of range"); }
-        return range[i];
+        if (i < range.size()) { return range[i]; }
+        throw exception("index out of range");
     }
 
     basic_value& at(size_t i) {
         auto range = as_array();
-        if (i >= range.size()) { throw exception("index out of range"); }
-        return range[i];
+        if (i < range.size()) { return range[i]; }
+        throw exception("index out of range");
     }
 
     const basic_value& operator[](std::basic_string_view<char_type> name) const;
@@ -1101,25 +1101,25 @@ UXS_DB_VALUE_IMPLEMENT_GETTER_SPECIALIZER(std::basic_string_view<typename ValTy:
 template<typename CharT, typename Alloc>
 template<typename Ty>
 bool basic_value<CharT, Alloc>::is() const {
-    return detail::value_getters_specializer<basic_value, Ty>::is();
+    return detail::value_getters_specializer<basic_value, Ty>::is(*this);
 }
 
 template<typename CharT, typename Alloc>
 template<typename Ty>
 Ty basic_value<CharT, Alloc>::as() const {
-    return detail::value_getters_specializer<basic_value, Ty>::as();
+    return detail::value_getters_specializer<basic_value, Ty>::as(*this);
 }
 
 template<typename CharT, typename Alloc>
 template<typename Ty>
 Ty basic_value<CharT, Alloc>::get(Ty def) const {
-    return detail::value_getters_specializer<basic_value, Ty>::get(def);
+    return detail::value_getters_specializer<basic_value, Ty>::get(*this, def);
 }
 
 template<typename CharT, typename Alloc>
 template<typename Ty>
 Ty basic_value<CharT, Alloc>::get(std::basic_string_view<char_type> name, Ty def) const {
-    return detail::value_getters_specializer<basic_value, Ty>::get(name, def);
+    return detail::value_getters_specializer<basic_value, Ty>::get(*this, name, def);
 }
 
 #define UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_GET(ty, as_func) \

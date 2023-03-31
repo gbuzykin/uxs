@@ -228,7 +228,7 @@ template<typename Pool, uint16_t Size, uint16_t Alignment>
 template<typename Ty, typename Alloc = std::allocator<Ty>>
 class pool_allocator {
  public:
-    using value_type = typename std::remove_cv<Ty>::type;
+    using value_type = std::remove_cv_t<Ty>;
     using base_allocator = Alloc;
     using pool_type = detail::pool<typename std::allocator_traits<Alloc>::template rebind_alloc<void>>;
     using propagate_on_container_copy_assignment = std::false_type;
@@ -293,7 +293,7 @@ bool operator!=(const pool_allocator<TyL, Alloc>& lhs, const pool_allocator<TyR,
 template<typename Ty>
 class global_pool_allocator {
  public:
-    using value_type = typename std::remove_cv<Ty>::type;
+    using value_type = std::remove_cv_t<Ty>;
     using base_allocator = std::allocator<Ty>;
     using pool_type = detail::pool<std::allocator<void>>;
     using propagate_on_container_copy_assignment = std::false_type;

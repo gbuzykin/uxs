@@ -13,7 +13,7 @@ namespace uxs {
 template<typename Ty, typename Alloc = std::allocator<Ty>>
 class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
  private:
-    static_assert(std::is_same<typename std::remove_cv<Ty>::type, Ty>::value,
+    static_assert(std::is_same<std::remove_cv_t<Ty>, Ty>::value,
                   "uxs::vector must have a non-const, non-volatile value type");
 
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>;
@@ -131,12 +131,12 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
     }
 
     reference at(size_type i) {
-        if (i >= size()) { throw std::out_of_range("invalid vector index"); }
-        return v_.begin[i];
+        if (i < size()) { return v_.begin[i]; }
+        throw std::out_of_range("index out of range");
     }
     const_reference at(size_type i) const {
-        if (i >= size()) { throw std::out_of_range("invalid vector index"); }
-        return v_.begin[i];
+        if (i < size()) { return v_.begin[i]; }
+        throw std::out_of_range("index out of range");
     }
 
     reference front() {
