@@ -22,7 +22,7 @@ basic_iobuf<CharT>& basic_iobuf<CharT>::operator=(basic_iobuf&& other) NOEXCEPT 
 }
 
 template<typename CharT>
-typename basic_iobuf<CharT>::size_type basic_iobuf<CharT>::read(span<char_type> s) {
+typename basic_iobuf<CharT>::size_type basic_iobuf<CharT>::read(uxs::span<char_type> s) {
     auto p = s.begin();
     size_type count = s.end() - p;
     if (!count) { return 0; }
@@ -53,7 +53,7 @@ typename basic_iobuf<CharT>::size_type basic_iobuf<CharT>::skip(size_type count)
 }
 
 template<typename CharT>
-basic_iobuf<CharT>& basic_iobuf<CharT>::write(span<const char_type> s) {
+basic_iobuf<CharT>& basic_iobuf<CharT>::write(uxs::span<const char_type> s) {
     return write(s.begin(), s.end());
 }
 

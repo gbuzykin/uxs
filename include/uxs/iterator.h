@@ -5,6 +5,7 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 
 #if _ITERATOR_DEBUG_LEVEL != 0
 #    define iterator_assert(cond) assert(cond)
@@ -304,11 +305,19 @@ using container_iterator_facade =
 //-----------------------------------------------------------------------------
 // Array iterator
 
+namespace detail {
+#if __cplusplus < 202002L
+using array_iterator_tag = std::random_access_iterator_tag;
+#else   // __cplusplus < 202002L
+using array_iterator_tag = std::contiguous_iterator_tag;
+#endif  // __cplusplus < 202002L
+}  // namespace detail
+
 template<typename Traits, bool Const>
 class array_iterator : public container_iterator_facade<Traits, array_iterator<Traits, Const>,  //
-                                                        std::random_access_iterator_tag, Const> {
+                                                        detail::array_iterator_tag, Const> {
  private:
-    using super = container_iterator_facade<Traits, array_iterator, std::random_access_iterator_tag, Const>;
+    using super = container_iterator_facade<Traits, array_iterator, detail::array_iterator_tag, Const>;
 
  public:
     using reference = typename super::reference;
@@ -336,7 +345,7 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
     }
 
     reference dereference() const NOEXCEPT {
-        iterator_assert(ptr_ < end_);
+        iterator_assert(begin_ <= ptr_ && ptr_ < end_);
         return *ptr_;
     }
 
@@ -402,11 +411,6 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
 };
 
-#if UXS_USE_CHECKED_ITERATORS != 0
-template<typename Traits, bool Const>
-struct std::_Is_checked_helper<array_iterator<Traits, Const>> : std::true_type {};
-#endif  // UXS_USE_CHECKED_ITERATORS
-
 //-----------------------------------------------------------------------------
 // List iterator
 
@@ -466,11 +470,6 @@ class list_iterator : public container_iterator_facade<Traits, list_iterator<Tra
     node_type* node_ = nullptr;
 };
 
-#if UXS_USE_CHECKED_ITERATORS != 0
-template<typename Traits, typename NodeTraits, bool Const>
-struct std::_Is_checked_helper<list_iterator<Traits, NodeTraits, Const>> : std::true_type {};
-#endif  // UXS_USE_CHECKED_ITERATORS
-
 //-----------------------------------------------------------------------------
 // Const value iterator
 
@@ -497,9 +496,27 @@ const_value_iterator<Val> const_value(const Val& v) NOEXCEPT {
     return const_value_iterator<Val>(v);
 }
 
-#if UXS_USE_CHECKED_ITERATORS != 0
-template<typename Val>
-struct std::_Is_checked_helper<const_value_iterator<Val>> : std::true_type {};
-#endif  // UXS_USE_CHECKED_ITERATORS
-
 }  // namespace uxs
+
+namespace std {
+#if __cplusplus >= 202002L
+template<typename Traits, bool Const>
+struct pointer_traits<uxs::array_iterator<Traits, Const>> {
+    using pointer = uxs::array_iterator<Traits, Const>;
+    using element_type = std::conditional_t<Const, const typename pointer::value_type, typename pointer::value_type>;
+    using difference_type = typename pointer::difference_type;
+    [[nodiscard]] static constexpr element_type* to_address(const pointer iter) noexcept {
+        iterator_assert(iter.begin() <= iter.ptr() && iter.ptr() < iter.end());
+        return std::to_address(iter.ptr());
+    }
+};
+#endif  // __cplusplus >= 202002L
+#if UXS_USE_CHECKED_ITERATORS != 0
+template<typename Traits, bool Const>
+struct _Is_checked_helper<uxs::array_iterator<Traits, Const>> : std::true_type {};
+template<typename Traits, typename NodeTraits, bool Const>
+struct _Is_checked_helper<uxs::list_iterator<Traits, NodeTraits, Const>> : std::true_type {};
+template<typename Val>
+struct _Is_checked_helper<uxs::const_value_iterator<Val>> : std::true_type {};
+#endif  // UXS_USE_CHECKED_ITERATORS
+}  // namespace std

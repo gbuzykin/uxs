@@ -77,7 +77,7 @@ int64_t sysfile::seek(int64_t off, seekdir dir) {
     return result < 0 ? -1 : result;
 }
 
-int sysfile::ctrlesc_color(span<uint8_t> v) {
+int sysfile::ctrlesc_color(uxs::span<uint8_t> v) {
     uxs::inline_dynbuffer buf;
     buf += "\033[";
     join_basic_strings(buf, v, ';',

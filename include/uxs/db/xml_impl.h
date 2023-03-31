@@ -134,11 +134,11 @@ basic_iobuf<CharT>& print_xml_text(basic_iobuf<CharT>& out, std::basic_string_vi
             case '\"': esc = "&quot;"; break;
             default: continue;
         }
-        out.write(as_span(p1, p2 - p1));
+        out.write(uxs::as_span(p1, p2 - p1));
         for (char ch : esc) { out.put(ch); }
         p1 = p2 + 1;
     }
-    out.write(as_span(p1, pend - p1));
+    out.write(uxs::as_span(p1, pend - p1));
     return out;
 }
 

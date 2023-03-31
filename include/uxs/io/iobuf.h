@@ -33,7 +33,7 @@ class UXS_EXPORT basic_iobuf : public iostate {
     size_type avail() const { return last_ - curr_; }
     char_type* first_avail() const { return curr_; }
     char_type* last_avail() const { return last_; }
-    span<char_type> view_avail() const { return as_span(curr_, avail()); }
+    uxs::span<char_type> view_avail() const { return uxs::as_span(curr_, avail()); }
 
     int_type peek() {
         if (curr_ != last_ || (this->good() && underflow() >= 0)) { return traits_type::to_int_type(*curr_); }
@@ -103,9 +103,9 @@ class UXS_EXPORT basic_iobuf : public iostate {
         return *this;
     }
 
-    size_type read(span<char_type> s);
+    size_type read(uxs::span<char_type> s);
     size_type skip(size_type count);
-    basic_iobuf& write(span<const char_type> s);
+    basic_iobuf& write(uxs::span<const char_type> s);
     basic_iobuf& write(const char_type* cstr) { return write(std::basic_string_view<char_type>(cstr)); }
     basic_iobuf& fill_n(size_type count, char_type ch);
     basic_iobuf& flush();

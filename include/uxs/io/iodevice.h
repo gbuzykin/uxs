@@ -24,7 +24,7 @@ class UXS_EXPORT iodevice {
     virtual int write(const void* data, size_t sz, size_t& n_written) = 0;
     virtual void* map(size_t& sz, bool wr = false) { return nullptr; }
     virtual int64_t seek(int64_t off, seekdir dir = seekdir::kBeg) { return -1; }
-    virtual int ctrlesc_color(span<uint8_t> v) { return -1; }
+    virtual int ctrlesc_color(uxs::span<uint8_t> v) { return -1; }
     virtual int flush() = 0;
 
  private:

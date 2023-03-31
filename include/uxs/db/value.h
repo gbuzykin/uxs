@@ -87,8 +87,8 @@ class UXS_EXPORT basic_value : protected std::allocator_traits<Alloc>::template 
 
         using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<flexarray_t>;
 
-        span<const Ty> view() const { return as_span(reinterpret_cast<const Ty*>(&buf), size); }
-        span<Ty> view() { return as_span(reinterpret_cast<Ty*>(&buf), size); }
+        uxs::span<const Ty> view() const { return uxs::as_span(reinterpret_cast<const Ty*>(&buf), size); }
+        uxs::span<Ty> view() { return uxs::as_span(reinterpret_cast<Ty*>(&buf), size); }
         const Ty& operator[](size_t i) const { return reinterpret_cast<const Ty*>(&buf)[i]; }
         Ty& operator[](size_t i) { return reinterpret_cast<Ty*>(&buf)[i]; }
 
@@ -359,8 +359,8 @@ class UXS_EXPORT basic_value : protected std::allocator_traits<Alloc>::template 
     basic_value& append_string(std::basic_string_view<char_type> s);
     basic_value& append_string(const char_type* cstr) { return append_string(std::basic_string_view<char_type>(cstr)); }
 
-    span<const basic_value> as_array() const NOEXCEPT;
-    span<basic_value> as_array() NOEXCEPT;
+    uxs::span<const basic_value> as_array() const NOEXCEPT;
+    uxs::span<basic_value> as_array() NOEXCEPT;
 
     iterator_range<const_record_iterator> as_record() const;
     iterator_range<record_iterator> as_record();
@@ -476,8 +476,10 @@ class UXS_EXPORT basic_value : protected std::allocator_traits<Alloc>::template 
         return value_.str ? std::basic_string_view<char_type>(&(*value_.str)[0], value_.str->size) :
                             std::basic_string_view<char_type>();
     }
-    span<const basic_value> array_view() const { return value_.arr ? value_.arr->view() : span<basic_value>(); }
-    span<basic_value> array_view() { return value_.arr ? value_.arr->view() : span<basic_value>(); }
+    uxs::span<const basic_value> array_view() const {
+        return value_.arr ? value_.arr->view() : uxs::span<basic_value>();
+    }
+    uxs::span<basic_value> array_view() { return value_.arr ? value_.arr->view() : uxs::span<basic_value>(); }
 
     char_flexarray_t* alloc_string(std::basic_string_view<char_type> s);
     void assign_string(std::basic_string_view<char_type> s);
@@ -490,7 +492,7 @@ class UXS_EXPORT basic_value : protected std::allocator_traits<Alloc>::template 
     }
     template<typename InputIt>
     value_flexarray_t* alloc_array(InputIt first, InputIt last, std::false_type);
-    value_flexarray_t* alloc_array(span<const basic_value> v) { return alloc_array(v.size(), v.data()); }
+    value_flexarray_t* alloc_array(uxs::span<const basic_value> v) { return alloc_array(v.size(), v.data()); }
 
     template<typename RandIt>
     void assign_array(size_t sz, RandIt src);
@@ -500,7 +502,7 @@ class UXS_EXPORT basic_value : protected std::allocator_traits<Alloc>::template 
     }
     template<typename InputIt>
     void assign_array(InputIt first, InputIt last, std::false_type /* random access iterator */);
-    void assign_array(span<const basic_value> v) { assign_array(v.size(), v.data()); }
+    void assign_array(uxs::span<const basic_value> v) { assign_array(v.size(), v.data()); }
 
     template<typename RandIt>
     void append_array(size_t sz, RandIt src);
@@ -812,15 +814,15 @@ void basic_value<CharT, Alloc>::insert(InputIt first, InputIt last) {
 }
 
 template<typename CharT, typename Alloc>
-span<const basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() const NOEXCEPT {
+uxs::span<const basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() const NOEXCEPT {
     if (type_ == dtype::kArray) { return array_view(); }
-    return type_ != dtype::kNull ? as_span(this, 1) : span<basic_value>();
+    return type_ != dtype::kNull ? uxs::as_span(this, 1) : uxs::span<basic_value>();
 }
 
 template<typename CharT, typename Alloc>
-span<basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() NOEXCEPT {
+uxs::span<basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() NOEXCEPT {
     if (type_ == dtype::kArray) { return array_view(); }
-    return type_ != dtype::kNull ? as_span(this, 1) : span<basic_value>();
+    return type_ != dtype::kNull ? uxs::as_span(this, 1) : uxs::span<basic_value>();
 }
 
 template<typename CharT, typename Alloc>
