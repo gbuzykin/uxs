@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <memory>
-#include <stdexcept>
 
 namespace std {
 class locale;

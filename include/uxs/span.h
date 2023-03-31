@@ -2,7 +2,9 @@
 
 #include "iterator.h"
 
-#include <stdexcept>
+#if __cplusplus < 202002L && ((!defined(__GNUC__) && !defined(_MSC_VER)) || !defined(__cpp_lib_span))
+
+#    include <stdexcept>
 
 namespace uxs {
 
@@ -63,6 +65,21 @@ class span {
     Ty* begin_ = nullptr;
     size_t size_ = 0;
 };
+
+}  // namespace uxs
+
+#else  // span
+
+#    include <span>
+
+namespace uxs {
+template<typename Ty>
+using span = std::span<Ty, std::dynamic_extent>;
+}
+
+#endif  // span
+
+namespace uxs {
 
 template<typename Ty>
 CONSTEXPR span<Ty> as_span(Ty* v, typename span<Ty>::size_type count) NOEXCEPT {

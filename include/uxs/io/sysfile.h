@@ -47,7 +47,7 @@ class UXS_EXPORT sysfile : public iodevice {
     int read(void* buf, size_t sz, size_t& n_read) override;
     int write(const void* buf, size_t sz, size_t& n_written) override;
     int64_t seek(int64_t off, seekdir dir) override;
-    int ctrlesc_color(span<uint8_t> v) override;
+    int ctrlesc_color(uxs::span<uint8_t> v) override;
     int flush() override;
 
     static bool remove(const char* fname);

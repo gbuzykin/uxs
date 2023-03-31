@@ -101,7 +101,7 @@ template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::record_t::init() {
     dllist_make_cycle(&head);
     list_node_traits::set_head(&head, &head);
-    for (auto& item : as_span(hashtbl, bucket_count)) { item = nullptr; }
+    for (auto& item : uxs::as_span(hashtbl, bucket_count)) { item = nullptr; }
     size = 0;
 }
 
@@ -241,7 +241,7 @@ template<typename CharT, typename Alloc>
     hash = shift_mix(shift_mix(hash) * mul);
 #else
     size_t hash = seed;
-    for (uint8_t ch : as_span(data, sz)) { hash = (hash * 131) + ch; }
+    for (uint8_t ch : uxs::as_span(data, sz)) { hash = (hash * 131) + ch; }
 #endif
     return hash;
 }
@@ -348,7 +348,7 @@ basic_value<CharT, Alloc>::record_t::rehash(alloc_type& rec_al, record_t* rec, s
     new_rec->size = rec->size;
     dealloc(rec_al, rec);
     list_node_traits::set_head(&new_rec->head, &new_rec->head);
-    for (auto& item : as_span(new_rec->hashtbl, new_rec->bucket_count)) { item = nullptr; }
+    for (auto& item : uxs::as_span(new_rec->hashtbl, new_rec->bucket_count)) { item = nullptr; }
     list_links_type* node = new_rec->head.next;
     node->prev = &new_rec->head;
     new_rec->head.prev->next = &new_rec->head;
