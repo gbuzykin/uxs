@@ -4,8 +4,7 @@
 
 #include <algorithm>
 
-#if __cplusplus < 201703L && (!defined(__GNUC__) || !defined(__cpp_lib_logical_traits)) && \
-    (!defined(_MSC_VER) || _MSC_VER <= 1800)
+#if __cplusplus < 201703L && ((!defined(__GNUC__) && !defined(_MSC_VER)) || !defined(__cpp_lib_logical_traits))
 namespace std {
 template<typename...>
 struct conjunction : true_type {};

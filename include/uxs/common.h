@@ -17,8 +17,8 @@
 #endif      // !defined(NOEXCEPT)
 
 #if !defined(CONSTEVAL)
-#    if ((__GNUC__ >= 10 || __clang_major__ >= 12) && __cplusplus > 201703L) || \
-        (_MSC_VER >= 1920 && defined(__cpp_consteval))
+#    if __cplusplus >= 202002L && \
+        (__GNUC__ >= 10 || __clang_major__ >= 12 || (_MSC_VER >= 1920 && defined(__cpp_consteval)))
 #        define CONSTEVAL     consteval
 #        define HAS_CONSTEVAL 1
 #    else

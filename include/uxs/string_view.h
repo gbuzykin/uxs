@@ -2,7 +2,8 @@
 
 #include <string>
 
-#if __cplusplus < 201703L
+#if __cplusplus < 201703L && ((!defined(__GNUC__) && !defined(_MSC_VER)) || !defined(__cpp_lib_string_view))
+
 #    include "iterator.h"
 
 namespace std {
@@ -246,4 +247,5 @@ struct hash<basic_string_view<CharT, Traits>> {
 };
 #    endif  // defined(_MSC_VER)
 }  // namespace std
-#endif  // __cplusplus < 201703L
+
+#endif  // string view
