@@ -16,11 +16,13 @@
 #    define SCVT_FORCE_INLINE inline
 #endif
 
-#if !defined(_MSC_VER) || _MSC_VER > 1800
-#    define SCVT_CONSTEXPR_DATA constexpr
-#else  // !defined(_MSC_VER) || _MSC_VER > 1800
-#    define SCVT_CONSTEXPR_DATA const
-#endif  // !defined(_MSC_VER) || _MSC_VER> 1800
+#if !defined(SCVT_CONSTEXPR_DATA)
+#    if __cplusplus < 201703L
+#        define SCVT_CONSTEXPR_DATA const
+#    else  // __cplusplus < 201703L
+#        define SCVT_CONSTEXPR_DATA constexpr
+#    endif  // __cplusplus < 201703L
+#endif      // !defined(SCVT_CONSTEXPR_DATA)
 
 #if SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0
 #    if defined(_MSC_VER) && defined(_M_X64)

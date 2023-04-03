@@ -45,7 +45,7 @@ class crc32 {
 
  private:
 #if __cplusplus < 201703L
-    static const detail::crc32_table_t table_;
+    static UXS_EXPORT const detail::crc32_table_t table_;
 #else   // __cplusplus < 201703L
     static constexpr detail::crc32_table_t table_{};
 #endif  // __cplusplus < 201703L
