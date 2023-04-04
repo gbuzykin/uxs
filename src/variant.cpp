@@ -100,6 +100,8 @@ void variant::convert(id_t type) {
 bool variant::is_equal_to(const variant& v) const {
     if (vtable_ == v.vtable_) {
         return !vtable_ || vtable_->equal(&data_, &v.data_);
+    } else if (!vtable_ || !v.vtable_) {
+        return false;
     } else if (vtable_->type > v.vtable_->type) {
         return v.is_equal_to(*this);
     } else if (auto cvt_func = v.vtable_->get_cvt(vtable_->type)) {
