@@ -442,7 +442,6 @@ struct has_formatter : detail::has_formatter<Ty, StrTy>::type {};
 #define UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(ty, from_chars_func, fmt_func) \
     template<typename CharT> \
     struct string_parser<ty, CharT> { \
-        ty default_value() const NOEXCEPT { return {}; } \
         const CharT* from_chars(const CharT* first, const CharT* last, ty& val) const NOEXCEPT { \
             auto t = scvt::from_chars_func<ty>(first, last, last); \
             if (last != first) { val = t; } \
@@ -506,7 +505,7 @@ size_t wstoval(std::wstring_view s, Ty& v) {
 
 template<typename Ty, typename CharT, typename Traits = std::char_traits<CharT>>
 NODISCARD Ty from_basic_string(std::basic_string_view<CharT, Traits> s) {
-    Ty result(string_parser<Ty, CharT>().default_value());
+    Ty result;
     basic_stoval(s, result);
     return result;
 }

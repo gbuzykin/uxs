@@ -103,7 +103,6 @@ template<typename CharT, typename Traits>
 
 template<typename CharT>
 struct string_parser<guid, CharT> {
-    guid default_value() const NOEXCEPT { return {}; }
     const CharT* from_chars(const CharT* first, const CharT* last, guid& val) const NOEXCEPT {
         const size_t len = 38;
         if (static_cast<size_t>(last - first) < len) { return 0; }
