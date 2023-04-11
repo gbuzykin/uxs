@@ -2,7 +2,7 @@
 
 #include "iterator.h"
 
-#if __cplusplus < 202002L && ((!defined(__GNUC__) && !defined(_MSC_VER)) || !defined(__cpp_lib_span))
+#if __cplusplus < 202002L || !defined(__cpp_lib_span)
 
 #    include <stdexcept>
 

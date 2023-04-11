@@ -4,7 +4,7 @@
 
 #include <algorithm>
 
-#if __cplusplus < 201703L && ((!defined(__GNUC__) && !defined(_MSC_VER)) || !defined(__cpp_lib_logical_traits))
+#if __cplusplus < 201703L && !defined(__cpp_lib_logical_traits)
 namespace std {
 template<typename...>
 struct conjunction : true_type {};
@@ -42,7 +42,7 @@ struct type_pack_element<0, Ty, Rest...> {
     using type = Ty;
 };
 
-#if __cplusplus < 201402L
+#if __cplusplus < 201402L && _MSC_VER < 1920  // VS2019 bug
 template<typename...>
 struct minimum;
 template<typename Ty>
