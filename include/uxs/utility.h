@@ -63,11 +63,11 @@ using add_const_t = typename add_const<Ty>::type;
 template<bool B, typename Ty1, typename Ty2>
 using conditional_t = typename conditional<B, Ty1, Ty2>::type;
 #    endif  // type traits
-#    if (!defined(__GNUC__) && !defined(_MSC_VER)) || !defined(__cpp_lib_bool_constant)
+#    if !defined(__cpp_lib_bool_constant)
 template<bool B>
 using bool_constant = integral_constant<bool, B>;
 #    endif  // bool constant
-#    if (!defined(__GNUC__) && !defined(_MSC_VER)) || !defined(__cpp_lib_as_const)
+#    if !defined(__cpp_lib_as_const)
 template<typename Ty>
 add_const_t<Ty>& as_const(Ty& t) {
     return t;
@@ -75,16 +75,15 @@ add_const_t<Ty>& as_const(Ty& t) {
 template<typename Ty>
 void as_const(const Ty&&) = delete;
 #    endif  // as const
-#    if (!defined(__GNUC__) && !defined(_MSC_VER)) || !defined(__cpp_lib_void_t)
+#    if !defined(__cpp_lib_void_t)
 template<typename Ty, typename... Ts>
 using void_t = typename uxs::type_identity<void, Ty, Ts...>::type;
 #    endif  // void_t
-#    if (!defined(__GNUC__) || !defined(__cpp_lib_is_swappable)) && \
-        (!defined(_MSC_VER) || (_MSC_VER > 1800 && !defined(__cpp_lib_is_swappable)))
+#    if (!defined(_MSC_VER) || _MSC_VER > 1800) && !defined(__cpp_lib_is_swappable)
 template<typename Ty>
 using is_nothrow_swappable = bool_constant<noexcept(swap(declval<Ty&>(), declval<Ty&>()))>;
 #    endif  // is swappable
-#    if __cplusplus < 201402L && ((!defined(__GNUC__) && !defined(_MSC_VER)) || !defined(__cpp_lib_integer_sequence))
+#    if __cplusplus < 201402L && !defined(__cpp_lib_integer_sequence)
 template<size_t... Indices>
 using index_sequence = uxs::detail::index_sequence<Indices...>;
 template<size_t N>

@@ -2,7 +2,7 @@
 
 #include "utility.h"
 
-#if __cplusplus < 201703L && ((!defined(__GNUC__) && !defined(_MSC_VER)) || !defined(__cpp_lib_optional))
+#if __cplusplus < 201703L || !defined(__cpp_lib_optional)
 
 #    include <stdexcept>
 

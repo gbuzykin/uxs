@@ -2,7 +2,7 @@
 
 #include <string>
 
-#if __cplusplus < 201703L && ((!defined(__GNUC__) && !defined(_MSC_VER)) || !defined(__cpp_lib_string_view))
+#if __cplusplus < 201703L && !defined(__cpp_lib_string_view)
 
 #    include "iterator.h"
 
