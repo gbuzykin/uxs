@@ -9,7 +9,7 @@
 #define UXS_DECLARE_VARIANT_TYPE(ty, id) \
     template<> \
     struct variant_type_impl<ty> : variant_type_base_impl<ty, id> { \
-        static UXS_EXPORT variant::vtable_t vtable; \
+        static variant::vtable_t vtable; \
         static bool convert_from(variant_id, void*, const void*); \
         static bool convert_to(variant_id, void*, const void*); \
         variant_type_impl(); \
@@ -122,12 +122,14 @@ class UXS_EXPORT variant {
     }
 
     template<typename Ty, typename... Args, typename = std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
-    explicit variant(in_place_type_t<Ty>, Args&&... args) : vtable_(&variant_type_impl<Ty>::vtable) {
+    explicit variant(in_place_type_t<Ty>, Args&&... args) : vtable_(get_vtable(variant_type_impl<Ty>::type_id)) {
+        assert(vtable_);
         variant_type_impl<Ty>::construct(&data_, std::forward<Args>(args)...);
     }
 
     template<typename Ty, typename = std::void_t<typename variant_type_impl<std::decay_t<Ty>>::is_variant_type_impl>>
-    variant(Ty&& val) : vtable_(&variant_type_impl<std::decay_t<Ty>>::vtable) {
+    variant(Ty&& val) : vtable_(get_vtable(variant_type_impl<std::decay_t<Ty>>::type_id)) {
+        assert(vtable_);
         variant_type_impl<std::decay_t<Ty>>::construct(&data_, std::forward<Ty>(val));
     }
 
@@ -235,7 +237,7 @@ class UXS_EXPORT variant {
 
 template<typename Ty, typename... Args, typename>
 Ty& variant::emplace(Args&&... args) {
-    vtable_t* val_vtable = &variant_type_impl<Ty>::vtable;
+    vtable_t* val_vtable = get_vtable(variant_type_impl<Ty>::type_id);
     assert(val_vtable);
     reset();
     Ty& val = variant_type_impl<Ty>::construct(&data_, std::forward<Args>(args)...);
@@ -246,7 +248,7 @@ Ty& variant::emplace(Args&&... args) {
 template<typename Ty, typename>
 variant& variant::operator=(Ty&& val) {
     using DecayedTy = std::decay_t<Ty>;
-    vtable_t* val_vtable = &variant_type_impl<DecayedTy>::vtable;
+    vtable_t* val_vtable = get_vtable(variant_type_impl<DecayedTy>::type_id);
     assert(val_vtable);
     if (vtable_ == val_vtable) {
         variant_type_impl<DecayedTy>::assign(&data_, std::forward<Ty>(val));
@@ -266,7 +268,7 @@ variant& variant::operator=(Ty&& val) {
 template<typename Ty, typename>
 uxs::optional<Ty> variant::get() const {
     if (!vtable_) { return uxs::nullopt(); }
-    vtable_t* val_vtable = &variant_type_impl<Ty>::vtable;
+    vtable_t* val_vtable = get_vtable(variant_type_impl<Ty>::type_id);
     assert(vtable_ && val_vtable);
     if (vtable_ == val_vtable) { return *static_cast<const Ty*>(vtable_->get_value_const_ptr(&data_)); }
     uxs::optional<Ty> result(uxs::in_place());
@@ -293,13 +295,15 @@ template<typename Ty>
 struct variant::getters_specializer<Ty, std::enable_if_t<std::is_reference<Ty>::value>> {
     using DecayedTy = std::decay_t<Ty>;
     static Ty as(const variant& v) {
-        variant::vtable_t* val_vtable = &variant_type_impl<DecayedTy>::vtable;
+        vtable_t* val_vtable = get_vtable(variant_type_impl<DecayedTy>::type_id);
+        assert(val_vtable);
         if (v.vtable_ != val_vtable) { throw variant_error("invalid value type"); }
         return *static_cast<const DecayedTy*>(v.vtable_->get_value_const_ptr(&v.data_));
     }
     template<typename Ty_ = Ty, typename = std::enable_if_t<!std::is_const<std::remove_reference_t<Ty_>>::value>>
     static Ty_ as(variant& v) {
-        variant::vtable_t* val_vtable = &variant_type_impl<DecayedTy>::vtable;
+        vtable_t* val_vtable = get_vtable(variant_type_impl<DecayedTy>::type_id);
+        assert(val_vtable);
         if (v.vtable_ != val_vtable) { throw variant_error("invalid value type"); }
         return std::forward<Ty>(*static_cast<DecayedTy*>(v.vtable_->get_value_ptr(&v.data_)));
     }
@@ -318,7 +322,7 @@ Ty variant::as() {
 template<typename Ty, typename U, typename>
 bool variant::is_equal_to(const Ty& val) const {
     if (!vtable_) { return false; }
-    vtable_t* val_vtable = &variant_type_impl<U>::vtable;
+    vtable_t* val_vtable = get_vtable(variant_type_impl<U>::type_id);
     assert(vtable_ && val_vtable);
     if (vtable_ == val_vtable) { return *static_cast<const U*>(vtable_->get_value_const_ptr(&data_)) == val; }
     U tmp;
