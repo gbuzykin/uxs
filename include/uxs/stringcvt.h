@@ -505,7 +505,7 @@ size_t wstoval(std::wstring_view s, Ty& v) {
 
 template<typename Ty, typename CharT, typename Traits = std::char_traits<CharT>>
 NODISCARD Ty from_basic_string(std::basic_string_view<CharT, Traits> s) {
-    Ty result;
+    Ty result{};
     basic_stoval(s, result);
     return result;
 }

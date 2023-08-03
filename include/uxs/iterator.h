@@ -306,10 +306,10 @@ using container_iterator_facade =
 // Array iterator
 
 namespace detail {
-#if __cplusplus < 202002L || !defined(__cpp_concepts)
-using array_iterator_tag = std::random_access_iterator_tag;
-#else   // concepts
+#if __cplusplus >= 202002L && defined(__cpp_concepts) && defined(__cpp_lib_ranges)
 using array_iterator_tag = std::contiguous_iterator_tag;
+#else   // concepts
+using array_iterator_tag = std::random_access_iterator_tag;
 #endif  // concepts
 }  // namespace detail
 
@@ -499,7 +499,7 @@ const_value_iterator<Val> const_value(const Val& v) NOEXCEPT {
 }  // namespace uxs
 
 namespace std {
-#if __cplusplus >= 202002L && defined(__cpp_concepts)
+#if __cplusplus >= 202002L && defined(__cpp_concepts) && defined(__cpp_lib_addressof_constexpr)
 template<typename Traits, bool Const>
 struct pointer_traits<uxs::array_iterator<Traits, Const>> {
     using pointer = uxs::array_iterator<Traits, Const>;
@@ -510,7 +510,7 @@ struct pointer_traits<uxs::array_iterator<Traits, Const>> {
         return std::to_address(iter.ptr());
     }
 };
-#endif  // concepts
+#endif  // pointer_traits
 #if UXS_USE_CHECKED_ITERATORS != 0
 template<typename Traits, bool Const>
 struct _Is_checked_helper<uxs::array_iterator<Traits, Const>> : std::true_type {};
