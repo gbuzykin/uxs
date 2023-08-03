@@ -372,7 +372,7 @@ struct print_functor {
             s.advance(len);
         } else if (s.avail()) {
             CharT buf[256];
-            print_fn(buf + len, val, std::forward<Args>(args)...);
+            print_fn(&buf[0] + len, val, std::forward<Args>(args)...);
             if (sign) { buf[0] = sign; }
             s.append_by_chunks(buf, buf + len);
         }

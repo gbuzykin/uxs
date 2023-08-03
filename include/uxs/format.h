@@ -103,8 +103,6 @@ using arg_alignment = std::alignment_of<arg_store_type_t<StrTy, Ty>>;
 
 template<typename StrTy, size_t, typename...>
 struct arg_store_size_evaluator;
-template<typename StrTy>
-struct arg_store_size_evaluator<StrTy, 0> : std::integral_constant<size_t, 1> {};
 template<typename StrTy, size_t Size>
 struct arg_store_size_evaluator<StrTy, Size> : std::integral_constant<size_t, Size> {};
 template<typename StrTy, size_t Size, typename Ty, typename... Rest>
@@ -117,8 +115,6 @@ struct arg_store_size_evaluator<StrTy, Size, Ty, Rest...>
 
 template<typename StrTy, typename...>
 struct arg_store_alignment_evaluator;
-template<typename StrTy>
-struct arg_store_alignment_evaluator<StrTy> : std::integral_constant<size_t, 1> {};
 template<typename StrTy, typename Ty>
 struct arg_store_alignment_evaluator<StrTy, Ty> : arg_alignment<StrTy, Ty> {};
 template<typename StrTy, typename Ty1, typename Ty2, typename... Rest>
@@ -139,14 +135,12 @@ class arg_store {
  public:
     using char_type = typename StrTy::value_type;
     static const size_t kArgCount = sizeof...(Args);
-    static const size_t kStorageSize = arg_store_size_evaluator<StrTy, kArgCount * sizeof(unsigned), Args...>::value;
-    static const size_t kStorageAlignment = arg_store_alignment_evaluator<StrTy, unsigned, Args...>::value;
-
     explicit arg_store(const Args&... args) NOEXCEPT { store_values(0, kArgCount * sizeof(unsigned), args...); }
-
     const void* data() const NOEXCEPT { return reinterpret_cast<const void*>(&storage_); }
 
  private:
+    static const size_t kStorageSize = arg_store_size_evaluator<StrTy, kArgCount * sizeof(unsigned), Args...>::value;
+    static const size_t kStorageAlignment = arg_store_alignment_evaluator<StrTy, unsigned, Args...>::value;
     typename std::aligned_storage<kStorageSize, kStorageAlignment>::type storage_;
 
     template<typename Ty>
@@ -196,11 +190,22 @@ class arg_store {
     template<typename Ty, typename... Ts>
     void store_values(size_t i, size_t offset, const Ty& v, const Ts&... other) NOEXCEPT {
         offset = uxs::align_up<arg_alignment<StrTy, Ty>::value>::value(offset);
-        reinterpret_cast<unsigned*>(&storage_)[i] = static_cast<unsigned>(offset << 8) |
-                                                    static_cast<unsigned>(arg_type_id<Ty>::value);
+        ::new (reinterpret_cast<unsigned*>(&storage_) + i) unsigned(static_cast<unsigned>(offset << 8) |
+                                                                    static_cast<unsigned>(arg_type_id<Ty>::value));
         store_value(v, reinterpret_cast<uint8_t*>(&storage_) + offset);
         store_values(i + 1, offset + arg_size<StrTy, Ty>::value, other...);
     }
+};
+
+template<typename StrTy>
+class arg_store<StrTy> {
+ public:
+    using char_type = typename StrTy::value_type;
+    static const size_t kArgCount = 0;
+    const void* data() const NOEXCEPT { return &storage_; }
+
+ private:
+    uint8_t storage_ = 0;
 };
 
 template<typename StrTy>
@@ -561,6 +566,8 @@ CONSTEXPR parse_format_error_code parse_format(std::basic_string_view<CharT> fmt
     return parse_format_error_code::kSuccess;
 }
 
+inline void report_format_error(const char*) {}
+
 template<typename StrTy>
 UXS_EXPORT StrTy& vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt, arg_list<StrTy> args,
                           const std::locale* p_loc = nullptr);
@@ -573,13 +580,13 @@ using format_args = basic_format_args<membuffer>;
 using wformat_args = basic_format_args<wmembuffer>;
 
 template<typename StrTy = membuffer, typename... Args>
-sfmt::arg_store<StrTy, Args...> make_format_args(const Args&... args) NOEXCEPT {
-    return sfmt::arg_store<StrTy, Args...>(args...);
+NODISCARD sfmt::arg_store<StrTy, Args...> make_format_args(const Args&... args) NOEXCEPT {
+    return sfmt::arg_store<StrTy, Args...>{args...};
 }
 
 template<typename StrTy = wmembuffer, typename... Args>
-sfmt::arg_store<StrTy, Args...> make_wformat_args(const Args&... args) NOEXCEPT {
-    return sfmt::arg_store<StrTy, Args...>(args...);
+NODISCARD sfmt::arg_store<StrTy, Args...> make_wformat_args(const Args&... args) NOEXCEPT {
+    return sfmt::arg_store<StrTy, Args...>{args...};
 }
 
 template<typename CharT>
@@ -589,16 +596,14 @@ struct basic_runtime_string {
 
 template<typename Str, typename = std::enable_if_t<
                            std::is_convertible<const Str&, std::basic_string_view<typename Str::value_type>>::value>>
-basic_runtime_string<typename Str::value_type> make_runtime_string(const Str& s) NOEXCEPT {
+NODISCARD basic_runtime_string<typename Str::value_type> make_runtime_string(const Str& s) NOEXCEPT {
     return basic_runtime_string<typename Str::value_type>{s};
 }
 
 template<typename CharT>
-basic_runtime_string<CharT> make_runtime_string(const CharT* s) NOEXCEPT {
+NODISCARD basic_runtime_string<CharT> make_runtime_string(const CharT* s) NOEXCEPT {
     return basic_runtime_string<CharT>{s};
 }
-
-inline void format_string_error(const char*) {}
 
 template<typename CharT, typename... Args>
 class basic_format_string {
@@ -613,7 +618,7 @@ class basic_format_string {
             [&arg_type_ids](unsigned n_arg, sfmt::arg_specs& specs) constexpr {
                 const sfmt::type_id id = arg_type_ids[n_arg];
                 const sfmt::parse_flags flag = specs.flags & sfmt::parse_flags::kSpecMask;
-                auto signed_needed = []() { format_string_error("argument format requires signed argument"); };
+                auto signed_needed = []() { sfmt::report_format_error("argument format requires signed argument"); };
                 const auto numeric_needed = []() { throw format_error("argument format requires numeric argument"); };
                 if (flag == sfmt::parse_flags::kDefault) {
                     if (!!(specs.fmt.flags & fmt_flags::kSignField) &&
@@ -651,19 +656,19 @@ class basic_format_string {
                         return;
                     }
                 }
-                format_string_error("invalid argument format specifier");
+                sfmt::report_format_error("invalid argument format specifier");
             },
             [&arg_type_ids](unsigned n_arg) constexpr->unsigned {
                 if (arg_type_ids[n_arg] > sfmt::type_id::kSignedLongLong) {
-                    format_string_error("argument is not an integer");
+                    sfmt::report_format_error("argument is not an integer");
                 }
                 return 0;
             });
         if (error_code == sfmt::parse_format_error_code::kSuccess) {
         } else if (error_code == sfmt::parse_format_error_code::kOutOfArgList) {
-            format_string_error("out of argument list");
+            sfmt::report_format_error("out of argument list");
         } else {
-            format_string_error("invalid specifier syntax");
+            sfmt::report_format_error("invalid specifier syntax");
         }
 #endif  // defined(HAS_CONSTEVAL)
     }
