@@ -2,6 +2,12 @@
 
 #include "iterator.h"
 
+#if __cplusplus >= 201703L
+#    if __has_include(<span>)
+#        include <span>
+#    endif
+#endif
+
 #if __cplusplus < 202002L || !defined(__cpp_lib_span)
 
 #    include <stdexcept>
@@ -69,8 +75,6 @@ class span {
 }  // namespace uxs
 
 #else  // span
-
-#    include <span>
 
 namespace uxs {
 template<typename Ty>
