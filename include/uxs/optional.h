@@ -2,6 +2,12 @@
 
 #include "utility.h"
 
+#if __cplusplus >= 201703L
+#    if __has_include(<optional>)
+#        include <optional>
+#    endif
+#endif
+
 #if __cplusplus < 201703L || !defined(__cpp_lib_optional)
 
 #    include <stdexcept>
@@ -36,7 +42,7 @@ class optional {
         new (&data_) value_type(std::forward<Args>(args)...);
     }
 
-    template<typename U, typename = std::enable_if_t<std::is_convertible<Ty, U&&>::value &&
+    template<typename U, typename = std::enable_if_t<std::is_constructible<Ty, U&&>::value &&
                                                      !std::is_same<std::decay_t<U>, in_place_t>::value &&
                                                      !std::is_same<std::decay_t<U>, optional<Ty>>::value>>
     optional(U&& v) : valid_(true) {
@@ -103,8 +109,6 @@ class optional {
 }  // namespace uxs
 
 #else  // optional
-
-#    include <optional>
 
 namespace uxs {
 using nullopt_t = std::nullopt_t;
