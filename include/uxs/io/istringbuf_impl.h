@@ -42,9 +42,4 @@ typename basic_istringbuf<CharT>::pos_type basic_istringbuf<CharT>::seekimpl(off
     return new_pos;
 }
 
-template<typename CharT>
-void basic_istringbuf<CharT>::redirect_ptrs() {
-    this->setview(&str_[0], &str_[this->curr() - this->first()], &str_[str_.size()]);
-}
-
 }  // namespace uxs

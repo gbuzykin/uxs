@@ -26,16 +26,16 @@ enum class token_t : int {
 
 enum class next_action_type : int { kStepInto = 0, kStepOver, kBreak };
 
-class UXS_EXPORT reader {
+class reader {
  public:
-    explicit reader(iobuf& input);
+    UXS_EXPORT explicit reader(iobuf& input);
 
     template<typename ValueFunc, typename ArrItemFunc, typename ObjItemFunc, typename PopFunc>
     void read(const ValueFunc& fn_value, const ArrItemFunc& fn_arr_item, const ObjItemFunc& fn_obj_item,
               const PopFunc& fn_pop, token_t tk_val = token_t::kEof);
 
     template<typename CharT = char, typename Alloc = std::allocator<CharT>>
-    basic_value<CharT, Alloc> read(token_t tk_val = token_t::kEof, const Alloc& al = Alloc());
+    UXS_EXPORT basic_value<CharT, Alloc> read(token_t tk_val = token_t::kEof, const Alloc& al = Alloc());
 
  private:
     iobuf& input_;
@@ -47,13 +47,13 @@ class UXS_EXPORT reader {
     int parse_token(std::string_view& lval);
 };
 
-class UXS_EXPORT writer {
+class writer {
  public:
     explicit writer(iobuf& output, unsigned indent_sz = 4, char indent_ch = ' ')
         : output_(output), indent_size_(indent_sz), indent_char_(indent_ch) {}
 
     template<typename CharT, typename Alloc>
-    void write(const basic_value<CharT, Alloc>& v, unsigned indent = 0);
+    UXS_EXPORT void write(const basic_value<CharT, Alloc>& v, unsigned indent = 0);
 
  private:
     iobuf& output_;

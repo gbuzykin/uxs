@@ -23,9 +23,9 @@ enum class token_t : int {
     kPreamble,
 };
 
-class UXS_EXPORT reader {
+class reader {
  public:
-    explicit reader(iobuf& input);
+    UXS_EXPORT explicit reader(iobuf& input);
 
     class iterator : public iterator_facade<iterator, std::pair<token_t, std::string_view>, std::input_iterator_tag,
                                             const std::pair<token_t, std::string_view>&,
@@ -58,9 +58,9 @@ class UXS_EXPORT reader {
     };
 
     template<typename CharT = char, typename Alloc = std::allocator<CharT>>
-    basic_value<CharT, Alloc> read(std::string_view root_element, const Alloc& al = Alloc());
+    UXS_EXPORT basic_value<CharT, Alloc> read(std::string_view root_element, const Alloc& al = Alloc());
 
-    std::pair<token_t, std::string_view> read_next();
+    UXS_EXPORT std::pair<token_t, std::string_view> read_next();
 
  private:
     iobuf& input_;
@@ -93,13 +93,13 @@ class UXS_EXPORT reader {
     static string_class classify_string(const std::string_view& sval);
 };
 
-class UXS_EXPORT writer {
+class writer {
  public:
     explicit writer(iobuf& output, unsigned indent_sz = 4, char indent_ch = ' ')
         : output_(output), indent_size_(indent_sz), indent_char_(indent_ch) {}
 
     template<typename CharT, typename Alloc>
-    void write(const basic_value<CharT, Alloc>& v, std::string_view root_element, unsigned indent = 0);
+    UXS_EXPORT void write(const basic_value<CharT, Alloc>& v, std::string_view root_element, unsigned indent = 0);
 
  private:
     iobuf& output_;

@@ -2,13 +2,19 @@
 
 namespace uxs {
 namespace db {
+namespace detail {
+template struct flexarray_t<char, std::allocator<char>, false>;
+template struct flexarray_t<wchar_t, std::allocator<wchar_t>, false>;
+template struct flexarray_t<char, std::allocator<char>, true>;
+template struct flexarray_t<wchar_t, std::allocator<wchar_t>, true>;
+template struct record_t<char, std::allocator<char>>;
+template struct record_t<wchar_t, std::allocator<wchar_t>>;
+template struct list_node_type<char, std::allocator<char>>;
+template struct list_node_type<wchar_t, std::allocator<wchar_t>>;
+}  // namespace detail
+template class basic_value<char>;
+template class basic_value<wchar_t>;
 template UXS_EXPORT bool operator==(const basic_value<char>&, const basic_value<char>&);
 template UXS_EXPORT bool operator==(const basic_value<wchar_t>&, const basic_value<wchar_t>&);
-template class UXS_EXPORT basic_value<char>;
-template class UXS_EXPORT basic_value<wchar_t>;
-template struct UXS_EXPORT basic_value<char>::flexarray_t<char>;
-template struct UXS_EXPORT basic_value<wchar_t>::flexarray_t<wchar_t>;
-template struct UXS_EXPORT basic_value<char>::flexarray_t<basic_value<char>>;
-template struct UXS_EXPORT basic_value<wchar_t>::flexarray_t<basic_value<wchar_t>>;
 }  // namespace db
 }  // namespace uxs

@@ -666,16 +666,16 @@ void fmt_char(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt) {
 SCVT_CONSTEXPR_DATA int kMaxDoubleDigits = 767;
 SCVT_CONSTEXPR_DATA int kDigsPer64 = 18;  // size of 64-bit digit pack
 
-class UXS_EXPORT fp_hex_fmt_t {
+class fp_hex_fmt_t {
  public:
-    fp_hex_fmt_t(const fp_m64_t& fp2, const fmt_opts& fmt, const unsigned bpm, const int exp_bias) NOEXCEPT;
+    UXS_EXPORT fp_hex_fmt_t(const fp_m64_t& fp2, const fmt_opts& fmt, const unsigned bpm, const int exp_bias) NOEXCEPT;
 
     unsigned get_len() const NOEXCEPT {
         return 3 + (prec_ > 0 || alternate_ ? prec_ + 1 : 0) + fmt_dec_unsigned_len<uint32_t>(std::abs(exp_));
     }
 
     template<typename CharT>
-    void generate(CharT* p, const bool upper_case, const CharT dec_point) const NOEXCEPT;
+    UXS_EXPORT void generate(CharT* p, const bool upper_case, const CharT dec_point) const NOEXCEPT;
 
  private:
     uint64_t significand_;
@@ -714,9 +714,9 @@ void fp_hex_fmt_t::generate(CharT* p, const bool upper_case, const CharT dec_poi
     }
 }
 
-class UXS_EXPORT fp_dec_fmt_t {
+class fp_dec_fmt_t {
  public:
-    fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, const int exp_bias) NOEXCEPT;
+    UXS_EXPORT fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, const int exp_bias) NOEXCEPT;
 
     unsigned get_len() const NOEXCEPT {
         return (fixed_ ? 1 + std::max(exp_, 0) : (exp_ <= -100 || exp_ >= 100 ? 6 : 5)) +
@@ -754,9 +754,9 @@ class UXS_EXPORT fp_dec_fmt_t {
     bool alternate_;
     char digs_buf_[kMaxDoubleDigits + kDigsPer64 - 1];
 
-    void format_short_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT;
-    void format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT;
-    void format_long_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT;
+    UXS_EXPORT void format_short_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT;
+    UXS_EXPORT void format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT;
+    UXS_EXPORT void format_long_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT;
 };
 
 template<typename CharT>

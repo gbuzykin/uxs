@@ -6,8 +6,7 @@
 namespace uxs {
 
 template<typename CharT, typename Alloc = std::allocator<CharT>>
-class UXS_EXPORT basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_alloc<CharT>,
-                                public basic_iobuf<CharT> {
+class basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_alloc<CharT>, public basic_iobuf<CharT> {
  protected:
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<CharT>;
 
@@ -28,23 +27,23 @@ class UXS_EXPORT basic_devbuf : protected std::allocator_traits<Alloc>::template
     basic_devbuf(iodevice& dev, iomode mode, size_type bufsz, const Alloc& al) : alloc_type(al), dev_(&dev) {
         initbuf(mode, bufsz);
     }
-    ~basic_devbuf() override;
-    basic_devbuf(basic_devbuf&& other) NOEXCEPT;
-    basic_devbuf& operator=(basic_devbuf&& other) NOEXCEPT;
+    UXS_EXPORT ~basic_devbuf() override;
+    UXS_EXPORT basic_devbuf(basic_devbuf&& other) NOEXCEPT;
+    UXS_EXPORT basic_devbuf& operator=(basic_devbuf&& other) NOEXCEPT;
 
     iodevice* dev() const { return dev_; }
     basic_iobuf<CharT>* tie() const { return tie_buf_; }
     void settie(basic_iobuf<CharT>* tie) { tie_buf_ = tie; }
 
-    void initbuf(iomode mode, size_type bufsz = 0);
-    void freebuf();
+    UXS_EXPORT void initbuf(iomode mode, size_type bufsz = 0);
+    UXS_EXPORT void freebuf();
     allocator_type get_allocator() const NOEXCEPT { return allocator_type(*this); }
 
  protected:
-    int underflow() override;
-    int overflow() override;
-    pos_type seekimpl(off_type off, seekdir dir) override;
-    int sync() override;
+    UXS_EXPORT int underflow() override;
+    UXS_EXPORT int overflow() override;
+    UXS_EXPORT pos_type seekimpl(off_type off, seekdir dir) override;
+    UXS_EXPORT int sync() override;
 
     void setdev(iodevice* dev) { dev_ = dev; }
 
@@ -66,16 +65,16 @@ class UXS_EXPORT basic_devbuf : protected std::allocator_traits<Alloc>::template
     pos_type pos_ = 0;
     basic_iobuf<char_type>* tie_buf_ = nullptr;
 
-    const char_type* find_end_of_ctrlesc(const char_type* first, const char_type* last);
-    int write_buf(const void* data, size_t sz);
-    int read_buf(void* data, size_t sz, size_t& n_read);
-    int flush_compressed_buf();
-    int write_compressed(const void* data, size_t sz);
-    void finish_compressed();
-    int read_compressed(void* data, size_t sz, size_t& n_read);
-    void parse_ctrlesc(const char_type* first, const char_type* last);
-    int flush_buffer();
-    size_t remove_crlf(char_type* dst, size_t count);
+    UXS_EXPORT const char_type* find_end_of_ctrlesc(const char_type* first, const char_type* last);
+    UXS_EXPORT int write_buf(const void* data, size_t sz);
+    UXS_EXPORT int read_buf(void* data, size_t sz, size_t& n_read);
+    UXS_EXPORT int flush_compressed_buf();
+    UXS_EXPORT int write_compressed(const void* data, size_t sz);
+    UXS_EXPORT void finish_compressed();
+    UXS_EXPORT int read_compressed(void* data, size_t sz, size_t& n_read);
+    UXS_EXPORT void parse_ctrlesc(const char_type* first, const char_type* last);
+    UXS_EXPORT int flush_buffer();
+    UXS_EXPORT size_t remove_crlf(char_type* dst, size_t count);
 };
 
 using devbuf = basic_devbuf<char>;

@@ -12,7 +12,7 @@ enum class iodevcaps : uint32_t {
 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iodevcaps, uint32_t);
 
-class UXS_EXPORT iodevice {
+class iodevice {
  public:
     iodevice() = default;
     explicit iodevice(iodevcaps caps) : caps_(caps) {}

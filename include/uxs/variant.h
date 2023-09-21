@@ -93,7 +93,7 @@ class variant_error : public std::runtime_error {
 template<typename Ty>
 struct variant_type_impl;
 
-class UXS_EXPORT variant {
+class variant {
  private:
     template<typename... Ts>
     using aligned_storage_t = typename std::aligned_storage<size_of<Ts...>::value, alignment_of<Ts...>::value>::type;
@@ -115,7 +115,7 @@ class UXS_EXPORT variant {
     variant(variant&& v) NOEXCEPT : vtable_(v.vtable_) {
         if (vtable_) { vtable_->construct_move(&data_, &v.data_); }
     }
-    variant(variant_id type, const variant& v);
+    UXS_EXPORT variant(variant_id type, const variant& v);
 
     ~variant() {
         if (vtable_) { vtable_->destroy(&data_); }
@@ -133,8 +133,8 @@ class UXS_EXPORT variant {
         variant_type_impl<std::decay_t<Ty>>::construct(&data_, std::forward<Ty>(val));
     }
 
-    variant& operator=(const variant& v);
-    variant& operator=(variant&& v) NOEXCEPT;
+    UXS_EXPORT variant& operator=(const variant& v);
+    UXS_EXPORT variant& operator=(variant&& v) NOEXCEPT;
 
     template<typename Ty, typename... Args, typename = std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
     Ty& emplace(Args&&... args);
@@ -180,11 +180,11 @@ class UXS_EXPORT variant {
     bool convert() {
         return convert(variant_type_impl<Ty>::type_id);
     }
-    bool convert(variant_id type);
+    UXS_EXPORT bool convert(variant_id type);
 
     template<typename Ty, typename U = Ty, typename = std::void_t<typename variant_type_impl<U>::is_variant_type_impl>>
     bool is_equal_to(const Ty& val) const;
-    bool is_equal_to(const variant& v) const;
+    UXS_EXPORT bool is_equal_to(const variant& v) const;
 
     variant(std::string_view s);
     variant& operator=(std::string_view s);
@@ -195,8 +195,8 @@ class UXS_EXPORT variant {
     bool is_equal_to(const char* cstr) const;
 
 #ifdef USE_QT
-    void serialize(QDataStream& os) const;
-    void deserialize(QDataStream& is);
+    UXS_EXPORT void serialize(QDataStream& os) const;
+    UXS_EXPORT void deserialize(QDataStream& is);
 #endif  // USE_QT
 
  private:
@@ -225,7 +225,7 @@ class UXS_EXPORT variant {
     template<typename, typename = void>
     struct getters_specializer;
 
-    static vtable_t* vtables_[];
+    UXS_EXPORT static vtable_t* vtables_[];
     vtable_t* vtable_ = nullptr;
     storage_t data_;
 

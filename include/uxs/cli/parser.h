@@ -79,7 +79,7 @@ class basic_node {
 };
 
 template<typename CharT>
-class UXS_EXPORT basic_value : public basic_node<CharT> {
+class basic_value : public basic_node<CharT> {
  public:
     basic_value(std::basic_string<CharT> label, value_handler_fn<CharT> fn)
         : basic_node<CharT>(node_type::kValue), label_(std::move(label)), handler_(std::move(fn)), is_multiple_(false) {
@@ -117,11 +117,11 @@ class basic_option_node : public basic_node<CharT> {
 };
 
 template<typename CharT>
-class UXS_EXPORT basic_option_group : public basic_option_node<CharT> {
+class basic_option_group : public basic_option_node<CharT> {
  public:
     explicit basic_option_group(bool is_exclusive)
         : basic_option_node<CharT>(node_type::kOptionGroup), is_exclusive_(is_exclusive) {}
-    basic_option_group(const basic_option_group&);
+    UXS_EXPORT basic_option_group(const basic_option_group&);
     std::unique_ptr<basic_node<CharT>> clone() const override {
         return detail::make_unique<basic_option_group>(*this);
     };
@@ -146,11 +146,11 @@ class UXS_EXPORT basic_option_group : public basic_option_node<CharT> {
 };
 
 template<typename CharT>
-class UXS_EXPORT basic_option : public basic_option_node<CharT> {
+class basic_option : public basic_option_node<CharT> {
  public:
     explicit basic_option(std::initializer_list<std::basic_string_view<CharT>> keys)
         : basic_option_node<CharT>(node_type::kOption), keys_(keys.begin(), keys.end()) {}
-    basic_option(const basic_option&);
+    UXS_EXPORT basic_option(const basic_option&);
     std::unique_ptr<basic_node<CharT>> clone() const override { return detail::make_unique<basic_option>(*this); };
 
     const std::vector<std::basic_string<CharT>>& get_keys() const { return keys_; }
@@ -200,14 +200,14 @@ struct parsing_result {
 };
 
 template<typename CharT>
-class UXS_EXPORT basic_command : public basic_node<CharT> {
+class basic_command : public basic_node<CharT> {
  public:
     explicit basic_command(std::basic_string<CharT> name)
         : basic_node<CharT>(node_type::kCommand), name_(std::move(name)),
           opts_(detail::make_unique<basic_option_group<CharT>>(false)) {
         opts_->set_parent(this);
     }
-    basic_command(const basic_command&);
+    UXS_EXPORT basic_command(const basic_command&);
     std::unique_ptr<basic_node<CharT>> clone() const override { return detail::make_unique<basic_command>(*this); };
 
     const std::basic_string<CharT>& get_name() const { return name_; }
@@ -223,15 +223,15 @@ class UXS_EXPORT basic_command : public basic_node<CharT> {
         val->set_parent(this);
         values_.emplace_back(std::move(val));
     }
-    void add_option(std::unique_ptr<basic_option_node<CharT>> opt);
-    void add_subcommand(std::unique_ptr<basic_command> cmd);
+    UXS_EXPORT void add_option(std::unique_ptr<basic_option_node<CharT>> opt);
+    UXS_EXPORT void add_subcommand(std::unique_ptr<basic_command> cmd);
 
     const std::function<void()>& get_handler() const { return handler_; }
     void set_handler(std::function<void()> fn) { handler_ = std::move(fn); }
 
     parsing_result<CharT> parse(int argc, const CharT* const* argv) const { return parse(this, argc, argv); }
 
-    std::basic_string<CharT> make_man_page(bool colored) const;
+    UXS_EXPORT std::basic_string<CharT> make_man_page(bool colored) const;
 
  private:
     std::basic_string<CharT> name_, overview_;
@@ -241,7 +241,7 @@ class UXS_EXPORT basic_command : public basic_node<CharT> {
     std::map<std::basic_string_view<CharT>, std::unique_ptr<basic_command>> subcommands_;
     std::function<void()> handler_;
 
-    static parsing_result<CharT> parse(const basic_command* cmd, int argc, const CharT* const* argv);
+    UXS_EXPORT static parsing_result<CharT> parse(const basic_command* cmd, int argc, const CharT* const* argv);
 };
 
 template<typename CharT>

@@ -5,18 +5,6 @@
 namespace uxs {
 
 template<typename CharT>
-basic_zipfilebuf<CharT>::basic_zipfilebuf(ziparch& arch, const char* fname, iomode mode)
-    : basic_devbuf<CharT>(zip_file_), zip_file_(arch, fname) {
-    if (zip_file_.valid()) { this->initbuf(mode); }
-}
-
-template<typename CharT>
-basic_zipfilebuf<CharT>::basic_zipfilebuf(ziparch& arch, const wchar_t* fname, iomode mode)
-    : basic_devbuf<CharT>(zip_file_), zip_file_(arch, fname) {
-    if (zip_file_.valid()) { this->initbuf(mode); }
-}
-
-template<typename CharT>
 basic_zipfilebuf<CharT>::~basic_zipfilebuf() {
     this->freebuf();
 }
