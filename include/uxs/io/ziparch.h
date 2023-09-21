@@ -6,7 +6,7 @@ namespace uxs {
 
 class zipfile;
 
-class UXS_EXPORT ziparch {
+class ziparch {
  public:
     ziparch() = default;
     ziparch(const char* name, iomode mode) { open(name, mode); }
@@ -25,17 +25,17 @@ class UXS_EXPORT ziparch {
     bool valid() const { return zip_ != nullptr; }
     explicit operator bool() const { return zip_ != nullptr; }
 
-    bool open(const char* name, iomode mode);
-    bool open(const wchar_t* name, iomode mode);
+    UXS_EXPORT bool open(const char* name, iomode mode);
+    UXS_EXPORT bool open(const wchar_t* name, iomode mode);
     bool open(const char* name, const char* mode) { return open(name, detail::iomode_from_str(mode, iomode::kIn)); }
     bool open(const wchar_t* name, const char* mode) { return open(name, detail::iomode_from_str(mode, iomode::kIn)); }
     void close();
 
-    bool stat_size(const char* fname, uint64_t& sz);
-    bool stat_crc(const char* fname, uint32_t& crc);
+    UXS_EXPORT bool stat_size(const char* fname, uint64_t& sz);
+    UXS_EXPORT bool stat_crc(const char* fname, uint32_t& crc);
 
-    bool stat_size(const wchar_t* fname, uint64_t& sz);
-    bool stat_crc(const wchar_t* fname, uint32_t& crc);
+    UXS_EXPORT bool stat_size(const wchar_t* fname, uint64_t& sz);
+    UXS_EXPORT bool stat_crc(const wchar_t* fname, uint32_t& crc);
 
  private:
     friend class zipfile;

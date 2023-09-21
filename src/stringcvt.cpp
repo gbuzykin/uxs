@@ -3,17 +3,17 @@
 namespace uxs {
 #if __cplusplus < 201703L
 namespace detail {
-UXS_EXPORT const char_tbl_t g_char_tbl;
+const char_tbl_t g_char_tbl;
 }
 #endif  // __cplusplus < 201703L
 namespace scvt {
 
-UXS_EXPORT const fmt_opts g_default_opts;
+const fmt_opts g_default_opts;
 
 #if __cplusplus < 201703L && \
     (SCVT_USE_COMPILER_128BIT_EXTENSIONS == 0 || \
      (!(defined(_MSC_VER) && defined(_M_X64)) && !(defined(__GNUC__) && defined(__x86_64__))))
-const UXS_EXPORT ulog2_table_t g_ulog2_tbl;
+const ulog2_table_t g_ulog2_tbl;
 #endif
 
 inline uint64_t umul128(uint64_t x, uint64_t y, uint64_t bias, uint64_t& result_hi) {

@@ -5,8 +5,8 @@
 namespace uxs {
 
 template<typename CharT, typename Alloc = std::allocator<CharT>>
-class UXS_EXPORT basic_ostringbuf : protected std::allocator_traits<Alloc>::template rebind_alloc<CharT>,
-                                    public basic_iobuf<CharT> {
+class basic_ostringbuf : protected std::allocator_traits<Alloc>::template rebind_alloc<CharT>,
+                         public basic_iobuf<CharT> {
  protected:
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<CharT>;
 
@@ -21,9 +21,9 @@ class UXS_EXPORT basic_ostringbuf : protected std::allocator_traits<Alloc>::temp
 
     basic_ostringbuf() : alloc_type(), basic_iobuf<CharT>(iomode::kOut) {}
     explicit basic_ostringbuf(const Alloc& al) : alloc_type(al), basic_iobuf<CharT>(iomode::kOut) {}
-    ~basic_ostringbuf() override;
-    basic_ostringbuf(basic_ostringbuf&& other) NOEXCEPT;
-    basic_ostringbuf& operator=(basic_ostringbuf&& other) NOEXCEPT;
+    UXS_EXPORT ~basic_ostringbuf() override;
+    UXS_EXPORT basic_ostringbuf(basic_ostringbuf&& other) NOEXCEPT;
+    UXS_EXPORT basic_ostringbuf& operator=(basic_ostringbuf&& other) NOEXCEPT;
 
     size_type size() const { return (top_ > this->curr() ? top_ : this->curr()) - this->first(); }
     std::basic_string_view<char_type> view() const { return std::basic_string_view<char_type>(this->first(), size()); }
@@ -37,9 +37,9 @@ class UXS_EXPORT basic_ostringbuf : protected std::allocator_traits<Alloc>::temp
     }
 
  protected:
-    int overflow() override;
-    int sync() override;
-    pos_type seekimpl(off_type off, seekdir dir) override;
+    UXS_EXPORT int overflow() override;
+    UXS_EXPORT int sync() override;
+    UXS_EXPORT pos_type seekimpl(off_type off, seekdir dir) override;
 
  private:
     enum : unsigned {
@@ -51,7 +51,7 @@ class UXS_EXPORT basic_ostringbuf : protected std::allocator_traits<Alloc>::temp
     };
     char_type* top_ = nullptr;
 
-    void grow(size_type extra);
+    UXS_EXPORT void grow(size_type extra);
 };
 
 using ostringbuf = basic_ostringbuf<char>;

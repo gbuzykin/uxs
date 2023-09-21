@@ -5,7 +5,7 @@
 
 namespace uxs {
 
-class UXS_EXPORT zipfile : public iodevice {
+class zipfile : public iodevice {
  public:
     zipfile() = default;
     zipfile(ziparch& arch, const char* fname) { open(arch, fname); }
@@ -22,11 +22,11 @@ class UXS_EXPORT zipfile : public iodevice {
     bool valid() const { return zip_fd_ != nullptr; }
     explicit operator bool() const { return zip_fd_ != nullptr; }
 
-    bool open(ziparch& arch, const char* fname);
-    bool open(ziparch& arch, const wchar_t* fname);
-    void close();
+    UXS_EXPORT bool open(ziparch& arch, const char* fname);
+    UXS_EXPORT bool open(ziparch& arch, const wchar_t* fname);
+    UXS_EXPORT void close();
 
-    int read(void* buf, size_t sz, size_t& n_read) override;
+    UXS_EXPORT int read(void* buf, size_t sz, size_t& n_read) override;
     int write(const void* data, size_t sz, size_t& n_written) override { return -1; }
     int flush() override { return -1; }
 

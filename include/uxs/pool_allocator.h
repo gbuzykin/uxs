@@ -15,7 +15,7 @@ struct pool_part_hdr_t : dllist_node_t {
 };
 
 template<typename Alloc>
-class UXS_EXPORT pool {
+class pool {
  public:
     struct pool_desc_t;
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<pool_desc_t>;
@@ -113,10 +113,10 @@ class UXS_EXPORT pool {
     static void inc_use_count(dllist_node_t* node) { ++header(node)->use_count; }
     static size_t dec_use_count(dllist_node_t* node) { return --header(node)->use_count; }
 
-    static void tidy(pool_desc_t* desc);
-    static pool_desc_t* find_pool(pool_desc_t* desc, uint32_t size_and_alignment);
-    static pool_desc_t* allocate_new_pool(alloc_type al);
-    static pool_desc_t* allocate_dummy_pool(const alloc_type& al, uint32_t partition_size);
+    UXS_EXPORT static void tidy(pool_desc_t* desc);
+    UXS_EXPORT static pool_desc_t* find_pool(pool_desc_t* desc, uint32_t size_and_alignment);
+    UXS_EXPORT static pool_desc_t* allocate_new_pool(alloc_type al);
+    UXS_EXPORT static pool_desc_t* allocate_dummy_pool(const alloc_type& al, uint32_t partition_size);
 };
 
 extern UXS_EXPORT pool<std::allocator<void>> g_global_pool;

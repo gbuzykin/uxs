@@ -2,7 +2,7 @@
 
 #include "iterator.h"
 
-#if __cplusplus >= 201703L
+#if __cplusplus >= 202002L
 #    if __has_include(<span>)
 #        include <span>
 #    endif
@@ -96,7 +96,7 @@ CONSTEXPR span<Ty> as_span(Ty (&v)[N]) NOEXCEPT {
 }
 
 template<typename Range>
-CONSTEXPR auto as_span(Range&& r) NOEXCEPT -> span<std::remove_pointer_t<decltype(r.data() + r.size())>> {
+CONSTEXPR auto as_span(Range&& r) NOEXCEPT->span<std::remove_pointer_t<decltype(r.data() + r.size())>> {
     return span<std::remove_pointer_t<decltype(r.data())>>(r.data(), r.size());
 }
 

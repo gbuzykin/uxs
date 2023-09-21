@@ -6,7 +6,7 @@
 
 namespace uxs {
 
-class UXS_EXPORT guid {
+class guid {
  public:
     guid() { data64_[0] = data64_[1] = 0; }
     explicit guid(const uint32_t* id) { set_data(id); }
@@ -67,7 +67,7 @@ class UXS_EXPORT guid {
     }
     static guid from_per_byte_wstring(std::wstring_view s) { return from_per_byte_basic_string(s); }
 
-    static guid generate();
+    UXS_EXPORT static guid generate();
 
  private:
     union {

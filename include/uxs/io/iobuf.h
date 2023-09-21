@@ -10,7 +10,7 @@
 namespace uxs {
 
 template<typename CharT>
-class UXS_EXPORT basic_iobuf : public iostate {
+class basic_iobuf : public iostate {
     static_assert(std::is_integral<CharT>::value, "uxs::basic_iobuf must have integral character type");
 
  public:
@@ -24,11 +24,11 @@ class UXS_EXPORT basic_iobuf : public iostate {
     basic_iobuf() = default;
     explicit basic_iobuf(iomode mode) : iostate(mode) {}
     basic_iobuf(iomode mode, iostate_bits state) : iostate(mode, state) {}
-    virtual ~basic_iobuf() = default;
+    UXS_EXPORT virtual ~basic_iobuf() = default;
     basic_iobuf(const basic_iobuf&) = delete;
     basic_iobuf& operator=(const basic_iobuf&) = delete;
-    basic_iobuf(basic_iobuf&& other) NOEXCEPT;
-    basic_iobuf& operator=(basic_iobuf&& other) NOEXCEPT;
+    UXS_EXPORT basic_iobuf(basic_iobuf&& other) NOEXCEPT;
+    UXS_EXPORT basic_iobuf& operator=(basic_iobuf&& other) NOEXCEPT;
 
     size_type avail() const { return last_ - curr_; }
     char_type* first_avail() const { return curr_; }
@@ -103,26 +103,26 @@ class UXS_EXPORT basic_iobuf : public iostate {
         return *this;
     }
 
-    size_type read(uxs::span<char_type> s);
-    size_type skip(size_type count);
-    basic_iobuf& write(uxs::span<const char_type> s);
+    UXS_EXPORT size_type read(uxs::span<char_type> s);
+    UXS_EXPORT size_type skip(size_type count);
+    UXS_EXPORT basic_iobuf& write(uxs::span<const char_type> s);
     basic_iobuf& write(const char_type* cstr) { return write(std::basic_string_view<char_type>(cstr)); }
-    basic_iobuf& fill_n(size_type count, char_type ch);
-    basic_iobuf& flush();
+    UXS_EXPORT basic_iobuf& fill_n(size_type count, char_type ch);
+    UXS_EXPORT basic_iobuf& flush();
     basic_iobuf& endl() { return put('\n').flush(); }
 
-    pos_type seek(off_type off, seekdir dir = seekdir::kBeg);
+    UXS_EXPORT pos_type seek(off_type off, seekdir dir = seekdir::kBeg);
     pos_type tell() {
         if (this->fail()) { return -1; }
         return seekimpl(0, seekdir::kCurr);
     }
 
  protected:
-    virtual int underflow();
-    virtual int ungetfail();
-    virtual int overflow();
-    virtual pos_type seekimpl(off_type off, seekdir dir);
-    virtual int sync();
+    UXS_EXPORT virtual int underflow();
+    UXS_EXPORT virtual int ungetfail();
+    UXS_EXPORT virtual int overflow();
+    UXS_EXPORT virtual pos_type seekimpl(off_type off, seekdir dir);
+    UXS_EXPORT virtual int sync();
 
     char_type* first() const { return first_; }
     char_type* curr() const { return curr_; }

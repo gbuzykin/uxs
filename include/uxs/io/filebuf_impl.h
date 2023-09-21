@@ -5,24 +5,6 @@
 namespace uxs {
 
 template<typename CharT>
-basic_filebuf<CharT>::basic_filebuf(file_desc_t fd, iomode mode, basic_iobuf<CharT>* tie)
-    : basic_devbuf<CharT>(file_), file_(fd) {
-    this->settie(tie);
-    if (file_.valid()) { this->initbuf(mode); }
-}
-
-template<typename CharT>
-basic_filebuf<CharT>::basic_filebuf(const char* fname, iomode mode) : basic_devbuf<CharT>(file_), file_(fname, mode) {
-    if (file_.valid()) { this->initbuf(mode); }
-}
-
-template<typename CharT>
-basic_filebuf<CharT>::basic_filebuf(const wchar_t* fname, iomode mode)
-    : basic_devbuf<CharT>(file_), file_(fname, mode) {
-    if (file_.valid()) { this->initbuf(mode); }
-}
-
-template<typename CharT>
 basic_filebuf<CharT>::~basic_filebuf() {
     this->freebuf();
 }
