@@ -2,9 +2,8 @@
 
 #include "stringcvt.h"
 
-#include <array>
+#include <cstdlib>
 #include <cstring>
-#include <locale>
 
 #define SCVT_USE_COMPILER_128BIT_EXTENSIONS 1
 

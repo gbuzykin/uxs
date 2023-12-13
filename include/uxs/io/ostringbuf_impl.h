@@ -2,6 +2,8 @@
 
 #include "ostringbuf.h"
 
+#include <stdexcept>
+
 namespace uxs {
 
 template<typename CharT, typename Alloc>

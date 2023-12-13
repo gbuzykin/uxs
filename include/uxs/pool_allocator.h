@@ -1,8 +1,10 @@
 #pragma once
 
 #include "alignment.h"
-#include "allocator.h"
 #include "dllist.h"
+
+#include <cassert>
+#include <memory>
 
 namespace uxs {
 
@@ -335,7 +337,7 @@ template<typename TyL, typename TyR>
 bool operator==(const global_pool_allocator<TyL>& lhs, const global_pool_allocator<TyR>& rhs) NOEXCEPT {
     return true;
 }
-template<typename TyL, typename TyR, typename Alloc>
+template<typename TyL, typename TyR>
 bool operator!=(const global_pool_allocator<TyL>& lhs, const global_pool_allocator<TyR>& rhs) NOEXCEPT {
     return !(lhs == rhs);
 }

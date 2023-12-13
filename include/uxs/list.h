@@ -1,8 +1,10 @@
 #pragma once
 
-#include "allocator.h"
 #include "dllist.h"
 #include "iterator.h"
+#include "memory.h"
+
+#include <stdexcept>
 
 namespace uxs {
 

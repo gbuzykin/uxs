@@ -1,5 +1,8 @@
 #include "uxs/stringalg.h"
 
+#include "uxs/function_call_iterator.h"
+#include "uxs/utf.h"
+
 namespace uxs {
 
 std::wstring from_utf8_to_wide(std::string_view s) {

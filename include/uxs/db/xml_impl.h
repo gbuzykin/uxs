@@ -1,10 +1,8 @@
 #pragma once
 
-#include "exception.h"
 #include "value.h"
 #include "xml.h"
 
-#include "uxs/algorithm.h"
 #include "uxs/format.h"
 #include "uxs/stringalg.h"
 

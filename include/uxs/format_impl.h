@@ -4,7 +4,6 @@
 #include "utf.h"
 
 #include <cstring>
-#include <locale>
 
 namespace uxs {
 namespace sfmt {

@@ -4,7 +4,6 @@
 
 #include <array>
 #include <cstring>
-#include <memory>
 
 #if defined(UXS_USE_ZLIB)
 #    define ZLIB_CONST

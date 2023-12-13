@@ -2,6 +2,8 @@
 
 #include "rbtree_base.h"
 
+#include <stdexcept>
+
 namespace uxs {
 
 namespace detail {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "iterator.h"
+#include "utility.h"
 
 #if __cplusplus >= 202002L
 #    if __has_include(<span>)
@@ -10,6 +10,9 @@
 
 #if __cplusplus < 202002L || !defined(__cpp_lib_span)
 
+#    include "iterator.h"
+
+#    include <cassert>
 #    include <stdexcept>
 
 namespace uxs {
@@ -63,8 +66,8 @@ class span {
     }
 
     CONSTEXPR span subspan(size_type offset, size_type count = dynamic_extent) const {
-        offset = std::min(offset, size_);
-        return span(begin_ + offset, std::min(count, size_ - offset));
+        if (offset > size_) { offset = size_; }
+        return span(begin_ + offset, count < size_ - offset ? count : size_ - offset);
     }
 
  private:
@@ -96,7 +99,7 @@ CONSTEXPR span<Ty> as_span(Ty (&v)[N]) NOEXCEPT {
 }
 
 template<typename Range>
-CONSTEXPR auto as_span(Range&& r) NOEXCEPT->span<std::remove_pointer_t<decltype(r.data() + r.size())>> {
+CONSTEXPR auto as_span(Range&& r) NOEXCEPT -> span<std::remove_pointer_t<decltype(r.data() + r.size())>> {
     return span<std::remove_pointer_t<decltype(r.data())>>(r.data(), r.size());
 }
 

@@ -3,6 +3,7 @@
 #include "common.h"
 
 #include <atomic>
+#include <cassert>
 #include <memory>
 #include <utility>
 

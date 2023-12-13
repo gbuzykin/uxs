@@ -2,6 +2,8 @@
 
 #include "iobuf.h"
 
+#include <memory>
+
 namespace uxs {
 
 template<typename CharT, typename Alloc = std::allocator<CharT>>

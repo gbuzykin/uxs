@@ -10,6 +10,7 @@
 
 #if __cplusplus < 201703L || !defined(__cpp_lib_optional)
 
+#    include <cassert>
 #    include <stdexcept>
 
 namespace uxs {

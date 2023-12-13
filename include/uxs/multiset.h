@@ -1,7 +1,8 @@
 #pragma once
 
-#include "functional.h"
 #include "rbtree_multi.h"
+
+#include <functional>
 
 namespace uxs {
 

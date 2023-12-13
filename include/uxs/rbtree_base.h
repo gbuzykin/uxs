@@ -1,6 +1,7 @@
 #pragma once
 
 #include "iterator.h"
+#include "memory.h"
 #include "rbtree_node_handle.h"
 
 namespace uxs {

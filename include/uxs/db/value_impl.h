@@ -6,7 +6,6 @@
 #include "uxs/stringcvt.h"
 
 #include <cmath>
-#include <memory>
 
 namespace uxs {
 namespace db {

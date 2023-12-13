@@ -5,7 +5,6 @@
 #include "uxs/algorithm.h"
 #include "uxs/io/ostringbuf.h"
 
-#include <array>
 #include <numeric>
 #include <unordered_set>
 
@@ -166,7 +165,7 @@ template<typename CharT>
 
     cmd->opts_->traverse_options([&specified, &optional, &result](const basic_option_node<CharT>& node) {
         if (node.get_type() != node_type::kOptionGroup) {
-            if (node.is_optional()) (optional.emplace(&node));
+            if (node.is_optional()) { optional.emplace(&node); }
             return true;
         }
 

@@ -45,17 +45,17 @@ struct reversed_string_finder<std::basic_regex<CharT, RegexTraits>, Traits> {
 };
 }  // namespace detail
 
-inline detail::string_finder<std::regex, std::char_traits<char>> sfind(const std::regex& re) {
+inline detail::string_finder<std::regex, std::char_traits<char>> sfinder(const std::regex& re) {
     return detail::string_finder<std::regex, std::char_traits<char>>(re);
 }
-inline detail::reversed_string_finder<std::regex, std::char_traits<char>> rsfind(const std::regex& re) {
+inline detail::reversed_string_finder<std::regex, std::char_traits<char>> rsfinder(const std::regex& re) {
     return detail::reversed_string_finder<std::regex, std::char_traits<char>>(re);
 }
 
-inline detail::string_finder<std::wregex, std::char_traits<wchar_t>> sfind(const std::wregex& re) {
+inline detail::string_finder<std::wregex, std::char_traits<wchar_t>> sfinder(const std::wregex& re) {
     return detail::string_finder<std::wregex, std::char_traits<wchar_t>>(re);
 }
-inline detail::reversed_string_finder<std::wregex, std::char_traits<wchar_t>> rsfind(const std::wregex& re) {
+inline detail::reversed_string_finder<std::wregex, std::char_traits<wchar_t>> rsfinder(const std::wregex& re) {
     return detail::reversed_string_finder<std::wregex, std::char_traits<wchar_t>>(re);
 }
 

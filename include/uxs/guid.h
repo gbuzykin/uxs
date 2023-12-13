@@ -2,7 +2,7 @@
 
 #include "stringcvt.h"
 
-#include <array>
+#include <functional>
 
 namespace uxs {
 
