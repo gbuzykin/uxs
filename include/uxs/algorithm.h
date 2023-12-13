@@ -3,6 +3,7 @@
 #include "functional.h"
 
 #include <algorithm>
+#include <iterator>
 
 namespace uxs {
 
@@ -228,7 +229,8 @@ auto upper_bound(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::b
 }
 
 template<typename Range, typename Key, typename KeyFn = key>
-auto equal_range(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> iterator_range<decltype(std::begin(r) + 1)> {
+auto equal_range(Range&& r, const Key& k, KeyFn fn = KeyFn{})
+    -> std::pair<decltype(std::begin(r) + 1), decltype(std::end(r))> {
     auto first = std::begin(r);
     size_t count = static_cast<size_t>(std::end(r) - first);
     while (count > 0) {
@@ -240,11 +242,11 @@ auto equal_range(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> iterator_range<
         } else if (k < fn(*mid)) {
             count = count2;
         } else {
-            return make_range(detail::lower_bound(first, count2, k, fn),
-                              detail::upper_bound(++mid, count - count2 - 1, k, fn));
+            return std::make_pair(detail::lower_bound(first, count2, k, fn),
+                                  detail::upper_bound(++mid, count - count2 - 1, k, fn));
         }
     }
-    return make_range(first, first);
+    return std::make_pair(first, first);
 }
 
 // ---- sorted range find
@@ -332,10 +334,6 @@ OutputIt copy(const Range& r, OutputIt out) {
     return std::copy(std::begin(r), std::end(r), out);
 }
 
-template<typename Range, typename OutputIt>
-OutputIt uninitialized_copy(const Range& r, OutputIt out) {
-    return std::uninitialized_copy(std::begin(r), std::end(r), out);
-}
 template<typename Range, typename OutputIt, typename Pred>
 OutputIt copy_if(const Range& r, OutputIt out, Pred p) {
     return std::copy_if(std::begin(r), std::end(r), out, p);

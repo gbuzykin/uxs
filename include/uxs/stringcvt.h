@@ -5,11 +5,10 @@
 #include "string_view.h"
 
 #include <algorithm>
+#include <locale>
 #include <memory>
-
-namespace std {
-class locale;
-}
+#include <stdexcept>
+#include <string>
 
 namespace uxs {
 

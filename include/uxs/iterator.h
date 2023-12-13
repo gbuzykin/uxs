@@ -2,10 +2,9 @@
 
 #include "utility.h"
 
+#include <cassert>
 #include <iterator>
 #include <limits>
-#include <memory>
-#include <stdexcept>
 
 #if _ITERATOR_DEBUG_LEVEL != 0
 #    define iterator_assert(cond) assert(cond)
@@ -109,16 +108,16 @@ template<typename Iter, typename = std::enable_if_t<is_random_access_iterator<It
 iterator_range<Iter> make_subrange(const std::pair<Iter, Iter>& p, size_t offset,
                                    size_t count = dynamic_extent) NOEXCEPT {
     size_t sz = p.second - p.first;
-    offset = std::min(offset, sz);
-    return {p.first + offset, p.first + offset + std::min(count, sz - offset)};
+    if (offset > sz) { offset = sz; }
+    return {p.first + offset, p.first + (count < sz - offset ? offset + count : sz)};
 }
 
 template<typename Range>
 auto make_subrange(Range&& r, size_t offset, size_t count = dynamic_extent) NOEXCEPT
     -> std::enable_if_t<is_random_access_iterator<decltype(std::end(r))>::value, iterator_range<decltype(std::end(r))>> {
     size_t sz = std::end(r) - std::begin(r);
-    offset = std::min(offset, sz);
-    return {std::begin(r) + offset, std::begin(r) + offset + std::min(count, sz - offset)};
+    if (offset > sz) { offset = sz; }
+    return {std::begin(r) + offset, std::begin(r) + (count < sz - offset ? offset + count : sz)};
 }
 
 template<typename IterL, typename IterR>
@@ -448,19 +447,19 @@ class list_iterator : public container_iterator_facade<Traits, list_iterator<Tra
     }
 
     void decrement() NOEXCEPT {
-        iterator_assert(node_ && (node_ != NodeTraits::get_front(NodeTraits::get_head(node_))));
+        iterator_assert(node_ && node_ != NodeTraits::get_front(NodeTraits::get_head(node_)));
         node_ = NodeTraits::get_prev(node_);
     }
 
     template<bool Const2>
     bool is_equal_to(const list_iterator<Traits, NodeTraits, Const2>& it) const NOEXCEPT {
         iterator_assert((!node_ && !it.node_) ||
-                        (node_ && it.node_ && (NodeTraits::get_head(node_) == NodeTraits::get_head(it.node_))));
+                        (node_ && it.node_ && NodeTraits::get_head(node_) == NodeTraits::get_head(it.node_)));
         return node_ == it.node_;
     }
 
     reference dereference() const NOEXCEPT {
-        iterator_assert(node_ && (node_ != NodeTraits::get_head(node_)));
+        iterator_assert(node_ && node_ != NodeTraits::get_head(node_));
         return NodeTraits::get_value(node_);
     }
 
@@ -496,6 +495,87 @@ const_value_iterator<Val> const_value(const Val& v) NOEXCEPT {
     return const_value_iterator<Val>(v);
 }
 
+//-----------------------------------------------------------------------------
+// Limited output iterator
+
+template<typename BaseIt, typename = void>
+class limited_output_iterator {
+ public:
+    using iterator_type = BaseIt;
+    using iterator_category = std::output_iterator_tag;
+    using value_type = void;
+    using difference_type = std::ptrdiff_t;
+    using reference = void;
+    using pointer = void;
+
+    limited_output_iterator() : base_(), limit_(0) {}
+    limited_output_iterator(BaseIt base, difference_type limit) : base_(base), limit_(limit) {}
+
+    template<typename Ty>
+    limited_output_iterator& operator=(Ty&& v) {
+        if (limit_) { *base_ = std::forward<Ty>(v); }
+        return *this;
+    }
+
+    limited_output_iterator& operator*() { return *this; }
+    limited_output_iterator& operator++() {
+        ++base_, --limit_;
+        return *this;
+    }
+    limited_output_iterator operator++(int) {
+        limited_output_iterator it = *this;
+        ++*this;
+        return it;
+    }
+
+    iterator_type base() const { return base_; }
+
+ private:
+    iterator_type base_;
+    difference_type limit_;
+};
+
+template<typename BaseIt>
+class limited_output_iterator<BaseIt, std::enable_if_t<is_random_access_iterator<BaseIt>::value>> {
+ public:
+    using iterator_type = BaseIt;
+    using iterator_category = std::output_iterator_tag;
+    using value_type = void;
+    using difference_type = std::ptrdiff_t;
+    using reference = void;
+    using pointer = void;
+
+    limited_output_iterator() : first_(), last_() {}
+    limited_output_iterator(iterator_type base, difference_type limit) : first_(base), last_(base + limit) {}
+
+    template<typename Ty>
+    limited_output_iterator& operator=(Ty&& v) {
+        if (first_ != last_) { *first_ = std::forward<Ty>(v); }
+        return *this;
+    }
+
+    limited_output_iterator& operator*() { return *this; }
+    limited_output_iterator& operator++() {
+        ++first_;
+        return *this;
+    }
+    limited_output_iterator operator++(int) {
+        limited_output_iterator it = *this;
+        ++*this;
+        return it;
+    }
+
+    iterator_type base() const { return first_; }
+
+ private:
+    iterator_type first_, last_;
+};
+
+template<typename BaseIt>
+limited_output_iterator<BaseIt> limit_output_iterator(const BaseIt& base, std::ptrdiff_t limit) {
+    return limited_output_iterator<BaseIt>(base, limit);
+}
+
 }  // namespace uxs
 
 namespace std {
@@ -518,5 +598,7 @@ template<typename Traits, typename NodeTraits, bool Const>
 struct _Is_checked_helper<uxs::list_iterator<Traits, NodeTraits, Const>> : std::true_type {};
 template<typename Val>
 struct _Is_checked_helper<uxs::const_value_iterator<Val>> : std::true_type {};
+template<typename BaseIt>
+struct std::_Is_checked_helper<limited_output_iterator<BaseIt>> : std::true_type {};
 #endif  // UXS_USE_CHECKED_ITERATORS
 }  // namespace std

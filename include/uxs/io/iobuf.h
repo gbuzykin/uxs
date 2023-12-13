@@ -2,10 +2,12 @@
 
 #include "iostate.h"
 
+#include "uxs/iterator.h"
 #include "uxs/span.h"
 #include "uxs/string_view.h"
 
 #include <algorithm>
+#include <string>
 
 namespace uxs {
 

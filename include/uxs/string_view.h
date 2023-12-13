@@ -1,10 +1,20 @@
 #pragma once
 
-#include <string>
+#if __cplusplus >= 201703L
+#    if __has_include(<string_view>)
+#        include <string_view>
+#    endif
+#endif
 
-#if __cplusplus < 201703L && !defined(__cpp_lib_string_view)
+#if __cplusplus < 201703L || !defined(__cpp_lib_string_view)
 
 #    include "iterator.h"
+
+#    include <algorithm>
+#    include <cassert>
+#    include <functional>
+#    include <stdexcept>
+#    include <string>
 
 namespace std {
 template<typename CharT, typename Traits = std::char_traits<CharT>>
@@ -27,18 +37,18 @@ class basic_string_view {
     using size_type = size_t;
     using difference_type = std::ptrdiff_t;
 
-    static const size_t npos = ~size_t(0);
+    static const size_type npos = std::string::npos;
 
     basic_string_view() NOEXCEPT {}
-    basic_string_view(const CharT* s, size_t count) : begin_(s), size_(count) {}
+    basic_string_view(const CharT* s, size_type count) : begin_(s), size_(count) {}
     basic_string_view(const CharT* s) : begin_(s) {
         for (; *s; ++s, ++size_) {}
     }
     template<typename Alloc>
     basic_string_view(const basic_string<CharT, Traits, Alloc>& s) NOEXCEPT : basic_string_view(s.data(), s.size()) {}
 
-    size_t size() const NOEXCEPT { return size_; }
-    size_t length() const NOEXCEPT { return size_; }
+    size_type size() const NOEXCEPT { return size_; }
+    size_type length() const NOEXCEPT { return size_; }
     bool empty() const NOEXCEPT { return size_ == 0; }
 
     explicit operator basic_string<CharT, Traits>() const { return basic_string<CharT, Traits>(begin_, size_); }
@@ -55,11 +65,11 @@ class basic_string_view {
     const_reverse_iterator rend() const NOEXCEPT { return const_reverse_iterator{begin()}; }
     const_reverse_iterator crend() const NOEXCEPT { return const_reverse_iterator{begin()}; }
 
-    const_reference operator[](size_t pos) const {
+    const_reference operator[](size_type pos) const {
         assert(pos < size_);
         return begin_[pos];
     }
-    const_reference at(size_t pos) const {
+    const_reference at(size_type pos) const {
         if (pos < size_) { return begin_[pos]; }
         throw out_of_range("index out of range");
     }
@@ -73,16 +83,16 @@ class basic_string_view {
     }
     const_pointer data() const NOEXCEPT { return begin_; }
 
-    basic_string_view substr(size_t pos, size_t count = npos) const {
-        pos = std::min(pos, size_);
-        return basic_string_view(begin_ + pos, std::min(count, size_ - pos));
+    basic_string_view substr(size_type pos, size_type count = npos) const {
+        if (pos > size_) { pos = size_; }
+        return basic_string_view(begin_ + pos, count < size_ - pos ? count : size_ - pos);
     }
 
     int compare(basic_string_view s) const;
-    size_t find(CharT ch, size_t pos = 0) const;
-    size_t find(basic_string_view s, size_t pos = 0) const;
-    size_t rfind(CharT ch, size_t pos = npos) const;
-    size_t rfind(basic_string_view s, size_t pos = npos) const;
+    size_type find(CharT ch, size_type pos = 0) const;
+    size_type find(basic_string_view s, size_type pos = 0) const;
+    size_type rfind(CharT ch, size_type pos = npos) const;
+    size_type rfind(basic_string_view s, size_type pos = npos) const;
 
     template<typename Traits2, typename Alloc>
     friend basic_string<CharT, Traits2, Alloc>& operator+=(basic_string<CharT, Traits2, Alloc>& lhs,
@@ -93,12 +103,12 @@ class basic_string_view {
 
  private:
     const CharT* begin_ = nullptr;
-    size_t size_ = 0;
+    size_type size_ = 0;
 };
 
 template<typename CharT, typename Traits>
 int basic_string_view<CharT, Traits>::compare(basic_string_view<CharT, Traits> s) const {
-    int result = traits_type::compare(begin_, s.begin_, std::min(size_, s.size_));
+    int result = traits_type::compare(begin_, s.begin_, size_ < s.size_ ? size_ : s.size_);
     if (result != 0) {
         return result;
     } else if (size_ < s.size_) {
@@ -110,33 +120,41 @@ int basic_string_view<CharT, Traits>::compare(basic_string_view<CharT, Traits> s
 }
 
 template<typename CharT, typename Traits>
-size_t basic_string_view<CharT, Traits>::find(CharT ch, size_t pos) const {
-    for (auto p = begin_ + pos; p < begin_ + size_; ++p) {
+auto basic_string_view<CharT, Traits>::find(CharT ch, size_type pos) const -> size_type {
+    if (pos >= size_) { return npos; }
+    for (const auto* p = begin_ + pos; p != begin_ + size_; ++p) {
         if (traits_type::eq(*p, ch)) { return p - begin_; }
     }
     return npos;
 }
 
 template<typename CharT, typename Traits>
-size_t basic_string_view<CharT, Traits>::find(basic_string_view s, size_t pos) const {
-    for (auto p = begin_ + pos; p + s.size_ <= begin_ + size_; ++p) {
-        if (std::equal(p, p + s.size_, s.begin_, traits_type::eq)) { return p - begin_; }
+auto basic_string_view<CharT, Traits>::find(basic_string_view s, size_type pos) const -> size_type {
+    if (size_ < s.size_ || pos > size_ - s.size_) { return npos; }
+    if (!s.size_) { return pos; }
+    for (const auto* p = begin_ + pos; p != begin_ + size_ - s.size_ + 1; ++p) {
+        if (std::equal(s.begin_, s.begin_ + s.size_, p, traits_type::eq)) { return p - begin_; }
     }
     return npos;
 }
 
 template<typename CharT, typename Traits>
-size_t basic_string_view<CharT, Traits>::rfind(CharT ch, size_t pos) const {
-    for (auto p = begin_ + std::min(pos + 1, size_); p > begin_; --p) {
+auto basic_string_view<CharT, Traits>::rfind(CharT ch, size_type pos) const -> size_type {
+    if (!size_) { return npos; }
+    if (pos >= size_) { pos = size_ - 1; }
+    for (const auto* p = begin_ + pos + 1; p != begin_; --p) {
         if (traits_type::eq(*(p - 1), ch)) { return p - begin_ - 1; }
     }
     return npos;
 }
 
 template<typename CharT, typename Traits>
-size_t basic_string_view<CharT, Traits>::rfind(basic_string_view s, size_t pos) const {
-    for (auto p = begin_ + std::min(pos + s.size_, size_); p >= begin_ + s.size_; --p) {
-        if (std::equal(p - s.size_, p, s.begin_, traits_type::eq)) { return p - begin_ - s.size_; }
+auto basic_string_view<CharT, Traits>::rfind(basic_string_view s, size_type pos) const -> size_type {
+    if (size_ < s.size_) { return npos; }
+    if (pos > size_ - s.size_) { pos = size_ - s.size_; }
+    if (!s.size_) { return pos; }
+    for (auto p = begin_ + pos + 1; p != begin_; --p) {
+        if (std::equal(s.begin_, s.begin_ + s.size_, p - 1, traits_type::eq)) { return p - begin_ - 1; }
     }
     return npos;
 }

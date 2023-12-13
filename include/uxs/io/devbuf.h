@@ -3,6 +3,8 @@
 #include "iobuf.h"
 #include "iodevice.h"
 
+#include <memory>
+
 namespace uxs {
 
 template<typename CharT, typename Alloc = std::allocator<CharT>>

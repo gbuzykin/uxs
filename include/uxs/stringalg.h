@@ -3,9 +3,10 @@
 #include "chars.h"
 #include "functional.h"
 #include "string_view.h"
-#include "utf.h"
 
 #include <algorithm>
+#include <limits>
+#include <string>
 #include <vector>
 
 namespace uxs {
@@ -58,10 +59,9 @@ struct string_finder<std::basic_string_view<CharT, Traits>, Traits> {
     explicit string_finder(std::basic_string_view<CharT, Traits> tgt) : s(tgt) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         if (static_cast<size_t>(end - begin) < s.size()) { return std::make_pair(end, end); }
+        if (!s.size()) { return std::make_pair(begin, begin); }
         for (iterator last = end - s.size() + 1; begin != last; ++begin) {
-            if (std::equal(begin, begin + s.size(), s.begin(), Traits::eq)) {
-                return std::make_pair(begin, begin + s.size());
-            }
+            if (std::equal(s.begin(), s.end(), begin, Traits::eq)) { return std::make_pair(begin, begin + s.size()); }
         }
         return std::make_pair(end, end);
     }
@@ -75,37 +75,40 @@ struct reversed_string_finder<std::basic_string_view<CharT, Traits>, Traits> {
     explicit reversed_string_finder(std::basic_string_view<CharT, Traits> tgt) : s(tgt) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         if (static_cast<size_t>(end - begin) < s.size()) { return std::make_pair(begin, begin); }
-        for (iterator last = begin + s.size() - 1; last != end; --end) {
-            if (std::equal(end - s.size(), end, s.begin(), Traits::eq)) { return std::make_pair(end - s.size(), end); }
+        if (!s.size()) { return std::make_pair(end, end); }
+        for (end -= s.size() - 1; begin != end; --end) {
+            if (std::equal(s.begin(), s.end(), end - 1, Traits::eq)) {
+                return std::make_pair(end - 1, end - 1 + s.size());
+            }
         }
         return std::make_pair(begin, begin);
     }
 };
 }  // namespace detail
 
-inline detail::string_finder<char, std::char_traits<char>> sfind(char ch) {
+inline detail::string_finder<char, std::char_traits<char>> sfinder(char ch) {
     return detail::string_finder<char, std::char_traits<char>>(ch);
 }
-inline detail::reversed_string_finder<char, std::char_traits<char>> rsfind(char ch) {
+inline detail::reversed_string_finder<char, std::char_traits<char>> rsfinder(char ch) {
     return detail::reversed_string_finder<char, std::char_traits<char>>(ch);
 }
-inline detail::string_finder<std::string_view, std::char_traits<char>> sfind(std::string_view s) {
+inline detail::string_finder<std::string_view, std::char_traits<char>> sfinder(std::string_view s) {
     return detail::string_finder<std::string_view, std::char_traits<char>>(s);
 }
-inline detail::reversed_string_finder<std::string_view, std::char_traits<char>> rsfind(std::string_view s) {
+inline detail::reversed_string_finder<std::string_view, std::char_traits<char>> rsfinder(std::string_view s) {
     return detail::reversed_string_finder<std::string_view, std::char_traits<char>>(s);
 }
 
-inline detail::string_finder<wchar_t, std::char_traits<wchar_t>> sfind(wchar_t ch) {
+inline detail::string_finder<wchar_t, std::char_traits<wchar_t>> sfinder(wchar_t ch) {
     return detail::string_finder<wchar_t, std::char_traits<wchar_t>>(ch);
 }
-inline detail::reversed_string_finder<wchar_t, std::char_traits<wchar_t>> rsfind(wchar_t ch) {
+inline detail::reversed_string_finder<wchar_t, std::char_traits<wchar_t>> rsfinder(wchar_t ch) {
     return detail::reversed_string_finder<wchar_t, std::char_traits<wchar_t>>(ch);
 }
-inline detail::string_finder<std::wstring_view, std::char_traits<wchar_t>> sfind(std::wstring_view s) {
+inline detail::string_finder<std::wstring_view, std::char_traits<wchar_t>> sfinder(std::wstring_view s) {
     return detail::string_finder<std::wstring_view, std::char_traits<wchar_t>>(s);
 }
-inline detail::reversed_string_finder<std::wstring_view, std::char_traits<wchar_t>> rsfind(std::wstring_view s) {
+inline detail::reversed_string_finder<std::wstring_view, std::char_traits<wchar_t>> rsfinder(std::wstring_view s) {
     return detail::reversed_string_finder<std::wstring_view, std::char_traits<wchar_t>>(s);
 }
 

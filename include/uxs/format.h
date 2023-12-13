@@ -4,8 +4,6 @@
 #include "io/iobuf.h"
 #include "stringcvt.h"
 
-#include <array>
-
 namespace uxs {
 
 class format_error : public std::runtime_error {

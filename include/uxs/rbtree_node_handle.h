@@ -1,7 +1,9 @@
 #pragma once
 
-#include "allocator.h"
 #include "rbtree.h"
+#include "utility.h"
+
+#include <memory>
 
 namespace uxs {
 

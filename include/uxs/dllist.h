@@ -1,7 +1,5 @@
 #pragma once
 
-#include "common.h"
-
 namespace uxs {
 
 struct dllist_node_t {

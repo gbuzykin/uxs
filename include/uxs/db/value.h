@@ -2,16 +2,15 @@
 
 #include "exception.h"
 
-#include "uxs/allocator.h"
 #include "uxs/dllist.h"
+#include "uxs/iterator.h"
+#include "uxs/memory.h"
 #include "uxs/optional.h"
 #include "uxs/span.h"
 #include "uxs/string_view.h"
 
 #include <algorithm>
-#include <cstddef>
 #include <cstring>
-#include <vector>
 
 namespace uxs {
 namespace db {

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "uxs/io/iobuf.h"
-#include "uxs/iterator.h"
 #include "uxs/stringcvt.h"
 
 #include <forward_list>

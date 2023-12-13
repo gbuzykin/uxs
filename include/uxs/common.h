@@ -2,7 +2,6 @@
 
 #include "uxs/config.h"
 
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 

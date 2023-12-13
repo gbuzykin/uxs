@@ -3,7 +3,6 @@
 #include "alignment.h"
 #include "cow_ptr.h"
 #include "optional.h"
-#include "stream.h"
 #include "stringcvt.h"
 
 #define UXS_DECLARE_VARIANT_TYPE(ty, id) \
