@@ -148,11 +148,13 @@ StrTy& vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
         fmt, args.size(), [&s](const CharT* p0, const CharT* p) { s.append(p0, p); },
         [&s, &args, p_loc](unsigned n_arg, arg_specs& specs) {
             const type_id id = args.type(n_arg);
-            const auto type_error = []() { throw format_error("invalid argument type specifier"); };
-            const auto signed_needed = []() { throw format_error("argument format requires signed argument"); };
-            const auto numeric_needed = []() { throw format_error("argument format requires numeric argument"); };
+            auto type_error = []() { throw format_error("invalid argument type specifier"); };
+            auto unexpected_prec = []() { throw format_error("unexpected precision specified"); };
+            auto signed_needed = []() { throw format_error("argument format requires signed argument"); };
+            auto numeric_needed = []() { throw format_error("argument format requires numeric argument"); };
             switch (specs.flags & parse_flags::kSpecMask) {
                 case parse_flags::kSpecIntegral: {
+                    if (!!(specs.flags & parse_flags::kPrecSpecified)) { unexpected_prec(); }
                     if (id <= type_id::kSignedLongLong) {
                         if (!!(specs.fmt.flags & fmt_flags::kSignField) && id < type_id::kSigned) { signed_needed(); }
                     } else if (id == type_id::kChar) {
@@ -170,6 +172,7 @@ StrTy& vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
                     if (id < type_id::kFloat || id > type_id::kLongDouble) { type_error(); }
                 } break;
                 case parse_flags::kSpecChar: {
+                    if (!!(specs.flags & parse_flags::kPrecSpecified)) { unexpected_prec(); }
                     if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
                     if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes)) { numeric_needed(); }
                     if (id <= type_id::kSignedLongLong) {
@@ -197,6 +200,7 @@ StrTy& vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
                     }
                 } break;
                 case parse_flags::kSpecPointer: {
+                    if (!!(specs.flags & parse_flags::kPrecSpecified)) { unexpected_prec(); }
                     if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
                     if (id != type_id::kPointer) { type_error(); }
                 } break;
@@ -206,6 +210,11 @@ StrTy& vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
                     if (id != type_id::kBool && id != type_id::kCString && id != type_id::kString) { type_error(); }
                 } break;
                 default: {
+                    if (!!(specs.flags & parse_flags::kPrecSpecified) &&
+                        (id < type_id::kFloat || id > type_id::kLongDouble) && id != type_id::kCString &&
+                        id != type_id::kString) {
+                        unexpected_prec();
+                    }
                     if (!!(specs.fmt.flags & fmt_flags::kSignField) &&
                         (id < type_id::kSigned || id > type_id::kSignedLongLong) &&
                         (id < type_id::kFloat || id > type_id::kLongDouble)) {

@@ -235,9 +235,10 @@ enum class parse_flags : unsigned {
     kSpecPointer = 4,
     kSpecString = 5,
     kSpecMask = 0xff,
-    kDynamicWidth = 0x100,
-    kDynamicPrec = 0x200,
-    kUseLocale = 0x400,
+    kPrecSpecified = 0x100,
+    kDynamicWidth = 0x200,
+    kDynamicPrec = 0x400,
+    kUseLocale = 0x800,
     kArgNumSpecified = 0x1000,
     kWidthArgNumSpecified = 0x2000,
     kPrecArgNumSpecified = 0x4000,
@@ -399,6 +400,7 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
             case meta_tbl_t::kDot:
                 UXS_FMT_SPECIFIER_CASE(kLocale, {
                     if (p == last) { return nullptr; }
+                    specs.flags |= parse_flags::kPrecSpecified;
                     if ((dig = dig_v(*p)) < 10) {
                         specs.fmt.prec = dig;
                         p = accum_num(++p, last, specs.fmt.prec);
@@ -616,9 +618,15 @@ class basic_format_string {
             [&arg_type_ids](unsigned n_arg, sfmt::arg_specs& specs) constexpr {
                 const sfmt::type_id id = arg_type_ids[n_arg];
                 const sfmt::parse_flags flag = specs.flags & sfmt::parse_flags::kSpecMask;
+                auto unexpected_prec = []() { sfmt::report_format_error("unexpected precision specified"); };
                 auto signed_needed = []() { sfmt::report_format_error("argument format requires signed argument"); };
-                const auto numeric_needed = []() { throw format_error("argument format requires numeric argument"); };
+                auto numeric_needed = []() { sfmt::report_format_error("argument format requires numeric argument"); };
                 if (flag == sfmt::parse_flags::kDefault) {
+                    if (!!(specs.flags & sfmt::parse_flags::kPrecSpecified) &&
+                        (id < sfmt::type_id::kFloat || id > sfmt::type_id::kLongDouble) &&
+                        id != sfmt::type_id::kCString && id != sfmt::type_id::kString) {
+                        unexpected_prec();
+                    }
                     if (!!(specs.fmt.flags & fmt_flags::kSignField) &&
                         (id < sfmt::type_id::kSigned || id > sfmt::type_id::kSignedLongLong) &&
                         (id < sfmt::type_id::kFloat || id > sfmt::type_id::kLongDouble)) {
@@ -630,6 +638,7 @@ class basic_format_string {
                     }
                     return;
                 } else if (flag == sfmt::parse_flags::kSpecIntegral) {
+                    if (!!(specs.flags & sfmt::parse_flags::kPrecSpecified)) { unexpected_prec(); }
                     if (id <= sfmt::type_id::kBool) {
                         if (!!(specs.fmt.flags & fmt_flags::kSignField) &&
                             (id < sfmt::type_id::kSigned || id > sfmt::type_id::kChar) &&
@@ -641,10 +650,12 @@ class basic_format_string {
                 } else if (flag == sfmt::parse_flags::kSpecFloat) {
                     if (id >= sfmt::type_id::kFloat && id <= sfmt::type_id::kLongDouble) { return; }
                 } else if (flag == sfmt::parse_flags::kSpecChar) {
+                    if (!!(specs.flags & sfmt::parse_flags::kPrecSpecified)) { unexpected_prec(); }
                     if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
                     if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes)) { numeric_needed(); }
                     if (id >= sfmt::type_id::kUnsigned && id <= sfmt::type_id::kChar) { return; }
                 } else if (flag == sfmt::parse_flags::kSpecPointer) {
+                    if (!!(specs.flags & sfmt::parse_flags::kPrecSpecified)) { unexpected_prec(); }
                     if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
                     if (id == sfmt::type_id::kPointer) { return; }
                 } else if (flag == sfmt::parse_flags::kSpecString) {
