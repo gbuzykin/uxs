@@ -635,13 +635,11 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, cons
     const fmt_flags fp_fmt = fmt.flags & fmt_flags::kFloatField;
     fixed_ = fp_fmt == fmt_flags::kFixed;
     if (fp2.m == 0 && fp2.exp == 0) {  // real zero
-        if (fp_fmt == fmt_flags::kDefault && prec_ < 0) {
-            fixed_ = true, prec_ = alternate_ ? 1 : 0;
+        if (fp_fmt == fmt_flags::kDefault) {
+            fixed_ = true, prec_ = prec_ < 0 && !!(fmt.flags & fmt_flags::kJsonCompat) ? 1 : 0;
         } else {
             prec_ = prec_ < 0 ? default_prec : (prec_ & 0xffff);
-            if (fp_fmt == fmt_flags::kDefault || fp_fmt == fmt_flags::kGeneral) {
-                fixed_ = true, prec_ = alternate_ ? std::max(prec_ - 1, 0) : 0;
-            }
+            if (fp_fmt == fmt_flags::kGeneral) { fixed_ = true, prec_ = alternate_ ? std::max(prec_ - 1, 0) : 0; }
         }
         exp_ = 0, n_zeroes_ = prec_ + 1;
         return;
@@ -734,7 +732,7 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, cons
 
     // Put mandatory digit after decimal point in alternate mode:
     // it is not needed by standard, but very useful for JSON formatter
-    if (alternate_ && prec_ == 0) { significand_ *= 10u, prec_ = 1; }
+    if (!!(fmt.flags & fmt_flags::kJsonCompat) && prec_ == 0) { significand_ *= 10u, prec_ = 1; }
 }
 
 void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT {
@@ -789,7 +787,7 @@ finish:
     } else if (fp_fmt == fmt_flags::kDefault || fp_fmt == fmt_flags::kGeneral) {
         // Select format for number representation
         if (exp_ >= -4 && exp_ <= prec_) { fixed_ = true, prec_ -= exp_; }
-        if (!alternate_) { prec_ -= remove_trailing_zeros(significand_, prec_); }
+        if (!alternate_ || fp_fmt == fmt_flags::kDefault) { prec_ -= remove_trailing_zeros(significand_, prec_); }
     }
 }
 
@@ -964,7 +962,7 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fm
     if (fp_fmt == fmt_flags::kDefault || fp_fmt == fmt_flags::kGeneral) {
         // Select format for number representation
         if (exp_ >= -4 && exp_ <= prec_) { fixed_ = true, prec_ -= exp_; }
-        if (!alternate_) {  // trim trailing zeroes
+        if (!alternate_ || fp_fmt == fmt_flags::kDefault) {  // trim trailing zeroes
             if (n_digs < prec_) {
                 prec_ -= n_digs, n_digs = 0;
                 while (*(p - 1) == '0' && prec_ > 0) { --p, --prec_; }

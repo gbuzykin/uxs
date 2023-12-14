@@ -168,7 +168,7 @@ void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_ele
             } break;
             case dtype::kDouble: {
                 membuffer_for_iobuf buf(output_);
-                to_basic_string(buf, v.value_.dbl, fmt_opts{fmt_flags::kAlternate});
+                to_basic_string(buf, v.value_.dbl, fmt_opts{fmt_flags::kJsonCompat});
             } break;
             case dtype::kString: {
                 print_xml_text<char>(output_, uxs::detail::utf8_string_converter<CharT>().to(v.str_view()));

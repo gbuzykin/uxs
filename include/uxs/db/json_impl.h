@@ -120,7 +120,7 @@ void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
             } break;
             case dtype::kDouble: {
                 membuffer_for_iobuf buf(output_);
-                to_basic_string(buf, v.value_.dbl, fmt_opts{fmt_flags::kAlternate});
+                to_basic_string(buf, v.value_.dbl, fmt_opts{fmt_flags::kJsonCompat});
             } break;
             case dtype::kString: {
                 print_quoted_text(output_,

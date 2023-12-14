@@ -362,7 +362,7 @@ bool variant_type_impl<float>::convert_to(variant_id type, void* to, const void*
     const auto& v = *static_cast<const float*>(from);
     switch (type) {
         case variant_id::kString: {
-            *static_cast<std::string*>(to) = uxs::to_string(v, fmt_flags::kAlternate);
+            *static_cast<std::string*>(to) = uxs::to_string(v, fmt_flags::kJsonCompat);
         } break;
         case variant_id::kBoolean: {
             *static_cast<bool*>(to) = v != 0;
@@ -431,7 +431,7 @@ bool variant_type_impl<double>::convert_to(variant_id type, void* to, const void
     const auto& v = *static_cast<const double*>(from);
     switch (type) {
         case variant_id::kString: {
-            *static_cast<std::string*>(to) = uxs::to_string(v, fmt_flags::kAlternate);
+            *static_cast<std::string*>(to) = uxs::to_string(v, fmt_flags::kJsonCompat);
         } break;
         case variant_id::kBoolean: {
             *static_cast<bool*>(to) = v != 0;

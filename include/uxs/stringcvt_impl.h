@@ -707,10 +707,6 @@ void fp_hex_fmt_t::generate(CharT* p, const bool upper_case, const CharT dec_poi
         *--p = dec_point;
     }
     *--p = digs[m & 0xf];
-    if (alternate_) {
-        *--p = upper_case ? 'X' : 'x';
-        *--p = '0';
-    }
 }
 
 class fp_dec_fmt_t {
@@ -917,7 +913,7 @@ void fmt_float_common(basic_membuffer<CharT>& s, uint64_t u64, const fmt_opts& f
         fp_hex_fmt_t fp(fp2, fmt, bpm, exp_max >> 1);
         const CharT dec_point = fmt.loc ? std::use_facet<std::numpunct<CharT>>(*fmt.loc).decimal_point() :
                                           default_numpunct<CharT>().decimal_point();
-        const unsigned n_prefix = (sign ? 1 : 0) + (!!(fmt.flags & fmt_flags::kAlternate) ? 2 : 0);
+        const unsigned n_prefix = sign ? 1 : 0;
         const unsigned len = n_prefix + fp.get_len();
         print_float_functor<CharT, fp_hex_fmt_t> fn{fp, sign, upper_case};
         return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt, dec_point) : fn(s, len, dec_point);

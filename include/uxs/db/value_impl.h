@@ -651,7 +651,7 @@ uxs::optional<std::basic_string<CharT>> basic_value<CharT, Alloc>::get_string() 
         } break;
         case dtype::kDouble: {
             inline_basic_dynbuffer<CharT> buf;
-            to_basic_string(buf, value_.dbl, fmt_opts{fmt_flags::kAlternate});
+            to_basic_string(buf, value_.dbl, fmt_opts{fmt_flags::kJsonCompat});
             return uxs::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::kString: return uxs::make_optional<std::basic_string<CharT>>(str_view());

@@ -61,10 +61,11 @@ enum class fmt_flags : unsigned {
     kLeadingZeroes = 0x40,
     kUpperCase = 0x80,
     kAlternate = 0x100,
+    kJsonCompat = 0x200,
     kSignNeg = kDefault,
-    kSignPos = 0x200,
-    kSignAlign = 0x400,
-    kSignField = 0x600,
+    kSignPos = 0x400,
+    kSignAlign = 0x800,
+    kSignField = 0xc00,
 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(fmt_flags, unsigned);
 
