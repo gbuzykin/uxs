@@ -270,7 +270,7 @@ struct bignum_t {
     unsigned exp;
 };
 
-SCVT_CONSTEXPR_DATA int kBigpow10TblSize = 19;
+SCVT_CONSTEXPR_DATA int bigpow10_tbl_size = 19;
 SCVT_FORCE_INLINE bignum_t get_bigpow10(unsigned index) NOEXCEPT {
     static SCVT_CONSTEXPR_DATA uint64_t bigpow10[] = {
         0xde0b6b3a76400000, 0xc097ce7bc90715b3, 0x4b9f100000000000, 0xa70c3c40a64e6c51, 0x999090b65f67d924,
@@ -300,11 +300,11 @@ SCVT_FORCE_INLINE bignum_t get_bigpow10(unsigned index) NOEXCEPT {
         0x892179be91d43a43, 0x88083f8943a1148c, 0xd69283788730f71b, 0x5a7dd3dd4576e805, 0x981e98226ca211b8,
         0x75341fde13cd0ade, 0x7bdb2dc9c078d6e6, 0x17f150e1d35cf5e7, 0xda153ab760d85d36, 0x4d55f7b5df842d22,
         0xf5ed5e5a949d844e, 0x5023ac542102c3de, 0xb953b92000000000};
-    static SCVT_CONSTEXPR_DATA unsigned bigpow10_offset[kBigpow10TblSize + 1] = {
+    static SCVT_CONSTEXPR_DATA unsigned bigpow10_offset[bigpow10_tbl_size + 1] = {
         0, 1, 3, 5, 8, 12, 16, 21, 27, 33, 40, 48, 56, 65, 75, 85, 96, 108, 120, 133};
-    static SCVT_CONSTEXPR_DATA unsigned bigpow10_exp[kBigpow10TblSize] = {
+    static SCVT_CONSTEXPR_DATA unsigned bigpow10_exp[bigpow10_tbl_size] = {
         59, 119, 179, 239, 298, 358, 418, 478, 538, 597, 657, 717, 777, 837, 896, 956, 1016, 1076, 1136};
-    assert(index < kBigpow10TblSize);
+    assert(index < bigpow10_tbl_size);
     const unsigned* const offset = &bigpow10_offset[index];
     return bignum_t{bigpow10 + offset[0], offset[1] - offset[0], bigpow10_exp[index]};
 }
@@ -345,9 +345,9 @@ inline uint64_t umul96x64_higher128(uint96_t x, uint64_t y, uint64_t& result_hi)
 #endif
 }
 
-SCVT_CONSTEXPR_DATA int kPow10Max = 344;
+SCVT_CONSTEXPR_DATA int pow10_max = 344;
 SCVT_FORCE_INLINE uint96_t get_cached_pow10(int pow) NOEXCEPT {
-    assert(pow >= -kPow10Max && pow <= kPow10Max);
+    assert(pow >= -pow10_max && pow <= pow10_max);
     static SCVT_CONSTEXPR_DATA uint64_t higher64[] = {
         0x98ee4a22ecf3188b, 0xe3e27a444d8d98b7, 0xa9c98d8ccb009506, 0xfd00b897478238d0, 0xbc807527ed3e12bc,
         0x8c71dcd9ba0b4925, 0xd1476e2c07286faa, 0x9becce62836ac577, 0xe858ad248f5c22c9, 0xad1c8eab5ee43b66,
@@ -379,7 +379,7 @@ SCVT_FORCE_INLINE uint96_t get_cached_pow10(int pow) NOEXCEPT {
         0x36251261, 0xacca6da2, 0x0fabaf40, 0xddbb901c, 0xed238cd4, 0x4b2d8645, 0xdb0b487b, 0x73832eec, 0x6ed1bf9a,
         0x47c6b82f, 0x79c5db9b, 0xe6a11583, 0x505f522e, 0x213a4f0b, 0x848ce346};
     SCVT_CONSTEXPR_DATA int step_pow = 3;
-    int n = (kPow10Max + pow) >> step_pow, k = pow & ((1 << step_pow) - 1);
+    int n = (pow10_max + pow) >> step_pow, k = pow & ((1 << step_pow) - 1);
     uint96_t result{higher64[n], lower32[n]};
     if (!k) { return result; }
     static SCVT_CONSTEXPR_DATA uint32_t mul10[] = {0,          0xa0000000, 0xc8000000, 0xfa000000,
@@ -402,11 +402,11 @@ inline int exp10to2(int exp) {
 
 static uint64_t fp10_to_fp2_slow(fp10_t& fp10, const unsigned bpm, const int exp_max) NOEXCEPT {
     unsigned sz_num = fp10.bits_used;
-    uint64_t* m10 = &fp10.bits[kMaxFp10MantissaSize - sz_num];
+    uint64_t* m10 = &fp10.bits[max_fp10_mantissa_size - sz_num];
 
-    // Calculate lower kDigsPer64-aligned decimal exponent
-    int index = kDigsPer64 * 1000000 + fp10.exp;
-    const uint64_t mul10 = get_pow10(divmod<kDigsPer64>(index));
+    // Calculate lower digs_per_64-aligned decimal exponent
+    int index = digs_per_64 * 1000000 + fp10.exp;
+    const uint64_t mul10 = get_pow10(divmod<digs_per_64>(index));
     index -= 1000000;
     if (mul10 != 1) {
         const uint64_t higher = bignum_mul(m10, sz_num, mul10);
@@ -430,15 +430,15 @@ static uint64_t fp10_to_fp2_slow(fp10_t& fp10, const unsigned bpm, const int exp
     --sz_num;  // count only m10[n] where n > 0
     if (index < 0) {
         const int index0 = -1 - index;
-        index = std::min<int>(index0, kBigpow10TblSize - 1);
+        index = std::min<int>(index0, bigpow10_tbl_size - 1);
         bignum_t denominator = get_bigpow10(index);
 
-        uint64_t big_denominator[kMaxFp10MantissaSize + 1];  // all powers >= -1100 (aligned to -1116) will fit
+        uint64_t big_denominator[max_fp10_mantissa_size + 1];  // all powers >= -1100 (aligned to -1116) will fit
         if (index < index0) {
             // Calculate big denominator multiplying powers of 10 from table
             std::memcpy(big_denominator, denominator.x, denominator.sz * sizeof(uint64_t));
             do {
-                const int index2 = std::min<int>(index0 - index - 1, kBigpow10TblSize - 1);
+                const int index2 = std::min<int>(index0 - index - 1, bigpow10_tbl_size - 1);
                 const bignum_t denominator2 = get_bigpow10(index2);
                 bignum_mul_vec(big_denominator, denominator2.x, denominator.sz, denominator2.sz);
                 denominator.sz += denominator2.sz;
@@ -458,7 +458,7 @@ static uint64_t fp10_to_fp2_slow(fp10_t& fp10, const unsigned bpm, const int exp
         sz_num = std::max(sz_num, denominator.sz), exp2 -= denominator.exp;
     } else {
         if (index > 0) {
-            if (--index >= kBigpow10TblSize) { return static_cast<uint64_t>(exp_max) << bpm; }  // infinity
+            if (--index >= bigpow10_tbl_size) { return static_cast<uint64_t>(exp_max) << bpm; }  // infinity
             const bignum_t multiplier = get_bigpow10(index);
             sz_num = bignum_trim_unused(m10 + 1, sz_num);
             bignum_mul_vec(m10, multiplier.x, sz_num + 1, multiplier.sz);
@@ -502,7 +502,7 @@ static uint64_t fp10_to_fp2_slow(fp10_t& fp10, const unsigned bpm, const int exp
 
 uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) NOEXCEPT {
     unsigned sz_num = fp10.bits_used;
-    uint64_t m = fp10.bits[kMaxFp10MantissaSize - sz_num];
+    uint64_t m = fp10.bits[max_fp10_mantissa_size - sz_num];
 
     // Note, that decimal mantissa can contain up to 772 digits. So, all numbers with
     // powers less than -772 - 324 = -1096 are zeroes in fact. We round this power to -1100
@@ -513,7 +513,7 @@ uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) NOEXCE
     }
 
     // If too many digits are specified or decimal power is too great use slow algorithm
-    if (sz_num > 1 || fp10.exp < -kPow10Max || fp10.exp > kPow10Max) { return fp10_to_fp2_slow(fp10, bpm, exp_max); }
+    if (sz_num > 1 || fp10.exp < -pow10_max || fp10.exp > pow10_max) { return fp10_to_fp2_slow(fp10, bpm, exp_max); }
 
     // Obtain binary exponent
     const int exp_bias = exp_max >> 1;
@@ -570,7 +570,7 @@ fp_hex_fmt_t::fp_hex_fmt_t(const fp_m64_t& fp2, const fmt_opts& fmt, const unsig
       exp_(fp2.exp),
       prec_(fmt.prec),
       n_zeroes_(0),
-      alternate_(!!(fmt.flags & fmt_flags::kAlternate)) {
+      alternate_(!!(fmt.flags & fmt_flags::alternate)) {
     if (significand_ == 0 && exp_ == 0) {  // real zero
         exp_ = 0, prec_ = n_zeroes_ = prec_ < 0 ? 0 : (prec_ & 0xffff);
         return;
@@ -630,16 +630,16 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, cons
     : significand_(0),
       prec_(fmt.prec),
       n_zeroes_(0),
-      alternate_(!!(fmt.flags & fmt_flags::kAlternate)) {
+      alternate_(!!(fmt.flags & fmt_flags::alternate)) {
     const int default_prec = 6;
-    const fmt_flags fp_fmt = fmt.flags & fmt_flags::kFloatField;
-    fixed_ = fp_fmt == fmt_flags::kFixed;
+    const fmt_flags fp_fmt = fmt.flags & fmt_flags::float_field;
+    fixed_ = fp_fmt == fmt_flags::fixed;
     if (fp2.m == 0 && fp2.exp == 0) {  // real zero
-        if (fp_fmt == fmt_flags::kDefault) {
-            fixed_ = true, prec_ = prec_ < 0 && !!(fmt.flags & fmt_flags::kJsonCompat) ? 1 : 0;
+        if (fp_fmt == fmt_flags::none) {
+            fixed_ = true, prec_ = prec_ < 0 && !!(fmt.flags & fmt_flags::json_compat) ? 1 : 0;
         } else {
             prec_ = prec_ < 0 ? default_prec : (prec_ & 0xffff);
-            if (fp_fmt == fmt_flags::kGeneral) { fixed_ = true, prec_ = alternate_ ? std::max(prec_ - 1, 0) : 0; }
+            if (fp_fmt == fmt_flags::general) { fixed_ = true, prec_ = alternate_ ? std::max(prec_ - 1, 0) : 0; }
         }
         exp_ = 0, n_zeroes_ = prec_ + 1;
         return;
@@ -659,14 +659,14 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, cons
     fp2.exp -= exp_bias;
     exp_ = exp2to10(fp2.exp);
 
-    if (fp_fmt != fmt_flags::kDefault || prec_ >= 0) {
+    if (fp_fmt != fmt_flags::none || prec_ >= 0) {
         prec_ = prec_ < 0 ? default_prec : (prec_ & 0xffff);
-        if (fp_fmt == fmt_flags::kDefault || fp_fmt == fmt_flags::kGeneral) { prec_ = std::max(prec_ - 1, 0); }
+        if (fp_fmt == fmt_flags::none || fp_fmt == fmt_flags::general) { prec_ = std::max(prec_ - 1, 0); }
 
         // Evaluate desired digit count
-        const int n_digs = 1 + prec_ + (fp_fmt == fmt_flags::kFixed ? exp_ : 0);
+        const int n_digs = 1 + prec_ + (fp_fmt == fmt_flags::fixed ? exp_ : 0);
 
-        if (n_digs >= 0 && n_digs < kDigsPer64) {  // short decimal mantissa
+        if (n_digs >= 0 && n_digs < digs_per_64) {  // short decimal mantissa
             format_short_decimal(fp2, n_digs, fp_fmt);
         } else if (n_digs >= 0) {  // long decimal mantissa
             format_long_decimal(fp2, n_digs, fp_fmt);
@@ -732,11 +732,11 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, cons
 
     // Put mandatory digit after decimal point in alternate mode:
     // it is not needed by standard, but very useful for JSON formatter
-    if (!!(fmt.flags & fmt_flags::kJsonCompat) && prec_ == 0) { significand_ *= 10u, prec_ = 1; }
+    if (!!(fmt.flags & fmt_flags::json_compat) && prec_ == 0) { significand_ *= 10u, prec_ = 1; }
 }
 
 void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT {
-    assert(n_digs < kDigsPer64);
+    assert(n_digs < digs_per_64);
     ++n_digs;  // one additional digit for rounding
 
     // Calculate decimal mantissa representation :
@@ -753,7 +753,7 @@ void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, const f
     frac >>= 32;                                          // drop lower 32 bits
 
     // Note, that the first digit formally can belong [1, 20) range, so we can get one digit more
-    if (fp_fmt != fmt_flags::kFixed && significand_ >= get_pow10(n_digs)) {  // one excess digit
+    if (fp_fmt != fmt_flags::fixed && significand_ >= get_pow10(n_digs)) {  // one excess digit
         // Remove one excess digit for scientific format
         const uint64_t err = frac + (divmod<100u>(significand_) << 32);
         if (err > (50ull << 32)) {
@@ -773,7 +773,7 @@ void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, const f
         }
         if (significand_ >= get_pow10(n_digs - 1)) {
             ++exp_;  // one excess digit
-            if (fp_fmt != fmt_flags::kFixed) {
+            if (fp_fmt != fmt_flags::fixed) {
                 // Remove one excess digit for scientific format
                 // Note: `significand` is exact power of 10 in this case
                 significand_ /= 10u;
@@ -784,21 +784,21 @@ void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, const f
 finish:
     if (significand_ == 0) {
         exp_ = 0, n_zeroes_ = prec_ + 1;
-    } else if (fp_fmt == fmt_flags::kDefault || fp_fmt == fmt_flags::kGeneral) {
+    } else if (fp_fmt == fmt_flags::none || fp_fmt == fmt_flags::general) {
         // Select format for number representation
         if (exp_ >= -4 && exp_ <= prec_) { fixed_ = true, prec_ -= exp_; }
-        if (!alternate_ || fp_fmt == fmt_flags::kDefault) { prec_ -= remove_trailing_zeros(significand_, prec_); }
+        if (!alternate_ || fp_fmt == fmt_flags::none) { prec_ -= remove_trailing_zeros(significand_, prec_); }
     }
 }
 
 void fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT {
-    // `kMaxPow10Size` uint64-s are enough to hold all (normalized!) 10^n, n <= 324 + kDigsPer64
-    uint64_t num[kMaxPow10Size + 1];  // +1 to multiply by uint64
+    // `max_pow10_size` uint64-s are enough to hold all (normalized!) 10^n, n <= 324 + digs_per_64
+    uint64_t num[max_pow10_size + 1];  // +1 to multiply by uint64
     unsigned sz_num = 1;
 
-    // Calculate upper kDigsPer64-aligned decimal exponent and multiplier for correction
-    int index = kDigsPer64 * 1000000 + exp_ - n_digs;
-    const uint64_t mul10 = get_pow10(kDigsPer64 - 1 - divmod<kDigsPer64>(index));
+    // Calculate upper digs_per_64-aligned decimal exponent and multiplier for correction
+    int index = digs_per_64 * 1000000 + exp_ - n_digs;
+    const uint64_t mul10 = get_pow10(digs_per_64 - 1 - divmod<digs_per_64>(index));
     index -= 999999;
 
     auto mul_and_shift = [&num, &sz_num](uint64_t m, uint64_t mul, int shift) {
@@ -834,7 +834,7 @@ void fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, co
     }
 
     // Note, that the first digit formally can belong [1, 20) range, so we can get one digit more
-    if (fp_fmt != fmt_flags::kFixed && significand_ >= get_pow10(n_digs)) {
+    if (fp_fmt != fmt_flags::fixed && significand_ >= get_pow10(n_digs)) {
         ++exp_;  // one excess digit
         // Remove one excess digit for scientific format
         const unsigned r = static_cast<unsigned>(divmod<100u>(significand_));
@@ -848,7 +848,7 @@ void fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, co
         }
         if (significand_ >= get_pow10(n_digs - 1)) {
             ++exp_;  // one excess digit
-            if (fp_fmt != fmt_flags::kFixed) {
+            if (fp_fmt != fmt_flags::fixed) {
                 // Remove one excess digit for scientific format
                 // Note: `significand` is exact power of 10 in this case
                 significand_ /= 10u;
@@ -858,20 +858,20 @@ void fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, co
 }
 
 void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT {
-    assert(n_digs >= kDigsPer64);
+    assert(n_digs >= digs_per_64);
     ++n_digs;  // one additional digit for rounding
 
-    // `kMaxPow10Size` uint64-s are enough to hold all (normalized!) 10^n, n <= 324 + kDigsPer64
-    uint64_t num[kMaxPow10Size + 1];  // +1 to multiply by uint64
+    // `max_pow10_size` uint64-s are enough to hold all (normalized!) 10^n, n <= 324 + digs_per_64
+    uint64_t num[max_pow10_size + 1];  // +1 to multiply by uint64
     unsigned sz_num = 1;
 
     // Digits are generated by packs: the first pack length can be in range
-    // [1, kDigsPer64], all next are of kDigsPer64 length
+    // [1, digs_per_64], all next are of digs_per_64 length
 
-    // Calculate lower kDigsPer64-aligned decimal exponent
-    int index = kDigsPer64 * 1000000 + exp_;
-    const unsigned digs_first_len = 1 + divmod<kDigsPer64>(index);  // first digit pack length
-    assert(digs_first_len <= kDigsPer64);
+    // Calculate lower digs_per_64-aligned decimal exponent
+    int index = digs_per_64 * 1000000 + exp_;
+    const unsigned digs_first_len = 1 + divmod<digs_per_64>(index);  // first digit pack length
+    assert(digs_first_len <= digs_per_64);
     index -= 1000000;
 
     char* p = digs_buf_;
@@ -882,7 +882,7 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fm
             gen_digits(p + digs_first_len, digs);
         } else {
             ++exp_, gen_digits(++p + digs_first_len, digs);
-            if (fp_fmt != fmt_flags::kFixed) { --n_digs; }
+            if (fp_fmt != fmt_flags::fixed) { --n_digs; }
         }
         p += digs_first_len, n_digs -= digs_first_len;
     };
@@ -900,8 +900,8 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fm
         sz_num = denominator.sz;
         while (n_digs > 0 && (sz_num = bignum_trim_unused(num, sz_num))) {
             assert(index >= 0);
-            const unsigned digs_len = std::min(n_digs, kDigsPer64);
-            if (digs_len < kDigsPer64) {
+            const unsigned digs_len = std::min(n_digs, digs_per_64);
+            if (digs_len < digs_per_64) {
                 digs = bignum_divmod(bignum_mul(num, sz_num, get_pow10(digs_len)), num, denominator.x, sz_num,
                                      denominator.sz);
             } else if (index > 0) {
@@ -931,7 +931,7 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fm
         gen_first_digit_pack(digs);
 
         while (n_digs > 0 && (sz_num = bignum_trim_unused(num, sz_num))) {
-            const unsigned digs_len = std::min(n_digs, kDigsPer64);
+            const unsigned digs_len = std::min(n_digs, digs_per_64);
             digs = bignum_mul(num, sz_num, get_pow10(digs_len));
             std::fill(p, gen_digits(p + digs_len, digs), '0');
             p += digs_len, n_digs -= digs_len;
@@ -951,7 +951,7 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fm
             --p, ++n_digs;  // trailing zero
             if (p == digs_buf_) {
                 ++exp_, *p++ = '0';
-                if (fp_fmt != fmt_flags::kFixed) { --n_digs; }
+                if (fp_fmt != fmt_flags::fixed) { --n_digs; }
                 break;
             }
         }
@@ -959,10 +959,10 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fm
     }
 
     // Note: `n_digs` is trailing zero count
-    if (fp_fmt == fmt_flags::kDefault || fp_fmt == fmt_flags::kGeneral) {
+    if (fp_fmt == fmt_flags::none || fp_fmt == fmt_flags::general) {
         // Select format for number representation
         if (exp_ >= -4 && exp_ <= prec_) { fixed_ = true, prec_ -= exp_; }
-        if (!alternate_ || fp_fmt == fmt_flags::kDefault) {  // trim trailing zeroes
+        if (!alternate_ || fp_fmt == fmt_flags::none) {  // trim trailing zeroes
             if (n_digs < prec_) {
                 prec_ -= n_digs, n_digs = 0;
                 while (*(p - 1) == '0' && prec_ > 0) { --p, --prec_; }
@@ -979,29 +979,29 @@ template UXS_EXPORT uint32_t to_integral_common(const char*, const char*, const 
 template UXS_EXPORT uint64_t to_integral_common(const char*, const char*, const char*&, uint64_t) NOEXCEPT;
 template UXS_EXPORT uint64_t to_float_common(const char*, const char*, const char*& last, const unsigned,
                                              const int) NOEXCEPT;
-template UXS_EXPORT bool to_bool(const char*, const char*, const char*& last) NOEXCEPT;
+template UXS_EXPORT bool to_boolean(const char*, const char*, const char*& last) NOEXCEPT;
 
 template UXS_EXPORT uint32_t to_integral_common(const wchar_t*, const wchar_t*, const wchar_t*&, uint32_t) NOEXCEPT;
 template UXS_EXPORT uint64_t to_integral_common(const wchar_t*, const wchar_t*, const wchar_t*&, uint64_t) NOEXCEPT;
 template UXS_EXPORT uint64_t to_float_common(const wchar_t*, const wchar_t*, const wchar_t*& last, const unsigned,
                                              const int) NOEXCEPT;
-template UXS_EXPORT bool to_bool(const wchar_t*, const wchar_t*, const wchar_t*& last) NOEXCEPT;
+template UXS_EXPORT bool to_boolean(const wchar_t*, const wchar_t*, const wchar_t*& last) NOEXCEPT;
 
 template UXS_EXPORT void fmt_integral_common(membuffer&, int32_t, const fmt_opts&);
 template UXS_EXPORT void fmt_integral_common(membuffer&, int64_t, const fmt_opts&);
 template UXS_EXPORT void fmt_integral_common(membuffer&, uint32_t, const fmt_opts&);
 template UXS_EXPORT void fmt_integral_common(membuffer&, uint64_t, const fmt_opts&);
-template UXS_EXPORT void fmt_char(membuffer&, char, const fmt_opts&);
+template UXS_EXPORT void fmt_character(membuffer&, char, const fmt_opts&);
 template UXS_EXPORT void fmt_float_common(membuffer&, uint64_t, const fmt_opts&, const unsigned, const int);
-template UXS_EXPORT void fmt_bool(membuffer&, bool, const fmt_opts&);
+template UXS_EXPORT void fmt_boolean(membuffer&, bool, const fmt_opts&);
 
 template UXS_EXPORT void fmt_integral_common(wmembuffer&, int32_t, const fmt_opts&);
 template UXS_EXPORT void fmt_integral_common(wmembuffer&, int64_t, const fmt_opts&);
 template UXS_EXPORT void fmt_integral_common(wmembuffer&, uint32_t, const fmt_opts&);
 template UXS_EXPORT void fmt_integral_common(wmembuffer&, uint64_t, const fmt_opts&);
-template UXS_EXPORT void fmt_char(wmembuffer&, wchar_t, const fmt_opts&);
+template UXS_EXPORT void fmt_character(wmembuffer&, wchar_t, const fmt_opts&);
 template UXS_EXPORT void fmt_float_common(wmembuffer&, uint64_t, const fmt_opts&, const unsigned, const int);
-template UXS_EXPORT void fmt_bool(wmembuffer&, bool, const fmt_opts&);
+template UXS_EXPORT void fmt_boolean(wmembuffer&, bool, const fmt_opts&);
 
 }  // namespace scvt
 

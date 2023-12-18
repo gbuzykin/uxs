@@ -61,7 +61,7 @@ NOALIAS rbtree_node_t* uxs::rbtree_prev(rbtree_node_t* node) NOEXCEPT {
 void uxs::rbtree_insert(rbtree_node_t* head, rbtree_node_t* node, rbtree_node_t* pos, int dir) NOEXCEPT {
     node->left = node->right = nullptr;
     node->parent = pos;
-    node->color = rbtree_node_t::color_t::kRed;
+    node->color = rbtree_node_t::color_t::red;
 
     if (dir < 0) {
         pos->left = node;
@@ -74,39 +74,39 @@ void uxs::rbtree_insert(rbtree_node_t* head, rbtree_node_t* node, rbtree_node_t*
         if (pos == head->right) { head->right = node; }
     }
 
-    while (pos->color != rbtree_node_t::color_t::kBlack) {
+    while (pos->color != rbtree_node_t::color_t::black) {
         rbtree_node_t* parent = pos->parent;
-        parent->color = rbtree_node_t::color_t::kRed;
+        parent->color = rbtree_node_t::color_t::red;
 
         if (parent->left == pos) {
-            if (!parent->right || parent->right->color == rbtree_node_t::color_t::kBlack) {
+            if (!parent->right || parent->right->color == rbtree_node_t::color_t::black) {
                 if (node == pos->right) {
                     rbtree_rotate_left(pos);
                     pos = node;
                 }
                 rbtree_rotate_right(parent);
-                pos->color = rbtree_node_t::color_t::kBlack;
+                pos->color = rbtree_node_t::color_t::black;
                 return;
             }
-            parent->right->color = rbtree_node_t::color_t::kBlack;
-        } else if (!parent->left || parent->left->color == rbtree_node_t::color_t::kBlack) {
+            parent->right->color = rbtree_node_t::color_t::black;
+        } else if (!parent->left || parent->left->color == rbtree_node_t::color_t::black) {
             if (node == pos->left) {
                 rbtree_rotate_right(pos);
                 pos = node;
             }
             rbtree_rotate_left(parent);
-            pos->color = rbtree_node_t::color_t::kBlack;
+            pos->color = rbtree_node_t::color_t::black;
             return;
         } else {
-            parent->left->color = rbtree_node_t::color_t::kBlack;
+            parent->left->color = rbtree_node_t::color_t::black;
         }
 
-        pos->color = rbtree_node_t::color_t::kBlack;
+        pos->color = rbtree_node_t::color_t::black;
         node = parent;
         pos = parent->parent;
     }
 
-    head->left->color = rbtree_node_t::color_t::kBlack;
+    head->left->color = rbtree_node_t::color_t::black;
 }
 
 rbtree_node_t* uxs::rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos) NOEXCEPT {
@@ -191,69 +191,69 @@ rbtree_node_t* uxs::rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos) NOEXC
         }
     }
 
-    if (color != rbtree_node_t::color_t::kBlack) { return pos; }
+    if (color != rbtree_node_t::color_t::black) { return pos; }
 
-    while (!fix || (parent != head && fix->color == rbtree_node_t::color_t::kBlack)) {
+    while (!fix || (parent != head && fix->color == rbtree_node_t::color_t::black)) {
         if (parent->left == fix) {
             rbtree_node_t* node = parent->right;
 
-            if (node->color != rbtree_node_t::color_t::kBlack) {
-                node->color = rbtree_node_t::color_t::kBlack;
-                parent->color = rbtree_node_t::color_t::kRed;
+            if (node->color != rbtree_node_t::color_t::black) {
+                node->color = rbtree_node_t::color_t::black;
+                parent->color = rbtree_node_t::color_t::red;
                 rbtree_rotate_left(parent);
                 node = parent->right;
             }
 
-            if ((node->left && node->left->color != rbtree_node_t::color_t::kBlack) ||
-                (node->right && node->right->color != rbtree_node_t::color_t::kBlack)) {
-                if (!node->right || node->right->color == rbtree_node_t::color_t::kBlack) {
-                    node->left->color = rbtree_node_t::color_t::kBlack;
-                    node->color = rbtree_node_t::color_t::kRed;
+            if ((node->left && node->left->color != rbtree_node_t::color_t::black) ||
+                (node->right && node->right->color != rbtree_node_t::color_t::black)) {
+                if (!node->right || node->right->color == rbtree_node_t::color_t::black) {
+                    node->left->color = rbtree_node_t::color_t::black;
+                    node->color = rbtree_node_t::color_t::red;
                     rbtree_rotate_right(node);
                     node = parent->right;
                 }
 
                 node->color = parent->color;
-                parent->color = rbtree_node_t::color_t::kBlack;
-                node->right->color = rbtree_node_t::color_t::kBlack;
+                parent->color = rbtree_node_t::color_t::black;
+                node->right->color = rbtree_node_t::color_t::black;
                 rbtree_rotate_left(parent);
                 return pos;
             }
 
-            node->color = rbtree_node_t::color_t::kRed;
+            node->color = rbtree_node_t::color_t::red;
         } else {
             rbtree_node_t* node = parent->left;
 
-            if (node->color != rbtree_node_t::color_t::kBlack) {
-                node->color = rbtree_node_t::color_t::kBlack;
-                parent->color = rbtree_node_t::color_t::kRed;
+            if (node->color != rbtree_node_t::color_t::black) {
+                node->color = rbtree_node_t::color_t::black;
+                parent->color = rbtree_node_t::color_t::red;
                 rbtree_rotate_right(parent);
                 node = parent->left;
             }
 
-            if ((node->left && node->left->color != rbtree_node_t::color_t::kBlack) ||
-                (node->right && node->right->color != rbtree_node_t::color_t::kBlack)) {
-                if (!node->left || node->left->color == rbtree_node_t::color_t::kBlack) {
-                    node->right->color = rbtree_node_t::color_t::kBlack;
-                    node->color = rbtree_node_t::color_t::kRed;
+            if ((node->left && node->left->color != rbtree_node_t::color_t::black) ||
+                (node->right && node->right->color != rbtree_node_t::color_t::black)) {
+                if (!node->left || node->left->color == rbtree_node_t::color_t::black) {
+                    node->right->color = rbtree_node_t::color_t::black;
+                    node->color = rbtree_node_t::color_t::red;
                     rbtree_rotate_left(node);
                     node = parent->left;
                 }
 
                 node->color = parent->color;
-                parent->color = rbtree_node_t::color_t::kBlack;
-                node->left->color = rbtree_node_t::color_t::kBlack;
+                parent->color = rbtree_node_t::color_t::black;
+                node->left->color = rbtree_node_t::color_t::black;
                 rbtree_rotate_right(parent);
                 return pos;
             }
 
-            node->color = rbtree_node_t::color_t::kRed;
+            node->color = rbtree_node_t::color_t::red;
         }
 
         fix = parent;
         parent = fix->parent;
     }
 
-    fix->color = rbtree_node_t::color_t::kBlack;
+    fix->color = rbtree_node_t::color_t::black;
     return pos;
 }

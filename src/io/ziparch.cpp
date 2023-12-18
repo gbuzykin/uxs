@@ -11,12 +11,12 @@ using namespace uxs;
 bool ziparch::open(const char* name, iomode mode) {
     int ziperr = 0;
     int oflag = ZIP_RDONLY;
-    if (!!(mode & iomode::kOut)) {
+    if (!!(mode & iomode::out)) {
         oflag &= ~ZIP_RDONLY;
-        if (!!(mode & iomode::kTruncate)) { oflag |= ZIP_TRUNCATE; }
-        if (!!(mode & iomode::kCreate)) {
+        if (!!(mode & iomode::truncate)) { oflag |= ZIP_TRUNCATE; }
+        if (!!(mode & iomode::create)) {
             oflag |= ZIP_CREATE;
-            if (!!(mode & iomode::kExcl)) { oflag = (oflag & ~ZIP_TRUNCATE) | ZIP_EXCL; }
+            if (!!(mode & iomode::exclusive)) { oflag = (oflag & ~ZIP_TRUNCATE) | ZIP_EXCL; }
         }
     }
     if (zip_) { zip_close(reinterpret_cast<zip_t*>(zip_)); }

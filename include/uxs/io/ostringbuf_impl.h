@@ -43,16 +43,16 @@ typename basic_ostringbuf<CharT, Alloc>::pos_type basic_ostringbuf<CharT, Alloc>
     size_type sz = top_ - this->first();
     size_type pos = this->curr() - this->first(), new_pos = pos;
     switch (dir) {
-        case seekdir::kBeg: {
+        case seekdir::beg: {
             if (off < 0) { return -1; }
             new_pos = static_cast<size_type>(off);
         } break;
-        case seekdir::kCurr: {
+        case seekdir::curr: {
             if (off == 0) { return pos; }
             if (off < 0 && static_cast<size_type>(-off) >= new_pos) { return -1; }
             new_pos += static_cast<size_type>(off);
         } break;
-        case seekdir::kEnd: {
+        case seekdir::end: {
             if (off < 0 && static_cast<size_type>(-off) >= sz) { return -1; }
             new_pos = sz + static_cast<size_type>(off);
         } break;
@@ -73,7 +73,7 @@ void basic_ostringbuf<CharT, Alloc>::grow(size_type extra) {
         if (extra > max_avail) { throw std::length_error("too much to reserve"); }
         delta_sz = std::max(extra, max_avail >> 1);
     }
-    sz = std::max<size_type>(sz + delta_sz, kMinBufSize);
+    sz = std::max<size_type>(sz + delta_sz, min_buf_size);
     char_type* first = this->allocate(sz);
     if (this->first() != nullptr) {
         top_ = std::copy(this->first(), top_, first);

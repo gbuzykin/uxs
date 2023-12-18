@@ -17,10 +17,10 @@ class sysfile : public iodevice {
     sysfile(const char* fname, iomode mode) : sysfile() { open(fname, mode); }
     sysfile(const wchar_t* fname, iomode mode) : sysfile() { open(fname, mode); }
     sysfile(const char* fname, const char* mode) : sysfile() {
-        open(fname, detail::iomode_from_str(mode, iomode::kNone));
+        open(fname, detail::iomode_from_str(mode, iomode::none));
     }
     sysfile(const wchar_t* fname, const char* mode) : sysfile() {
-        open(fname, detail::iomode_from_str(mode, iomode::kNone));
+        open(fname, detail::iomode_from_str(mode, iomode::none));
     }
     UXS_EXPORT ~sysfile() override;
     sysfile(sysfile&& other) NOEXCEPT : fd_(other.detach()) {}
@@ -38,9 +38,9 @@ class sysfile : public iodevice {
 
     UXS_EXPORT bool open(const char* fname, iomode mode);
     UXS_EXPORT bool open(const wchar_t* fname, iomode mode);
-    bool open(const char* fname, const char* mode) { return open(fname, detail::iomode_from_str(mode, iomode::kNone)); }
+    bool open(const char* fname, const char* mode) { return open(fname, detail::iomode_from_str(mode, iomode::none)); }
     bool open(const wchar_t* fname, const char* mode) {
-        return open(fname, detail::iomode_from_str(mode, iomode::kNone));
+        return open(fname, detail::iomode_from_str(mode, iomode::none));
     }
     UXS_EXPORT void close();
 

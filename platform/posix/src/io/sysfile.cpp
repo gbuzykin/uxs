@@ -32,16 +32,16 @@ file_desc_t sysfile::detach() {
 
 bool sysfile::open(const char* fname, iomode mode) {
     int oflag = O_RDONLY;
-    if (!!(mode & iomode::kOut)) {
-        oflag = !!(mode & iomode::kIn) ? O_RDWR : O_WRONLY;
-        if (!!(mode & iomode::kTruncate)) {
+    if (!!(mode & iomode::out)) {
+        oflag = !!(mode & iomode::in) ? O_RDWR : O_WRONLY;
+        if (!!(mode & iomode::truncate)) {
             oflag |= O_TRUNC;
-        } else if (!!(mode & iomode::kAppend)) {
+        } else if (!!(mode & iomode::append)) {
             oflag |= O_APPEND;
         }
-        if (!!(mode & iomode::kCreate)) {
+        if (!!(mode & iomode::create)) {
             oflag |= O_CREAT;
-            if (!!(mode & iomode::kExcl)) { oflag = (oflag & ~(O_TRUNC | O_APPEND)) | O_EXCL; }
+            if (!!(mode & iomode::exclusive)) { oflag = (oflag & ~(O_TRUNC | O_APPEND)) | O_EXCL; }
         }
     }
     attach(::open(fname, O_LARGEFILE | oflag, S_IREAD | S_IWRITE));
@@ -69,8 +69,8 @@ int sysfile::write(const void* data, size_t sz, size_t& n_written) {
 int64_t sysfile::seek(int64_t off, seekdir dir) {
     int whence = SEEK_SET;
     switch (dir) {
-        case seekdir::kCurr: whence = SEEK_CUR; break;
-        case seekdir::kEnd: whence = SEEK_END; break;
+        case seekdir::curr: whence = SEEK_CUR; break;
+        case seekdir::end: whence = SEEK_END; break;
         default: break;
     }
     off_t result = ::lseek(fd_, off, whence);

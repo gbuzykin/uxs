@@ -14,12 +14,12 @@ class basic_value;
 namespace xml {
 
 enum class token_t : int {
-    kEof = 0,
-    kPlainText,
-    kStartElement,
-    kEndElement,
-    kEntity,
-    kPreamble,
+    eof = 0,
+    plain_text,
+    start_element,
+    end_element,
+    entity,
+    preamble,
 };
 
 class reader {
@@ -33,14 +33,14 @@ class reader {
         using value_type = std::pair<token_t, std::string_view>;
         using reference = const value_type&;
 
-        iterator() : val_(token_t::kEof, {}) {}
+        iterator() : val_(token_t::eof, {}) {}
         explicit iterator(reader& rd) : rd_(&rd) {
-            if ((val_ = rd_->read_next()).first == token_t::kEof) { rd_ = nullptr; }
+            if ((val_ = rd_->read_next()).first == token_t::eof) { rd_ = nullptr; }
         }
 
         void increment() {
             iterator_assert(rd_);
-            if ((val_ = rd_->read_next()).first == token_t::kEof) { rd_ = nullptr; }
+            if ((val_ = rd_->read_next()).first == token_t::eof) { rd_ = nullptr; }
         }
 
         std::map<std::string_view, std::string>& attributes() const {
@@ -71,23 +71,34 @@ class reader {
     std::forward_list<std::string> name_cache_;
     std::map<std::string_view, std::string> attrs_;
 
-    enum {
-        kEof = 0,
-        kName = 256,
-        kPredefEntity,
-        kEntity,
-        kString,
-        kStartElementOpen,
-        kEndElementOpen,
-        kPiOpen,
-        kComment,
-        kEndElementClose,
-        kPiClose
+    enum class lex_token_t : int {
+        eof = 0,
+        eq = '=',
+        close = '>',
+        name = 256,
+        predef_entity,
+        entity,
+        string,
+        start_element_open,
+        end_element_open,
+        pi_open,
+        comment,
+        end_element_close,
+        pi_close
     };
 
-    int parse_token(std::string_view& lval);
+    lex_token_t parse_token(std::string_view& lval);
 
-    enum class string_class : int { kNull = 0, kTrue, kFalse, kInteger, kNegInteger, kDouble, kWsWithNl, kOther };
+    enum class string_class : int {
+        null = 0,
+        true_value,
+        false_value,
+        integer_number,
+        negative_integer_number,
+        real_number,
+        ws_with_nl,
+        other
+    };
 
     static string_class classify_string(const std::string_view& sval);
 };

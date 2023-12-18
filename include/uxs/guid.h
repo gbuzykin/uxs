@@ -123,7 +123,7 @@ struct formatter<guid, CharT> {
     template<typename StrTy>
     void format(StrTy& s, const guid& val, const fmt_opts& fmt) const {
         const unsigned len = 38;
-        const bool upper = !!(fmt.flags & fmt_flags::kUpperCase);
+        const bool upper = !!(fmt.flags & fmt_flags::uppercase);
         std::array<typename StrTy::value_type, len> buf;
         auto* p = buf.data();
         p[0] = '{', p[9] = '-', p[14] = '-', p[19] = '-', p[24] = '-', p[37] = '}';

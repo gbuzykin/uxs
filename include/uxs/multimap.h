@@ -2,6 +2,7 @@
 
 #include "rbtree_multi.h"
 
+#include <algorithm>
 #include <functional>
 
 namespace uxs {

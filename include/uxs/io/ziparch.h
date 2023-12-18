@@ -11,8 +11,8 @@ class ziparch {
     ziparch() = default;
     ziparch(const char* name, iomode mode) { open(name, mode); }
     ziparch(const wchar_t* name, iomode mode) { open(name, mode); }
-    ziparch(const char* name, const char* mode) : ziparch(name, detail::iomode_from_str(mode, iomode::kIn)) {}
-    ziparch(const wchar_t* name, const char* mode) : ziparch(name, detail::iomode_from_str(mode, iomode::kIn)) {}
+    ziparch(const char* name, const char* mode) : ziparch(name, detail::iomode_from_str(mode, iomode::in)) {}
+    ziparch(const wchar_t* name, const char* mode) : ziparch(name, detail::iomode_from_str(mode, iomode::in)) {}
     ~ziparch() { close(); }
     ziparch(ziparch&& other) NOEXCEPT : zip_(other.zip_) { other.zip_ = nullptr; }
     ziparch& operator=(ziparch&& other) {
@@ -27,8 +27,8 @@ class ziparch {
 
     UXS_EXPORT bool open(const char* name, iomode mode);
     UXS_EXPORT bool open(const wchar_t* name, iomode mode);
-    bool open(const char* name, const char* mode) { return open(name, detail::iomode_from_str(mode, iomode::kIn)); }
-    bool open(const wchar_t* name, const char* mode) { return open(name, detail::iomode_from_str(mode, iomode::kIn)); }
+    bool open(const char* name, const char* mode) { return open(name, detail::iomode_from_str(mode, iomode::in)); }
+    bool open(const wchar_t* name, const char* mode) { return open(name, detail::iomode_from_str(mode, iomode::in)); }
     void close();
 
     UXS_EXPORT bool stat_size(const char* fname, uint64_t& sz);

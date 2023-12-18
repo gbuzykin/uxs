@@ -12,19 +12,19 @@ class basic_value;
 namespace json {
 
 enum class token_t : int {
-    kEof = 0,
-    kArray = '[',
-    kObject = '{',
-    kNull = 256,
-    kTrue,
-    kFalse,
-    kInteger,
-    kNegInteger,
-    kDouble,
-    kString
+    eof = 0,
+    array = '[',
+    object = '{',
+    null = 256,
+    true_value,
+    false_value,
+    integer_number,
+    negative_integer_number,
+    real_number,
+    string
 };
 
-enum class next_action_type : int { kStepInto = 0, kStepOver, kBreak };
+enum class next_action_type : int { step_into = 0, step_over, stop };
 
 class reader {
  public:
@@ -32,10 +32,10 @@ class reader {
 
     template<typename ValueFunc, typename ArrItemFunc, typename ObjItemFunc, typename PopFunc>
     void read(const ValueFunc& fn_value, const ArrItemFunc& fn_arr_item, const ObjItemFunc& fn_obj_item,
-              const PopFunc& fn_pop, token_t tk_val = token_t::kEof);
+              const PopFunc& fn_pop, token_t tk_val = token_t::eof);
 
     template<typename CharT = char, typename Alloc = std::allocator<CharT>>
-    UXS_EXPORT basic_value<CharT, Alloc> read(token_t tk_val = token_t::kEof, const Alloc& al = Alloc());
+    UXS_EXPORT basic_value<CharT, Alloc> read(token_t tk_val = token_t::eof, const Alloc& al = Alloc());
 
  private:
     iobuf& input_;
@@ -67,7 +67,7 @@ void reader::read(const ValueFunc& fn_value, const ArrItemFunc& fn_arr_item, con
     if (input_.peek() == iobuf::traits_type::eof()) { throw exception("empty input"); }
 
     auto fn_value_checked = [this, &fn_value](int tt, std::string_view lval) -> next_action_type {
-        if (tt >= static_cast<int>(token_t::kNull) || tt == '[' || tt == '{') {
+        if (tt >= static_cast<int>(token_t::null) || tt == '[' || tt == '{') {
             return fn_value(static_cast<token_t>(tt), lval);
         }
         throw exception(format("{}: invalid value or unexpected character", n_ln_));
@@ -75,29 +75,29 @@ void reader::read(const ValueFunc& fn_value, const ArrItemFunc& fn_arr_item, con
 
     std::string_view lval;
     inline_basic_dynbuffer<char, 32> stack;
-    if (tk_val == token_t::kEof) {
+    if (tk_val == token_t::eof) {
         int tt = parse_token(lval);
-        if (fn_value_checked(tt, lval) != next_action_type::kStepInto) { return; }
+        if (fn_value_checked(tt, lval) != next_action_type::step_into) { return; }
         tk_val = static_cast<token_t>(tt);
     }
 
     bool comma = false;
-    if (tk_val >= token_t::kNull) { return; }
+    if (tk_val >= token_t::null) { return; }
 
 loop:
     int tt = parse_token(lval);
-    if (tk_val == token_t::kArray) {
+    if (tk_val == token_t::array) {
         if (comma || tt != ']') {
             while (true) {
                 fn_arr_item();
                 next_action_type ret = fn_value_checked(tt, lval);
-                if (ret == next_action_type::kStepInto) {
-                    if ((tk_val = static_cast<token_t>(tt)) < token_t::kNull) {
+                if (ret == next_action_type::step_into) {
+                    if ((tk_val = static_cast<token_t>(tt)) < token_t::null) {
                         stack.push_back('[');
                         comma = false;
                         goto loop;
                     }
-                } else if (ret == next_action_type::kBreak) {
+                } else if (ret == next_action_type::stop) {
                     return;
                 }
                 if ((tt = parse_token(lval)) == ']') { break; }
@@ -107,20 +107,20 @@ loop:
         }
     } else if (comma || tt != '}') {
         while (true) {
-            if (tt != static_cast<int>(token_t::kString)) {
+            if (tt != static_cast<int>(token_t::string)) {
                 throw exception(format("{}: expected valid string", n_ln_));
             }
             fn_obj_item(lval);
             if ((tt = parse_token(lval)) != ':') { throw exception(format("{}: expected `:`", n_ln_)); }
             tt = parse_token(lval);
             next_action_type ret = fn_value_checked(tt, lval);
-            if (ret == next_action_type::kStepInto) {
-                if ((tk_val = static_cast<token_t>(tt)) < token_t::kNull) {
+            if (ret == next_action_type::step_into) {
+                if ((tk_val = static_cast<token_t>(tt)) < token_t::null) {
                     stack.push_back('{');
                     comma = false;
                     goto loop;
                 }
-            } else if (ret == next_action_type::kBreak) {
+            } else if (ret == next_action_type::stop) {
                 return;
             }
             if ((tt = parse_token(lval)) == '}') { break; }
@@ -133,7 +133,7 @@ loop:
         tk_val = static_cast<token_t>(stack.back());
         stack.pop_back();
         fn_pop();
-        char close_char = tk_val == token_t::kArray ? ']' : '}';
+        char close_char = tk_val == token_t::array ? ']' : '}';
         if ((tt = parse_token(lval)) != close_char) {
             if (tt != ',') { throw exception(format("{}: expected `,` or `{}`", n_ln_, close_char)); }
             comma = true;
