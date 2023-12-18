@@ -28,7 +28,7 @@ std::pair<xml::token_t, std::string_view> xml::reader::read_next() {
         return {token_t::end_element, name_cache_.front()};
     }
     if (!input_) { return {token_t::eof, {}}; }
-    while (input_.avail() || input_.peek() != std::char_traits<char>::eof()) {
+    while (input_.avail() || input_.peek() != iobuf::traits_type::eof()) {
         const char *first = input_.first_avail(), *last = input_.last_avail();
         std::string_view lval;
         if (*first == '<') {  // found '<'
