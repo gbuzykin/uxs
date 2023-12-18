@@ -5,6 +5,7 @@
 #include "string_view.h"
 
 #include <algorithm>
+#include <iterator>
 #include <limits>
 #include <string>
 #include <vector>

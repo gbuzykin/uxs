@@ -421,7 +421,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     Ty value_or(std::basic_string_view<char_type> name, U&& default_value) const {
         auto it = find(name);
         if (it != nil()) {
-            auto result = get<Ty>();
+            auto result = it->second.template get<Ty>();
             if (result) { return *result; }
         }
         return Ty(std::forward<U>(default_value));
