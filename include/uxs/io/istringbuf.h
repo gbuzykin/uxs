@@ -2,6 +2,8 @@
 
 #include "iobuf.h"
 
+#include <string>
+
 namespace uxs {
 
 template<typename CharT>

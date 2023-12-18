@@ -3,6 +3,7 @@
 #include "iobuf.h"
 
 #include <memory>
+#include <string>
 
 namespace uxs {
 

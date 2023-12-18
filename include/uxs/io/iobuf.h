@@ -1,13 +1,13 @@
 #pragma once
 
 #include "iostate.h"
+#include "iotraits.h"
 
 #include "uxs/iterator.h"
 #include "uxs/span.h"
 #include "uxs/string_view.h"
 
 #include <algorithm>
-#include <string>
 
 namespace uxs {
 
@@ -17,7 +17,7 @@ class basic_iobuf : public iostate {
 
  public:
     using char_type = CharT;
-    using traits_type = std::char_traits<CharT>;
+    using traits_type = iotraits<CharT>;
     using size_type = size_t;
     using int_type = typename traits_type::int_type;
     using pos_type = typename traits_type::pos_type;
