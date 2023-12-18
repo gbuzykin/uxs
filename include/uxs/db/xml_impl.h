@@ -18,10 +18,10 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
 
     auto text_to_value = [&al](std::string_view sval) -> basic_value<CharT, Alloc> {
         switch (classify_string(sval)) {
-            case string_class::kNull: return {nullptr, al};
-            case string_class::kTrue: return {true, al};
-            case string_class::kFalse: return {false, al};
-            case string_class::kInteger: {
+            case string_class::null: return {nullptr, al};
+            case string_class::true_value: return {true, al};
+            case string_class::false_value: return {false, al};
+            case string_class::integer_number: {
                 uint64_t u64 = 0;
                 if (stoval(sval, u64) != 0) {
                     if (u64 <= static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
@@ -36,7 +36,7 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
                 // too big integer - treat as double
                 return {from_string<double>(sval), al};
             } break;
-            case string_class::kNegInteger: {
+            case string_class::negative_integer_number: {
                 int64_t i64 = 0;
                 if (stoval(sval, i64) != 0) {
                     if (i64 >= static_cast<int64_t>(std::numeric_limits<int32_t>::min())) {
@@ -47,9 +47,9 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
                 // too big integer - treat as double
                 return {from_string<double>(sval), al};
             } break;
-            case string_class::kDouble: return {from_string<double>(sval), al};
-            case string_class::kWsWithNl: return make_record<CharT>(al);
-            case string_class::kOther: return {uxs::detail::utf8_string_converter<CharT>::from(sval), al};
+            case string_class::real_number: return {from_string<double>(sval), al};
+            case string_class::ws_with_nl: return make_record<CharT>(al);
+            case string_class::other: return {uxs::detail::utf8_string_converter<CharT>::from(sval), al};
             default: UNREACHABLE_CODE;
         }
     };
@@ -65,22 +65,22 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
     while (true) {
         auto* top = &stack.back();
         switch (tk.first) {
-            case token_t::kEof: throw exception(format("{}: unexpected end of file", n_ln_));
-            case token_t::kPreamble: throw exception(format("{}: unexpected document preamble", n_ln_));
-            case token_t::kEntity: throw exception(format("{}: unknown entity name", n_ln_));
-            case token_t::kPlainText: {
+            case token_t::eof: throw exception(format("{}: unexpected end of file", n_ln_));
+            case token_t::preamble: throw exception(format("{}: unexpected document preamble", n_ln_));
+            case token_t::entity: throw exception(format("{}: unknown entity name", n_ln_));
+            case token_t::plain_text: {
                 if (!top->first->is_record()) { txt += tk.second; }
             } break;
-            case token_t::kStartElement: {
+            case token_t::start_element: {
                 txt.clear();
                 auto result = top->first->emplace_unique(uxs::detail::utf8_string_converter<CharT>::from(tk.second), al);
                 stack.emplace_back(&result.first->second, tk.second);
                 if (!result.second) {
-                    result.first->second.convert(dtype::kArray);
+                    result.first->second.convert(dtype::array);
                     stack.back().first = &result.first->second.emplace_back(al);
                 }
             } break;
-            case token_t::kEndElement: {
+            case token_t::end_element: {
                 if (top->second != tk.second) {
                     throw exception(format("{}: unterminated element {}", n_ln_, top->second));
                 }
@@ -148,36 +148,36 @@ void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_ele
 
     auto write_value = [this, &stack, &element, &indent](const basic_value<CharT, Alloc>& v) {
         switch (v.type_) {
-            case dtype::kNull: output_.write("null"); break;
-            case dtype::kBoolean: output_.write(v.value_.b ? "true" : "false"); break;
-            case dtype::kInteger: {
+            case dtype::null: output_.write("null"); break;
+            case dtype::boolean: output_.write(v.value_.b ? "true" : "false"); break;
+            case dtype::integer: {
                 membuffer_for_iobuf buf(output_);
                 to_basic_string(buf, v.value_.i);
             } break;
-            case dtype::kUInteger: {
+            case dtype::unsigned_integer: {
                 membuffer_for_iobuf buf(output_);
                 to_basic_string(buf, v.value_.u);
             } break;
-            case dtype::kInteger64: {
+            case dtype::long_integer: {
                 membuffer_for_iobuf buf(output_);
                 to_basic_string(buf, v.value_.i64);
             } break;
-            case dtype::kUInteger64: {
+            case dtype::unsigned_long_integer: {
                 membuffer_for_iobuf buf(output_);
                 to_basic_string(buf, v.value_.u64);
             } break;
-            case dtype::kDouble: {
+            case dtype::double_precision: {
                 membuffer_for_iobuf buf(output_);
-                to_basic_string(buf, v.value_.dbl, fmt_opts{fmt_flags::kJsonCompat});
+                to_basic_string(buf, v.value_.dbl, fmt_opts{fmt_flags::json_compat});
             } break;
-            case dtype::kString: {
+            case dtype::string: {
                 print_xml_text<char>(output_, uxs::detail::utf8_string_converter<CharT>().to(v.str_view()));
             } break;
-            case dtype::kArray: {
+            case dtype::array: {
                 stack.emplace_back(&v, element, v.as_array().data());
                 return true;
             } break;
-            case dtype::kRecord: {
+            case dtype::record: {
                 indent += indent_size_;
                 stack.emplace_back(&v, element, v.as_record().begin());
                 return true;

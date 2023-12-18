@@ -16,11 +16,11 @@
 
 #define UXS_IMPLEMENT_VARIANT_STRING_CONVERTER(ty) \
     bool uxs::variant_type_impl<ty>::convert_from(variant_id type, void* to, const void* from) { \
-        if (type != variant_id::kString) { return false; } \
+        if (type != variant_id::string) { return false; } \
         return uxs::stoval(*static_cast<const std::string*>(from), *static_cast<ty*>(to)) != 0; \
     } \
     bool uxs::variant_type_impl<ty>::convert_to(variant_id type, void* to, const void* from) { \
-        if (type != variant_id::kString) { return false; } \
+        if (type != variant_id::string) { return false; } \
         *static_cast<std::string*>(to) = uxs::to_string(*static_cast<const ty*>(from)); \
         return true; \
     }
@@ -32,7 +32,7 @@
             assign_copy,  assign_move,       get_value_const_ptr, get_value_ptr,  is_equal, \
             serialize_qt, deserialize_qt,    __VA_ARGS__}; \
         uxs::variant_type_impl<ty>::variant_type_impl() { \
-            static_assert(static_cast<unsigned>(type_id) < uxs::variant::kMaxTypeId, "bad variant identifier"); \
+            static_assert(static_cast<unsigned>(type_id) < uxs::variant::max_type_id, "bad variant identifier"); \
             assert(vtable.type == type_id); \
             assert(!uxs::variant::vtables_[static_cast<unsigned>(type_id)]); \
             uxs::variant::vtables_[static_cast<unsigned>(type_id)] = &vtable; \
@@ -44,7 +44,7 @@
             type_id,     construct_default,   construct_copy, construct_move, destroy,    assign_copy, \
             assign_move, get_value_const_ptr, get_value_ptr,  is_equal,       __VA_ARGS__}; \
         uxs::variant_type_impl<ty>::variant_type_impl() { \
-            static_assert(static_cast<unsigned>(type_id) < uxs::variant::kMaxTypeId, "bad variant identifier"); \
+            static_assert(static_cast<unsigned>(type_id) < uxs::variant::max_type_id, "bad variant identifier"); \
             assert(vtable.type == type_id); \
             assert(!uxs::variant::vtables_[static_cast<unsigned>(type_id)]); \
             uxs::variant::vtables_[static_cast<unsigned>(type_id)] = &vtable; \
@@ -60,21 +60,21 @@ namespace uxs {
 
 // Two variant are compared as values of type with greater identifier.
 enum class variant_id : unsigned {
-    kInvalid = 0,
-    kString,
-    kBoolean,
-    kInteger,
-    kUInteger,
-    kInteger64,
-    kUInteger64,
-    kFloat,
-    kDouble,
-    kVector2D,
-    kVector3D,
-    kVector4D,
-    kQuaternion,
-    kMatrix4x4,
-    kCustom0
+    invalid = 0,
+    string,
+    boolean,
+    integer,
+    unsigned_integer,
+    long_integer,
+    unsigned_long_integer,
+    single_precision,
+    double_precision,
+    vector2d,
+    vector3d,
+    vector4d,
+    quaternion,
+    matrix4x4,
+    custom0
 };
 CONSTEXPR variant_id operator+(variant_id lhs, unsigned rhs) {
     return static_cast<variant_id>(static_cast<unsigned>(lhs) + rhs);
@@ -99,9 +99,9 @@ class variant {
     using storage_t = aligned_storage_t<int64_t, double, void*, std::string>;
 
  public:
-    enum : unsigned { kMaxTypeId = 256 };
-    enum : size_t { kStorageSize = sizeof(storage_t) };
-    enum : size_t { kStorageAlignment = std::alignment_of<storage_t>::value };
+    enum : unsigned { max_type_id = 256 };
+    enum : size_t { storage_size = sizeof(storage_t) };
+    enum : size_t { storage_alignment = std::alignment_of<storage_t>::value };
 
     variant() NOEXCEPT {}
     explicit variant(variant_id type) : vtable_(get_vtable(type)) {
@@ -143,7 +143,7 @@ class variant {
 
     bool has_value() const NOEXCEPT { return vtable_ != nullptr; }
     explicit operator bool() const NOEXCEPT { return vtable_ != nullptr; }
-    variant_id type() const NOEXCEPT { return vtable_ ? vtable_->type : variant_id::kInvalid; }
+    variant_id type() const NOEXCEPT { return vtable_ ? vtable_->type : variant_id::invalid; }
 
     template<typename Ty, typename = std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
     bool is() const NOEXCEPT {
@@ -229,7 +229,7 @@ class variant {
     storage_t data_;
 
     static vtable_t* get_vtable(variant_id type) {
-        assert(static_cast<unsigned>(type) < kMaxTypeId);
+        assert(static_cast<unsigned>(type) < max_type_id);
         return vtables_[static_cast<unsigned>(type)];
     }
 };
@@ -404,7 +404,7 @@ struct variant_type_base_impl {
 template<typename Ty, variant_id TypeId>
 struct variant_type_base_impl<
     Ty, TypeId,
-    std::enable_if_t<(sizeof(Ty) <= variant::kStorageSize) && (std::alignment_of<Ty>::value <= variant::kStorageAlignment) &&
+    std::enable_if_t<(sizeof(Ty) <= variant::storage_size) && (std::alignment_of<Ty>::value <= variant::storage_alignment) &&
                      std::is_nothrow_move_constructible<Ty>::value && std::is_nothrow_move_assignable<Ty>::value>> {
     using is_variant_type_impl = int;
     static const variant_id type_id = TypeId;
@@ -437,7 +437,7 @@ struct variant_type_base_impl<
 #endif  // USE_QT
 };
 
-UXS_DECLARE_VARIANT_TYPE(std::string, variant_id::kString);
+UXS_DECLARE_VARIANT_TYPE(std::string, variant_id::string);
 
 inline variant::variant(std::string_view s) : variant(std::string(s)) {}
 inline variant& variant::operator=(std::string_view s) { return operator=(std::string(s)); }
@@ -447,12 +447,12 @@ inline variant::variant(const char* cstr) : variant(std::string(cstr)) {}
 inline variant& variant::operator=(const char* cstr) { return operator=(std::string(cstr)); }
 inline bool variant::is_equal_to(const char* cstr) const { return is_equal_to<const char*, std::string>(cstr); }
 
-UXS_DECLARE_VARIANT_TYPE(bool, variant_id::kBoolean);
-UXS_DECLARE_VARIANT_TYPE(int32_t, variant_id::kInteger);
-UXS_DECLARE_VARIANT_TYPE(uint32_t, variant_id::kUInteger);
-UXS_DECLARE_VARIANT_TYPE(int64_t, variant_id::kInteger64);
-UXS_DECLARE_VARIANT_TYPE(uint64_t, variant_id::kUInteger64);
-UXS_DECLARE_VARIANT_TYPE(float, variant_id::kFloat);
-UXS_DECLARE_VARIANT_TYPE(double, variant_id::kDouble);
+UXS_DECLARE_VARIANT_TYPE(bool, variant_id::boolean);
+UXS_DECLARE_VARIANT_TYPE(int32_t, variant_id::integer);
+UXS_DECLARE_VARIANT_TYPE(uint32_t, variant_id::unsigned_integer);
+UXS_DECLARE_VARIANT_TYPE(int64_t, variant_id::long_integer);
+UXS_DECLARE_VARIANT_TYPE(uint64_t, variant_id::unsigned_long_integer);
+UXS_DECLARE_VARIANT_TYPE(float, variant_id::single_precision);
+UXS_DECLARE_VARIANT_TYPE(double, variant_id::double_precision);
 
 }  // namespace uxs

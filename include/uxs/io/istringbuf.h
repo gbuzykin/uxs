@@ -13,7 +13,7 @@ class basic_istringbuf : public basic_iobuf<CharT> {
     using pos_type = typename basic_iobuf<CharT>::pos_type;
     using off_type = typename basic_iobuf<CharT>::off_type;
 
-    explicit basic_istringbuf(std::basic_string<char_type> s) : basic_iobuf<CharT>(iomode::kIn), str_(std::move(s)) {
+    explicit basic_istringbuf(std::basic_string<char_type> s) : basic_iobuf<CharT>(iomode::in), str_(std::move(s)) {
         redirect_ptrs();
     }
     UXS_EXPORT ~basic_istringbuf() override = default;

@@ -12,7 +12,7 @@
 
 namespace uxs {
 
-enum class split_opts : unsigned { kNoOpts = 0, kSkipEmpty = 1 };
+enum class split_opts : unsigned { no_opts = 0, skip_empty = 1 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(split_opts, unsigned);
 
 namespace detail {
@@ -176,7 +176,7 @@ size_t split_basic_string(std::basic_string_view<CharT, Traits> s, Finder finder
     size_t count = 0;
     for (auto p = s.begin();;) {
         auto sub = finder(p, s.end());
-        if (!(opts & split_opts::kSkipEmpty) || p != sub.first) {
+        if (!(opts & split_opts::skip_empty) || p != sub.first) {
             *out++ = fn(s.substr(p - s.begin(), sub.first - p));
             if (++count == n) { break; }
         }
@@ -186,14 +186,14 @@ size_t split_basic_string(std::basic_string_view<CharT, Traits> s, Finder finder
     return count;
 }
 
-template<split_opts opts = split_opts::kNoOpts, typename Finder, typename OutputFn, typename OutputIt,
+template<split_opts opts = split_opts::no_opts, typename Finder, typename OutputFn, typename OutputIt,
          typename = std::void_t<typename Finder::is_finder>>
 size_t split_string(std::string_view s, Finder finder, OutputFn fn, OutputIt out,
                     size_t n = std::numeric_limits<size_t>::max()) {
     return split_basic_string<opts>(s, finder, fn, out, n);
 }
 
-template<split_opts opts = split_opts::kNoOpts, typename Finder, typename OutputFn = nofunc>
+template<split_opts opts = split_opts::no_opts, typename Finder, typename OutputFn = nofunc>
 auto split_string(std::string_view s, Finder finder, OutputFn fn = OutputFn{})
     -> std::vector<std::decay_t<decltype(fn(s))>> {
     std::vector<std::decay_t<decltype(fn(s))>> result;
@@ -201,14 +201,14 @@ auto split_string(std::string_view s, Finder finder, OutputFn fn = OutputFn{})
     return result;
 }
 
-template<split_opts opts = split_opts::kNoOpts, typename Finder, typename OutputFn, typename OutputIt,
+template<split_opts opts = split_opts::no_opts, typename Finder, typename OutputFn, typename OutputIt,
          typename = std::void_t<typename Finder::is_finder>>
 size_t split_string(std::wstring_view s, Finder finder, OutputFn fn, OutputIt out,
                     size_t n = std::numeric_limits<size_t>::max()) {
     return split_basic_string<opts>(s, finder, fn, out, n);
 }
 
-template<split_opts opts = split_opts::kNoOpts, typename Finder, typename OutputFn = nofunc>
+template<split_opts opts = split_opts::no_opts, typename Finder, typename OutputFn = nofunc>
 auto split_string(std::wstring_view s, Finder finder, OutputFn fn = OutputFn{})
     -> std::vector<std::decay_t<decltype(fn(s))>> {
     std::vector<std::decay_t<decltype(fn(s))>> result;
@@ -227,7 +227,7 @@ type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_finde
     auto p = s.begin(), from = s.end();
     for (;;) {
         auto sub = finder(p, s.end());
-        if (!(opts & split_opts::kSkipEmpty) || p != sub.first) {
+        if (!(opts & split_opts::skip_empty) || p != sub.first) {
             if (count == start) { from = p; }
             if (count++ == fin) { return s.substr(from - s.begin(), sub.first - from); }
         }
@@ -237,13 +237,13 @@ type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_finde
     return s.substr(from - s.begin(), s.end() - from);
 }
 
-template<split_opts opts = split_opts::kNoOpts, typename Finder>
+template<split_opts opts = split_opts::no_opts, typename Finder>
 type_identity_t<std::string_view, typename Finder::is_finder> string_section(  //
     std::string_view s, Finder finder, size_t start, size_t fin = std::numeric_limits<size_t>::max()) {
     return basic_string_section<opts>(s, finder, start, fin);
 }
 
-template<split_opts opts = split_opts::kNoOpts, typename Finder>
+template<split_opts opts = split_opts::no_opts, typename Finder>
 type_identity_t<std::wstring_view, typename Finder::is_finder> string_section(  //
     std::wstring_view s, Finder finder, size_t start, size_t fin = std::numeric_limits<size_t>::max()) {
     return basic_string_section<opts>(s, finder, start, fin);
@@ -259,7 +259,7 @@ type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_rever
     auto p = s.end(), to = s.begin();
     for (;;) {
         auto sub = finder(s.begin(), p);
-        if (!(opts & split_opts::kSkipEmpty) || sub.second != p) {
+        if (!(opts & split_opts::skip_empty) || sub.second != p) {
             if (count == fin) { to = p; }
             if (count++ == start) { return s.substr(sub.second - s.begin(), to - sub.second); }
         }
@@ -269,13 +269,13 @@ type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_rever
     return s.substr(0, to - s.begin());
 }
 
-template<split_opts opts = split_opts::kNoOpts, typename Finder>
+template<split_opts opts = split_opts::no_opts, typename Finder>
 type_identity_t<std::string_view, typename Finder::is_reversed_finder> string_section(  //
     std::string_view s, Finder finder, size_t start, size_t fin = 0) {
     return basic_string_section<opts>(s, finder, start, fin);
 }
 
-template<split_opts opts = split_opts::kNoOpts, typename Finder>
+template<split_opts opts = split_opts::no_opts, typename Finder>
 type_identity_t<std::wstring_view, typename Finder::is_reversed_finder> string_section(  //
     std::wstring_view s, Finder finder, size_t start, size_t fin = 0) {
     return basic_string_section<opts>(s, finder, start, fin);
@@ -288,26 +288,26 @@ size_t basic_string_to_words(std::basic_string_view<CharT, Traits> s, CharT sep,
                              size_t n = std::numeric_limits<size_t>::max()) {
     if (!n) { return 0; }
     size_t count = 0;
-    enum class state_t : char { kStart = 0, kSepFound, kSkipSep } state = state_t::kStart;
+    enum class state_t : char { start = 0, sep_found, skip_sep } state = state_t::start;
     for (auto p = s.begin();; ++p) {
         while (p != s.end() && is_space(*p)) { ++p; }  // skip spaces
         auto p0 = p;
         if (p == s.end()) {
-            if (state != state_t::kSepFound) { break; }
+            if (state != state_t::sep_found) { break; }
         } else {
             state_t prev_state = state;
             do {  // find separator or blank
                 if (*p == '\\') {
                     if (++p == s.end()) { break; }
                 } else if (is_space(*p)) {
-                    state = state_t::kSkipSep;
+                    state = state_t::skip_sep;
                     break;
                 } else if (*p == sep) {
-                    state = state_t::kSepFound;
+                    state = state_t::sep_found;
                     break;
                 }
             } while (++p != s.end());
-            if (p == p0 && prev_state == state_t::kSkipSep) { continue; }
+            if (p == p0 && prev_state == state_t::skip_sep) { continue; }
         }
         *out++ = fn(s.substr(p0 - s.begin(), p - p0));
         if (++count == n || p == s.end()) { break; }

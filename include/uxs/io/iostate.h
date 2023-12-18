@@ -5,29 +5,29 @@
 namespace uxs {
 
 enum class iomode : uint16_t {
-    kNone = 0,
-    kIn = 1,
-    kOut = 2,
-    kTruncate = 4,
-    kAppend = 8,
-    kCreate = 0x10,
-    kExcl = 0x20,
-    kZCompr = 0x40,
-    kCrLf = 0x80,
+    none = 0,
+    in = 1,
+    out = 2,
+    truncate = 4,
+    append = 8,
+    create = 0x10,
+    exclusive = 0x20,
+    z_compr = 0x40,
+    cr_lf = 0x80,
 #if defined(WIN32)
-    kText = kCrLf,
+    text = cr_lf,
 #else   // defined(WIN32)
-    kText = 0,
+    text = 0,
 #endif  // defined(WIN32)
-    kCtrlEsc = 0x100,
-    kSkipCtrlEsc = 0x300,
+    ctrl_esc = 0x100,
+    skip_ctrl_esc = 0x300,
 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iomode, uint16_t);
 
-enum class iostate_bits : uint8_t { kGood = 0, kBad = 1, kFail = 2, kEof = 4 };
+enum class iostate_bits : uint8_t { good = 0, bad = 1, fail = 2, eof = 4 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iostate_bits, uint8_t);
 
-enum class seekdir : uint8_t { kBeg = 0, kEnd, kCurr };
+enum class seekdir : uint8_t { beg = 0, end, curr };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(seekdir, uint8_t);
 
 class iostate {
@@ -39,22 +39,22 @@ class iostate {
     iomode mode() const { return mode_; }
 
     iostate_bits rdstate() const { return state_; }
-    bool good() const { return state_ == iostate_bits::kGood; }
-    bool bad() const { return !!(state_ & iostate_bits::kBad); }
-    bool fail() const { return !!(state_ & (iostate_bits::kFail | iostate_bits::kBad)); }
-    bool eof() const { return !!(state_ & iostate_bits::kEof); }
+    bool good() const { return state_ == iostate_bits::good; }
+    bool bad() const { return !!(state_ & iostate_bits::bad); }
+    bool fail() const { return !!(state_ & (iostate_bits::fail | iostate_bits::bad)); }
+    bool eof() const { return !!(state_ & iostate_bits::eof); }
     operator bool() const { return !fail(); }
     bool operator!() const { return fail(); }
 
     void setstate(iostate_bits bits) { state_ |= bits; }
-    void clear(iostate_bits bits = iostate_bits::kGood) { state_ = bits; }
+    void clear(iostate_bits bits = iostate_bits::good) { state_ = bits; }
 
  protected:
     void setmode(iomode mode) { mode_ = mode; }
 
  private:
-    iomode mode_ = iomode::kNone;
-    iostate_bits state_ = iostate_bits::kGood;
+    iomode mode_ = iomode::none;
+    iostate_bits state_ = iostate_bits::good;
 };
 
 namespace detail {

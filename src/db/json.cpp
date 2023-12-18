@@ -37,7 +37,7 @@ int json::reader::parse_token(std::string_view& lval) {
                 });
                 input_.advance(first - input_.first_avail());
                 if (first != input_.last_avail()) { break; }
-                if (input_.peek() == iobuf::traits_type::eof()) { return static_cast<int>(token_t::kEof); }
+                if (input_.peek() == iobuf::traits_type::eof()) { return static_cast<int>(token_t::eof); }
                 first = input_.first_avail();
             }
             // just process a single character if it can't be recognized with analyzer
@@ -63,7 +63,7 @@ int json::reader::parse_token(std::string_view& lval) {
                 first = last;
                 continue;
             } else if (!input_) {
-                return static_cast<int>(token_t::kEof);  // end of sequence, first_ == last_
+                return static_cast<int>(token_t::eof);  // end of sequence, first_ == last_
             }
             if (input_.avail()) {  // append read buffer to stash
                 stash_.append(input_.first_avail(), input_.last_avail());
@@ -99,7 +99,7 @@ int json::reader::parse_token(std::string_view& lval) {
             case lex_detail::pat_escape_n: str_.push_back('\n'); break;
             case lex_detail::pat_escape_r: str_.push_back('\r'); break;
             case lex_detail::pat_escape_t: str_.push_back('\t'); break;
-            case lex_detail::pat_escape_other: return static_cast<int>(token_t::kEof);
+            case lex_detail::pat_escape_other: return static_cast<int>(token_t::eof);
             case lex_detail::pat_escape_unicode: {
                 unsigned unicode = (dig_v(lexeme[2]) << 12) | (dig_v(lexeme[3]) << 8) | (dig_v(lexeme[4]) << 4) |
                                    dig_v(lexeme[5]);
@@ -114,7 +114,7 @@ int json::reader::parse_token(std::string_view& lval) {
             } break;
 
             // ------ strings
-            case lex_detail::pat_string_nl: return static_cast<int>(token_t::kEof);
+            case lex_detail::pat_string_nl: return static_cast<int>(token_t::eof);
             case lex_detail::pat_string_seq: {
                 str_.append(lexeme, lexeme + llen);
             } break;
@@ -127,29 +127,29 @@ int json::reader::parse_token(std::string_view& lval) {
                     str_.clear();  // it resets end pointer, but retains the contents
                 }
                 state_stack_.pop_back();
-                return static_cast<int>(token_t::kString);
+                return static_cast<int>(token_t::string);
             } break;
 
-            case lex_detail::pat_null: return static_cast<int>(token_t::kNull);
-            case lex_detail::pat_true: return static_cast<int>(token_t::kTrue);
-            case lex_detail::pat_false: return static_cast<int>(token_t::kFalse);
+            case lex_detail::pat_null: return static_cast<int>(token_t::null);
+            case lex_detail::pat_true: return static_cast<int>(token_t::true_value);
+            case lex_detail::pat_false: return static_cast<int>(token_t::false_value);
             case lex_detail::pat_decimal: {
                 lval = std::string_view(lexeme, llen);
-                return static_cast<int>(token_t::kInteger);
+                return static_cast<int>(token_t::integer_number);
             } break;
             case lex_detail::pat_neg_decimal: {
                 lval = std::string_view(lexeme, llen);
-                return static_cast<int>(token_t::kNegInteger);
+                return static_cast<int>(token_t::negative_integer_number);
             } break;
             case lex_detail::pat_real: {
                 lval = std::string_view(lexeme, llen);
-                return static_cast<int>(token_t::kDouble);
+                return static_cast<int>(token_t::real_number);
             } break;
 
             case lex_detail::pat_comment: {  // skip till end of line or stream
                 int ch = input_.get();
                 while (input_ && ch != '\n') {
-                    if (ch == '\0') { return static_cast<int>(token_t::kEof); }
+                    if (ch == '\0') { return static_cast<int>(token_t::eof); }
                     ch = input_.get();
                 }
                 ++n_ln_;
@@ -158,7 +158,7 @@ int json::reader::parse_token(std::string_view& lval) {
                 int ch = input_.get();
                 do {
                     while (input_ && ch != '*') {
-                        if (ch == '\0') { return static_cast<int>(token_t::kEof); }
+                        if (ch == '\0') { return static_cast<int>(token_t::eof); }
                         if (ch == '\n') { ++n_ln_; }
                         ch = input_.get();
                     }

@@ -43,7 +43,7 @@ basic_command<CharT>::basic_command(const basic_command& cmd)
 template<typename CharT>
 void basic_command<CharT>::add_option(std::unique_ptr<basic_option_node<CharT>> opt) {
     opt->traverse_options([this](const basic_option_node<CharT>& node) {
-        if (node.get_type() != node_type::kOption) { return true; }
+        if (node.get_type() != node_type::option) { return true; }
         const auto& opt = static_cast<const basic_option<CharT>&>(node);
         for (const auto& k : opt.get_keys()) { opt_map_.emplace(k, &opt); }
         return true;
@@ -125,7 +125,7 @@ template<typename CharT>
                 if (parse_value(*val, n_prefix)) {
                     n_prefix = 0;
                 } else if (n_prefix || !val->is_optional()) {
-                    return parsing_result<CharT>{parsing_status::kInvalidValue, argc0 - argc, &*val};
+                    return parsing_result<CharT>{parsing_status::invalid_value, argc0 - argc, &*val};
                 }
             }
             if (opt.get_handler()) { opt.get_handler()(); }
@@ -144,11 +144,11 @@ template<typename CharT>
                 } else if (val->is_optional() || count_multiple) {
                     ++val_it, count_multiple = 0;
                 } else {
-                    return parsing_result<CharT>{parsing_status::kInvalidValue, argc0 - argc, &*val};
+                    return parsing_result<CharT>{parsing_status::invalid_value, argc0 - argc, &*val};
                 }
             } while (val_it != cmd->values_.end());
         } else {
-            return parsing_result<CharT>{parsing_status::kUnknownOption, argc0 - argc, cmd};
+            return parsing_result<CharT>{parsing_status::unknown_option, argc0 - argc, cmd};
         }
     }
 
@@ -157,14 +157,14 @@ template<typename CharT>
     while (val_it != cmd->values_.end()) {
         const auto& val = *val_it++;
         if (!val->is_optional()) {
-            return parsing_result<CharT>{parsing_status::kUnspecifiedValue, argc0 - argc, &*val};
+            return parsing_result<CharT>{parsing_status::unspecified_value, argc0 - argc, &*val};
         }
     }
 
-    parsing_result<CharT> result{parsing_status::kOk, argc0 - argc, cmd};
+    parsing_result<CharT> result{parsing_status::ok, argc0 - argc, cmd};
 
     cmd->opts_->traverse_options([&specified, &optional, &result](const basic_option_node<CharT>& node) {
-        if (node.get_type() != node_type::kOptionGroup) {
+        if (node.get_type() != node_type::option_group) {
             if (node.is_optional()) { optional.emplace(&node); }
             return true;
         }
@@ -176,7 +176,7 @@ template<typename CharT>
                 if (uxs::contains(optional, &*opt)) { is_optional = true; }
                 if (uxs::contains(specified, &*opt)) {
                     if (is_specified) {
-                        result.status = parsing_status::kConflictingOption;
+                        result.status = parsing_status::conflicting_option;
                         result.node = &*opt;
                         return false;
                     }
@@ -197,7 +197,7 @@ template<typename CharT>
                 }
             }
             if (is_specified && first_unspecified) {
-                result.status = parsing_status::kUnspecifiedOption;
+                result.status = parsing_status::unspecified_option;
                 result.node = first_unspecified;
                 return false;
             }
@@ -206,7 +206,7 @@ template<typename CharT>
         is_optional = is_optional || group.is_optional();
 
         if (!is_specified && !is_optional) {
-            result.status = parsing_status::kUnspecifiedOption;
+            result.status = parsing_status::unspecified_option;
             result.node = &group;
             return false;
         }
@@ -223,7 +223,7 @@ template<typename CharT>
 
 template<typename CharT>
 std::basic_string<CharT> basic_option_node<CharT>::make_string(bool brief) const {
-    if (this->get_type() == node_type::kOption) {
+    if (this->get_type() == node_type::option) {
         const auto& opt = static_cast<const basic_option<CharT>&>(*this);
         const auto& keys = opt.get_keys();
         if (keys.empty()) { return {}; }
@@ -241,11 +241,11 @@ std::basic_string<CharT> basic_option_node<CharT>::make_string(bool brief) const
         }
         return s;
     }
-    assert(this->get_type() == node_type::kOptionGroup);
+    assert(this->get_type() == node_type::option_group);
     const auto& group = static_cast<const basic_option_group<CharT>&>(*this);
     auto make_child_string = [&group, brief](const basic_option_node<CharT>& opt) {
         if (opt.is_optional()) { return static_cast<CharT>('[') + opt.make_string(brief) + static_cast<CharT>(']'); }
-        if (!group.is_exclusive() && opt.get_type() == node_type::kOptionGroup &&
+        if (!group.is_exclusive() && opt.get_type() == node_type::option_group &&
             static_cast<const basic_option_group<CharT>&>(opt).is_exclusive()) {
             return static_cast<CharT>('(') + opt.make_string(brief) + static_cast<CharT>(')');
         }

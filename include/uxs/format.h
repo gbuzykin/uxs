@@ -15,19 +15,19 @@ class format_error : public std::runtime_error {
 namespace sfmt {
 
 enum class type_id : uint8_t {
-    kUnsigned = 0,
-    kUnsignedLongLong,
-    kSigned,
-    kSignedLongLong,
-    kChar,
-    kBool,
-    kFloat,
-    kDouble,
-    kLongDouble,
-    kPointer,
-    kCString,
-    kString,
-    kCustom
+    boolean = 0,
+    character,
+    integer,
+    long_integer,
+    unsigned_integer,
+    unsigned_long_integer,
+    single_precision,
+    double_precision,
+    long_double_precision,
+    pointer,
+    z_string,
+    string,
+    custom
 };
 
 template<typename StrTy>
@@ -39,7 +39,7 @@ struct arg_custom_value {
 
 namespace detail {
 template<typename Ty>
-struct arg_type_id : std::integral_constant<type_id, type_id::kCustom> {};
+struct arg_type_id : std::integral_constant<type_id, type_id::custom> {};
 
 template<typename StrTy, typename Ty>
 struct arg_store_type {
@@ -48,30 +48,30 @@ struct arg_store_type {
 
 #define UXS_FMT_DECLARE_ARG_TYPE_ID(ty, store_ty, id) \
     template<> \
-    struct arg_type_id<ty> : std::integral_constant<type_id, type_id::id> {}; \
+    struct arg_type_id<ty> : std::integral_constant<type_id, id> {}; \
     template<typename StrTy> \
     struct arg_store_type<StrTy, ty> { \
         using type = store_ty; \
     };
-UXS_FMT_DECLARE_ARG_TYPE_ID(uint32_t, uint32_t, kUnsigned)
-UXS_FMT_DECLARE_ARG_TYPE_ID(uint64_t, uint64_t, kUnsignedLongLong)
-UXS_FMT_DECLARE_ARG_TYPE_ID(int32_t, int32_t, kSigned)
-UXS_FMT_DECLARE_ARG_TYPE_ID(int64_t, int64_t, kSignedLongLong)
-UXS_FMT_DECLARE_ARG_TYPE_ID(char, typename StrTy::value_type, kChar)
-UXS_FMT_DECLARE_ARG_TYPE_ID(wchar_t, typename StrTy::value_type, kChar)
-UXS_FMT_DECLARE_ARG_TYPE_ID(bool, bool, kBool)
-UXS_FMT_DECLARE_ARG_TYPE_ID(float, float, kFloat)
-UXS_FMT_DECLARE_ARG_TYPE_ID(double, double, kDouble)
-UXS_FMT_DECLARE_ARG_TYPE_ID(long double, long double, kLongDouble)
+UXS_FMT_DECLARE_ARG_TYPE_ID(bool, bool, type_id::boolean)
+UXS_FMT_DECLARE_ARG_TYPE_ID(char, typename StrTy::value_type, type_id::character)
+UXS_FMT_DECLARE_ARG_TYPE_ID(wchar_t, typename StrTy::value_type, type_id::character)
+UXS_FMT_DECLARE_ARG_TYPE_ID(int32_t, int32_t, type_id::integer)
+UXS_FMT_DECLARE_ARG_TYPE_ID(int64_t, int64_t, type_id::long_integer)
+UXS_FMT_DECLARE_ARG_TYPE_ID(uint32_t, uint32_t, type_id::unsigned_integer)
+UXS_FMT_DECLARE_ARG_TYPE_ID(uint64_t, uint64_t, type_id::unsigned_long_integer)
+UXS_FMT_DECLARE_ARG_TYPE_ID(float, float, type_id::single_precision)
+UXS_FMT_DECLARE_ARG_TYPE_ID(double, double, type_id::double_precision)
+UXS_FMT_DECLARE_ARG_TYPE_ID(long double, long double, type_id::long_double_precision)
 #undef UXS_FMT_DECLARE_ARG_TYPE_ID
 
 template<typename Ty>
 struct arg_type_id<Ty*>
-    : std::integral_constant<type_id, is_character<Ty>::value ? type_id::kCString : type_id::kPointer> {};
+    : std::integral_constant<type_id, is_character<Ty>::value ? type_id::z_string : type_id::pointer> {};
 template<typename CharT, typename Traits>
-struct arg_type_id<std::basic_string_view<CharT, Traits>> : std::integral_constant<type_id, type_id::kString> {};
+struct arg_type_id<std::basic_string_view<CharT, Traits>> : std::integral_constant<type_id, type_id::string> {};
 template<typename CharT, typename Traits, typename Alloc>
-struct arg_type_id<std::basic_string<CharT, Traits, Alloc>> : std::integral_constant<type_id, type_id::kString> {};
+struct arg_type_id<std::basic_string<CharT, Traits, Alloc>> : std::integral_constant<type_id, type_id::string> {};
 
 template<typename StrTy, typename Ty>
 struct arg_store_type<StrTy, Ty*> {
@@ -132,26 +132,26 @@ template<typename StrTy, typename... Args>
 class arg_store {
  public:
     using char_type = typename StrTy::value_type;
-    static const size_t kArgCount = sizeof...(Args);
-    explicit arg_store(const Args&... args) NOEXCEPT { store_values(0, kArgCount * sizeof(unsigned), args...); }
+    static const size_t arg_count = sizeof...(Args);
+    explicit arg_store(const Args&... args) NOEXCEPT { store_values(0, arg_count * sizeof(unsigned), args...); }
     const void* data() const NOEXCEPT { return reinterpret_cast<const void*>(&storage_); }
 
  private:
-    static const size_t kStorageSize = arg_store_size_evaluator<StrTy, kArgCount * sizeof(unsigned), Args...>::value;
-    static const size_t kStorageAlignment = arg_store_alignment_evaluator<StrTy, unsigned, Args...>::value;
-    typename std::aligned_storage<kStorageSize, kStorageAlignment>::type storage_;
+    static const size_t storage_size = arg_store_size_evaluator<StrTy, arg_count * sizeof(unsigned), Args...>::value;
+    static const size_t storage_alignment = arg_store_alignment_evaluator<StrTy, unsigned, Args...>::value;
+    typename std::aligned_storage<storage_size, storage_alignment>::type storage_;
 
     template<typename Ty>
     static void store_value(const Ty& v,
-                            std::enable_if_t<(arg_type_id<Ty>::value < type_id::kPointer), void*> data) NOEXCEPT {
-        static_assert(arg_type_id<Ty>::value != type_id::kChar || sizeof(Ty) <= sizeof(char_type),
+                            std::enable_if_t<(arg_type_id<Ty>::value < type_id::pointer), void*> data) NOEXCEPT {
+        static_assert(arg_type_id<Ty>::value != type_id::character || sizeof(Ty) <= sizeof(char_type),
                       "inconsistent character argument type");
         ::new (data) arg_store_type_t<StrTy, Ty>(v);
     }
 
     template<typename Ty>
     static void store_value(const Ty& v,
-                            std::enable_if_t<(arg_type_id<Ty>::value == type_id::kCustom), void*> data) NOEXCEPT {
+                            std::enable_if_t<(arg_type_id<Ty>::value == type_id::custom), void*> data) NOEXCEPT {
         static_assert(has_formatter<scvt::reduce_type_t<Ty>, StrTy>::value, "value of this type cannot be formatted");
         ::new (data) arg_custom_value<StrTy>(&v, &arg_fmt_func_t<StrTy, scvt::reduce_type_t<Ty>>::func);
     }
@@ -199,7 +199,7 @@ template<typename StrTy>
 class arg_store<StrTy> {
  public:
     using char_type = typename StrTy::value_type;
-    static const size_t kArgCount = 0;
+    static const size_t arg_count = 0;
     const void* data() const NOEXCEPT { return &storage_; }
 
  private:
@@ -211,7 +211,7 @@ class arg_list {
  public:
     template<typename... Args>
     arg_list(const arg_store<StrTy, Args...>& store) NOEXCEPT : data_(store.data()),
-                                                                size_(arg_store<StrTy, Args...>::kArgCount) {}
+                                                                size_(arg_store<StrTy, Args...>::arg_count) {}
 
     size_t size() const NOEXCEPT { return size_; }
     bool empty() const NOEXCEPT { return !size_; }
@@ -228,26 +228,26 @@ class arg_list {
 };
 
 enum class parse_flags : unsigned {
-    kDefault = 0,
-    kSpecIntegral = 1,
-    kSpecFloat = 2,
-    kSpecChar = 3,
-    kSpecPointer = 4,
-    kSpecString = 5,
-    kSpecMask = 0xff,
-    kPrecSpecified = 0x100,
-    kDynamicWidth = 0x200,
-    kDynamicPrec = 0x400,
-    kUseLocale = 0x800,
-    kArgNumSpecified = 0x1000,
-    kWidthArgNumSpecified = 0x2000,
-    kPrecArgNumSpecified = 0x4000,
+    none = 0,
+    spec_integer = 1,
+    spec_real = 2,
+    spec_character = 3,
+    spec_pointer = 4,
+    spec_string = 5,
+    spec_mask = 0xff,
+    prec_specified = 0x100,
+    dynamic_width = 0x200,
+    dynamic_prec = 0x400,
+    use_locale = 0x800,
+    arg_num_specified = 0x1000,
+    width_arg_num_specified = 0x2000,
+    prec_arg_num_specified = 0x4000,
 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(parse_flags, unsigned);
 
 struct arg_specs {
     fmt_opts fmt;
-    parse_flags flags = parse_flags::kDefault;
+    parse_flags flags = parse_flags::none;
     unsigned n_arg = 0;
     unsigned n_width_arg = 0;
     unsigned n_prec_arg = 0;
@@ -255,53 +255,54 @@ struct arg_specs {
 
 struct meta_tbl_t {
     enum code_t {
-        kLeft = 0,
-        kMid,
-        kRight,
-        kOpenBr,
-        kDot,
-        kDig19,
-        kPlus,
-        kSpace,
-        kMinus,
-        kSharp,
-        kZero,
-        kLocale,
-        kDec,
-        kBin,
-        kBinCap,
-        kOct,
-        kHex,
-        kHexCap,
-        kChar,
-        kHexFloat,
-        kHexFloatCap,
-        kFixed,
-        kFixedCap,
-        kScientific,
-        kScientificCap,
-        kGeneral,
-        kGeneralCap,
-        kPtr,
-        kPtrCap,
-        kString,
-        kCloseBr,
-        kOther
+        left = 0,
+        internal,
+        right,
+        open_brace,
+        dot,
+        digit19,
+        plus,
+        space,
+        minus,
+        sharp,
+        zero,
+        locale,
+        decimal,
+        binary,
+        binary_cap,
+        octal,
+        hex,
+        hex_cap,
+        fixed,
+        fixed_cap,
+        scientific,
+        scientific_cap,
+        general,
+        general_cap,
+        hex_real,
+        hex_real_cap,
+        pointer,
+        pointer_cap,
+        character,
+        string,
+        close_brace,
+        other
     };
     std::array<uint8_t, 128> tbl;
     CONSTEXPR meta_tbl_t() : tbl() {
-        for (unsigned ch = 0; ch < tbl.size(); ++ch) { tbl[ch] = code_t::kOther; }
-        tbl['<'] = code_t::kLeft, tbl['^'] = code_t::kMid, tbl['>'] = code_t::kRight;
-        tbl['{'] = code_t::kOpenBr, tbl['}'] = code_t::kCloseBr, tbl['.'] = code_t::kDot;
-        for (unsigned ch = '1'; ch <= '9'; ++ch) { tbl[ch] = code_t::kDig19; }
-        tbl['+'] = code_t::kPlus, tbl[' '] = code_t::kSpace, tbl['-'] = code_t::kMinus;
-        tbl['#'] = code_t::kSharp, tbl['0'] = code_t::kZero, tbl['L'] = code_t::kLocale;
-        tbl['d'] = code_t::kDec, tbl['b'] = code_t::kBin, tbl['o'] = code_t::kOct, tbl['x'] = code_t::kHex;
-        tbl['B'] = code_t::kBinCap, tbl['X'] = code_t::kHexCap, tbl['c'] = code_t::kChar;
-        tbl['a'] = code_t::kHexFloat, tbl['A'] = code_t::kHexFloatCap;
-        tbl['f'] = code_t::kFixed, tbl['e'] = code_t::kScientific, tbl['g'] = code_t::kGeneral;
-        tbl['F'] = code_t::kFixedCap, tbl['E'] = code_t::kScientificCap, tbl['G'] = code_t::kGeneralCap;
-        tbl['s'] = code_t::kString, tbl['p'] = code_t::kPtr, tbl['P'] = code_t::kPtrCap;
+        for (unsigned ch = 0; ch < tbl.size(); ++ch) { tbl[ch] = code_t::other; }
+        tbl['<'] = code_t::left, tbl['^'] = code_t::internal, tbl['>'] = code_t::right;
+        tbl['{'] = code_t::open_brace, tbl['}'] = code_t::close_brace, tbl['.'] = code_t::dot;
+        for (unsigned ch = '1'; ch <= '9'; ++ch) { tbl[ch] = code_t::digit19; }
+        tbl['+'] = code_t::plus, tbl[' '] = code_t::space, tbl['-'] = code_t::minus;
+        tbl['#'] = code_t::sharp, tbl['0'] = code_t::zero, tbl['L'] = code_t::locale;
+        tbl['d'] = code_t::decimal, tbl['b'] = code_t::binary, tbl['o'] = code_t::octal, tbl['x'] = code_t::hex;
+        tbl['B'] = code_t::binary_cap, tbl['X'] = code_t::hex_cap;
+        tbl['f'] = code_t::fixed, tbl['e'] = code_t::scientific, tbl['g'] = code_t::general;
+        tbl['F'] = code_t::fixed_cap, tbl['E'] = code_t::scientific_cap, tbl['G'] = code_t::general_cap;
+        tbl['a'] = code_t::hex_real, tbl['A'] = code_t::hex_real_cap;
+        tbl['p'] = code_t::pointer, tbl['P'] = code_t::pointer_cap;
+        tbl['c'] = code_t::character, tbl['s'] = code_t::string;
     }
 };
 
@@ -323,7 +324,7 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
 
     unsigned dig = 0;
     if ((dig = dig_v(*p)) < 10) {
-        specs.flags |= parse_flags::kArgNumSpecified;
+        specs.flags |= parse_flags::arg_num_specified;
         specs.n_arg = dig;
         p = accum_num(++p, last, specs.n_arg);
         if (p == last) { return nullptr; }
@@ -333,85 +334,89 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
 
     if (p + 1 != last) {
         switch (*(p + 1)) {  // adjustment with fill character
-            case '<': specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::kLeft, p += 2; break;
-            case '^': specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::kInternal, p += 2; break;
-            case '>': specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::kRight, p += 2; break;
+            case '<': specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::left, p += 2; break;
+            case '^': specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::internal, p += 2; break;
+            case '>': specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::right, p += 2; break;
             default: break;
         }
     }
 
-    enum class state_t { kStart = 0, kSign, kAlternate, kLeadingZeroes, kWidth, kPrecision, kLocale, kType, kFinish };
+    enum class state_t { start = 0, sign, alternate, leading_zeroes, width, precision, locale, type, finish };
 
-    state_t state = state_t::kStart;
+    state_t state = state_t::start;
     while (p != last) {
         auto ch = static_cast<typename std::make_unsigned<CharT>::type>(*p++);
         if (ch >= g_meta_tbl.tbl.size()) { return nullptr; }
         switch (g_meta_tbl.tbl[ch]) {
 #define UXS_FMT_SPECIFIER_CASE(next_state, action) \
-    if (state < state_t::next_state) { \
-        state = state_t::next_state; \
+    if (state < next_state) { \
+        state = next_state; \
         action; \
         break; \
     } \
     return nullptr;
 
             // adjustment
-            case meta_tbl_t::kLeft: UXS_FMT_SPECIFIER_CASE(kSign, specs.fmt.flags |= fmt_flags::kLeft);
-            case meta_tbl_t::kMid: UXS_FMT_SPECIFIER_CASE(kSign, specs.fmt.flags |= fmt_flags::kInternal);
-            case meta_tbl_t::kRight: UXS_FMT_SPECIFIER_CASE(kSign, specs.fmt.flags |= fmt_flags::kRight);
+            case meta_tbl_t::left: UXS_FMT_SPECIFIER_CASE(state_t::sign, { specs.fmt.flags |= fmt_flags::left; });
+            case meta_tbl_t::internal:
+                UXS_FMT_SPECIFIER_CASE(state_t::sign, { specs.fmt.flags |= fmt_flags::internal; });
+            case meta_tbl_t::right: UXS_FMT_SPECIFIER_CASE(state_t::sign, { specs.fmt.flags |= fmt_flags::right; });
 
             // sign specifiers
-            case meta_tbl_t::kPlus: UXS_FMT_SPECIFIER_CASE(kAlternate, specs.fmt.flags |= fmt_flags::kSignPos);
-            case meta_tbl_t::kSpace: UXS_FMT_SPECIFIER_CASE(kAlternate, specs.fmt.flags |= fmt_flags::kSignAlign);
-            case meta_tbl_t::kMinus: UXS_FMT_SPECIFIER_CASE(kAlternate, {});
+            case meta_tbl_t::plus:
+                UXS_FMT_SPECIFIER_CASE(state_t::alternate, { specs.fmt.flags |= fmt_flags::sign_pos; });
+            case meta_tbl_t::space:
+                UXS_FMT_SPECIFIER_CASE(state_t::alternate, { specs.fmt.flags |= fmt_flags::sign_align; });
+            case meta_tbl_t::minus: UXS_FMT_SPECIFIER_CASE(state_t::alternate, {});
 
             // alternate
-            case meta_tbl_t::kSharp: UXS_FMT_SPECIFIER_CASE(kLeadingZeroes, specs.fmt.flags |= fmt_flags::kAlternate);
+            case meta_tbl_t::sharp:
+                UXS_FMT_SPECIFIER_CASE(state_t::leading_zeroes, { specs.fmt.flags |= fmt_flags::alternate; });
 
             // leading zeroes
-            case meta_tbl_t::kZero:
-                UXS_FMT_SPECIFIER_CASE(kWidth, {
-                    if (!(specs.fmt.flags & fmt_flags::kAdjustField)) { specs.fmt.flags |= fmt_flags::kLeadingZeroes; }
+            case meta_tbl_t::zero:
+                UXS_FMT_SPECIFIER_CASE(state_t::width, {
+                    if (!(specs.fmt.flags & fmt_flags::adjust_field)) { specs.fmt.flags |= fmt_flags::leading_zeroes; }
                 });
 
             // width
-            case meta_tbl_t::kOpenBr:
-                UXS_FMT_SPECIFIER_CASE(kPrecision, {
+            case meta_tbl_t::open_brace:
+                UXS_FMT_SPECIFIER_CASE(state_t::precision, {
                     if (p == last) { return nullptr; }
-                    specs.flags |= parse_flags::kDynamicWidth;
+                    specs.flags |= parse_flags::dynamic_width;
                     if (*p == '}') {
                         ++p;
                         break;
                     } else if ((dig = dig_v(*p)) < 10) {
-                        specs.flags |= parse_flags::kWidthArgNumSpecified;
+                        specs.flags |= parse_flags::width_arg_num_specified;
                         specs.n_width_arg = dig;
                         p = accum_num(++p, last, specs.n_width_arg);
                         if (p != last && *p++ == '}') { break; }
                     }
                     return nullptr;
                 });
-            case meta_tbl_t::kDig19:
-                UXS_FMT_SPECIFIER_CASE(kPrecision, {
+            case meta_tbl_t::digit19:
+                UXS_FMT_SPECIFIER_CASE(state_t::precision, {
                     specs.fmt.width = static_cast<unsigned>(*(p - 1) - '0');
                     p = accum_num(p, last, specs.fmt.width);
                 });
 
             // precision
-            case meta_tbl_t::kDot:
-                UXS_FMT_SPECIFIER_CASE(kLocale, {
+            case meta_tbl_t::dot:
+                UXS_FMT_SPECIFIER_CASE(state_t::locale, {
                     if (p == last) { return nullptr; }
-                    specs.flags |= parse_flags::kPrecSpecified;
+                    specs.flags |= parse_flags::prec_specified;
                     if ((dig = dig_v(*p)) < 10) {
                         specs.fmt.prec = dig;
                         p = accum_num(++p, last, specs.fmt.prec);
                         break;
                     } else if (*p == '{' && ++p != last) {
-                        specs.flags |= parse_flags::kDynamicPrec;
+                        specs.flags |= parse_flags::dynamic_prec;
                         if (*p == '}') {
                             ++p;
                             break;
                         } else if ((dig = dig_v(*p)) < 10) {
-                            specs.flags |= parse_flags::kPrecArgNumSpecified;
+                            specs.flags |= parse_flags::prec_arg_num_specified;
                             specs.n_prec_arg = dig;
                             p = accum_num(++p, last, specs.n_prec_arg);
                             if (p != last && *p++ == '}') { break; }
@@ -421,94 +426,100 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
                 });
 
             // locale
-            case meta_tbl_t::kLocale: UXS_FMT_SPECIFIER_CASE(kType, { specs.flags |= parse_flags::kUseLocale; });
+            case meta_tbl_t::locale: UXS_FMT_SPECIFIER_CASE(state_t::type, { specs.flags |= parse_flags::use_locale; });
 
             // types
-            case meta_tbl_t::kBin:
-                UXS_FMT_SPECIFIER_CASE(kFinish, {
-                    specs.flags |= parse_flags::kSpecIntegral;
-                    specs.fmt.flags |= fmt_flags::kBin;
+            case meta_tbl_t::decimal:
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= parse_flags::spec_integer; });
+
+            case meta_tbl_t::binary:
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
+                    specs.flags |= parse_flags::spec_integer;
+                    specs.fmt.flags |= fmt_flags::bin;
                 });
-            case meta_tbl_t::kOct:
-                UXS_FMT_SPECIFIER_CASE(kFinish, {
-                    specs.flags |= parse_flags::kSpecIntegral;
-                    specs.fmt.flags |= fmt_flags::kOct;
-                });
-            case meta_tbl_t::kHex:
-                UXS_FMT_SPECIFIER_CASE(kFinish, {
-                    specs.flags |= parse_flags::kSpecIntegral;
-                    specs.fmt.flags |= fmt_flags::kHex;
+            case meta_tbl_t::binary_cap:
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
+                    specs.flags |= parse_flags::spec_integer;
+                    specs.fmt.flags |= fmt_flags::bin | fmt_flags::uppercase;
                 });
 
-            case meta_tbl_t::kBinCap:
-                UXS_FMT_SPECIFIER_CASE(kFinish, {
-                    specs.flags |= parse_flags::kSpecIntegral;
-                    specs.fmt.flags |= fmt_flags::kBin | fmt_flags::kUpperCase;
-                });
-            case meta_tbl_t::kHexCap:
-                UXS_FMT_SPECIFIER_CASE(kFinish, {
-                    specs.flags |= parse_flags::kSpecIntegral;
-                    specs.fmt.flags |= fmt_flags::kHex | fmt_flags::kUpperCase;
+            case meta_tbl_t::octal:
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
+                    specs.flags |= parse_flags::spec_integer;
+                    specs.fmt.flags |= fmt_flags::oct;
                 });
 
-            case meta_tbl_t::kHexFloat:
-                UXS_FMT_SPECIFIER_CASE(kFinish, {
-                    specs.flags |= parse_flags::kSpecFloat;
-                    specs.fmt.flags |= fmt_flags::kHex;
+            case meta_tbl_t::hex:
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
+                    specs.flags |= parse_flags::spec_integer;
+                    specs.fmt.flags |= fmt_flags::hex;
                 });
-            case meta_tbl_t::kHexFloatCap:
-                UXS_FMT_SPECIFIER_CASE(kFinish, {
-                    specs.flags |= parse_flags::kSpecFloat;
-                    specs.fmt.flags |= fmt_flags::kHex | fmt_flags::kUpperCase;
-                });
-
-            case meta_tbl_t::kFixed:
-                UXS_FMT_SPECIFIER_CASE(kFinish, {
-                    specs.flags |= parse_flags::kSpecFloat;
-                    specs.fmt.flags |= fmt_flags::kFixed;
-                });
-            case meta_tbl_t::kFixedCap:
-                UXS_FMT_SPECIFIER_CASE(kFinish, {
-                    specs.flags |= parse_flags::kSpecFloat;
-                    specs.fmt.flags |= fmt_flags::kFixed | fmt_flags::kUpperCase;
+            case meta_tbl_t::hex_cap:
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
+                    specs.flags |= parse_flags::spec_integer;
+                    specs.fmt.flags |= fmt_flags::hex | fmt_flags::uppercase;
                 });
 
-            case meta_tbl_t::kScientific:
-                UXS_FMT_SPECIFIER_CASE(kFinish, {
-                    specs.flags |= parse_flags::kSpecFloat;
-                    specs.fmt.flags |= fmt_flags::kScientific;
+            case meta_tbl_t::fixed:
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
+                    specs.flags |= parse_flags::spec_real;
+                    specs.fmt.flags |= fmt_flags::fixed;
                 });
-            case meta_tbl_t::kScientificCap:
-                UXS_FMT_SPECIFIER_CASE(kFinish, {
-                    specs.flags |= parse_flags::kSpecFloat;
-                    specs.fmt.flags |= fmt_flags::kScientific | fmt_flags::kUpperCase;
-                });
-
-            case meta_tbl_t::kGeneral:
-                UXS_FMT_SPECIFIER_CASE(kFinish, {
-                    specs.flags |= parse_flags::kSpecFloat;
-                    specs.fmt.flags |= fmt_flags::kGeneral;
-                });
-            case meta_tbl_t::kGeneralCap:
-                UXS_FMT_SPECIFIER_CASE(kFinish, {
-                    specs.flags |= parse_flags::kSpecFloat;
-                    specs.fmt.flags |= fmt_flags::kGeneral | fmt_flags::kUpperCase;
+            case meta_tbl_t::fixed_cap:
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
+                    specs.flags |= parse_flags::spec_real;
+                    specs.fmt.flags |= fmt_flags::fixed | fmt_flags::uppercase;
                 });
 
-            case meta_tbl_t::kDec: UXS_FMT_SPECIFIER_CASE(kFinish, specs.flags |= parse_flags::kSpecIntegral);
-            case meta_tbl_t::kString: UXS_FMT_SPECIFIER_CASE(kFinish, specs.flags |= parse_flags::kSpecString);
-            case meta_tbl_t::kChar: UXS_FMT_SPECIFIER_CASE(kFinish, specs.flags |= parse_flags::kSpecChar);
-            case meta_tbl_t::kPtr: UXS_FMT_SPECIFIER_CASE(kFinish, specs.flags |= parse_flags::kSpecPointer);
-            case meta_tbl_t::kPtrCap:
-                UXS_FMT_SPECIFIER_CASE(kFinish, {
-                    specs.flags |= parse_flags::kSpecPointer;
-                    specs.fmt.flags |= fmt_flags::kUpperCase;
+            case meta_tbl_t::scientific:
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
+                    specs.flags |= parse_flags::spec_real;
+                    specs.fmt.flags |= fmt_flags::scientific;
                 });
+            case meta_tbl_t::scientific_cap:
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
+                    specs.flags |= parse_flags::spec_real;
+                    specs.fmt.flags |= fmt_flags::scientific | fmt_flags::uppercase;
+                });
+
+            case meta_tbl_t::general:
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
+                    specs.flags |= parse_flags::spec_real;
+                    specs.fmt.flags |= fmt_flags::general;
+                });
+            case meta_tbl_t::general_cap:
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
+                    specs.flags |= parse_flags::spec_real;
+                    specs.fmt.flags |= fmt_flags::general | fmt_flags::uppercase;
+                });
+
+            case meta_tbl_t::hex_real:
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
+                    specs.flags |= parse_flags::spec_real;
+                    specs.fmt.flags |= fmt_flags::hex;
+                });
+            case meta_tbl_t::hex_real_cap:
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
+                    specs.flags |= parse_flags::spec_real;
+                    specs.fmt.flags |= fmt_flags::hex | fmt_flags::uppercase;
+                });
+
+            case meta_tbl_t::pointer:
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= parse_flags::spec_pointer; });
+            case meta_tbl_t::pointer_cap:
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
+                    specs.flags |= parse_flags::spec_pointer;
+                    specs.fmt.flags |= fmt_flags::uppercase;
+                });
+            case meta_tbl_t::character:
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= parse_flags::spec_character; });
+            case meta_tbl_t::string:
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= parse_flags::spec_string; });
 #undef UXS_FMT_SPECIFIER_CASE
 
             // end of format specifier
-            case meta_tbl_t::kCloseBr: return p - 1;
-            case meta_tbl_t::kOther: return nullptr;
+            case meta_tbl_t::close_brace: return p - 1;
+            case meta_tbl_t::other: return nullptr;
 
             default: UNREACHABLE_CODE;
         }
@@ -517,7 +528,7 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
     return nullptr;
 }
 
-enum class parse_format_error_code { kSuccess = 0, kInvalidFormat, kOutOfArgList };
+enum class parse_format_error_code { success = 0, invalid_format, out_of_arg_list };
 
 template<typename CharT, typename AppendFn, typename AppendArgFn, typename GetUIntArgFn>
 CONSTEXPR parse_format_error_code parse_format(std::basic_string_view<CharT> fmt, const size_t arg_count,
@@ -529,41 +540,41 @@ CONSTEXPR parse_format_error_code parse_format(std::basic_string_view<CharT> fmt
         if (*first == '{' || *first == '}') {
             append_fn(first0, first);
             first0 = ++first;
-            if (first == last) { return parse_format_error_code::kInvalidFormat; }
+            if (first == last) { return parse_format_error_code::invalid_format; }
             if (*(first - 1) == '{' && *first != '{') {
                 arg_specs specs;
                 if (*first == '}') {  // most usual `{}` specifier
                     specs.n_arg = n_arg_auto++;
-                    if (specs.n_arg >= arg_count) { return parse_format_error_code::kOutOfArgList; }
+                    if (specs.n_arg >= arg_count) { return parse_format_error_code::out_of_arg_list; }
                 } else if ((first = parse_arg_spec(first, last, specs))) {
                     // obtain argument number
-                    if (!(specs.flags & parse_flags::kArgNumSpecified)) { specs.n_arg = n_arg_auto++; }
-                    if (specs.n_arg >= arg_count) { return parse_format_error_code::kOutOfArgList; }
-                    if (!!(specs.flags & parse_flags::kDynamicWidth)) {
+                    if (!(specs.flags & parse_flags::arg_num_specified)) { specs.n_arg = n_arg_auto++; }
+                    if (specs.n_arg >= arg_count) { return parse_format_error_code::out_of_arg_list; }
+                    if (!!(specs.flags & parse_flags::dynamic_width)) {
                         // obtain argument number for width
-                        if (!(specs.flags & parse_flags::kWidthArgNumSpecified)) { specs.n_width_arg = n_arg_auto++; }
-                        if (specs.n_width_arg >= arg_count) { return parse_format_error_code::kOutOfArgList; }
+                        if (!(specs.flags & parse_flags::width_arg_num_specified)) { specs.n_width_arg = n_arg_auto++; }
+                        if (specs.n_width_arg >= arg_count) { return parse_format_error_code::out_of_arg_list; }
                         specs.fmt.width = get_uint_arg_fn(specs.n_width_arg);
                     }
-                    if (!!(specs.flags & parse_flags::kDynamicPrec)) {
+                    if (!!(specs.flags & parse_flags::dynamic_prec)) {
                         // obtain argument number for precision
-                        if (!(specs.flags & parse_flags::kPrecArgNumSpecified)) { specs.n_prec_arg = n_arg_auto++; }
-                        if (specs.n_prec_arg >= arg_count) { return parse_format_error_code::kOutOfArgList; }
+                        if (!(specs.flags & parse_flags::prec_arg_num_specified)) { specs.n_prec_arg = n_arg_auto++; }
+                        if (specs.n_prec_arg >= arg_count) { return parse_format_error_code::out_of_arg_list; }
                         specs.fmt.prec = get_uint_arg_fn(specs.n_prec_arg);
                     }
                 } else {
-                    return parse_format_error_code::kInvalidFormat;
+                    return parse_format_error_code::invalid_format;
                 }
                 append_arg_fn(specs.n_arg, specs);
                 first0 = first + 1;
             } else if (*(first - 1) != *first) {
-                return parse_format_error_code::kInvalidFormat;
+                return parse_format_error_code::invalid_format;
             }
         }
         ++first;
     }
     append_fn(first0, last);
-    return parse_format_error_code::kSuccess;
+    return parse_format_error_code::success;
 }
 
 inline void report_format_error(const char*) {}
@@ -617,64 +628,64 @@ class basic_format_string {
             checked, sizeof...(Args), [](const CharT*, const CharT*) constexpr {},
             [&arg_type_ids](unsigned n_arg, sfmt::arg_specs& specs) constexpr {
                 const sfmt::type_id id = arg_type_ids[n_arg];
-                const sfmt::parse_flags flag = specs.flags & sfmt::parse_flags::kSpecMask;
+                const sfmt::parse_flags flag = specs.flags & sfmt::parse_flags::spec_mask;
                 auto unexpected_prec = []() { sfmt::report_format_error("unexpected precision specified"); };
                 auto signed_needed = []() { sfmt::report_format_error("argument format requires signed argument"); };
                 auto numeric_needed = []() { sfmt::report_format_error("argument format requires numeric argument"); };
-                if (flag == sfmt::parse_flags::kDefault) {
-                    if (!!(specs.flags & sfmt::parse_flags::kPrecSpecified) &&
-                        (id < sfmt::type_id::kFloat || id > sfmt::type_id::kLongDouble) &&
-                        id != sfmt::type_id::kCString && id != sfmt::type_id::kString) {
+                if (flag == sfmt::parse_flags::none) {
+                    if (!!(specs.flags & sfmt::parse_flags::prec_specified) &&
+                        (id < sfmt::type_id::single_precision || id > sfmt::type_id::long_double_precision) &&
+                        id != sfmt::type_id::z_string && id != sfmt::type_id::string) {
                         unexpected_prec();
                     }
-                    if (!!(specs.fmt.flags & fmt_flags::kSignField) &&
-                        (id < sfmt::type_id::kSigned || id > sfmt::type_id::kSignedLongLong) &&
-                        (id < sfmt::type_id::kFloat || id > sfmt::type_id::kLongDouble)) {
+                    if (!!(specs.fmt.flags & fmt_flags::sign_field) &&
+                        (id < sfmt::type_id::integer || id > sfmt::type_id::long_integer) &&
+                        (id < sfmt::type_id::single_precision || id > sfmt::type_id::long_double_precision)) {
                         signed_needed();
                     }
-                    if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes) && id > sfmt::type_id::kSignedLongLong &&
-                        (id < sfmt::type_id::kFloat || id > sfmt::type_id::kPointer)) {
+                    if (!!(specs.fmt.flags & fmt_flags::leading_zeroes) &&
+                        (id < sfmt::type_id::integer || id > sfmt::type_id::pointer)) {
                         numeric_needed();
                     }
                     return;
-                } else if (flag == sfmt::parse_flags::kSpecIntegral) {
-                    if (!!(specs.flags & sfmt::parse_flags::kPrecSpecified)) { unexpected_prec(); }
-                    if (id <= sfmt::type_id::kBool) {
-                        if (!!(specs.fmt.flags & fmt_flags::kSignField) &&
-                            (id < sfmt::type_id::kSigned || id > sfmt::type_id::kChar) &&
-                            (id < sfmt::type_id::kFloat || id > sfmt::type_id::kLongDouble)) {
+                } else if (flag == sfmt::parse_flags::spec_integer) {
+                    if (!!(specs.flags & sfmt::parse_flags::prec_specified)) { unexpected_prec(); }
+                    if (id <= sfmt::type_id::unsigned_long_integer) {
+                        if (!!(specs.fmt.flags & fmt_flags::sign_field) &&
+                            (id < sfmt::type_id::character || id > sfmt::type_id::long_integer)) {
                             signed_needed();
                         }
                         return;
                     }
-                } else if (flag == sfmt::parse_flags::kSpecFloat) {
-                    if (id >= sfmt::type_id::kFloat && id <= sfmt::type_id::kLongDouble) { return; }
-                } else if (flag == sfmt::parse_flags::kSpecChar) {
-                    if (!!(specs.flags & sfmt::parse_flags::kPrecSpecified)) { unexpected_prec(); }
-                    if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
-                    if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes)) { numeric_needed(); }
-                    if (id >= sfmt::type_id::kUnsigned && id <= sfmt::type_id::kChar) { return; }
-                } else if (flag == sfmt::parse_flags::kSpecPointer) {
-                    if (!!(specs.flags & sfmt::parse_flags::kPrecSpecified)) { unexpected_prec(); }
-                    if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
-                    if (id == sfmt::type_id::kPointer) { return; }
-                } else if (flag == sfmt::parse_flags::kSpecString) {
-                    if (!!(specs.fmt.flags & fmt_flags::kSignField)) { signed_needed(); }
-                    if (!!(specs.fmt.flags & fmt_flags::kLeadingZeroes)) { numeric_needed(); }
-                    if (id == sfmt::type_id::kBool || id == sfmt::type_id::kCString || id == sfmt::type_id::kString) {
+                } else if (flag == sfmt::parse_flags::spec_real) {
+                    if (id >= sfmt::type_id::single_precision && id <= sfmt::type_id::long_double_precision) { return; }
+                } else if (flag == sfmt::parse_flags::spec_character) {
+                    if (!!(specs.flags & sfmt::parse_flags::prec_specified)) { unexpected_prec(); }
+                    if (!!(specs.fmt.flags & fmt_flags::sign_field)) { signed_needed(); }
+                    if (!!(specs.fmt.flags & fmt_flags::leading_zeroes)) { numeric_needed(); }
+                    if (id >= sfmt::type_id::character && id <= sfmt::type_id::unsigned_long_integer) { return; }
+                } else if (flag == sfmt::parse_flags::spec_pointer) {
+                    if (!!(specs.flags & sfmt::parse_flags::prec_specified)) { unexpected_prec(); }
+                    if (!!(specs.fmt.flags & fmt_flags::sign_field)) { signed_needed(); }
+                    if (id == sfmt::type_id::pointer) { return; }
+                } else if (flag == sfmt::parse_flags::spec_string) {
+                    if (!!(specs.fmt.flags & fmt_flags::sign_field)) { signed_needed(); }
+                    if (!!(specs.fmt.flags & fmt_flags::leading_zeroes)) { numeric_needed(); }
+                    if (id == sfmt::type_id::boolean || id == sfmt::type_id::z_string || id == sfmt::type_id::string) {
                         return;
                     }
                 }
                 sfmt::report_format_error("invalid argument format specifier");
             },
             [&arg_type_ids](unsigned n_arg) constexpr->unsigned {
-                if (arg_type_ids[n_arg] > sfmt::type_id::kSignedLongLong) {
+                if (arg_type_ids[n_arg] < sfmt::type_id::integer ||
+                    arg_type_ids[n_arg] > sfmt::type_id::unsigned_long_integer) {
                     sfmt::report_format_error("argument is not an integer");
                 }
                 return 0;
             });
-        if (error_code == sfmt::parse_format_error_code::kSuccess) {
-        } else if (error_code == sfmt::parse_format_error_code::kOutOfArgList) {
+        if (error_code == sfmt::parse_format_error_code::success) {
+        } else if (error_code == sfmt::parse_format_error_code::out_of_arg_list) {
             sfmt::report_format_error("out of argument list");
         } else {
             sfmt::report_format_error("invalid specifier syntax");

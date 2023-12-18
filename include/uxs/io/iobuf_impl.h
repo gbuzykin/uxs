@@ -29,7 +29,7 @@ typename basic_iobuf<CharT>::size_type basic_iobuf<CharT>::read(uxs::span<char_t
     for (size_type n_avail = avail(); count > n_avail; n_avail = avail()) {
         if (n_avail) { p = std::copy_n(curr_, n_avail, p), curr_ = last_, count -= n_avail; }
         if (!this->good() || underflow() < 0) {
-            this->setstate(iostate_bits::kEof | iostate_bits::kFail);
+            this->setstate(iostate_bits::eof | iostate_bits::fail);
             return p - s.begin();
         }
     }
@@ -44,7 +44,7 @@ typename basic_iobuf<CharT>::size_type basic_iobuf<CharT>::skip(size_type count)
     for (size_type n_avail = avail(); count > n_avail; n_avail = avail()) {
         curr_ = last_, count -= n_avail;
         if (!this->good() || underflow() < 0) {
-            this->setstate(iostate_bits::kEof | iostate_bits::kFail);
+            this->setstate(iostate_bits::eof | iostate_bits::fail);
             return n0 - count;
         }
     }
@@ -63,7 +63,7 @@ basic_iobuf<CharT>& basic_iobuf<CharT>::fill_n(size_type count, char_type ch) {
     for (size_type n_avail = avail(); count > n_avail; n_avail = avail()) {
         if (n_avail) { curr_ = std::fill_n(curr_, n_avail, ch), count -= n_avail; }
         if (!this->good() || overflow() < 0) {
-            this->setstate(iostate_bits::kBad);
+            this->setstate(iostate_bits::bad);
             return *this;
         }
     }
@@ -73,20 +73,20 @@ basic_iobuf<CharT>& basic_iobuf<CharT>::fill_n(size_type count, char_type ch) {
 
 template<typename CharT>
 basic_iobuf<CharT>& basic_iobuf<CharT>::flush() {
-    if (!this->good() || sync() < 0) { this->setstate(iostate_bits::kBad); }
+    if (!this->good() || sync() < 0) { this->setstate(iostate_bits::bad); }
     return *this;
 }
 
 template<typename CharT>
 typename basic_iobuf<CharT>::pos_type basic_iobuf<CharT>::seek(off_type off, seekdir dir) {
-    this->setstate(this->rdstate() & ~iostate_bits::kEof);
+    this->setstate(this->rdstate() & ~iostate_bits::eof);
     if (this->fail()) { return -1; }
-    if (!!(this->mode() & iomode::kOut) && sync() < 0) {
-        this->setstate(iostate_bits::kFail);
+    if (!!(this->mode() & iomode::out) && sync() < 0) {
+        this->setstate(iostate_bits::fail);
         return -1;
     }
     pos_type pos = seekimpl(off, dir);
-    if (pos < 0) { this->setstate(iostate_bits::kFail); }
+    if (pos < 0) { this->setstate(iostate_bits::fail); }
     return pos;
 }
 

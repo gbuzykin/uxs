@@ -15,10 +15,10 @@ template<typename CharT, typename Alloc>
 basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
     auto token_to_value = [](token_t tt, std::string_view lval, const Alloc& al) -> basic_value<CharT, Alloc> {
         switch (tt) {
-            case token_t::kNull: return {nullptr, al};
-            case token_t::kTrue: return {true, al};
-            case token_t::kFalse: return {false, al};
-            case token_t::kInteger: {
+            case token_t::null: return {nullptr, al};
+            case token_t::true_value: return {true, al};
+            case token_t::false_value: return {false, al};
+            case token_t::integer_number: {
                 uint64_t u64 = 0;
                 if (stoval(lval, u64) != 0) {
                     if (u64 <= static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
@@ -33,7 +33,7 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
                 // too big integer - treat as double
                 return {from_string<double>(lval), al};
             } break;
-            case token_t::kNegInteger: {
+            case token_t::negative_integer_number: {
                 int64_t i64 = 0;
                 if (stoval(lval, i64) != 0) {
                     if (i64 >= static_cast<int64_t>(std::numeric_limits<int32_t>::min())) {
@@ -44,8 +44,8 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
                 // too big integer - treat as double
                 return {from_string<double>(lval), al};
             } break;
-            case token_t::kDouble: return {from_string<double>(lval), al};
-            case token_t::kString: return {uxs::detail::utf8_string_converter<CharT>::from(lval), al};
+            case token_t::real_number: return {from_string<double>(lval), al};
+            case token_t::string: return {uxs::detail::utf8_string_converter<CharT>::from(lval), al};
             default: UNREACHABLE_CODE;
         }
     };
@@ -57,13 +57,13 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
     stack.push_back(val);
     read(
         [&al, &stack, &val, &token_to_value](token_t tt, std::string_view lval) {
-            if (tt >= token_t::kNull) {
+            if (tt >= token_t::null) {
                 *val = token_to_value(tt, lval, al);
             } else {
-                *val = tt == token_t::kArray ? make_array<CharT>(al) : make_record<CharT>(al);
+                *val = tt == token_t::array ? make_array<CharT>(al) : make_record<CharT>(al);
                 stack.push_back(val);
             }
-            return next_action_type::kStepInto;
+            return next_action_type::step_into;
         },
         [&al, &stack, &val]() { val = &stack.back()->emplace_back(al); },
         [&al, &stack, &val](std::string_view lval) {
@@ -100,38 +100,38 @@ void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
 
     auto write_value = [this, &stack, &indent](const basic_value<CharT, Alloc>& v) {
         switch (v.type_) {
-            case dtype::kNull: output_.write("null"); break;
-            case dtype::kBoolean: output_.write(v.value_.b ? "true" : "false"); break;
-            case dtype::kInteger: {
+            case dtype::null: output_.write("null"); break;
+            case dtype::boolean: output_.write(v.value_.b ? "true" : "false"); break;
+            case dtype::integer: {
                 membuffer_for_iobuf buf(output_);
                 to_basic_string(buf, v.value_.i);
             } break;
-            case dtype::kUInteger: {
+            case dtype::unsigned_integer: {
                 membuffer_for_iobuf buf(output_);
                 to_basic_string(buf, v.value_.u);
             } break;
-            case dtype::kInteger64: {
+            case dtype::long_integer: {
                 membuffer_for_iobuf buf(output_);
                 to_basic_string(buf, v.value_.i64);
             } break;
-            case dtype::kUInteger64: {
+            case dtype::unsigned_long_integer: {
                 membuffer_for_iobuf buf(output_);
                 to_basic_string(buf, v.value_.u64);
             } break;
-            case dtype::kDouble: {
+            case dtype::double_precision: {
                 membuffer_for_iobuf buf(output_);
-                to_basic_string(buf, v.value_.dbl, fmt_opts{fmt_flags::kJsonCompat});
+                to_basic_string(buf, v.value_.dbl, fmt_opts{fmt_flags::json_compat});
             } break;
-            case dtype::kString: {
+            case dtype::string: {
                 print_quoted_text(output_,
                                   std::string_view{uxs::detail::utf8_string_converter<CharT>::to(v.str_view())});
             } break;
-            case dtype::kArray: {
+            case dtype::array: {
                 output_.put('[');
                 stack.emplace_back(&v, v.as_array().data());
                 return true;
             } break;
-            case dtype::kRecord: {
+            case dtype::record: {
                 output_.put('{');
                 indent += indent_size_;
                 stack.emplace_back(&v, v.as_record().begin());

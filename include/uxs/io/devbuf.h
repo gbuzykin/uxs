@@ -22,9 +22,9 @@ class basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_all
     using allocator_type = Alloc;
 
     explicit basic_devbuf(iodevice& dev)
-        : alloc_type(), basic_iobuf<CharT>(iomode::kNone, iostate_bits::kFail), dev_(&dev) {}
+        : alloc_type(), basic_iobuf<CharT>(iomode::none, iostate_bits::fail), dev_(&dev) {}
     basic_devbuf(iodevice& dev, const Alloc& al)
-        : alloc_type(al), basic_iobuf<CharT>(iomode::kNone, iostate_bits::kFail), dev_(&dev) {}
+        : alloc_type(al), basic_iobuf<CharT>(iomode::none, iostate_bits::fail), dev_(&dev) {}
     basic_devbuf(iodevice& dev, iomode mode, size_type bufsz = 0) : alloc_type(), dev_(&dev) { initbuf(mode, bufsz); }
     basic_devbuf(iodevice& dev, iomode mode, size_type bufsz, const Alloc& al) : alloc_type(al), dev_(&dev) {
         initbuf(mode, bufsz);
@@ -52,13 +52,13 @@ class basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_all
  private:
     enum : unsigned {
 #if defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
-        kMinBufSize = 16384 / sizeof(char_type),
-        kCrReserveRatio = 16,
+        min_buf_size = 16384 / sizeof(char_type),
+        cr_reserve_ratio = 16,
 #else   // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
-        kMinBufSize = 15,
-        kCrReserveRatio = 7,
+        min_buf_size = 15,
+        cr_reserve_ratio = 7,
 #endif  // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
-        kMaxBufSize = 1024 * 1024 * 1024 / sizeof(char_type),
+        max_buf_size = 1024 * 1024 * 1024 / sizeof(char_type),
     };
 
     struct flexbuf_t;

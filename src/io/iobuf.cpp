@@ -6,21 +6,21 @@ iomode detail::iomode_from_str(const char* mode, iomode def) {
     while (*mode) {
         switch (*mode) {
             case 'r': {
-                result |= iomode::kIn;
-                if (*(mode + 1) == '+') { result |= iomode::kOut, ++mode; }
+                result |= iomode::in;
+                if (*(mode + 1) == '+') { result |= iomode::out, ++mode; }
             } break;
             case 'w': {
-                result |= iomode::kOut | iomode::kCreate | iomode::kTruncate;
-                if (*(mode + 1) == '+') { result |= iomode::kIn, ++mode; }
+                result |= iomode::out | iomode::create | iomode::truncate;
+                if (*(mode + 1) == '+') { result |= iomode::in, ++mode; }
             } break;
             case 'a': {
-                result |= iomode::kOut | iomode::kCreate | iomode::kAppend;
-                if (*(mode + 1) == '+') { result |= iomode::kIn, ++mode; }
+                result |= iomode::out | iomode::create | iomode::append;
+                if (*(mode + 1) == '+') { result |= iomode::in, ++mode; }
             } break;
-            case 'x': result |= iomode::kExcl; break;
-            case 't': result |= iomode::kText; break;
-            case 'b': result &= ~iomode::kText; break;
-            case 'z': result |= iomode::kZCompr; break;
+            case 'x': result |= iomode::exclusive; break;
+            case 't': result |= iomode::text; break;
+            case 'b': result &= ~iomode::text; break;
+            case 'z': result |= iomode::z_compr; break;
             default: break;
         }
         ++mode;

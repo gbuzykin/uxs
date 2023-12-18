@@ -7,8 +7,8 @@
 namespace uxs {
 
 enum class iodevcaps : uint32_t {
-    kNone = 0,
-    kMappable = 1,
+    none = 0,
+    mappable = 1,
 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iodevcaps, uint32_t);
 
@@ -23,12 +23,12 @@ class iodevice {
     virtual int read(void* data, size_t sz, size_t& n_read) = 0;
     virtual int write(const void* data, size_t sz, size_t& n_written) = 0;
     virtual void* map(size_t& sz, bool wr = false) { return nullptr; }
-    virtual int64_t seek(int64_t off, seekdir dir = seekdir::kBeg) { return -1; }
+    virtual int64_t seek(int64_t off, seekdir dir = seekdir::beg) { return -1; }
     virtual int ctrlesc_color(uxs::span<uint8_t> v) { return -1; }
     virtual int flush() = 0;
 
  private:
-    iodevcaps caps_ = iodevcaps::kNone;
+    iodevcaps caps_ = iodevcaps::none;
 };
 
 }  // namespace uxs

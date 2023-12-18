@@ -4,6 +4,7 @@
 #include "iterator.h"
 #include "memory.h"
 
+#include <algorithm>
 #include <stdexcept>
 
 namespace uxs {

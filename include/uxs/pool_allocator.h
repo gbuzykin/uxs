@@ -42,8 +42,8 @@ class pool {
         void (*deallocate_partition)(pool_desc_t*, pool_part_hdr_t*);
     };
 
-    pool() : desc_(allocate_dummy_pool(alloc_type(), kDefPartitionSize)) {}
-    explicit pool(const Alloc& al) : desc_(allocate_dummy_pool(al, kDefPartitionSize)) {}
+    pool() : desc_(allocate_dummy_pool(alloc_type(), def_partition_size)) {}
+    explicit pool(const Alloc& al) : desc_(allocate_dummy_pool(al, def_partition_size)) {}
     explicit pool(uint32_t partition_size) : desc_(allocate_dummy_pool(alloc_type(), partition_size)) {}
     pool(uint32_t partition_size, const Alloc& al) : desc_(allocate_dummy_pool(al, partition_size)) {}
 
@@ -59,7 +59,7 @@ class pool {
 
     template<typename Ty>
     dllist_node_t* allocate() {
-        if (desc_->size_and_alignment != pool_specializer_t<Ty>::kSizeAndAlignment) {
+        if (desc_->size_and_alignment != pool_specializer_t<Ty>::size_and_alignment) {
             desc_ = pool_specializer_t<Ty>::specialize(desc_);
         }
         return allocate(desc_);
@@ -67,7 +67,7 @@ class pool {
 
     template<typename Ty>
     void deallocate(dllist_node_t* node) {
-        if (desc_->size_and_alignment != pool_specializer_t<Ty>::kSizeAndAlignment) {
+        if (desc_->size_and_alignment != pool_specializer_t<Ty>::size_and_alignment) {
             desc_ = pool_specializer_t<Ty>::specialize(desc_);
         }
         deallocate(desc_, node);
@@ -99,7 +99,7 @@ class pool {
     }
 
  protected:
-    enum : uint32_t { kDefPartitionSize = 16384 };
+    enum : uint32_t { def_partition_size = 16384 };
 
     pool_desc_t* desc_;
 
@@ -129,7 +129,7 @@ struct pool_specializer {
     using pool_desc_t = typename Pool::pool_desc_t;
     using alloc_type = typename std::allocator_traits<typename Pool::alloc_type>::template rebind_alloc<record_t>;
 
-    enum : uint32_t { kSizeAndAlignment = Size | (static_cast<uint32_t>(Alignment) << 16) };
+    enum : uint32_t { size_and_alignment = Size | (static_cast<uint32_t>(Alignment) << 16) };
 
     struct record_t {
         typename std::aligned_storage<Size + sizeof(pool_part_hdr_t*), Alignment>::type placeholder;
@@ -152,7 +152,7 @@ struct pool_specializer {
 
 template<typename Pool, uint16_t Size, uint16_t Alignment>
 /*static*/ typename Pool::pool_desc_t* pool_specializer<Pool, Size, Alignment>::specialize(pool_desc_t* desc) {
-    if (auto* found = Pool::find_pool(desc, kSizeAndAlignment)) {
+    if (auto* found = Pool::find_pool(desc, size_and_alignment)) {
         return found;  // pool for desired size and alignment found
     } else if (!dllist_is_empty(&desc->partitions)) {
         // create new pool for desired size and alignment
@@ -164,7 +164,7 @@ template<typename Pool, uint16_t Size, uint16_t Alignment>
     }
 
     // specialize pool for desired size and alignment
-    desc->size_and_alignment = kSizeAndAlignment;
+    desc->size_and_alignment = size_and_alignment;
     desc->node_count_per_partition = desc->root_pool->partition_size / sizeof(record_t);
     assert(desc->node_count_per_partition > 2);
 

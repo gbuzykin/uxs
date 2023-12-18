@@ -10,15 +10,15 @@ namespace uxs {
 namespace cli {
 
 enum class parsing_status {
-    kOk = 0,
-    kUnspecifiedValue,
-    kInvalidValue,
-    kUnknownOption,
-    kUnspecifiedOption,
-    kConflictingOption
+    ok = 0,
+    unspecified_value,
+    invalid_value,
+    unknown_option,
+    unspecified_option,
+    conflicting_option
 };
 
-enum class node_type { kValue = 0, kOption, kOptionGroup, kCommand };
+enum class node_type { value = 0, option, option_group, command };
 
 template<typename CharT>
 using value_handler_fn = std::function<bool(std::basic_string_view<CharT>)>;
@@ -82,8 +82,7 @@ template<typename CharT>
 class basic_value : public basic_node<CharT> {
  public:
     basic_value(std::basic_string<CharT> label, value_handler_fn<CharT> fn)
-        : basic_node<CharT>(node_type::kValue), label_(std::move(label)), handler_(std::move(fn)), is_multiple_(false) {
-    }
+        : basic_node<CharT>(node_type::value), label_(std::move(label)), handler_(std::move(fn)), is_multiple_(false) {}
     std::unique_ptr<basic_node<CharT>> clone() const override { return detail::make_unique<basic_value>(*this); }
 
     const std::basic_string<CharT>& get_label() const { return label_; }
@@ -120,7 +119,7 @@ template<typename CharT>
 class basic_option_group : public basic_option_node<CharT> {
  public:
     explicit basic_option_group(bool is_exclusive)
-        : basic_option_node<CharT>(node_type::kOptionGroup), is_exclusive_(is_exclusive) {}
+        : basic_option_node<CharT>(node_type::option_group), is_exclusive_(is_exclusive) {}
     UXS_EXPORT basic_option_group(const basic_option_group&);
     std::unique_ptr<basic_node<CharT>> clone() const override {
         return detail::make_unique<basic_option_group>(*this);
@@ -149,7 +148,7 @@ template<typename CharT>
 class basic_option : public basic_option_node<CharT> {
  public:
     explicit basic_option(std::initializer_list<std::basic_string_view<CharT>> keys)
-        : basic_option_node<CharT>(node_type::kOption), keys_(keys.begin(), keys.end()) {}
+        : basic_option_node<CharT>(node_type::option), keys_(keys.begin(), keys.end()) {}
     UXS_EXPORT basic_option(const basic_option&);
     std::unique_ptr<basic_node<CharT>> clone() const override { return detail::make_unique<basic_option>(*this); };
 
@@ -173,7 +172,7 @@ class basic_option : public basic_option_node<CharT> {
 template<typename CharT>
 template<typename EnumFunc>
 bool basic_option_node<CharT>::traverse_options(const EnumFunc& fn) const {
-    if (this->get_type() == node_type::kOptionGroup) {
+    if (this->get_type() == node_type::option_group) {
         for (const auto& opt : static_cast<const basic_option_group<CharT>&>(*this).get_children()) {
             if (!std::as_const(*opt).traverse_options(fn)) { return false; }
         }
@@ -193,8 +192,8 @@ struct parsing_result {
 #if __cplusplus < 201703L
     parsing_result(parsing_status s, int c, const basic_node<CharT>* n) : status(s), arg_count(c), node(n) {}
 #endif  // __cplusplus < 201703L
-    operator bool() const { return status == parsing_status::kOk; }
-    parsing_status status = parsing_status::kOk;
+    operator bool() const { return status == parsing_status::ok; }
+    parsing_status status = parsing_status::ok;
     int arg_count = 0;
     const basic_node<CharT>* node = nullptr;
 };
@@ -203,7 +202,7 @@ template<typename CharT>
 class basic_command : public basic_node<CharT> {
  public:
     explicit basic_command(std::basic_string<CharT> name)
-        : basic_node<CharT>(node_type::kCommand), name_(std::move(name)),
+        : basic_node<CharT>(node_type::command), name_(std::move(name)),
           opts_(detail::make_unique<basic_option_group<CharT>>(false)) {
         opts_->set_parent(this);
     }
@@ -359,7 +358,7 @@ class basic_option_node_wrapper : public basic_node_wrapper<CharT> {
 
     basic_option_node_wrapper& operator&=(basic_option_node_wrapper opt) {
         if (&opt == this) { return *this; }
-        if (this->ptr_->get_type() == node_type::kOptionGroup && !this->ptr_->is_optional() &&
+        if (this->ptr_->get_type() == node_type::option_group && !this->ptr_->is_optional() &&
             !static_cast<basic_option_group<CharT>&>(*this->ptr_).is_exclusive()) {
             static_cast<basic_option_group<CharT>&>(*this->ptr_)
                 .add_child(detail::unique_static_cast<basic_option_node<CharT>>(std::move(opt.ptr_)));
@@ -374,7 +373,7 @@ class basic_option_node_wrapper : public basic_node_wrapper<CharT> {
 
     basic_option_node_wrapper& operator|=(basic_option_node_wrapper opt) {
         if (&opt == this) { return *this; }
-        if (this->ptr_->get_type() == node_type::kOptionGroup &&
+        if (this->ptr_->get_type() == node_type::option_group &&
             static_cast<basic_option_group<CharT>&>(*this->ptr_).is_exclusive()) {
             static_cast<basic_option_group<CharT>&>(*this->ptr_)
                 .add_child(detail::unique_static_cast<basic_option_node<CharT>>(std::move(opt.ptr_)));

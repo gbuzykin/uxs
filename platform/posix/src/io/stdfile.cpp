@@ -4,14 +4,14 @@
 
 using namespace uxs;
 
-static filebuf g_outbuf(fileno(stdout), iomode::kOut | iomode::kAppend |
-                                            (isatty(fileno(stdout)) ? iomode::kNone : iomode::kSkipCtrlEsc));
-static filebuf g_inbuf(fileno(stdin), iomode::kIn, &stdbuf::out);
+static filebuf g_outbuf(fileno(stdout),
+                        iomode::out | iomode::append | (isatty(fileno(stdout)) ? iomode::none : iomode::skip_ctrl_esc));
+static filebuf g_inbuf(fileno(stdin), iomode::in, &stdbuf::out);
 static filebuf g_logbuf(fileno(stderr),
-                        iomode::kOut | iomode::kAppend | (isatty(fileno(stderr)) ? iomode::kNone : iomode::kSkipCtrlEsc),
+                        iomode::out | iomode::append | (isatty(fileno(stderr)) ? iomode::none : iomode::skip_ctrl_esc),
                         &stdbuf::out);
 static filebuf g_errbuf(fileno(stderr),
-                        iomode::kOut | iomode::kAppend | (isatty(fileno(stderr)) ? iomode::kNone : iomode::kSkipCtrlEsc),
+                        iomode::out | iomode::append | (isatty(fileno(stderr)) ? iomode::none : iomode::skip_ctrl_esc),
                         &stdbuf::log);
 iobuf& stdbuf::out = g_outbuf;
 iobuf& stdbuf::in = g_inbuf;

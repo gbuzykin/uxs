@@ -21,8 +21,8 @@ class basic_ostringbuf : protected std::allocator_traits<Alloc>::template rebind
     using off_type = typename basic_iobuf<CharT>::off_type;
     using allocator_type = Alloc;
 
-    basic_ostringbuf() : alloc_type(), basic_iobuf<CharT>(iomode::kOut) {}
-    explicit basic_ostringbuf(const Alloc& al) : alloc_type(al), basic_iobuf<CharT>(iomode::kOut) {}
+    basic_ostringbuf() : alloc_type(), basic_iobuf<CharT>(iomode::out) {}
+    explicit basic_ostringbuf(const Alloc& al) : alloc_type(al), basic_iobuf<CharT>(iomode::out) {}
     UXS_EXPORT ~basic_ostringbuf() override;
     UXS_EXPORT basic_ostringbuf(basic_ostringbuf&& other) NOEXCEPT;
     UXS_EXPORT basic_ostringbuf& operator=(basic_ostringbuf&& other) NOEXCEPT;
@@ -46,9 +46,9 @@ class basic_ostringbuf : protected std::allocator_traits<Alloc>::template rebind
  private:
     enum : unsigned {
 #if defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
-        kMinBufSize = 512 / sizeof(char_type)
+        min_buf_size = 512 / sizeof(char_type)
 #else   // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
-        kMinBufSize = 7
+        min_buf_size = 7
 #endif  // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
     };
     char_type* top_ = nullptr;

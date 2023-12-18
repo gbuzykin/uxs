@@ -39,39 +39,39 @@ class basic_iobuf : public iostate {
 
     int_type peek() {
         if (curr_ != last_ || (this->good() && underflow() >= 0)) { return traits_type::to_int_type(*curr_); }
-        this->setstate(iostate_bits::kEof | iostate_bits::kFail);
+        this->setstate(iostate_bits::eof | iostate_bits::fail);
         return traits_type::eof();
     }
 
     int_type get() {
         if (curr_ != last_ || (this->good() && underflow() >= 0)) { return traits_type::to_int_type(*curr_++); }
-        this->setstate(iostate_bits::kEof | iostate_bits::kFail);
+        this->setstate(iostate_bits::eof | iostate_bits::fail);
         return traits_type::eof();
     }
 
     basic_iobuf& unget() {
-        this->setstate(this->rdstate() & ~iostate_bits::kEof);
+        this->setstate(this->rdstate() & ~iostate_bits::eof);
         if (curr_ != first_) {
             --curr_;
             return *this;
         }
-        this->setstate(iostate_bits::kFail);
+        this->setstate(iostate_bits::fail);
         return *this;
     }
 
     basic_iobuf& unget(char_type ch) {
-        this->setstate(this->rdstate() & ~iostate_bits::kEof);
+        this->setstate(this->rdstate() & ~iostate_bits::eof);
         if (curr_ != first_ || (this->good() && ungetfail() >= 0)) {
             *--curr_ = ch;
             return *this;
         }
-        this->setstate(iostate_bits::kFail);
+        this->setstate(iostate_bits::fail);
         return *this;
     }
 
     basic_iobuf& reserve() {
         if (curr_ != last_ || (this->good() && overflow() >= 0)) { return *this; }
-        this->setstate(iostate_bits::kBad);
+        this->setstate(iostate_bits::bad);
         return *this;
     }
 
@@ -80,7 +80,7 @@ class basic_iobuf : public iostate {
             *curr_++ = ch;
             return *this;
         }
-        this->setstate(iostate_bits::kBad);
+        this->setstate(iostate_bits::bad);
         return *this;
     }
 
@@ -97,7 +97,7 @@ class basic_iobuf : public iostate {
         for (size_type n_avail = avail(); count > n_avail; n_avail = avail()) {
             if (n_avail) { curr_ = std::copy_n(first, n_avail, curr_), first += n_avail, count -= n_avail; }
             if (!this->good() || overflow() < 0) {
-                this->setstate(iostate_bits::kBad);
+                this->setstate(iostate_bits::bad);
                 return *this;
             }
         }
@@ -113,10 +113,10 @@ class basic_iobuf : public iostate {
     UXS_EXPORT basic_iobuf& flush();
     basic_iobuf& endl() { return put('\n').flush(); }
 
-    UXS_EXPORT pos_type seek(off_type off, seekdir dir = seekdir::kBeg);
+    UXS_EXPORT pos_type seek(off_type off, seekdir dir = seekdir::beg);
     pos_type tell() {
         if (this->fail()) { return -1; }
-        return seekimpl(0, seekdir::kCurr);
+        return seekimpl(0, seekdir::curr);
     }
 
  protected:

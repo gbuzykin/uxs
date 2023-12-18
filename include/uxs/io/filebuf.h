@@ -24,10 +24,10 @@ class basic_filebuf : public basic_devbuf<CharT> {
     }
     basic_filebuf(const char* fname, const char* mode)
         : basic_filebuf(fname,
-                        detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::kText : iomode::kNone)) {}
+                        detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::text : iomode::none)) {}
     basic_filebuf(const wchar_t* fname, const char* mode)
         : basic_filebuf(fname,
-                        detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::kText : iomode::kNone)) {}
+                        detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::text : iomode::none)) {}
     UXS_EXPORT ~basic_filebuf() override;
     UXS_EXPORT basic_filebuf(basic_filebuf&& other) NOEXCEPT;
     UXS_EXPORT basic_filebuf& operator=(basic_filebuf&& other);
@@ -38,10 +38,10 @@ class basic_filebuf : public basic_devbuf<CharT> {
     UXS_EXPORT bool open(const char* fname, iomode mode);
     UXS_EXPORT bool open(const wchar_t* fname, iomode mode);
     bool open(const char* fname, const char* mode) {
-        return open(fname, detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::kText : iomode::kNone));
+        return open(fname, detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::text : iomode::none));
     }
     bool open(const wchar_t* fname, const char* mode) {
-        return open(fname, detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::kText : iomode::kNone));
+        return open(fname, detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::text : iomode::none));
     }
     UXS_EXPORT void close();
 

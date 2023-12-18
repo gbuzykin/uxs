@@ -44,28 +44,28 @@ void to_hex(unsigned val, OutputIt out, unsigned n_digs, bool upper = false, Out
 // --------------------------
 
 enum class fmt_flags : unsigned {
-    kDefault = 0,
-    kDec = kDefault,
-    kBin = 1,
-    kOct = 2,
-    kHex = 3,
-    kBaseField = 3,
-    kFixed = 4,
-    kScientific = 8,
-    kGeneral = 0xc,
-    kFloatField = 0xc,
-    kLeft = 0x10,
-    kRight = 0x20,
-    kInternal = 0x30,
-    kAdjustField = 0x30,
-    kLeadingZeroes = 0x40,
-    kUpperCase = 0x80,
-    kAlternate = 0x100,
-    kJsonCompat = 0x200,
-    kSignNeg = kDefault,
-    kSignPos = 0x400,
-    kSignAlign = 0x800,
-    kSignField = 0xc00,
+    none = 0,
+    dec = none,
+    bin = 1,
+    oct = 2,
+    hex = 3,
+    base_field = 3,
+    fixed = 4,
+    scientific = 8,
+    general = 0xc,
+    float_field = 0xc,
+    left = 0x10,
+    right = 0x20,
+    internal = 0x30,
+    adjust_field = 0x30,
+    leading_zeroes = 0x40,
+    uppercase = 0x80,
+    alternate = 0x100,
+    json_compat = 0x200,
+    sign_neg = none,
+    sign_pos = 0x400,
+    sign_align = 0x800,
+    sign_field = 0xc00,
 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(fmt_flags, unsigned);
 
@@ -76,7 +76,7 @@ struct fmt_opts {
     CONSTEXPR fmt_opts(fmt_flags fl, int p, const std::locale* l) : flags(fl), prec(p), loc(l) {}
     CONSTEXPR fmt_opts(fmt_flags fl, int p, const std::locale* l, unsigned w, int ch)
         : flags(fl), prec(p), loc(l), width(w), fill(ch) {}
-    fmt_flags flags = fmt_flags::kDec;
+    fmt_flags flags = fmt_flags::dec;
     int prec = -1;
     const std::locale* loc = nullptr;
     unsigned width = 0;
@@ -243,17 +243,17 @@ template<typename Ty, size_t InlineBufSize = 0, typename Alloc = std::allocator<
 class inline_basic_dynbuffer final : public basic_dynbuffer<Ty, Alloc> {
  public:
     inline_basic_dynbuffer()
-        : basic_dynbuffer<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), reinterpret_cast<Ty*>(&buf_[kInlineBufSize])) {}
+        : basic_dynbuffer<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), reinterpret_cast<Ty*>(&buf_[inline_buf_size])) {}
 
  private:
     enum : unsigned {
 #if defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
-        kInlineBufSize = InlineBufSize != 0 ? InlineBufSize : 256 / sizeof(Ty)
+        inline_buf_size = InlineBufSize != 0 ? InlineBufSize : 256 / sizeof(Ty)
 #else   // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
-        kInlineBufSize = 7
+        inline_buf_size = 7
 #endif  // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
     };
-    typename std::aligned_storage<sizeof(Ty), std::alignment_of<Ty>::value>::type buf_[kInlineBufSize];
+    typename std::aligned_storage<sizeof(Ty), std::alignment_of<Ty>::value>::type buf_[inline_buf_size];
 };
 
 using inline_dynbuffer = inline_basic_dynbuffer<char>;
@@ -264,11 +264,11 @@ using inline_wdynbuffer = inline_basic_dynbuffer<wchar_t>;
 template<typename StrTy, typename Func>
 void append_adjusted(StrTy& s, Func fn, unsigned len, const fmt_opts& fmt) {
     unsigned left = fmt.width - len, right = left;
-    if (!(fmt.flags & fmt_flags::kLeadingZeroes)) {
-        switch (fmt.flags & fmt_flags::kAdjustField) {
-            case fmt_flags::kRight: right = 0; break;
-            case fmt_flags::kInternal: left >>= 1, right -= left; break;
-            case fmt_flags::kLeft:
+    if (!(fmt.flags & fmt_flags::leading_zeroes)) {
+        switch (fmt.flags & fmt_flags::adjust_field) {
+            case fmt_flags::right: right = 0; break;
+            case fmt_flags::internal: left >>= 1, right -= left; break;
+            case fmt_flags::left:
             default: left = 0; break;
         }
     } else {
@@ -289,9 +289,9 @@ struct fp_traits;
 template<>
 struct fp_traits<double> {
     static_assert(sizeof(double) == sizeof(uint64_t), "type size mismatch");
-    enum : unsigned { kTotalBits = 64, kBitsPerMantissa = 52 };
-    enum : uint64_t { kMantissaMask = (1ull << kBitsPerMantissa) - 1 };
-    enum : int { kExpMax = (1 << (kTotalBits - kBitsPerMantissa - 1)) - 1 };
+    enum : unsigned { total_bits = 64, bits_per_mantissa = 52 };
+    enum : uint64_t { mantissa_mask = (1ull << bits_per_mantissa) - 1 };
+    enum : int { exp_max = (1 << (total_bits - bits_per_mantissa - 1)) - 1 };
     static uint64_t to_u64(const double& f) { return *reinterpret_cast<const uint64_t*>(&f); }
     static double from_u64(const uint64_t& u64) { return *reinterpret_cast<const double*>(&u64); }
 };
@@ -299,9 +299,9 @@ struct fp_traits<double> {
 template<>
 struct fp_traits<float> {
     static_assert(sizeof(float) == sizeof(uint32_t), "type size mismatch");
-    enum : unsigned { kTotalBits = 32, kBitsPerMantissa = 23 };
-    enum : uint64_t { kMantissaMask = (1ull << kBitsPerMantissa) - 1 };
-    enum : int { kExpMax = (1 << (kTotalBits - kBitsPerMantissa - 1)) - 1 };
+    enum : unsigned { total_bits = 32, bits_per_mantissa = 23 };
+    enum : uint64_t { mantissa_mask = (1ull << bits_per_mantissa) - 1 };
+    enum : int { exp_max = (1 << (total_bits - bits_per_mantissa - 1)) - 1 };
     static uint64_t to_u64(const float& f) { return *reinterpret_cast<const uint32_t*>(&f); }
     static float from_u64(const uint64_t& u64) { return *reinterpret_cast<const float*>(&u64); }
 };
@@ -345,23 +345,10 @@ using reduce_type_t = typename reduce_type<Ty>::type;
 // --------------------------
 
 template<typename Ty, typename CharT>
-UXS_EXPORT Ty to_integral_common(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) NOEXCEPT;
-
-template<typename CharT>
-UXS_EXPORT uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, const unsigned bpm,
-                                    const int exp_max) NOEXCEPT;
+UXS_EXPORT Ty to_boolean(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT;
 
 template<typename Ty, typename CharT>
-UXS_EXPORT Ty to_bool(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT;
-
-template<typename Ty, typename CharT>
-Ty to_integral(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
-    using UTy = typename std::make_unsigned<Ty>::type;
-    return static_cast<Ty>(to_integral_common<reduce_type_t<UTy>>(p, end, last, std::numeric_limits<UTy>::max()));
-}
-
-template<typename Ty, typename CharT>
-Ty to_char(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
+Ty to_character(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
     last = p;
     if (p == end) { return '\0'; }
     ++last;
@@ -369,37 +356,50 @@ Ty to_char(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
 }
 
 template<typename Ty, typename CharT>
+UXS_EXPORT Ty to_integral_common(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) NOEXCEPT;
+
+template<typename CharT>
+UXS_EXPORT uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, const unsigned bpm,
+                                    const int exp_max) NOEXCEPT;
+
+template<typename Ty, typename CharT>
+Ty to_integer(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
+    using UTy = typename std::make_unsigned<Ty>::type;
+    return static_cast<Ty>(to_integral_common<reduce_type_t<UTy>>(p, end, last, std::numeric_limits<UTy>::max()));
+}
+
+template<typename Ty, typename CharT>
 Ty to_float(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
     using FpTy = std::conditional_t<(sizeof(Ty) <= sizeof(double)), Ty, double>;
     return static_cast<Ty>(fp_traits<FpTy>::from_u64(
-        to_float_common(p, end, last, fp_traits<FpTy>::kBitsPerMantissa, fp_traits<FpTy>::kExpMax)));
+        to_float_common(p, end, last, fp_traits<FpTy>::bits_per_mantissa, fp_traits<FpTy>::exp_max)));
 }
 
 // --------------------------
 
 template<typename CharT, typename Ty>
+UXS_EXPORT void fmt_boolean(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt);
+
+template<typename CharT, typename Ty>
+UXS_EXPORT void fmt_character(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt);
+
+template<typename CharT, typename Ty>
 UXS_EXPORT void fmt_integral_common(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt);
-
-template<typename CharT, typename Ty>
-UXS_EXPORT void fmt_char(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt);
-
-template<typename CharT, typename Ty>
-UXS_EXPORT void fmt_bool(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt);
 
 template<typename CharT>
 UXS_EXPORT void fmt_float_common(basic_membuffer<CharT>& s, uint64_t u64, const fmt_opts& fmt, const unsigned bpm,
                                  const int exp_max);
 
 template<typename CharT, typename Ty>
-void fmt_integral(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt) {
+void fmt_integer(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt) {
     fmt_integral_common(s, static_cast<reduce_type_t<Ty>>(val), fmt);
 }
 
 template<typename CharT, typename Ty>
 void fmt_float(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt) {
     using FpTy = std::conditional_t<(sizeof(Ty) <= sizeof(double)), Ty, double>;
-    fmt_float_common(s, fp_traits<Ty>::to_u64(static_cast<FpTy>(val)), fmt, fp_traits<Ty>::kBitsPerMantissa,
-                     fp_traits<Ty>::kExpMax);
+    fmt_float_common(s, fp_traits<Ty>::to_u64(static_cast<FpTy>(val)), fmt, fp_traits<Ty>::bits_per_mantissa,
+                     fp_traits<Ty>::exp_max);
 }
 
 }  // namespace scvt
@@ -443,7 +443,7 @@ struct has_formatter : detail::has_formatter<Ty, StrTy>::type {};
     template<typename CharT> \
     struct string_parser<ty, CharT> { \
         const CharT* from_chars(const CharT* first, const CharT* last, ty& val) const NOEXCEPT { \
-            auto t = scvt::from_chars_func<ty>(first, last, last); \
+            auto t = from_chars_func<ty>(first, last, last); \
             if (last != first) { val = t; } \
             return last; \
         } \
@@ -457,25 +457,25 @@ struct has_formatter : detail::has_formatter<Ty, StrTy>::type {};
             s.append(buf.data(), buf.data() + buf.size()); \
         } \
         void format(basic_membuffer<CharT>& s, ty val, const fmt_opts& fmt) const { \
-            scvt::fmt_func<CharT, ty>(s, val, fmt); \
+            fmt_func<CharT, ty>(s, val, fmt); \
         } \
     };
 
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned char, to_integral, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned short, to_integral, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned, to_integral, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned long, to_integral, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned long long, to_integral, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed char, to_integral, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed short, to_integral, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed, to_integral, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed long, to_integral, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed long long, to_integral, fmt_integral)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(CharT, to_char, fmt_char)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(bool, to_bool, fmt_bool)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(float, to_float, fmt_float)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(double, to_float, fmt_float)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(long double, to_float, fmt_float)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(bool, scvt::to_boolean, scvt::fmt_boolean)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(CharT, scvt::to_character, scvt::fmt_character)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed char, scvt::to_integer, scvt::fmt_integer)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed short, scvt::to_integer, scvt::fmt_integer)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed, scvt::to_integer, scvt::fmt_integer)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed long, scvt::to_integer, scvt::fmt_integer)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed long long, scvt::to_integer, scvt::fmt_integer)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned char, scvt::to_integer, scvt::fmt_integer)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned short, scvt::to_integer, scvt::fmt_integer)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned, scvt::to_integer, scvt::fmt_integer)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned long, scvt::to_integer, scvt::fmt_integer)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned long long, scvt::to_integer, scvt::fmt_integer)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(float, scvt::to_float, scvt::fmt_float)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(double, scvt::to_float, scvt::fmt_float)
+UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(long double, scvt::to_float, scvt::fmt_float)
 #undef SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER
 
 template<typename Ty>

@@ -31,17 +31,17 @@ file_desc_t sysfile::detach() {
 
 bool sysfile::open(const wchar_t* fname, iomode mode) {
     DWORD access = GENERIC_READ, creat_disp = OPEN_EXISTING;
-    if (!!(mode & iomode::kOut)) {
+    if (!!(mode & iomode::out)) {
         access |= GENERIC_WRITE;
-        if (!!(mode & iomode::kCreate)) {
-            if (!!(mode & iomode::kExcl)) {
+        if (!!(mode & iomode::create)) {
+            if (!!(mode & iomode::exclusive)) {
                 creat_disp = CREATE_NEW;
-            } else if (!!(mode & iomode::kTruncate)) {
+            } else if (!!(mode & iomode::truncate)) {
                 creat_disp = CREATE_ALWAYS;
             } else {
                 creat_disp = OPEN_ALWAYS;
             }
-        } else if (!!(mode & iomode::kTruncate)) {
+        } else if (!!(mode & iomode::truncate)) {
             creat_disp = TRUNCATE_EXISTING;
         }
     }
@@ -49,7 +49,7 @@ bool sysfile::open(const wchar_t* fname, iomode mode) {
     std::memset(&of, 0, sizeof(of));
     attach(::CreateFileW(fname, access, FILE_SHARE_READ, NULL, creat_disp, FILE_ATTRIBUTE_NORMAL, NULL));
     if (fd_ != INVALID_HANDLE_VALUE) {
-        if (!!(mode & iomode::kAppend)) {
+        if (!!(mode & iomode::append)) {
             if (::SetFilePointer(fd_, 0, NULL, FILE_END) == INVALID_SET_FILE_POINTER) {
                 ::CloseHandle(detach());
                 return false;
@@ -121,8 +121,8 @@ int64_t sysfile::seek(int64_t off, seekdir dir) {
     DWORD method = FILE_BEGIN;
     LONG pos_hi = static_cast<long>(off >> 32);
     switch (dir) {
-        case seekdir::kCurr: method = FILE_CURRENT; break;
-        case seekdir::kEnd: method = FILE_END; break;
+        case seekdir::curr: method = FILE_CURRENT; break;
+        case seekdir::end: method = FILE_END; break;
         default: break;
     }
     DWORD pos_lo = ::SetFilePointer(fd_, static_cast<long>(off), &pos_hi, method);

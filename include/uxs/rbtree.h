@@ -10,7 +10,7 @@ struct rbtree_node_t {
     rbtree_node_t* left;
     rbtree_node_t* parent;
     rbtree_node_t* right;
-    enum class color_t : char { kBlack = 0, kRed = 1 } color;
+    enum class color_t : char { black = 0, red = 1 } color;
 };
 
 inline bool rbtree_is_empty(const rbtree_node_t* head) { return head->left == nullptr; }
@@ -18,7 +18,7 @@ inline bool rbtree_is_empty(const rbtree_node_t* head) { return head->left == nu
 inline void rbtree_init_head(rbtree_node_t* head) {
     head->left = nullptr;
     head->right = head->parent = head;
-    head->color = rbtree_node_t::color_t::kBlack;
+    head->color = rbtree_node_t::color_t::black;
 }
 
 inline rbtree_node_t* rbtree_right_bound(rbtree_node_t* node) {
