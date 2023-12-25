@@ -8,7 +8,7 @@
 #    endif
 #endif
 
-#if __cplusplus < 201703L || !defined(__cpp_lib_optional)
+#if !defined(__cpp_lib_optional)
 
 #    include <cassert>
 #    include <stdexcept>
