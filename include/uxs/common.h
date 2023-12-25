@@ -2,6 +2,12 @@
 
 #include "uxs/config.h"
 
+#if __cplusplus >= 201703L
+#    if __has_include(<version>)
+#        include <version>
+#    endif
+#endif
+
 #include <cstddef>
 #include <cstdint>
 

@@ -2,13 +2,13 @@
 
 #include "utility.h"
 
-#if __cplusplus >= 202002L
+#if __cplusplus >= 201703L
 #    if __has_include(<span>)
 #        include <span>
 #    endif
 #endif
 
-#if __cplusplus < 202002L || !defined(__cpp_lib_span)
+#if !defined(__cpp_lib_span)
 
 #    include "iterator.h"
 
