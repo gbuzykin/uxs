@@ -41,9 +41,11 @@ std::pair<xml::token_t, std::string_view> xml::reader::read_next() {
                 } else {
                     name_cache_it = name_cache_.emplace_after(name_cache_prev_it, lval);
                 }
-                if ((tt = parse_token(lval)) != lex_token_t::eq) { throw exception(format("{}: expected `=`", n_ln_)); }
+                if ((tt = parse_token(lval)) != lex_token_t::eq) {
+                    throw database_error(format("{}: expected `=`", n_ln_));
+                }
                 if ((tt = parse_token(lval)) != lex_token_t::string) {
-                    throw exception(format("{}: expected valid attribute value", n_ln_));
+                    throw database_error(format("{}: expected valid attribute value", n_ln_));
                 }
                 name_cache_prev_it = name_cache_it;
                 attrs_.emplace(*name_cache_it++, lval);
@@ -62,20 +64,20 @@ std::pair<xml::token_t, std::string_view> xml::reader::read_next() {
                             is_end_element_pending_ = true;
                             return {token_t::start_element, name_cache_.front()};
                         } else {
-                            throw exception(format("{}: expected name, `>` or `/>`", n_ln_));
+                            throw database_error(format("{}: expected name, `>` or `/>`", n_ln_));
                         }
                     }
                 } break;
                 case lex_token_t::end_element_open: {  // </name>
                     if ((tt = parse_token(lval)) != lex_token_t::close) {
-                        throw exception(format("{}: expected `>`", n_ln_));
+                        throw database_error(format("{}: expected `>`", n_ln_));
                     }
                     return {token_t::end_element, lval};
                 } break;
                 case lex_token_t::pi_open: {  // <?xml n1=v1 n2=v2...?>
                     attrs_.clear();
                     if (uxs::compare_strings_nocase(lval, "xml") != 0) {
-                        throw exception(format("{}: invalid document declaration", n_ln_));
+                        throw database_error(format("{}: invalid document declaration", n_ln_));
                     }
                     name_cache_it->assign(lval.data(), lval.size());
                     ++name_cache_it;
@@ -85,7 +87,7 @@ std::pair<xml::token_t, std::string_view> xml::reader::read_next() {
                         } else if (tt == lex_token_t::pi_close) {
                             return {token_t::preamble, name_cache_.front()};
                         } else {
-                            throw exception(format("{}: expected name or `?>`", n_ln_));
+                            throw database_error(format("{}: expected name or `?>`", n_ln_));
                         }
                     }
                 } break;
@@ -210,7 +212,7 @@ xml::reader::lex_token_t xml::reader::parse_token(std::string_view& lval) {
                     lval = std::string_view(lexeme + 1, llen - 2);
                     return lex_token_t::entity;
                 }
-                throw exception(format("{}: unknown entity name", n_ln_));
+                throw database_error(format("{}: unknown entity name", n_ln_));
             } break;
             case lex_detail::pat_dcode: {
                 unsigned unicode = 0;

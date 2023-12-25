@@ -3,6 +3,9 @@
 using namespace uxs;
 
 namespace uxs {
+format_error::format_error(const char* message) : std::runtime_error(message) {}
+format_error::format_error(const std::string& message) : std::runtime_error(message) {}
+const char* format_error::what() const NOEXCEPT { return std::runtime_error::what(); }
 namespace sfmt {
 #if __cplusplus < 201703L
 const meta_tbl_t g_meta_tbl;

@@ -83,10 +83,11 @@ CONSTEXPR variant_id operator+(unsigned lhs, variant_id rhs) {
     return static_cast<variant_id>(lhs + static_cast<unsigned>(rhs));
 }
 
-class variant_error : public std::runtime_error {
+class UXS_EXPORT variant_error : public std::runtime_error {
  public:
-    explicit variant_error(const char* message) : std::runtime_error(message) {}
-    explicit variant_error(const std::string& message) : std::runtime_error(message) {}
+    explicit variant_error(const char* message);
+    explicit variant_error(const std::string& message);
+    const char* what() const NOEXCEPT override;
 };
 
 template<typename Ty>

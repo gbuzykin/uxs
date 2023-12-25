@@ -18,6 +18,11 @@ namespace uxs {
 struct nullopt_t {};
 inline nullopt_t nullopt() { return nullopt_t{}; }
 
+class bad_optional_access : public std::exception {
+ public:
+    const char* what() const noexcept override { return "bad optional access"; }
+};
+
 template<typename Ty>
 class optional {
  public:
@@ -73,12 +78,12 @@ class optional {
 
     const value_type& value() const {
         if (valid_) { return val(); }
-        throw std::logic_error("bad optional value access");
+        throw bad_optional_access();
     }
 
     value_type& value() {
         if (valid_) { return val(); }
-        throw std::logic_error("bad optional value access");
+        throw bad_optional_access();
     }
 
     template<typename U>
@@ -116,6 +121,7 @@ using nullopt_t = std::nullopt_t;
 constexpr nullopt_t nullopt() { return std::nullopt; }
 template<typename Ty>
 using optional = std::optional<Ty>;
+using bad_optional_access = std::bad_optional_access;
 }  // namespace uxs
 
 #endif  // optional

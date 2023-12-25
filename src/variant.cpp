@@ -11,6 +11,10 @@ UXS_IMPLEMENT_VARIANT_TYPE(uint64_t, convert_from, convert_to);
 UXS_IMPLEMENT_VARIANT_TYPE(float, convert_from, convert_to);
 UXS_IMPLEMENT_VARIANT_TYPE(double, convert_from, convert_to);
 
+variant_error::variant_error(const char* message) : std::runtime_error(message) {}
+variant_error::variant_error(const std::string& message) : std::runtime_error(message) {}
+const char* variant_error::what() const NOEXCEPT { return std::runtime_error::what(); }
+
 //---------------------------------------------------------------------------------
 // Variant type implementation
 

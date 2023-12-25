@@ -1,6 +1,6 @@
 #pragma once
 
-#include "exception.h"
+#include "database_error.h"
 
 #include "uxs/dllist.h"
 #include "uxs/iterator.h"
@@ -492,13 +492,13 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     const basic_value& at(size_t i) const {
         auto range = as_array();
         if (i < range.size()) { return range[i]; }
-        throw exception("index out of range");
+        throw database_error("index out of range");
     }
 
     basic_value& at(size_t i) {
         auto range = as_array();
         if (i < range.size()) { return range[i]; }
-        throw exception("index out of range");
+        throw database_error("index out of range");
     }
 
     UXS_EXPORT const basic_value& operator[](std::basic_string_view<char_type> name) const;
@@ -781,7 +781,7 @@ basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::emplace_back(Args&&... arg
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::pop_back() {
-    if (type_ != dtype::array) { throw exception("not an array"); }
+    if (type_ != dtype::array) { throw database_error("not an array"); }
     assert(value_.arr && value_.arr->size);
     (*value_.arr)[--value_.arr->size].~basic_value();
 }
@@ -802,7 +802,7 @@ template<typename... Args>
 auto basic_value<CharT, Alloc>::emplace(std::basic_string_view<char_type> name, Args&&... args) -> record_iterator {
     typename record_t::alloc_type rec_al(*this);
     if (type_ != dtype::record) {
-        if (type_ != dtype::null) { throw exception("not a record"); }
+        if (type_ != dtype::null) { throw database_error("not a record"); }
         value_.rec = record_t::create(rec_al);
         type_ = dtype::record;
     }
@@ -817,7 +817,7 @@ auto basic_value<CharT, Alloc>::emplace_unique(std::basic_string_view<char_type>
     -> std::pair<record_iterator, bool> {
     typename record_t::alloc_type rec_al(*this);
     if (type_ != dtype::record) {
-        if (type_ != dtype::null) { throw exception("not a record"); }
+        if (type_ != dtype::null) { throw database_error("not a record"); }
         value_.rec = record_t::create(rec_al);
         type_ = dtype::record;
     }
@@ -835,7 +835,7 @@ template<typename CharT, typename Alloc>
 template<typename InputIt, typename>
 void basic_value<CharT, Alloc>::insert(size_t pos, InputIt first, InputIt last) {
     if (type_ != dtype::array) {
-        if (type_ != dtype::null) { throw exception("not an array"); }
+        if (type_ != dtype::null) { throw database_error("not an array"); }
         value_.arr = alloc_array(first, last, is_random_access_iterator<InputIt>());
         type_ = dtype::array;
     } else if (first != last) {
@@ -851,7 +851,7 @@ template<typename InputIt, typename, typename>
 void basic_value<CharT, Alloc>::insert(InputIt first, InputIt last) {
     typename record_t::alloc_type rec_al(*this);
     if (type_ != dtype::record) {
-        if (type_ != dtype::null) { throw exception("not a record"); }
+        if (type_ != dtype::null) { throw database_error("not a record"); }
         value_.rec = record_t::create(rec_al, first, last);
         type_ = dtype::record;
     } else {
@@ -876,27 +876,27 @@ uxs::span<basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() NOEXC
 
 template<typename CharT, typename Alloc>
 iterator_range<typename basic_value<CharT, Alloc>::const_record_iterator> basic_value<CharT, Alloc>::as_record() const {
-    if (type_ != dtype::record) { throw exception("not a record"); }
+    if (type_ != dtype::record) { throw database_error("not a record"); }
     return uxs::make_range(const_record_iterator(value_.rec->head.next), const_record_iterator(&value_.rec->head));
 }
 
 template<typename CharT, typename Alloc>
 iterator_range<typename basic_value<CharT, Alloc>::record_iterator> basic_value<CharT, Alloc>::as_record() {
-    if (type_ != dtype::record) { throw exception("not a record"); }
+    if (type_ != dtype::record) { throw database_error("not a record"); }
     return uxs::make_range(record_iterator(value_.rec->head.next), record_iterator(&value_.rec->head));
 }
 
 template<typename CharT, typename Alloc>
 typename basic_value<CharT, Alloc>::const_record_iterator basic_value<CharT, Alloc>::find(
     std::basic_string_view<char_type> name) const {
-    if (type_ != dtype::record) { throw exception("not a record"); }
+    if (type_ != dtype::record) { throw database_error("not a record"); }
     return const_record_iterator(value_.rec->find(name, record_t::calc_hash_code(name)));
 }
 
 template<typename CharT, typename Alloc>
 typename basic_value<CharT, Alloc>::record_iterator basic_value<CharT, Alloc>::find(
     std::basic_string_view<char_type> name) {
-    if (type_ != dtype::record) { throw exception("not a record"); }
+    if (type_ != dtype::record) { throw database_error("not a record"); }
     return record_iterator(value_.rec->find(name, record_t::calc_hash_code(name)));
 }
 
@@ -917,7 +917,7 @@ bool basic_value<CharT, Alloc>::contains(std::basic_string_view<char_type> name)
 
 template<typename CharT, typename Alloc>
 size_t basic_value<CharT, Alloc>::count(std::basic_string_view<char_type> name) const {
-    if (type_ != dtype::record) { throw exception("not a record"); }
+    if (type_ != dtype::record) { throw database_error("not a record"); }
     return value_.rec->count(name);
 }
 
@@ -1128,7 +1128,7 @@ template<typename CharT, typename Alloc>
     ty basic_value<CharT, Alloc>::as##func() const { \
         auto result = this->get##func(); \
         if (result) { return *result; } \
-        throw exception("bad value conversion"); \
+        throw database_error("bad value conversion"); \
     } \
     namespace detail { \
     template<typename CharT, typename Alloc> \
