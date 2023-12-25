@@ -403,7 +403,7 @@ void basic_value<CharT, Alloc>::assign(std::initializer_list<basic_value> init) 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::insert(size_t pos, std::initializer_list<basic_value> init) {
     if (type_ != dtype::array) {
-        if (type_ != dtype::null) { throw exception("not an array"); }
+        if (type_ != dtype::null) { throw database_error("not an array"); }
         value_.arr = alloc_array(init.size(), init.begin());
         type_ = dtype::array;
     } else if (init.size()) {
@@ -420,7 +420,7 @@ void basic_value<CharT, Alloc>::insert(
     std::initializer_list<std::pair<std::basic_string_view<char_type>, basic_value>> init) {
     typename record_t::alloc_type rec_al(*this);
     if (type_ != dtype::record) {
-        if (type_ != dtype::null) { throw exception("not a record"); }
+        if (type_ != dtype::null) { throw database_error("not a record"); }
         value_.rec = record_t::create(rec_al, init);
         type_ = dtype::record;
     } else {
@@ -817,7 +817,7 @@ size_t basic_value<CharT, Alloc>::size() const NOEXCEPT {
 template<typename CharT, typename Alloc>
 const basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::operator[](std::basic_string_view<char_type> name) const {
     static const basic_value null;
-    if (type_ != dtype::record) { throw exception("not a record"); }
+    if (type_ != dtype::record) { throw database_error("not a record"); }
     detail::list_links_type* node = value_.rec->find(name, record_t::calc_hash_code(name));
     return node != &value_.rec->head ? detail::list_node_traits<CharT, Alloc>::get_value(node).val() : null;
 }
@@ -826,7 +826,7 @@ template<typename CharT, typename Alloc>
 basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::operator[](std::basic_string_view<char_type> name) {
     typename record_t::alloc_type rec_al(*this);
     if (type_ != dtype::record) {
-        if (type_ != dtype::null) { throw exception("not a record"); }
+        if (type_ != dtype::null) { throw database_error("not a record"); }
         value_.rec = record_t::create(rec_al);
         type_ = dtype::record;
     }
@@ -853,7 +853,7 @@ void basic_value<CharT, Alloc>::clear() NOEXCEPT {
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::reserve(size_t sz) {
     if (type_ != dtype::array || !value_.arr) {
-        if (type_ != dtype::array && type_ != dtype::null) { throw exception("not an array"); }
+        if (type_ != dtype::array && type_ != dtype::null) { throw database_error("not an array"); }
         if (sz) {
             typename value_flexarray_t::alloc_type arr_al(*this);
             value_.arr = value_flexarray_t::alloc_checked(arr_al, sz);
@@ -884,7 +884,7 @@ void basic_value<CharT, Alloc>::resize(size_t sz) {
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::erase(size_t pos) {
-    if (type_ != dtype::array) { throw exception("not an array"); }
+    if (type_ != dtype::array) { throw database_error("not an array"); }
     assert(value_.arr && pos < value_.arr->size);
     basic_value* v = &(*value_.arr)[pos];
     basic_value* v_end = &(*value_.arr)[--value_.arr->size];
@@ -894,7 +894,7 @@ void basic_value<CharT, Alloc>::erase(size_t pos) {
 
 template<typename CharT, typename Alloc>
 typename basic_value<CharT, Alloc>::record_iterator basic_value<CharT, Alloc>::erase(const_record_iterator it) {
-    if (type_ != dtype::record) { throw exception("not a record"); }
+    if (type_ != dtype::record) { throw database_error("not a record"); }
     detail::list_links_type* node = it.node();
     iterator_assert((detail::list_node_traits<CharT, Alloc>::get_head(node) == &value_.rec->head));
     assert(node != &value_.rec->head);
@@ -904,7 +904,7 @@ typename basic_value<CharT, Alloc>::record_iterator basic_value<CharT, Alloc>::e
 
 template<typename CharT, typename Alloc>
 size_t basic_value<CharT, Alloc>::erase(std::basic_string_view<char_type> name) {
-    if (type_ != dtype::record) { throw exception("not a record"); }
+    if (type_ != dtype::record) { throw database_error("not a record"); }
     typename record_t::alloc_type rec_al(*this);
     return value_.rec->erase(rec_al, name);
 }
@@ -998,7 +998,7 @@ template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::reserve_back() {
     typename value_flexarray_t::alloc_type arr_al(*this);
     if (type_ != dtype::array || !value_.arr) {
-        if (type_ != dtype::array && type_ != dtype::null) { throw exception("not an array"); }
+        if (type_ != dtype::array && type_ != dtype::null) { throw database_error("not an array"); }
         value_.arr = value_flexarray_t::alloc(arr_al, value_flexarray_t::start_capacity);
         value_.arr->size = 0;
         type_ = dtype::array;
@@ -1011,7 +1011,7 @@ template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::reserve_string(size_t extra) {
     typename char_flexarray_t::alloc_type arr_al(*this);
     if (type_ != dtype::string || !value_.str) {
-        if (type_ != dtype::string && type_ != dtype::null) { throw exception("not a string"); }
+        if (type_ != dtype::string && type_ != dtype::null) { throw database_error("not a string"); }
         value_.str = char_flexarray_t::alloc_checked(arr_al, extra);
         value_.str->size = 0;
         type_ = dtype::string;

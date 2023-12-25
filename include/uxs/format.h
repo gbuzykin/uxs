@@ -6,10 +6,11 @@
 
 namespace uxs {
 
-class format_error : public std::runtime_error {
+class UXS_EXPORT format_error : public std::runtime_error {
  public:
-    explicit format_error(const char* message) : std::runtime_error(message) {}
-    explicit format_error(const std::string& message) : std::runtime_error(message) {}
+    explicit format_error(const char* message);
+    explicit format_error(const std::string& message);
+    const char* what() const NOEXCEPT override;
 };
 
 namespace sfmt {

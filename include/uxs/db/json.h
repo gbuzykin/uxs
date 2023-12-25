@@ -1,6 +1,6 @@
 #pragma once
 
-#include "exception.h"
+#include "database_error.h"
 
 #include "uxs/format.h"
 
@@ -64,13 +64,13 @@ class writer {
 template<typename ValueFunc, typename ArrItemFunc, typename ObjItemFunc, typename PopFunc>
 void reader::read(const ValueFunc& fn_value, const ArrItemFunc& fn_arr_item, const ObjItemFunc& fn_obj_item,
                   const PopFunc& fn_pop, token_t tk_val) {
-    if (input_.peek() == iobuf::traits_type::eof()) { throw exception("empty input"); }
+    if (input_.peek() == iobuf::traits_type::eof()) { throw database_error("empty input"); }
 
     auto fn_value_checked = [this, &fn_value](int tt, std::string_view lval) -> next_action_type {
         if (tt >= static_cast<int>(token_t::null) || tt == '[' || tt == '{') {
             return fn_value(static_cast<token_t>(tt), lval);
         }
-        throw exception(format("{}: invalid value or unexpected character", n_ln_));
+        throw database_error(format("{}: invalid value or unexpected character", n_ln_));
     };
 
     std::string_view lval;
@@ -101,17 +101,17 @@ loop:
                     return;
                 }
                 if ((tt = parse_token(lval)) == ']') { break; }
-                if (tt != ',') { throw exception(format("{}: expected `,` or `]`", n_ln_)); }
+                if (tt != ',') { throw database_error(format("{}: expected `,` or `]`", n_ln_)); }
                 tt = parse_token(lval);
             }
         }
     } else if (comma || tt != '}') {
         while (true) {
             if (tt != static_cast<int>(token_t::string)) {
-                throw exception(format("{}: expected valid string", n_ln_));
+                throw database_error(format("{}: expected valid string", n_ln_));
             }
             fn_obj_item(lval);
-            if ((tt = parse_token(lval)) != ':') { throw exception(format("{}: expected `:`", n_ln_)); }
+            if ((tt = parse_token(lval)) != ':') { throw database_error(format("{}: expected `:`", n_ln_)); }
             tt = parse_token(lval);
             next_action_type ret = fn_value_checked(tt, lval);
             if (ret == next_action_type::step_into) {
@@ -124,7 +124,7 @@ loop:
                 return;
             }
             if ((tt = parse_token(lval)) == '}') { break; }
-            if (tt != ',') { throw exception(format("{}: expected `,` or `}}`", n_ln_)); }
+            if (tt != ',') { throw database_error(format("{}: expected `,` or `}}`", n_ln_)); }
             tt = parse_token(lval);
         }
     }
@@ -135,7 +135,7 @@ loop:
         fn_pop();
         char close_char = tk_val == token_t::array ? ']' : '}';
         if ((tt = parse_token(lval)) != close_char) {
-            if (tt != ',') { throw exception(format("{}: expected `,` or `{}`", n_ln_, close_char)); }
+            if (tt != ',') { throw database_error(format("{}: expected `,` or `{}`", n_ln_, close_char)); }
             comma = true;
             goto loop;
         }
