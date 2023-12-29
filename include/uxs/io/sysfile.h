@@ -10,7 +10,7 @@ using file_desc_t = void*;
 using file_desc_t = int;
 #endif
 
-class sysfile : public iodevice {
+class UXS_EXPORT_ALL_STUFF_FOR_GNUC sysfile : public iodevice {
  public:
     UXS_EXPORT sysfile();
     UXS_EXPORT explicit sysfile(file_desc_t fd);

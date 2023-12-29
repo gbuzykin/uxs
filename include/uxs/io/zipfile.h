@@ -5,14 +5,14 @@
 
 namespace uxs {
 
-class zipfile : public iodevice {
+class UXS_EXPORT_ALL_STUFF_FOR_GNUC zipfile : public iodevice {
  public:
     zipfile() = default;
     zipfile(ziparch& arch, const char* fname) { open(arch, fname); }
     zipfile(ziparch& arch, const wchar_t* fname) { open(arch, fname); }
-    ~zipfile() { close(); }
+    ~zipfile() override { close(); }
     zipfile(zipfile&& other) NOEXCEPT : zip_fd_(other.zip_fd_) { other.zip_fd_ = nullptr; }
-    zipfile& operator=(zipfile&& other) {
+    zipfile& operator=(zipfile&& other) NOEXCEPT {
         if (&other == this) { return *this; }
         zip_fd_ = other.zip_fd_;
         other.zip_fd_ = nullptr;

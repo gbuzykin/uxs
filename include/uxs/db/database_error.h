@@ -7,11 +7,11 @@
 
 namespace uxs {
 namespace db {
-class UXS_EXPORT database_error : public std::runtime_error {
+class UXS_EXPORT_ALL_STUFF_FOR_GNUC database_error : public std::runtime_error {
  public:
-    explicit database_error(const char* message);
-    explicit database_error(const std::string& message);
-    const char* what() const NOEXCEPT override;
+    UXS_EXPORT explicit database_error(const char* message);
+    UXS_EXPORT explicit database_error(const std::string& message);
+    UXS_EXPORT const char* what() const NOEXCEPT override;
 };
 }  // namespace db
 }  // namespace uxs

@@ -69,8 +69,7 @@ struct flexarray_t {
     array_value_t& operator[](size_t i) { return reinterpret_cast<array_value_t*>(&buf)[i]; }
 
     static size_t max_size(const alloc_type& arr_al) {
-        return (std::allocator_traits<alloc_type>::max_size(arr_al) * sizeof(flexarray_t) -
-                offsetof(flexarray_t, buf[0])) /
+        return (std::allocator_traits<alloc_type>::max_size(arr_al) * sizeof(flexarray_t) - offsetof(flexarray_t, buf)) /
                sizeof(array_value_t);
     }
 
@@ -134,7 +133,7 @@ struct list_node_type {
 
     static size_t max_name_size(const alloc_type& node_al) {
         return (std::allocator_traits<alloc_type>::max_size(node_al) * sizeof(list_node_type) -
-                offsetof(list_node_type, v.name_chars[0])) /
+                offsetof(list_node_type, v.name_chars)) /
                sizeof(CharT);
     }
 
@@ -226,8 +225,7 @@ struct record_t {
     size_t erase(alloc_type& rec_al, std::basic_string_view<CharT> name);
 
     static size_t max_size(const alloc_type& rec_al) {
-        return (std::allocator_traits<alloc_type>::max_size(rec_al) * sizeof(record_t) -
-                offsetof(record_t, hashtbl[0])) /
+        return (std::allocator_traits<alloc_type>::max_size(rec_al) * sizeof(record_t) - offsetof(record_t, hashtbl)) /
                sizeof(list_links_type*);
     }
 

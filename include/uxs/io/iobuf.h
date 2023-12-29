@@ -26,7 +26,7 @@ class basic_iobuf : public iostate {
     basic_iobuf() = default;
     explicit basic_iobuf(iomode mode) : iostate(mode) {}
     basic_iobuf(iomode mode, iostate_bits state) : iostate(mode, state) {}
-    UXS_EXPORT virtual ~basic_iobuf() = default;
+    virtual ~basic_iobuf() = default;
     basic_iobuf(const basic_iobuf&) = delete;
     basic_iobuf& operator=(const basic_iobuf&) = delete;
     UXS_EXPORT basic_iobuf(basic_iobuf&& other) NOEXCEPT;

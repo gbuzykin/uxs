@@ -6,11 +6,11 @@
 
 namespace uxs {
 
-class UXS_EXPORT format_error : public std::runtime_error {
+class UXS_EXPORT_ALL_STUFF_FOR_GNUC format_error : public std::runtime_error {
  public:
-    explicit format_error(const char* message);
-    explicit format_error(const std::string& message);
-    const char* what() const NOEXCEPT override;
+    UXS_EXPORT explicit format_error(const char* message);
+    UXS_EXPORT explicit format_error(const std::string& message);
+    UXS_EXPORT const char* what() const NOEXCEPT override;
 };
 
 namespace sfmt {

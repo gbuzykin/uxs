@@ -14,6 +14,14 @@
 #define TOKENPASTE(x, y)  x##y
 #define TOKENPASTE2(x, y) TOKENPASTE(x, y)
 
+#ifndef UXS_EXPORT_ALL_STUFF_FOR_GNUC
+#    ifdef __GNUC__
+#        define UXS_EXPORT_ALL_STUFF_FOR_GNUC UXS_EXPORT
+#    else
+#        define UXS_EXPORT_ALL_STUFF_FOR_GNUC
+#    endif
+#endif
+
 #if !defined(NOEXCEPT)
 #    if defined(_MSC_VER) && _MSC_VER <= 1800
 #        define NOEXCEPT throw()

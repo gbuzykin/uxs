@@ -69,7 +69,7 @@ template<typename CharT, typename Alloc, bool store_values>
 /*static*/ auto flexarray_t<CharT, Alloc, store_values>::alloc(alloc_type& arr_al, size_t cap) -> flexarray_t* {
     const size_t alloc_sz = get_alloc_sz(cap);
     flexarray_t* arr = arr_al.allocate(alloc_sz);
-    arr->capacity = (alloc_sz * sizeof(flexarray_t) - offsetof(flexarray_t, buf[0])) / sizeof(array_value_t);
+    arr->capacity = (alloc_sz * sizeof(flexarray_t) - offsetof(flexarray_t, buf)) / sizeof(array_value_t);
     assert(arr->capacity >= cap && get_alloc_sz(arr->capacity) == alloc_sz);
     return arr;
 }
@@ -304,7 +304,7 @@ template<typename CharT, typename Alloc>
 /*static*/ size_t record_t<CharT, Alloc>::next_bucket_count(const alloc_type& rec_al, size_t sz) {
     size_t delta_sz = std::max<size_t>(min_bucket_count_inc, sz >> 1);
     const size_t max_size = (std::allocator_traits<alloc_type>::max_size(rec_al) * sizeof(record_t) -
-                             offsetof(record_t, hashtbl[0])) /
+                             offsetof(record_t, hashtbl)) /
                             sizeof(list_links_type*);
     if (delta_sz > max_size - sz) {
         if (sz == max_size) { return sz; }
@@ -317,7 +317,7 @@ template<typename CharT, typename Alloc>
 /*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::alloc(alloc_type& rec_al, size_t bckt_cnt) {
     const size_t alloc_sz = get_alloc_sz(bckt_cnt);
     record_t* rec = rec_al.allocate(alloc_sz);
-    rec->bucket_count = (alloc_sz * sizeof(record_t) - offsetof(record_t, hashtbl[0])) / sizeof(list_links_type*);
+    rec->bucket_count = (alloc_sz * sizeof(record_t) - offsetof(record_t, hashtbl)) / sizeof(list_links_type*);
     assert(rec->bucket_count >= bckt_cnt && get_alloc_sz(rec->bucket_count) == alloc_sz);
     return rec;
 }
