@@ -29,7 +29,7 @@ class ziparch {
     UXS_EXPORT bool open(const wchar_t* name, iomode mode);
     bool open(const char* name, const char* mode) { return open(name, detail::iomode_from_str(mode, iomode::in)); }
     bool open(const wchar_t* name, const char* mode) { return open(name, detail::iomode_from_str(mode, iomode::in)); }
-    void close();
+    UXS_EXPORT void close();
 
     UXS_EXPORT bool stat_size(const char* fname, uint64_t& sz);
     UXS_EXPORT bool stat_crc(const char* fname, uint32_t& crc);

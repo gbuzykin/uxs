@@ -6,11 +6,11 @@
 
 namespace uxs {
 
-enum class iodevcaps : uint32_t {
+enum class iodevcaps : unsigned {
     none = 0,
     mappable = 1,
 };
-UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iodevcaps, uint32_t);
+UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iodevcaps, unsigned);
 
 class iodevice {
  public:

@@ -33,7 +33,7 @@ struct basic_devbuf<CharT, Alloc>::flexbuf_t {
         flexbuf_t* buf = al.allocate(alloc_sz);
         std::memset(buf, 0, sizeof(flexbuf_t));
         buf->alloc_sz = alloc_sz;
-        buf->sz = (alloc_sz * sizeof(flexbuf_t) - offsetof(flexbuf_t, data[0])) / sizeof(char_type);
+        buf->sz = (alloc_sz * sizeof(flexbuf_t) - offsetof(flexbuf_t, data)) / sizeof(char_type);
         assert(buf->sz >= sz && get_alloc_sz(buf->sz) == alloc_sz);
         return buf;
     }
