@@ -2,13 +2,19 @@
 
 #include "utility.h"
 
-#if __cplusplus >= 201703L
-#    if __has_include(<optional>)
-#        include <optional>
-#    endif
-#endif
+#if __cplusplus >= 201703L && UXS_HAS_INCLUDE(<optional>)
 
-#if !defined(__cpp_lib_optional)
+#    include <optional>
+
+namespace uxs {
+using nullopt_t = std::nullopt_t;
+constexpr nullopt_t nullopt() { return std::nullopt; }
+template<typename Ty>
+using optional = std::optional<Ty>;
+using bad_optional_access = std::bad_optional_access;
+}  // namespace uxs
+
+#else  // optional
 
 #    include <cassert>
 #    include <stdexcept>
@@ -112,16 +118,6 @@ class optional {
     value_type& val() { return *reinterpret_cast<value_type*>(&data_); }
 };
 
-}  // namespace uxs
-
-#else  // optional
-
-namespace uxs {
-using nullopt_t = std::nullopt_t;
-constexpr nullopt_t nullopt() { return std::nullopt; }
-template<typename Ty>
-using optional = std::optional<Ty>;
-using bad_optional_access = std::bad_optional_access;
 }  // namespace uxs
 
 #endif  // optional

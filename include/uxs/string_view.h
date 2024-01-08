@@ -2,20 +2,17 @@
 
 #include "common.h"
 
-#if __has_include(<string_view>)
+#if (__cplusplus >= 201703L || defined(_LIBCPP_VERSION)) && UXS_HAS_INCLUDE(<string_view>)
 #    include <string_view>
-#else
+#else  // string view
+
+#    include "iterator.h"
+
+#    include <algorithm>
+#    include <cassert>
+#    include <functional>
+#    include <stdexcept>
 #    include <string>
-
-#    if !defined(__cpp_lib_string_view)
-#        define __cpp_lib_string_view 201606L
-
-#        include "iterator.h"
-
-#        include <algorithm>
-#        include <cassert>
-#        include <functional>
-#        include <stdexcept>
 
 namespace std {
 template<typename CharT, typename Traits = std::char_traits<CharT>>
@@ -250,22 +247,21 @@ bool operator>=(const Ty& lhs, basic_string_view<CharT, Traits> rhs) {
 using string_view = basic_string_view<char>;
 using wstring_view = basic_string_view<wchar_t>;
 
-#        if defined(_MSC_VER)
+#    if defined(_MSC_VER)
 template<typename CharT, typename Traits>
 struct hash<basic_string_view<CharT, Traits>> {
     size_t operator()(basic_string_view<CharT, Traits> s) const {
         return _Hash_seq((const unsigned char*)s.data(), s.size());
     }
 };
-#        else   // defined(_MSC_VER)
+#    else   // defined(_MSC_VER)
 template<typename CharT, typename Traits>
 struct hash<basic_string_view<CharT, Traits>> {
     size_t operator()(basic_string_view<CharT, Traits> s) const {
         return std::hash<std::basic_string<CharT, Traits>>{}(static_cast<std::basic_string<CharT, Traits>>(s));
     }
 };
-#        endif  // defined(_MSC_VER)
+#    endif  // defined(_MSC_VER)
 }  // namespace std
 
-#    endif  // string view
-#endif
+#endif  // string view

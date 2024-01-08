@@ -2,13 +2,16 @@
 
 #include "utility.h"
 
-#if __cplusplus >= 201703L
-#    if __has_include(<span>)
-#        include <span>
-#    endif
-#endif
+#if __cplusplus >= 202002L && UXS_HAS_INCLUDE(<span>)
 
-#if !defined(__cpp_lib_span)
+#    include <span>
+
+namespace uxs {
+template<typename Ty>
+using span = std::span<Ty, std::dynamic_extent>;
+}
+
+#else  // span
 
 #    include "iterator.h"
 
@@ -76,13 +79,6 @@ class span {
 };
 
 }  // namespace uxs
-
-#else  // span
-
-namespace uxs {
-template<typename Ty>
-using span = std::span<Ty, std::dynamic_extent>;
-}
 
 #endif  // span
 
