@@ -19,13 +19,13 @@ bool ziparch::open(const char* name, iomode mode) {
             if (!!(mode & iomode::exclusive)) { oflag = (oflag & ~ZIP_TRUNCATE) | ZIP_EXCL; }
         }
     }
-    if (zip_) { zip_close(reinterpret_cast<zip_t*>(zip_)); }
+    if (zip_) { zip_close(static_cast<zip_t*>(zip_)); }
     return (zip_ = zip_open(name, oflag, &ziperr)) != nullptr;
 }
 
 void ziparch::close() {
     if (!zip_) { return; }
-    zip_close(reinterpret_cast<zip_t*>(zip_));
+    zip_close(static_cast<zip_t*>(zip_));
     zip_ = nullptr;
 }
 
@@ -33,7 +33,7 @@ bool ziparch::stat_size(const char* fname, uint64_t& sz) {
     if (!zip_) { return false; }
     zip_stat_t stat;
     zip_stat_init(&stat);
-    if (zip_stat(reinterpret_cast<zip_t*>(zip_), fname, ZIP_STAT_SIZE, &stat) != 0) { return false; }
+    if (zip_stat(static_cast<zip_t*>(zip_), fname, ZIP_STAT_SIZE, &stat) != 0) { return false; }
     sz = stat.size;
     return true;
 }
@@ -42,7 +42,7 @@ bool ziparch::stat_crc(const char* fname, uint32_t& crc) {
     if (!zip_) { return false; }
     zip_stat_t stat;
     zip_stat_init(&stat);
-    if (zip_stat(reinterpret_cast<zip_t*>(zip_), fname, ZIP_STAT_CRC, &stat) != 0) { return false; }
+    if (zip_stat(static_cast<zip_t*>(zip_), fname, ZIP_STAT_CRC, &stat) != 0) { return false; }
     crc = stat.crc;
     return true;
 }

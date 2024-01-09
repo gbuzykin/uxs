@@ -135,12 +135,12 @@ class arg_store {
     using char_type = typename StrTy::value_type;
     static const size_t arg_count = sizeof...(Args);
     explicit arg_store(const Args&... args) noexcept { store_values(0, arg_count * sizeof(unsigned), args...); }
-    const void* data() const noexcept { return reinterpret_cast<const void*>(&storage_); }
+    const void* data() const noexcept { return data_; }
 
  private:
     static const size_t storage_size = arg_store_size_evaluator<StrTy, arg_count * sizeof(unsigned), Args...>::value;
     static const size_t storage_alignment = arg_store_alignment_evaluator<StrTy, unsigned, Args...>::value;
-    typename std::aligned_storage<storage_size, storage_alignment>::type storage_;
+    alignas(storage_alignment) uint8_t data_[storage_size];
 
     template<typename Ty>
     static void store_value(const Ty& v,
@@ -189,9 +189,9 @@ class arg_store {
     template<typename Ty, typename... Ts>
     void store_values(size_t i, size_t offset, const Ty& v, const Ts&... other) noexcept {
         offset = uxs::align_up<arg_alignment<StrTy, Ty>::value>::value(offset);
-        ::new (reinterpret_cast<unsigned*>(&storage_) + i) unsigned(static_cast<unsigned>(offset << 8) |
-                                                                    static_cast<unsigned>(arg_type_id<Ty>::value));
-        store_value(v, reinterpret_cast<uint8_t*>(&storage_) + offset);
+        ::new (reinterpret_cast<unsigned*>(&data_) + i) unsigned(static_cast<unsigned>(offset << 8) |
+                                                                 static_cast<unsigned>(arg_type_id<Ty>::value));
+        store_value(v, &data_[offset]);
         store_values(i + 1, offset + arg_size<StrTy, Ty>::value, other...);
     }
 };
@@ -201,10 +201,10 @@ class arg_store<StrTy> {
  public:
     using char_type = typename StrTy::value_type;
     static const size_t arg_count = 0;
-    const void* data() const noexcept { return &storage_; }
+    const void* data() const noexcept { return &data_; }
 
  private:
-    uint8_t storage_ = 0;
+    uint8_t data_ = 0;
 };
 
 template<typename StrTy>

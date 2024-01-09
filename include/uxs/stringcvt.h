@@ -241,7 +241,7 @@ template<typename Ty, size_t InlineBufSize = 0, typename Alloc = std::allocator<
 class inline_basic_dynbuffer final : public basic_dynbuffer<Ty, Alloc> {
  public:
     inline_basic_dynbuffer()
-        : basic_dynbuffer<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), reinterpret_cast<Ty*>(&buf_[inline_buf_size])) {}
+        : basic_dynbuffer<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), reinterpret_cast<Ty*>(buf_) + inline_buf_size) {}
 
  private:
     enum : unsigned {
@@ -251,7 +251,7 @@ class inline_basic_dynbuffer final : public basic_dynbuffer<Ty, Alloc> {
         inline_buf_size = 7
 #endif  // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
     };
-    typename std::aligned_storage<sizeof(Ty), std::alignment_of<Ty>::value>::type buf_[inline_buf_size];
+    alignas(std::alignment_of<Ty>::value) uint8_t buf_[inline_buf_size * sizeof(Ty)];
 };
 
 using inline_dynbuffer = inline_basic_dynbuffer<char>;

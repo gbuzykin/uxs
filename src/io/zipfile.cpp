@@ -10,19 +10,19 @@ using namespace uxs;
 
 bool zipfile::open(ziparch& arch, const char* fname) {
     if (!arch.zip_) { return false; }
-    if (zip_fd_) { zip_fclose(reinterpret_cast<zip_file_t*>(zip_fd_)); }
-    return (zip_fd_ = zip_fopen(reinterpret_cast<zip_t*>(arch.zip_), fname, ZIP_FL_UNCHANGED)) != nullptr;
+    if (zip_fd_) { zip_fclose(static_cast<zip_file_t*>(zip_fd_)); }
+    return (zip_fd_ = zip_fopen(static_cast<zip_t*>(arch.zip_), fname, ZIP_FL_UNCHANGED)) != nullptr;
 }
 
 void zipfile::close() {
     if (!zip_fd_) { return; }
-    zip_fclose(reinterpret_cast<zip_file_t*>(zip_fd_));
+    zip_fclose(static_cast<zip_file_t*>(zip_fd_));
     zip_fd_ = nullptr;
 }
 
 int zipfile::read(void* buf, size_t sz, size_t& n_read) {
     if (!zip_fd_) { return -1; }
-    zip_int64_t result = zip_fread(reinterpret_cast<zip_file_t*>(zip_fd_), buf, sz);
+    zip_int64_t result = zip_fread(static_cast<zip_file_t*>(zip_fd_), buf, sz);
     if (result < 0) { return -1; }
     n_read = static_cast<size_t>(result);
     return 0;

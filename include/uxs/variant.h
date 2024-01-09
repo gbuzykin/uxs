@@ -96,7 +96,9 @@ struct variant_type_impl;
 class variant {
  private:
     template<typename... Ts>
-    using aligned_storage_t = typename std::aligned_storage<size_of<Ts...>::value, alignment_of<Ts...>::value>::type;
+    struct alignas(alignment_of<Ts...>::value) aligned_storage_t {
+        uint8_t x[size_of<Ts...>::value];
+    };
     using storage_t = aligned_storage_t<int64_t, double, void*, std::string>;
 
  public:
