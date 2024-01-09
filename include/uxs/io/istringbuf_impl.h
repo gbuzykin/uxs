@@ -24,22 +24,22 @@ typename basic_istringbuf<CharT>::pos_type basic_istringbuf<CharT>::seekimpl(off
     size_type pos = this->curr() - this->first(), new_pos = pos;
     switch (dir) {
         case seekdir::beg: {
-            if (off < 0) { return -1; }
+            if (off < 0) { return traits_type::npos(); }
             new_pos = static_cast<size_type>(off);
         } break;
         case seekdir::curr: {
             if (off == 0) { return pos; }
-            if (off < 0 && static_cast<size_t>(-off) >= new_pos) { return -1; }
+            if (off < 0 && static_cast<size_t>(-off) >= new_pos) { return traits_type::npos(); }
             new_pos += static_cast<size_type>(off);
         } break;
         case seekdir::end: {
             size_t sz = this->last() - this->first();
-            if (off < 0 && static_cast<size_t>(-off) >= sz) { return -1; }
+            if (off < 0 && static_cast<size_t>(-off) >= sz) { return traits_type::npos(); }
             new_pos = sz + static_cast<size_type>(off);
         } break;
     }
     this->setcurr(this->first() + new_pos);
-    return new_pos;
+    return static_cast<pos_type>(new_pos);
 }
 
 }  // namespace uxs
