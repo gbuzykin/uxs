@@ -34,14 +34,14 @@ class optional {
  public:
     using value_type = Ty;
 
-    optional() NOEXCEPT {}
-    optional(nullopt_t) NOEXCEPT {}
+    optional() noexcept {}
+    optional(nullopt_t) noexcept {}
 
     optional(const optional& other) : valid_(other.valid_) {
         if (valid_) { new (&data_) value_type(other.val()); }
     }
 
-    optional(optional&& other) NOEXCEPT : valid_(other.valid_) {
+    optional(optional&& other) noexcept : valid_(other.valid_) {
         if (valid_) { new (&data_) value_type(std::move(other.val())); }
     }
 
@@ -74,10 +74,10 @@ class optional {
     optional& operator=(const optional&) = delete;
     optional& operator=(optional&&) = delete;
 
-    bool has_value() const NOEXCEPT { return valid_; }
-    explicit operator bool() const NOEXCEPT { return valid_; }
+    bool has_value() const noexcept { return valid_; }
+    explicit operator bool() const noexcept { return valid_; }
 
-    void reset() NOEXCEPT {
+    void reset() noexcept {
         if (valid_) { val().~value_type(); }
         valid_ = false;
     }
@@ -97,18 +97,18 @@ class optional {
         return valid_ ? val() : value_type(std::forward<U>(def));
     }
 
-    const Ty& operator*() const NOEXCEPT {
+    const Ty& operator*() const noexcept {
         assert(valid_);
         return val();
     }
 
-    Ty& operator*() NOEXCEPT {
+    Ty& operator*() noexcept {
         assert(valid_);
         return val();
     }
 
-    const Ty* operator->() const NOEXCEPT { return std::addressof(**this); }
-    Ty* operator->() NOEXCEPT { return std::addressof(**this); }
+    const Ty* operator->() const noexcept { return std::addressof(**this); }
+    Ty* operator->() noexcept { return std::addressof(**this); }
 
  private:
     bool valid_ = false;

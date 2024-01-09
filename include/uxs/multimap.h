@@ -31,16 +31,16 @@ class multimap : public detail::rbtree_multi<detail::map_node_traits<Key, Ty>, A
     using iterator = typename super::iterator;
     using const_iterator = typename super::const_iterator;
 
-    multimap() NOEXCEPT_IF(noexcept(super())) : super() {}
-    explicit multimap(const allocator_type& alloc) NOEXCEPT_IF(noexcept(super(alloc))) : super(alloc) {}
+    multimap() noexcept(noexcept(super())) : super() {}
+    explicit multimap(const allocator_type& alloc) noexcept(noexcept(super(alloc))) : super(alloc) {}
     explicit multimap(const key_compare& comp, const allocator_type& alloc = allocator_type()) : super(comp, alloc) {}
 
 #if __cplusplus < 201703L
     ~multimap() = default;
     multimap(const multimap&) = default;
     multimap& operator=(const multimap&) = default;
-    multimap(multimap&& other) NOEXCEPT_IF(noexcept(super(std::move(other)))) : super(std::move(other)) {}
-    multimap& operator=(multimap&& other) NOEXCEPT_IF(std::is_nothrow_move_assignable<super>::value) {
+    multimap(multimap&& other) noexcept(noexcept(super(std::move(other)))) : super(std::move(other)) {}
+    multimap& operator=(multimap&& other) noexcept(std::is_nothrow_move_assignable<super>::value) {
         super::operator=(std::move(other));
         return *this;
     }
@@ -94,10 +94,10 @@ class multimap : public detail::rbtree_multi<detail::map_node_traits<Key, Ty>, A
     }
 
     multimap(const multimap& other, const allocator_type& alloc) : super(other, alloc) {}
-    multimap(multimap&& other, const allocator_type& alloc) NOEXCEPT_IF(noexcept(super(std::move(other), alloc)))
+    multimap(multimap&& other, const allocator_type& alloc) noexcept(noexcept(super(std::move(other), alloc)))
         : super(std::move(other), alloc) {}
 
-    void swap(multimap& other) NOEXCEPT_IF(std::is_nothrow_swappable<key_compare>::value) {
+    void swap(multimap& other) noexcept(std::is_nothrow_swappable<key_compare>::value) {
         if (std::addressof(other) == this) { return; }
         this->swap_impl(other, typename alloc_traits::propagate_on_container_swap());
     }
@@ -173,8 +173,8 @@ bool operator>=(const multimap<Key, Ty, Comp, Alloc>& lhs, const multimap<Key, T
 
 namespace std {
 template<typename Key, typename Ty, typename Comp, typename Alloc>
-void swap(uxs::multimap<Key, Ty, Comp, Alloc>& m1, uxs::multimap<Key, Ty, Comp, Alloc>& m2)
-    NOEXCEPT_IF(NOEXCEPT_IF(m1.swap(m2))) {
+void swap(uxs::multimap<Key, Ty, Comp, Alloc>& m1,
+          uxs::multimap<Key, Ty, Comp, Alloc>& m2) noexcept(noexcept(m1.swap(m2))) {
     m1.swap(m2);
 }
 }  // namespace std

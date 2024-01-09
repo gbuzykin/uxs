@@ -37,33 +37,32 @@ class zip_iterator
     using reference = typename super::reference;
     using difference_type = typename super::difference_type;
 
-    zip_iterator() NOEXCEPT {}
-    zip_iterator(Iter... curr) NOEXCEPT : curr_(std::make_tuple(curr...)) {}
+    zip_iterator() noexcept {}
+    zip_iterator(Iter... curr) noexcept : curr_(std::make_tuple(curr...)) {}
 
-    void increment() NOEXCEPT_IF(NOEXCEPT_IF(this->increment_impl(std::index_sequence_for<Iter...>{}))) {
+    void increment() noexcept(noexcept(this->increment_impl(std::index_sequence_for<Iter...>{}))) {
         increment_impl(std::index_sequence_for<Iter...>{});
     }
 
-    void decrement() NOEXCEPT_IF(NOEXCEPT_IF(this->decrement_impl(std::index_sequence_for<Iter...>{}))) {
+    void decrement() noexcept(noexcept(this->decrement_impl(std::index_sequence_for<Iter...>{}))) {
         decrement_impl(std::index_sequence_for<Iter...>{});
     }
 
-    void advance(difference_type j)
-        NOEXCEPT_IF(NOEXCEPT_IF(this->advance_impl(j, std::index_sequence_for<Iter...>{}))) {
+    void advance(difference_type j) noexcept(noexcept(this->advance_impl(j, std::index_sequence_for<Iter...>{}))) {
         advance_impl(j, std::index_sequence_for<Iter...>{});
     }
 
-    reference dereference() const NOEXCEPT { return dereference_impl(std::index_sequence_for<Iter...>{}); }
+    reference dereference() const noexcept { return dereference_impl(std::index_sequence_for<Iter...>{}); }
 
-    bool is_equal_to(const zip_iterator& it) const NOEXCEPT {
+    bool is_equal_to(const zip_iterator& it) const noexcept {
         return is_equal_to_impl(it, std::index_sequence_for<Iter...>{});
     }
 
-    bool is_less_than(const zip_iterator& it) const NOEXCEPT {
+    bool is_less_than(const zip_iterator& it) const noexcept {
         return is_less_than_impl(it, std::index_sequence_for<Iter...>{});
     }
 
-    difference_type distance_to(const zip_iterator& it) const NOEXCEPT {
+    difference_type distance_to(const zip_iterator& it) const noexcept {
         return distance_to_impl(it, std::index_sequence_for<Iter...>{});
     }
 
@@ -76,51 +75,51 @@ class zip_iterator
     std::tuple<Iter...> curr_;
 
     template<size_t... Indices>
-    void increment_impl(std::index_sequence<Indices...>)
-        NOEXCEPT_IF(std::conjunction<std::bool_constant<NOEXCEPT_IF(++std::get<Indices>(curr_))>...>::value) {
+    void increment_impl(std::index_sequence<Indices...>) noexcept(
+        std::conjunction<std::bool_constant<noexcept(++std::get<Indices>(curr_))>...>::value) {
         detail::dummy_variadic(++std::get<Indices>(curr_)...);
     }
 
     template<size_t... Indices>
-    void decrement_impl(std::index_sequence<Indices...>)
-        NOEXCEPT_IF(std::conjunction<std::bool_constant<NOEXCEPT_IF(--std::get<Indices>(curr_))>...>::value) {
+    void decrement_impl(std::index_sequence<Indices...>) noexcept(
+        std::conjunction<std::bool_constant<noexcept(--std::get<Indices>(curr_))>...>::value) {
         detail::dummy_variadic(--std::get<Indices>(curr_)...);
     }
 
     template<size_t... Indices>
-    void advance_impl(difference_type j, std::index_sequence<Indices...>)
-        NOEXCEPT_IF(std::conjunction<std::bool_constant<NOEXCEPT_IF(std::get<Indices>(curr_) += j)>...>::value) {
+    void advance_impl(difference_type j, std::index_sequence<Indices...>) noexcept(
+        std::conjunction<std::bool_constant<noexcept(std::get<Indices>(curr_) += j)>...>::value) {
         detail::dummy_variadic(std::get<Indices>(curr_) += j...);
     }
 
     template<size_t... Indices>
-    reference dereference_impl(std::index_sequence<Indices...>) const NOEXCEPT {
+    reference dereference_impl(std::index_sequence<Indices...>) const noexcept {
         return std::forward_as_tuple(*std::get<Indices>(curr_)...);
     }
 
     template<size_t... Indices>
-    bool is_equal_to_impl(const zip_iterator& it, std::index_sequence<Indices...>) const NOEXCEPT {
+    bool is_equal_to_impl(const zip_iterator& it, std::index_sequence<Indices...>) const noexcept {
         return detail::or_variadic(std::get<Indices>(curr_) == std::get<Indices>(it.curr_)...);
     }
 
     template<size_t... Indices>
-    bool is_less_than_impl(const zip_iterator& it, std::index_sequence<Indices...>) const NOEXCEPT {
+    bool is_less_than_impl(const zip_iterator& it, std::index_sequence<Indices...>) const noexcept {
         return detail::and_variadic(std::get<Indices>(curr_) < std::get<Indices>(it.curr_)...);
     }
 
     template<size_t... Indices>
-    difference_type distance_to_impl(const zip_iterator& it, std::index_sequence<Indices...>) const NOEXCEPT {
+    difference_type distance_to_impl(const zip_iterator& it, std::index_sequence<Indices...>) const noexcept {
         return std::min({std::distance(std::get<Indices>(curr_), std::get<Indices>(it.curr_))...});
     }
 };
 
 template<typename... Iter>
-zip_iterator<Iter...> make_zip_iterator(Iter... its) NOEXCEPT {
+zip_iterator<Iter...> make_zip_iterator(Iter... its) noexcept {
     return zip_iterator<Iter...>(its...);
 }
 
 template<typename... Range>
-auto zip(Range&&... r) NOEXCEPT -> iterator_range<zip_iterator<decltype(std::end(r))...>> {
+auto zip(Range&&... r) noexcept -> iterator_range<zip_iterator<decltype(std::end(r))...>> {
     return {zip_iterator<decltype(std::end(r))...>(std::begin(r)...),
             zip_iterator<decltype(std::end(r))...>(std::end(r)...)};
 }

@@ -72,10 +72,8 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
-    list() NOEXCEPT_IF(std::is_nothrow_default_constructible<alloc_type>::value) : alloc_type(allocator_type()) {
-        init();
-    }
-    explicit list(const allocator_type& alloc) NOEXCEPT : alloc_type(alloc) { init(); }
+    list() noexcept(std::is_nothrow_default_constructible<alloc_type>::value) : alloc_type(allocator_type()) { init(); }
+    explicit list(const allocator_type& alloc) noexcept : alloc_type(alloc) { init(); }
     explicit list(size_type sz, const allocator_type& alloc = allocator_type()) : alloc_type(alloc) {
         try {
             init();
@@ -149,18 +147,18 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
         return *this;
     }
 
-    list(list&& other) NOEXCEPT : alloc_type(std::move(other)) {
+    list(list&& other) noexcept : alloc_type(std::move(other)) {
         init();
         steal_data(other);
     }
 
-    list(list&& other, const allocator_type& alloc) NOEXCEPT_IF(is_alloc_always_equal<alloc_type>::value)
+    list(list&& other, const allocator_type& alloc) noexcept(is_alloc_always_equal<alloc_type>::value)
         : alloc_type(alloc) {
         construct_impl(std::move(other), alloc, is_alloc_always_equal<alloc_type>());
     }
 
-    list& operator=(list&& other) NOEXCEPT_IF(alloc_traits::propagate_on_container_move_assignment::value ||
-                                              is_alloc_always_equal<alloc_type>::value) {
+    list& operator=(list&& other) noexcept(alloc_traits::propagate_on_container_move_assignment::value ||
+                                           is_alloc_always_equal<alloc_type>::value) {
         if (std::addressof(other) == this) { return *this; }
         assign_impl(std::move(other), std::bool_constant<(alloc_traits::propagate_on_container_move_assignment::value ||
                                                           is_alloc_always_equal<alloc_type>::value)>());
@@ -169,32 +167,32 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
 
     ~list() { tidy(); }
 
-    void swap(list& other) NOEXCEPT {
+    void swap(list& other) noexcept {
         if (std::addressof(other) == this) { return; }
         swap_impl(other, typename alloc_traits::propagate_on_container_swap());
     }
 
-    allocator_type get_allocator() const NOEXCEPT { return allocator_type(*this); }
+    allocator_type get_allocator() const noexcept { return allocator_type(*this); }
 
-    bool empty() const NOEXCEPT { return size_ == 0; }
-    size_type size() const NOEXCEPT { return size_; }
-    size_type max_size() const NOEXCEPT { return alloc_traits::max_size(*this); }
+    bool empty() const noexcept { return size_ == 0; }
+    size_type size() const noexcept { return size_; }
+    size_type max_size() const noexcept { return alloc_traits::max_size(*this); }
 
-    iterator begin() NOEXCEPT { return iterator(head_.next); }
-    const_iterator begin() const NOEXCEPT { return const_iterator(head_.next); }
-    const_iterator cbegin() const NOEXCEPT { return const_iterator(head_.next); }
+    iterator begin() noexcept { return iterator(head_.next); }
+    const_iterator begin() const noexcept { return const_iterator(head_.next); }
+    const_iterator cbegin() const noexcept { return const_iterator(head_.next); }
 
-    iterator end() NOEXCEPT { return iterator(std::addressof(head_)); }
-    const_iterator end() const NOEXCEPT { return const_iterator(std::addressof(head_)); }
-    const_iterator cend() const NOEXCEPT { return const_iterator(std::addressof(head_)); }
+    iterator end() noexcept { return iterator(std::addressof(head_)); }
+    const_iterator end() const noexcept { return const_iterator(std::addressof(head_)); }
+    const_iterator cend() const noexcept { return const_iterator(std::addressof(head_)); }
 
-    reverse_iterator rbegin() NOEXCEPT { return reverse_iterator(end()); }
-    const_reverse_iterator rbegin() const NOEXCEPT { return const_reverse_iterator(end()); }
-    const_reverse_iterator crbegin() const NOEXCEPT { return const_reverse_iterator(end()); }
+    reverse_iterator rbegin() noexcept { return reverse_iterator(end()); }
+    const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
+    const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(end()); }
 
-    reverse_iterator rend() NOEXCEPT { return reverse_iterator(begin()); }
-    const_reverse_iterator rend() const NOEXCEPT { return const_reverse_iterator(begin()); }
-    const_reverse_iterator crend() const NOEXCEPT { return const_reverse_iterator(begin()); }
+    reverse_iterator rend() noexcept { return reverse_iterator(begin()); }
+    const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
+    const_reverse_iterator crend() const noexcept { return const_reverse_iterator(begin()); }
 
     reference front() {
         assert(size_);
@@ -223,7 +221,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
         assign_range(first, last);
     }
 
-    void clear() NOEXCEPT { tidy(); }
+    void clear() noexcept { tidy(); }
 
     void resize(size_type sz) {
         if (sz < size_) {
@@ -511,7 +509,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
         node_traits::set_head(head_.next, std::addressof(head_), std::addressof(head_));
     }
 
-    void construct_impl(list&& other, const allocator_type& alloc, std::true_type) NOEXCEPT {
+    void construct_impl(list&& other, const allocator_type& alloc, std::true_type) noexcept {
         init();
         steal_data(other);
     }
@@ -543,7 +541,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
         }
     }
 
-    void assign_impl(list&& other, std::true_type) NOEXCEPT {
+    void assign_impl(list&& other, std::true_type) noexcept {
         tidy();
         if (alloc_traits::propagate_on_container_move_assignment::value) { alloc_type::operator=(std::move(other)); }
         steal_data(other);
@@ -558,12 +556,12 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
         }
     }
 
-    void swap_impl(list& other, std::true_type) NOEXCEPT {
+    void swap_impl(list& other, std::true_type) noexcept {
         std::swap(static_cast<alloc_type&>(*this), static_cast<alloc_type&>(other));
         swap_impl(other, std::false_type());
     }
 
-    void swap_impl(list& other, std::false_type) NOEXCEPT {
+    void swap_impl(list& other, std::false_type) noexcept {
         if (!size_) {
             steal_data(other);
             return;
@@ -856,7 +854,7 @@ bool operator>=(const list<Ty, Alloc>& lhs, const list<Ty, Alloc>& rhs) {
 
 namespace std {
 template<typename Ty, typename Alloc>
-void swap(uxs::list<Ty, Alloc>& l1, uxs::list<Ty, Alloc>& l2) NOEXCEPT_IF(NOEXCEPT_IF(l1.swap(l2))) {
+void swap(uxs::list<Ty, Alloc>& l1, uxs::list<Ty, Alloc>& l2) noexcept(noexcept(l1.swap(l2))) {
     l1.swap(l2);
 }
 }  // namespace std

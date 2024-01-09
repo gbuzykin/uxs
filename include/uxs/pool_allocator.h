@@ -245,17 +245,17 @@ class pool_allocator {
     ~pool_allocator() = default;
 
     template<typename Ty2>
-    pool_allocator(const pool_allocator<Ty2, Alloc>& other) NOEXCEPT : pool_(other.pool_) {}
+    pool_allocator(const pool_allocator<Ty2, Alloc>& other) noexcept : pool_(other.pool_) {}
     template<typename Ty2>
-    pool_allocator& operator=(const pool_allocator<Ty2, Alloc>& other) NOEXCEPT {
+    pool_allocator& operator=(const pool_allocator<Ty2, Alloc>& other) noexcept {
         if (&other != this) { pool_ = other.pool_; }
         return *this;
     }
 
-    pool_allocator select_on_container_copy_construction() const NOEXCEPT { return *this; }
-    base_allocator get_base_allocator() const NOEXCEPT { return base_allocator(*pool_.desc()); }
+    pool_allocator select_on_container_copy_construction() const noexcept { return *this; }
+    base_allocator get_base_allocator() const noexcept { return base_allocator(*pool_.desc()); }
 
-    void swap(pool_allocator& other) NOEXCEPT { pool_.swap(other.pool_); }
+    void swap(pool_allocator& other) noexcept { pool_.swap(other.pool_); }
 
     Ty* allocate(size_t sz) {
         if (sz == 1) { return reinterpret_cast<Ty*>(pool_.template allocate<Ty>()); }
@@ -273,7 +273,7 @@ class pool_allocator {
     }
 
     template<typename Ty2>
-    bool is_equal_to(const pool_allocator<Ty2, Alloc>& other) const NOEXCEPT {
+    bool is_equal_to(const pool_allocator<Ty2, Alloc>& other) const noexcept {
         return pool_.is_equal_to(other.pool_);
     }
 
@@ -284,11 +284,11 @@ class pool_allocator {
 };
 
 template<typename TyL, typename TyR, typename Alloc>
-bool operator==(const pool_allocator<TyL, Alloc>& lhs, const pool_allocator<TyR, Alloc>& rhs) NOEXCEPT {
+bool operator==(const pool_allocator<TyL, Alloc>& lhs, const pool_allocator<TyR, Alloc>& rhs) noexcept {
     return lhs.is_equal_to(rhs);
 }
 template<typename TyL, typename TyR, typename Alloc>
-bool operator!=(const pool_allocator<TyL, Alloc>& lhs, const pool_allocator<TyR, Alloc>& rhs) NOEXCEPT {
+bool operator!=(const pool_allocator<TyL, Alloc>& lhs, const pool_allocator<TyR, Alloc>& rhs) noexcept {
     return !(lhs == rhs);
 }
 
@@ -303,18 +303,18 @@ class global_pool_allocator {
     using propagate_on_container_swap = std::true_type;
     using is_always_equal = std::true_type;
 
-    global_pool_allocator() NOEXCEPT {}
+    global_pool_allocator() noexcept {}
     ~global_pool_allocator() = default;
 
     template<typename Ty2>
-    global_pool_allocator(const global_pool_allocator<Ty2>&) NOEXCEPT {}
+    global_pool_allocator(const global_pool_allocator<Ty2>&) noexcept {}
     template<typename Ty2>
-    global_pool_allocator& operator=(const global_pool_allocator<Ty2>&) NOEXCEPT {
+    global_pool_allocator& operator=(const global_pool_allocator<Ty2>&) noexcept {
         return *this;
     }
 
-    global_pool_allocator select_on_container_copy_construction() const NOEXCEPT { return *this; }
-    base_allocator get_base_allocator() const NOEXCEPT { return {}; }
+    global_pool_allocator select_on_container_copy_construction() const noexcept { return *this; }
+    base_allocator get_base_allocator() const noexcept { return {}; }
 
     Ty* allocate(size_t sz) {
         if (sz == 1) {
@@ -334,11 +334,11 @@ class global_pool_allocator {
 };
 
 template<typename TyL, typename TyR>
-bool operator==(const global_pool_allocator<TyL>& lhs, const global_pool_allocator<TyR>& rhs) NOEXCEPT {
+bool operator==(const global_pool_allocator<TyL>& lhs, const global_pool_allocator<TyR>& rhs) noexcept {
     return true;
 }
 template<typename TyL, typename TyR>
-bool operator!=(const global_pool_allocator<TyL>& lhs, const global_pool_allocator<TyR>& rhs) NOEXCEPT {
+bool operator!=(const global_pool_allocator<TyL>& lhs, const global_pool_allocator<TyR>& rhs) noexcept {
     return !(lhs == rhs);
 }
 
@@ -346,10 +346,9 @@ bool operator!=(const global_pool_allocator<TyL>& lhs, const global_pool_allocat
 
 namespace std {
 template<typename Ty, typename Alloc>
-void swap(uxs::pool_allocator<Ty, Alloc>& a1, uxs::pool_allocator<Ty, Alloc>& a2)
-    NOEXCEPT_IF(NOEXCEPT_IF(a1.swap(a2))) {
+void swap(uxs::pool_allocator<Ty, Alloc>& a1, uxs::pool_allocator<Ty, Alloc>& a2) noexcept(noexcept(a1.swap(a2))) {
     a1.swap(a2);
 }
 template<typename Ty>
-void swap(uxs::global_pool_allocator<Ty>& a1, uxs::global_pool_allocator<Ty>& a2) NOEXCEPT {}
+void swap(uxs::global_pool_allocator<Ty>& a1, uxs::global_pool_allocator<Ty>& a2) noexcept {}
 }  // namespace std

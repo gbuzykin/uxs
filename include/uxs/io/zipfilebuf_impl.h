@@ -10,8 +10,8 @@ basic_zipfilebuf<CharT>::~basic_zipfilebuf() {
 }
 
 template<typename CharT>
-basic_zipfilebuf<CharT>::basic_zipfilebuf(basic_zipfilebuf&& other) NOEXCEPT : basic_devbuf<CharT>(std::move(other)),
-                                                                               zip_file_(std::move(other.zip_file_)) {
+basic_zipfilebuf<CharT>::basic_zipfilebuf(basic_zipfilebuf&& other) noexcept
+    : basic_devbuf<CharT>(std::move(other)), zip_file_(std::move(other.zip_file_)) {
     this->setdev(&zip_file_);
 }
 

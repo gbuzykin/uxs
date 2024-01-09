@@ -266,8 +266,8 @@ class basic_node_wrapper {
     ~basic_node_wrapper() = default;
     basic_node_wrapper(const basic_node_wrapper&) = delete;
     basic_node_wrapper& operator=(const basic_node_wrapper&) = delete;
-    basic_node_wrapper(basic_node_wrapper&& node) NOEXCEPT : ptr_(std::move(node.ptr_)) {}
-    basic_node_wrapper& operator=(basic_node_wrapper&& node) NOEXCEPT {
+    basic_node_wrapper(basic_node_wrapper&& node) noexcept : ptr_(std::move(node.ptr_)) {}
+    basic_node_wrapper& operator=(basic_node_wrapper&& node) noexcept {
         ptr_ = std::move(node.ptr_);
         return *this;
     }
@@ -288,8 +288,8 @@ class basic_value_wrapper : public basic_node_wrapper<CharT> {
         : basic_node_wrapper<CharT>(detail::make_unique<basic_value<CharT>>(std::move(label), std::move(fn))) {}
 #if __cplusplus < 201703L
     ~basic_value_wrapper() = default;
-    basic_value_wrapper(basic_value_wrapper&& other) NOEXCEPT : basic_node_wrapper<CharT>(std::move(other)) {}
-    basic_value_wrapper& operator=(basic_value_wrapper&& other) NOEXCEPT {
+    basic_value_wrapper(basic_value_wrapper&& other) noexcept : basic_node_wrapper<CharT>(std::move(other)) {}
+    basic_value_wrapper& operator=(basic_value_wrapper&& other) noexcept {
         basic_node_wrapper<CharT>::operator=(std::move(other));
         return *this;
     }
@@ -330,9 +330,9 @@ class basic_option_node_wrapper : public basic_node_wrapper<CharT> {
  public:
 #if __cplusplus < 201703L
     ~basic_option_node_wrapper() = default;
-    basic_option_node_wrapper(basic_option_node_wrapper&& other) NOEXCEPT
+    basic_option_node_wrapper(basic_option_node_wrapper&& other) noexcept
         : basic_node_wrapper<CharT>(std::move(other)) {}
-    basic_option_node_wrapper& operator=(basic_option_node_wrapper&& other) NOEXCEPT {
+    basic_option_node_wrapper& operator=(basic_option_node_wrapper&& other) noexcept {
         basic_node_wrapper<CharT>::operator=(std::move(other));
         return *this;
     }
@@ -408,8 +408,8 @@ class basic_option_wrapper : public basic_option_node_wrapper<CharT> {
         : basic_option_node_wrapper<CharT>(detail::make_unique<basic_option<CharT>>(keys)) {}
 #if __cplusplus < 201703L
     ~basic_option_wrapper() = default;
-    basic_option_wrapper(basic_option_wrapper&& other) NOEXCEPT : basic_option_node_wrapper<CharT>(std::move(other)) {}
-    basic_option_wrapper& operator=(basic_option_wrapper&& other) NOEXCEPT {
+    basic_option_wrapper(basic_option_wrapper&& other) noexcept : basic_option_node_wrapper<CharT>(std::move(other)) {}
+    basic_option_wrapper& operator=(basic_option_wrapper&& other) noexcept {
         basic_option_node_wrapper<CharT>::operator=(std::move(other));
         return *this;
     }
@@ -470,8 +470,8 @@ class basic_command_wrapper : public basic_node_wrapper<CharT> {
         : basic_node_wrapper<CharT>(detail::make_unique<basic_command<CharT>>(std::move(name))) {}
 #if __cplusplus < 201703L
     ~basic_command_wrapper() = default;
-    basic_command_wrapper(basic_command_wrapper&& other) NOEXCEPT : basic_node_wrapper<CharT>(std::move(other)) {}
-    basic_command_wrapper& operator=(basic_command_wrapper&& other) NOEXCEPT {
+    basic_command_wrapper(basic_command_wrapper&& other) noexcept : basic_node_wrapper<CharT>(std::move(other)) {}
+    basic_command_wrapper& operator=(basic_command_wrapper&& other) noexcept {
         basic_node_wrapper<CharT>::operator=(std::move(other));
         return *this;
     }

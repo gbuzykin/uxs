@@ -11,8 +11,8 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC zipfile : public iodevice {
     zipfile(ziparch& arch, const char* fname) { open(arch, fname); }
     zipfile(ziparch& arch, const wchar_t* fname) { open(arch, fname); }
     ~zipfile() override { close(); }
-    zipfile(zipfile&& other) NOEXCEPT : zip_fd_(other.zip_fd_) { other.zip_fd_ = nullptr; }
-    zipfile& operator=(zipfile&& other) NOEXCEPT {
+    zipfile(zipfile&& other) noexcept : zip_fd_(other.zip_fd_) { other.zip_fd_ = nullptr; }
+    zipfile& operator=(zipfile&& other) noexcept {
         if (&other == this) { return *this; }
         zip_fd_ = other.zip_fd_;
         other.zip_fd_ = nullptr;

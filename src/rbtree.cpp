@@ -2,7 +2,7 @@
 
 using namespace uxs;
 
-inline rbtree_node_t* rbtree_right_parent(rbtree_node_t* node) NOEXCEPT {
+inline rbtree_node_t* rbtree_right_parent(rbtree_node_t* node) noexcept {
     rbtree_node_t* parent = node->parent;
     while (node != parent->left) {
         node = parent;
@@ -11,7 +11,7 @@ inline rbtree_node_t* rbtree_right_parent(rbtree_node_t* node) NOEXCEPT {
     return parent;
 }
 
-inline rbtree_node_t* rbtree_left_parent(rbtree_node_t* node) NOEXCEPT {
+inline rbtree_node_t* rbtree_left_parent(rbtree_node_t* node) noexcept {
     rbtree_node_t* parent = node->parent;
     while (node == parent->left) {
         node = parent;
@@ -20,7 +20,7 @@ inline rbtree_node_t* rbtree_left_parent(rbtree_node_t* node) NOEXCEPT {
     return parent;
 }
 
-inline void rbtree_rotate_left(rbtree_node_t* node) NOEXCEPT {
+inline void rbtree_rotate_left(rbtree_node_t* node) noexcept {
     rbtree_node_t* right = node->right;
     node->right = right->left;
     right->parent = node->parent;
@@ -34,7 +34,7 @@ inline void rbtree_rotate_left(rbtree_node_t* node) NOEXCEPT {
     node->parent = right;
 }
 
-inline void rbtree_rotate_right(rbtree_node_t* node) NOEXCEPT {
+inline void rbtree_rotate_right(rbtree_node_t* node) noexcept {
     rbtree_node_t* left = node->left;
     node->left = left->right;
     left->parent = node->parent;
@@ -48,17 +48,17 @@ inline void rbtree_rotate_right(rbtree_node_t* node) NOEXCEPT {
     node->parent = left;
 }
 
-NOALIAS rbtree_node_t* uxs::rbtree_next(rbtree_node_t* node) NOEXCEPT {
+NOALIAS rbtree_node_t* uxs::rbtree_next(rbtree_node_t* node) noexcept {
     if (node->right) { return rbtree_left_bound(node->right); }
     return rbtree_right_parent(node);
 }
 
-NOALIAS rbtree_node_t* uxs::rbtree_prev(rbtree_node_t* node) NOEXCEPT {
+NOALIAS rbtree_node_t* uxs::rbtree_prev(rbtree_node_t* node) noexcept {
     if (node->left) { return rbtree_right_bound(node->left); }
     return rbtree_left_parent(node);
 }
 
-void uxs::rbtree_insert(rbtree_node_t* head, rbtree_node_t* node, rbtree_node_t* pos, int dir) NOEXCEPT {
+void uxs::rbtree_insert(rbtree_node_t* head, rbtree_node_t* node, rbtree_node_t* pos, int dir) noexcept {
     node->left = node->right = nullptr;
     node->parent = pos;
     node->color = rbtree_node_t::color_t::red;
@@ -109,7 +109,7 @@ void uxs::rbtree_insert(rbtree_node_t* head, rbtree_node_t* node, rbtree_node_t*
     head->left->color = rbtree_node_t::color_t::black;
 }
 
-rbtree_node_t* uxs::rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos) NOEXCEPT {
+rbtree_node_t* uxs::rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos) noexcept {
     rbtree_node_t* fix = pos->right;
     rbtree_node_t* parent = pos->parent;
     rbtree_node_t::color_t color = pos->color;

@@ -10,8 +10,8 @@ basic_filebuf<CharT>::~basic_filebuf() {
 }
 
 template<typename CharT>
-basic_filebuf<CharT>::basic_filebuf(basic_filebuf&& other) NOEXCEPT : basic_devbuf<CharT>(std::move(other)),
-                                                                      file_(std::move(other.file_)) {
+basic_filebuf<CharT>::basic_filebuf(basic_filebuf&& other) noexcept
+    : basic_devbuf<CharT>(std::move(other)), file_(std::move(other.file_)) {
     this->setdev(&file_);
 }
 

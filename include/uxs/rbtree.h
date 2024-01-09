@@ -31,8 +31,8 @@ inline rbtree_node_t* rbtree_left_bound(rbtree_node_t* node) {
     return node;
 }
 
-UXS_EXPORT NOALIAS rbtree_node_t* rbtree_next(rbtree_node_t* node) NOEXCEPT;
-UXS_EXPORT NOALIAS rbtree_node_t* rbtree_prev(rbtree_node_t* node) NOEXCEPT;
+UXS_EXPORT NOALIAS rbtree_node_t* rbtree_next(rbtree_node_t* node) noexcept;
+UXS_EXPORT NOALIAS rbtree_node_t* rbtree_prev(rbtree_node_t* node) noexcept;
 
 template<typename Traits, typename Key, typename Comp>
 std::pair<rbtree_node_t*, int> rbtree_find_insert_pos(rbtree_node_t* head, const Key& k, const Comp& comp) {
@@ -199,7 +199,7 @@ std::pair<rbtree_node_t*, rbtree_node_t*> rbtree_equal_range(rbtree_node_t* head
     return std::make_pair(head, head);
 }
 
-UXS_EXPORT void rbtree_insert(rbtree_node_t* head, rbtree_node_t* node, rbtree_node_t* pos, int dir) NOEXCEPT;
-UXS_EXPORT rbtree_node_t* rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos) NOEXCEPT;
+UXS_EXPORT void rbtree_insert(rbtree_node_t* head, rbtree_node_t* node, rbtree_node_t* pos, int dir) noexcept;
+UXS_EXPORT rbtree_node_t* rbtree_remove(rbtree_node_t* head, rbtree_node_t* pos) noexcept;
 
 }  // namespace uxs

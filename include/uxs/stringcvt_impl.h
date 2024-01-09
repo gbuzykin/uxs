@@ -121,7 +121,7 @@ inline unsigned ulog2(uint64_t x) {
 // ---- from string to value
 
 template<typename CharT>
-const CharT* starts_with(const CharT* p, const CharT* end, std::basic_string_view<CharT> s) NOEXCEPT {
+const CharT* starts_with(const CharT* p, const CharT* end, std::basic_string_view<CharT> s) noexcept {
     if (static_cast<size_t>(end - p) < s.size()) { return p; }
     const CharT* p_s = s.data();
     for (const CharT* p1 = p; p1 < end; ++p1, ++p_s) {
@@ -131,7 +131,7 @@ const CharT* starts_with(const CharT* p, const CharT* end, std::basic_string_vie
 }
 
 template<typename Ty, typename CharT>
-Ty to_boolean(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
+Ty to_boolean(const CharT* p, const CharT* end, const CharT*& last) noexcept {
     unsigned dig = 0;
     const CharT* p0 = p;
     bool val = false;
@@ -148,7 +148,7 @@ Ty to_boolean(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
 }
 
 template<typename Ty, typename CharT>
-Ty to_integral_common(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) NOEXCEPT {
+Ty to_integral_common(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) noexcept {
     bool neg = false;
     last = p;
     if (p == end) {
@@ -190,7 +190,7 @@ struct fp10_t {
 UXS_EXPORT uint64_t bignum_mul32(uint64_t* x, unsigned sz, uint32_t mul, uint32_t bias);
 
 template<typename CharT>
-const CharT* accum_mantissa(const CharT* p, const CharT* end, fp10_t& fp10) NOEXCEPT {
+const CharT* accum_mantissa(const CharT* p, const CharT* end, fp10_t& fp10) noexcept {
     SCVT_CONSTEXPR_DATA uint64_t short_lim = 1000000000000000000ull;
     uint64_t* m10 = &fp10.bits[max_fp10_mantissa_size - fp10.bits_used];
     if (fp10.bits_used == 1) {
@@ -211,7 +211,7 @@ const CharT* accum_mantissa(const CharT* p, const CharT* end, fp10_t& fp10) NOEX
 }
 
 template<typename CharT>
-const CharT* chars_to_fp10(const CharT* p, const CharT* end, fp10_t& fp10) NOEXCEPT {
+const CharT* chars_to_fp10(const CharT* p, const CharT* end, fp10_t& fp10) noexcept {
     const CharT* p0;
     unsigned dig = 0;
     const CharT dec_point = default_numpunct<CharT>().decimal_point();
@@ -238,11 +238,11 @@ parse_exponent:
     return p0;
 }
 
-UXS_EXPORT uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) NOEXCEPT;
+UXS_EXPORT uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) noexcept;
 
 template<typename CharT>
 uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, const unsigned bpm,
-                         const int exp_max) NOEXCEPT {
+                         const int exp_max) noexcept {
     uint64_t fp2 = 0;
     last = p;
 
@@ -273,7 +273,7 @@ uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, c
 // ---- from value to string
 
 // minimal digit count for numbers 2^N <= x < 2^(N+1), N = 0, 1, 2, ...
-SCVT_FORCE_INLINE unsigned get_exp2_dig_count(unsigned exp) NOEXCEPT {
+SCVT_FORCE_INLINE unsigned get_exp2_dig_count(unsigned exp) noexcept {
     static SCVT_CONSTEXPR_DATA unsigned dig_count[] = {
         1,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  4,  5,  5,  5,  6,  6,  6,  7,  7,
         7,  7,  8,  8,  8,  9,  9,  9,  10, 10, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 13, 13,
@@ -283,7 +283,7 @@ SCVT_FORCE_INLINE unsigned get_exp2_dig_count(unsigned exp) NOEXCEPT {
 }
 
 // powers of ten 10^N, N = 0, 1, 2, ...
-SCVT_FORCE_INLINE uint64_t get_pow10(int pow) NOEXCEPT {
+SCVT_FORCE_INLINE uint64_t get_pow10(int pow) noexcept {
 #define UXS_SCVT_POWERS_OF_10(base) \
     base, (base)*10, (base)*100, (base)*1000, (base)*10000, (base)*100000, (base)*1000000, (base)*10000000, \
         (base)*100000000, (base)*1000000000
@@ -295,7 +295,7 @@ SCVT_FORCE_INLINE uint64_t get_pow10(int pow) NOEXCEPT {
 }
 
 // digit pairs
-SCVT_FORCE_INLINE const char* get_digits(unsigned n) NOEXCEPT {
+SCVT_FORCE_INLINE const char* get_digits(unsigned n) noexcept {
     static SCVT_CONSTEXPR_DATA char digs[][2] = {
         {'0', '0'}, {'0', '1'}, {'0', '2'}, {'0', '3'}, {'0', '4'}, {'0', '5'}, {'0', '6'}, {'0', '7'}, {'0', '8'},
         {'0', '9'}, {'1', '0'}, {'1', '1'}, {'1', '2'}, {'1', '3'}, {'1', '4'}, {'1', '5'}, {'1', '6'}, {'1', '7'},
@@ -411,7 +411,7 @@ print_functor<CharT, Ty, PrintFn> make_print_functor(Ty val, char sign, PrintFn 
 // ---- binary
 
 template<typename CharT, typename Ty>
-void fmt_gen_bin(CharT* p, Ty val, const fmt_opts& fmt) NOEXCEPT {
+void fmt_gen_bin(CharT* p, Ty val, const fmt_opts& fmt) noexcept {
     do {
         *--p = '0' + static_cast<unsigned>(val & 1);
         val >>= 1;
@@ -423,7 +423,7 @@ void fmt_gen_bin(CharT* p, Ty val, const fmt_opts& fmt) NOEXCEPT {
 }
 
 template<typename CharT, typename Ty>
-void fmt_gen_bin_with_grouping(CharT* p, Ty val, const fmt_opts& fmt, const grouping_t<CharT>& grouping) NOEXCEPT {
+void fmt_gen_bin_with_grouping(CharT* p, Ty val, const fmt_opts& fmt, const grouping_t<CharT>& grouping) noexcept {
     auto grp_it = grouping.grouping.begin();
     int cnt = *grp_it;
     *--p = '0' + static_cast<unsigned>(val & 1);
@@ -469,7 +469,7 @@ void fmt_bin(basic_membuffer<CharT>& s, Ty val, bool is_signed, const fmt_opts& 
 // ---- octal
 
 template<typename CharT, typename Ty>
-void fmt_gen_oct(CharT* p, Ty val, const fmt_opts& fmt) NOEXCEPT {
+void fmt_gen_oct(CharT* p, Ty val, const fmt_opts& fmt) noexcept {
     do {
         *--p = '0' + static_cast<unsigned>(val & 7);
         val >>= 3;
@@ -478,7 +478,7 @@ void fmt_gen_oct(CharT* p, Ty val, const fmt_opts& fmt) NOEXCEPT {
 }
 
 template<typename CharT, typename Ty>
-void fmt_gen_oct_with_grouping(CharT* p, Ty val, const fmt_opts& fmt, const grouping_t<CharT>& grouping) NOEXCEPT {
+void fmt_gen_oct_with_grouping(CharT* p, Ty val, const fmt_opts& fmt, const grouping_t<CharT>& grouping) noexcept {
     auto grp_it = grouping.grouping.begin();
     int cnt = *grp_it;
     *--p = '0' + static_cast<unsigned>(val & 7);
@@ -522,7 +522,7 @@ void fmt_oct(basic_membuffer<CharT>& s, Ty val, bool is_signed, const fmt_opts& 
 // ---- hexadecimal
 
 template<typename CharT, typename Ty>
-void fmt_gen_hex(CharT* p, Ty val, const fmt_opts& fmt) NOEXCEPT {
+void fmt_gen_hex(CharT* p, Ty val, const fmt_opts& fmt) noexcept {
     const bool uppercase = !!(fmt.flags & fmt_flags::uppercase);
     const char* digs = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
     do {
@@ -536,7 +536,7 @@ void fmt_gen_hex(CharT* p, Ty val, const fmt_opts& fmt) NOEXCEPT {
 }
 
 template<typename CharT, typename Ty>
-void fmt_gen_hex_with_grouping(CharT* p, Ty val, const fmt_opts& fmt, const grouping_t<CharT>& grouping) NOEXCEPT {
+void fmt_gen_hex_with_grouping(CharT* p, Ty val, const fmt_opts& fmt, const grouping_t<CharT>& grouping) noexcept {
     const bool uppercase = !!(fmt.flags & fmt_flags::uppercase);
     const char* digs = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
     auto grp_it = grouping.grouping.begin();
@@ -584,7 +584,7 @@ void fmt_hex(basic_membuffer<CharT>& s, Ty val, bool is_signed, const fmt_opts& 
 // ---- decimal
 
 template<typename Ty>
-SCVT_FORCE_INLINE unsigned fmt_dec_unsigned_len(Ty val) NOEXCEPT {
+SCVT_FORCE_INLINE unsigned fmt_dec_unsigned_len(Ty val) noexcept {
     const unsigned pow = get_exp2_dig_count(ulog2(val));
     return val >= get_pow10(pow) ? pow + 1 : pow;
 }
@@ -605,7 +605,7 @@ Ty divmod(Ty& v) {
 }
 
 template<typename CharT, typename Ty>
-SCVT_FORCE_INLINE CharT* gen_digits(CharT* p, Ty v) NOEXCEPT {
+SCVT_FORCE_INLINE CharT* gen_digits(CharT* p, Ty v) noexcept {
     while (v >= 100u) { copy2(p -= 2, get_digits(static_cast<unsigned>(divmod<100u>(v)))); }
     if (v >= 10u) {
         copy2(p -= 2, get_digits(static_cast<unsigned>(v)));
@@ -616,7 +616,7 @@ SCVT_FORCE_INLINE CharT* gen_digits(CharT* p, Ty v) NOEXCEPT {
 }
 
 template<typename CharT, typename Ty>
-SCVT_FORCE_INLINE Ty gen_digits_n(CharT* p, Ty v, unsigned n) NOEXCEPT {
+SCVT_FORCE_INLINE Ty gen_digits_n(CharT* p, Ty v, unsigned n) noexcept {
     CharT* p0 = p - (n & ~1);
     while (p != p0) { copy2(p -= 2, get_digits(static_cast<unsigned>(divmod<100u>(v)))); }
     if (!(n & 1)) { return v; }
@@ -625,7 +625,7 @@ SCVT_FORCE_INLINE Ty gen_digits_n(CharT* p, Ty v, unsigned n) NOEXCEPT {
 }
 
 template<typename CharT, typename Ty>
-void fmt_gen_dec_with_grouping(CharT* p, Ty val, const grouping_t<CharT>& grouping) NOEXCEPT {
+void fmt_gen_dec_with_grouping(CharT* p, Ty val, const grouping_t<CharT>& grouping) noexcept {
     auto grp_it = grouping.grouping.begin();
     int cnt = *grp_it;
     *--p = '0' + static_cast<unsigned>(divmod<10u>(val));
@@ -684,14 +684,14 @@ SCVT_CONSTEXPR_DATA int digs_per_64 = 18;  // size of 64-bit digit pack
 
 class fp_hex_fmt_t {
  public:
-    UXS_EXPORT fp_hex_fmt_t(const fp_m64_t& fp2, const fmt_opts& fmt, const unsigned bpm, const int exp_bias) NOEXCEPT;
+    UXS_EXPORT fp_hex_fmt_t(const fp_m64_t& fp2, const fmt_opts& fmt, const unsigned bpm, const int exp_bias) noexcept;
 
-    unsigned get_len() const NOEXCEPT {
+    unsigned get_len() const noexcept {
         return 3 + (prec_ > 0 || alternate_ ? prec_ + 1 : 0) + fmt_dec_unsigned_len<uint32_t>(std::abs(exp_));
     }
 
     template<typename CharT>
-    UXS_EXPORT void generate(CharT* p, const bool uppercase, const CharT dec_point) const NOEXCEPT;
+    UXS_EXPORT void generate(CharT* p, const bool uppercase, const CharT dec_point) const noexcept;
 
  private:
     uint64_t significand_;
@@ -702,7 +702,7 @@ class fp_hex_fmt_t {
 };
 
 template<typename CharT>
-void fp_hex_fmt_t::generate(CharT* p, const bool uppercase, const CharT dec_point) const NOEXCEPT {
+void fp_hex_fmt_t::generate(CharT* p, const bool uppercase, const CharT dec_point) const noexcept {
     const char* digs = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
     // generate exponent
     int exp2 = exp_;
@@ -728,14 +728,14 @@ void fp_hex_fmt_t::generate(CharT* p, const bool uppercase, const CharT dec_poin
 
 class fp_dec_fmt_t {
  public:
-    UXS_EXPORT fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, const int exp_bias) NOEXCEPT;
+    UXS_EXPORT fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, const int exp_bias) noexcept;
 
-    unsigned get_len() const NOEXCEPT {
+    unsigned get_len() const noexcept {
         return (fixed_ ? 1 + std::max(exp_, 0) : (exp_ <= -100 || exp_ >= 100 ? 6 : 5)) +
                (prec_ > 0 || alternate_ ? prec_ + 1 : 0);
     }
 
-    unsigned get_len_with_grouing(const std::string& grouping) const NOEXCEPT {
+    unsigned get_len_with_grouing(const std::string& grouping) const noexcept {
         return (fixed_ ? calc_len_with_grouping(1 + std::max(exp_, 0), grouping) :
                          (exp_ <= -100 || exp_ >= 100 ? 6 : 5)) +
                (prec_ > 0 || alternate_ ? prec_ + 1 : 0);
@@ -743,7 +743,7 @@ class fp_dec_fmt_t {
 
     template<typename CharT>
     void generate(CharT* p, const bool uppercase, const CharT dec_point,
-                  const grouping_t<CharT>* grouping) const NOEXCEPT {
+                  const grouping_t<CharT>* grouping) const noexcept {
         if (!fixed_) {
             generate_scientific(p, uppercase, dec_point);
         } else {
@@ -752,10 +752,10 @@ class fp_dec_fmt_t {
     }
 
     template<typename CharT>
-    void generate_scientific(CharT* p, bool uppercase, const CharT dec_point) const NOEXCEPT;
+    void generate_scientific(CharT* p, bool uppercase, const CharT dec_point) const noexcept;
 
     template<typename CharT>
-    void generate_fixed(CharT* p, const CharT dec_point, const grouping_t<CharT>* grouping) const NOEXCEPT;
+    void generate_fixed(CharT* p, const CharT dec_point, const grouping_t<CharT>* grouping) const noexcept;
 
  private:
     uint64_t significand_;
@@ -766,13 +766,13 @@ class fp_dec_fmt_t {
     bool alternate_;
     char digs_buf_[max_double_digits + digs_per_64 - 1];
 
-    UXS_EXPORT void format_short_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT;
-    UXS_EXPORT void format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT;
-    UXS_EXPORT void format_long_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT;
+    UXS_EXPORT void format_short_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) noexcept;
+    UXS_EXPORT void format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) noexcept;
+    UXS_EXPORT void format_long_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) noexcept;
 };
 
 template<typename CharT>
-void fp_dec_fmt_t::generate_scientific(CharT* p, const bool uppercase, const CharT dec_point) const NOEXCEPT {
+void fp_dec_fmt_t::generate_scientific(CharT* p, const bool uppercase, const CharT dec_point) const noexcept {
     // generate exponent
     int exp10 = exp_;
     char exp_sign = '+';
@@ -804,7 +804,7 @@ void fp_dec_fmt_t::generate_scientific(CharT* p, const bool uppercase, const Cha
 }
 
 template<typename CharT>
-void fp_dec_fmt_t::generate_fixed(CharT* p, const CharT dec_point, const grouping_t<CharT>* grouping) const NOEXCEPT {
+void fp_dec_fmt_t::generate_fixed(CharT* p, const CharT dec_point, const grouping_t<CharT>* grouping) const noexcept {
     uint64_t m = significand_;
     int k = 1 + exp_, n_zeroes = n_zeroes_;
     if (prec_ > 0) {             // has fractional part

@@ -80,21 +80,20 @@ class rbtree_compare : protected std::allocator_traits<Alloc>::template rebind_a
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<typename NodeTraits::node_t>;
 
  public:
-    rbtree_compare() NOEXCEPT_IF((std::is_nothrow_default_constructible<Comp>::value &&
-                                  std::is_nothrow_default_constructible<Alloc>::value))
+    rbtree_compare() noexcept((std::is_nothrow_default_constructible<Comp>::value &&
+                               std::is_nothrow_default_constructible<Alloc>::value))
         : alloc_type(Alloc()), func_() {}
-    explicit rbtree_compare(const Alloc& alloc) NOEXCEPT_IF(std::is_nothrow_default_constructible<Comp>::value)
+    explicit rbtree_compare(const Alloc& alloc) noexcept(std::is_nothrow_default_constructible<Comp>::value)
         : alloc_type(alloc), func_() {}
     explicit rbtree_compare(const Alloc& alloc, const Comp& func) : alloc_type(alloc), func_(func) {}
-    explicit rbtree_compare(const Alloc& alloc, Comp&& func)
-        NOEXCEPT_IF(std::is_nothrow_move_constructible<Comp>::value)
+    explicit rbtree_compare(const Alloc& alloc, Comp&& func) noexcept(std::is_nothrow_move_constructible<Comp>::value)
         : alloc_type(alloc), func_(std::move(func)) {}
     ~rbtree_compare() = default;
     rbtree_compare(const rbtree_compare&) = default;
     rbtree_compare& operator=(const rbtree_compare&) = default;
-    rbtree_compare(rbtree_compare&& other) NOEXCEPT_IF(std::is_nothrow_move_constructible<Comp>::value)
+    rbtree_compare(rbtree_compare&& other) noexcept(std::is_nothrow_move_constructible<Comp>::value)
         : alloc_type(std::move(other)), func_(std::move(other.func_)) {}
-    rbtree_compare& operator=(rbtree_compare&& other) NOEXCEPT_IF(std::is_nothrow_move_assignable<Comp>::value) {
+    rbtree_compare& operator=(rbtree_compare&& other) noexcept(std::is_nothrow_move_assignable<Comp>::value) {
         alloc_type::operator=(std::move(other));
         func_ = std::move(other.func_);
         return *this;
@@ -119,20 +118,19 @@ class rbtree_compare<NodeTraits, Alloc, Comp,
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<typename NodeTraits::node_t>;
 
  public:
-    rbtree_compare() NOEXCEPT_IF((std::is_nothrow_default_constructible<Comp>::value &&
-                                  std::is_nothrow_default_constructible<Alloc>::value))
+    rbtree_compare() noexcept((std::is_nothrow_default_constructible<Comp>::value &&
+                               std::is_nothrow_default_constructible<Alloc>::value))
         : alloc_type(Alloc()) {}
-    explicit rbtree_compare(const Alloc& alloc) NOEXCEPT_IF(std::is_nothrow_default_constructible<Comp>::value)
+    explicit rbtree_compare(const Alloc& alloc) noexcept(std::is_nothrow_default_constructible<Comp>::value)
         : alloc_type(alloc) {}
-    explicit rbtree_compare(const Alloc& alloc, const Comp&)
-        NOEXCEPT_IF(std::is_nothrow_move_constructible<Comp>::value)
+    explicit rbtree_compare(const Alloc& alloc, const Comp&) noexcept(std::is_nothrow_move_constructible<Comp>::value)
         : alloc_type(alloc) {}
     ~rbtree_compare() = default;
     rbtree_compare(const rbtree_compare&) = default;
     rbtree_compare& operator=(const rbtree_compare&) = default;
-    rbtree_compare(rbtree_compare&& other) NOEXCEPT_IF(std::is_nothrow_move_constructible<Comp>::value)
+    rbtree_compare(rbtree_compare&& other) noexcept(std::is_nothrow_move_constructible<Comp>::value)
         : alloc_type(std::move(other)) {}
-    rbtree_compare& operator=(rbtree_compare&& other) NOEXCEPT_IF(std::is_nothrow_move_assignable<Comp>::value) {
+    rbtree_compare& operator=(rbtree_compare&& other) noexcept(std::is_nothrow_move_assignable<Comp>::value) {
         alloc_type::operator=(std::move(other));
         return *this;
     }
@@ -170,8 +168,8 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
     using node_type = rbtree_node_handle<node_traits, Alloc>;
 
-    rbtree_base() NOEXCEPT_IF(noexcept(super())) : super() { init(); }
-    explicit rbtree_base(const allocator_type& alloc) NOEXCEPT_IF(noexcept(super(alloc))) : super(alloc) { init(); }
+    rbtree_base() noexcept(noexcept(super())) : super() { init(); }
+    explicit rbtree_base(const allocator_type& alloc) noexcept(noexcept(super(alloc))) : super(alloc) { init(); }
     explicit rbtree_base(const key_compare& comp, const allocator_type& alloc) : super(alloc, comp) { init(); }
 
     rbtree_base(const rbtree_base& other)
@@ -191,21 +189,20 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
         return *this;
     }
 
-    rbtree_base(rbtree_base&& other) NOEXCEPT_IF(noexcept(super(std::move(other)))) : super(std::move(other)) {
+    rbtree_base(rbtree_base&& other) noexcept(noexcept(super(std::move(other)))) : super(std::move(other)) {
         init();
         steal_data(other);
     }
 
-    rbtree_base(rbtree_base&& other, const allocator_type& alloc)
-        NOEXCEPT_IF(noexcept(super(std::move(other))) && is_alloc_always_equal<alloc_type>())
+    rbtree_base(rbtree_base&& other, const allocator_type& alloc) noexcept(noexcept(super(std::move(other))) &&
+                                                                           is_alloc_always_equal<alloc_type>())
         : super(alloc, std::move(other.get_compare())) {
         construct_impl(std::move(other), alloc, is_alloc_always_equal<alloc_type>());
     }
 
-    rbtree_base& operator=(rbtree_base&& other)
-        NOEXCEPT_IF(std::is_nothrow_move_assignable<super>::value &&
-                    (alloc_traits::propagate_on_container_move_assignment::value ||
-                     is_alloc_always_equal<alloc_type>::value)) {
+    rbtree_base& operator=(rbtree_base&& other) noexcept(std::is_nothrow_move_assignable<super>::value &&
+                                                         (alloc_traits::propagate_on_container_move_assignment::value ||
+                                                          is_alloc_always_equal<alloc_type>::value)) {
         if (std::addressof(other) == this) { return *this; }
         this->change_compare(std::move(other.get_compare()));
         assign_impl(std::move(other), std::bool_constant<(alloc_traits::propagate_on_container_move_assignment::value ||
@@ -215,28 +212,28 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
 
     ~rbtree_base() { tidy(); }
 
-    allocator_type get_allocator() const NOEXCEPT { return allocator_type(*this); }
+    allocator_type get_allocator() const noexcept { return allocator_type(*this); }
     key_compare key_comp() const { return this->get_compare(); }
 
-    bool empty() const NOEXCEPT { return size_ == 0; }
-    size_type size() const NOEXCEPT { return size_; }
-    size_type max_size() const NOEXCEPT { return alloc_traits::max_size(*this); }
+    bool empty() const noexcept { return size_ == 0; }
+    size_type size() const noexcept { return size_; }
+    size_type max_size() const noexcept { return alloc_traits::max_size(*this); }
 
-    iterator begin() NOEXCEPT { return iterator(head_.parent); }
-    const_iterator begin() const NOEXCEPT { return const_iterator(head_.parent); }
-    const_iterator cbegin() const NOEXCEPT { return const_iterator(head_.parent); }
+    iterator begin() noexcept { return iterator(head_.parent); }
+    const_iterator begin() const noexcept { return const_iterator(head_.parent); }
+    const_iterator cbegin() const noexcept { return const_iterator(head_.parent); }
 
-    iterator end() NOEXCEPT { return iterator(std::addressof(head_)); }
-    const_iterator end() const NOEXCEPT { return const_iterator(std::addressof(head_)); }
-    const_iterator cend() const NOEXCEPT { return const_iterator(std::addressof(head_)); }
+    iterator end() noexcept { return iterator(std::addressof(head_)); }
+    const_iterator end() const noexcept { return const_iterator(std::addressof(head_)); }
+    const_iterator cend() const noexcept { return const_iterator(std::addressof(head_)); }
 
-    reverse_iterator rbegin() NOEXCEPT { return reverse_iterator(end()); }
-    const_reverse_iterator rbegin() const NOEXCEPT { return const_reverse_iterator(end()); }
-    const_reverse_iterator crbegin() const NOEXCEPT { return const_reverse_iterator(end()); }
+    reverse_iterator rbegin() noexcept { return reverse_iterator(end()); }
+    const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
+    const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(end()); }
 
-    reverse_iterator rend() NOEXCEPT { return reverse_iterator(begin()); }
-    const_reverse_iterator rend() const NOEXCEPT { return const_reverse_iterator(begin()); }
-    const_reverse_iterator crend() const NOEXCEPT { return const_reverse_iterator(begin()); }
+    reverse_iterator rend() noexcept { return reverse_iterator(begin()); }
+    const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
+    const_reverse_iterator crend() const noexcept { return const_reverse_iterator(begin()); }
 
     reference front() {
         assert(size_);
@@ -567,7 +564,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
         }
     };
 
-    void construct_impl(rbtree_base&& other, const allocator_type& alloc, std::true_type) NOEXCEPT {
+    void construct_impl(rbtree_base&& other, const allocator_type& alloc, std::true_type) noexcept {
         init();
         steal_data(other);
     }
@@ -593,7 +590,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
         }
     }
 
-    void assign_impl(rbtree_base&& other, std::true_type) NOEXCEPT {
+    void assign_impl(rbtree_base&& other, std::true_type) noexcept {
         tidy();
         if (alloc_traits::propagate_on_container_move_assignment::value) { alloc_type::operator=(std::move(other)); }
         steal_data(other);
@@ -608,12 +605,12 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
         }
     }
 
-    void swap_impl(rbtree_base& other, std::true_type) NOEXCEPT_IF(std::is_nothrow_swappable<key_compare>::value) {
+    void swap_impl(rbtree_base& other, std::true_type) noexcept(std::is_nothrow_swappable<key_compare>::value) {
         std::swap(static_cast<alloc_type&>(*this), static_cast<alloc_type&>(other));
         swap_impl(other, std::false_type());
     }
 
-    void swap_impl(rbtree_base& other, std::false_type) NOEXCEPT_IF(std::is_nothrow_swappable<key_compare>::value) {
+    void swap_impl(rbtree_base& other, std::false_type) noexcept(std::is_nothrow_swappable<key_compare>::value) {
         this->swap_compare(other.get_compare());
         if (!size_) {
             steal_data(other);

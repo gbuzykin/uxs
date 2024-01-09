@@ -94,22 +94,21 @@ class basic_membuffer {
  public:
     using value_type = Ty;
 
-    explicit basic_membuffer(Ty* first, Ty* last = reinterpret_cast<Ty*>(std::numeric_limits<uintptr_t>::max())) NOEXCEPT
-        : curr_(first),
-          last_(last) {}
+    explicit basic_membuffer(Ty* first, Ty* last = reinterpret_cast<Ty*>(std::numeric_limits<uintptr_t>::max())) noexcept
+        : curr_(first), last_(last) {}
     virtual ~basic_membuffer() = default;
     basic_membuffer(const basic_membuffer&) = delete;
     basic_membuffer& operator=(const basic_membuffer&) = delete;
 
-    size_t avail() const NOEXCEPT { return last_ - curr_; }
-    const Ty* curr() const NOEXCEPT { return curr_; }
-    Ty* curr() NOEXCEPT { return curr_; }
-    Ty** p_curr() NOEXCEPT { return &curr_; }
-    const Ty* last() const NOEXCEPT { return last_; }
-    Ty* last() NOEXCEPT { return last_; }
-    Ty& back() NOEXCEPT { return *(curr_ - 1); }
+    size_t avail() const noexcept { return last_ - curr_; }
+    const Ty* curr() const noexcept { return curr_; }
+    Ty* curr() noexcept { return curr_; }
+    Ty** p_curr() noexcept { return &curr_; }
+    const Ty* last() const noexcept { return last_; }
+    Ty* last() noexcept { return last_; }
+    Ty& back() noexcept { return *(curr_ - 1); }
 
-    basic_membuffer& advance(size_t n) NOEXCEPT {
+    basic_membuffer& advance(size_t n) noexcept {
         assert(n <= avail());
         curr_ += n;
         return *this;
@@ -180,8 +179,8 @@ class basic_membuffer {
     virtual bool try_grow(size_t extra = 1) { return false; }
 
  protected:
-    void set(Ty* curr) NOEXCEPT { curr_ = curr; }
-    void set(Ty* curr, Ty* last) NOEXCEPT { curr_ = curr, last_ = last; }
+    void set(Ty* curr) noexcept { curr_ = curr; }
+    void set(Ty* curr, Ty* last) noexcept { curr_ = curr, last_ = last; }
 
  private:
     Ty* curr_;
@@ -203,12 +202,12 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
         if (is_allocated_) { this->deallocate(first_, capacity()); }
     }
 
-    bool empty() const NOEXCEPT { return first_ == this->curr(); }
-    size_t size() const NOEXCEPT { return this->curr() - first_; }
-    size_t capacity() const NOEXCEPT { return this->last() - first_; }
-    const Ty* data() const NOEXCEPT { return first_; }
-    Ty* data() NOEXCEPT { return first_; }
-    void clear() NOEXCEPT { this->set(first_); }
+    bool empty() const noexcept { return first_ == this->curr(); }
+    size_t size() const noexcept { return this->curr() - first_; }
+    size_t capacity() const noexcept { return this->last() - first_; }
+    const Ty* data() const noexcept { return first_; }
+    Ty* data() noexcept { return first_; }
+    void clear() noexcept { this->set(first_); }
 
     void reserve(size_t extra = 1) {
         if (extra > this->avail()) { try_grow(extra); }
@@ -230,9 +229,8 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
     }
 
  protected:
-    basic_dynbuffer(Ty* first, Ty* last) NOEXCEPT : basic_membuffer<Ty>(first, last),
-                                                    first_(first),
-                                                    is_allocated_(false) {}
+    basic_dynbuffer(Ty* first, Ty* last) noexcept
+        : basic_membuffer<Ty>(first, last), first_(first), is_allocated_(false) {}
 
  private:
     Ty* first_;
@@ -345,10 +343,10 @@ using reduce_type_t = typename reduce_type<Ty>::type;
 // --------------------------
 
 template<typename Ty, typename CharT>
-UXS_EXPORT Ty to_boolean(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT;
+UXS_EXPORT Ty to_boolean(const CharT* p, const CharT* end, const CharT*& last) noexcept;
 
 template<typename Ty, typename CharT>
-Ty to_character(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
+Ty to_character(const CharT* p, const CharT* end, const CharT*& last) noexcept {
     last = p;
     if (p == end) { return '\0'; }
     ++last;
@@ -356,20 +354,20 @@ Ty to_character(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
 }
 
 template<typename Ty, typename CharT>
-UXS_EXPORT Ty to_integral_common(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) NOEXCEPT;
+UXS_EXPORT Ty to_integral_common(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) noexcept;
 
 template<typename CharT>
 UXS_EXPORT uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, const unsigned bpm,
-                                    const int exp_max) NOEXCEPT;
+                                    const int exp_max) noexcept;
 
 template<typename Ty, typename CharT>
-Ty to_integer(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
+Ty to_integer(const CharT* p, const CharT* end, const CharT*& last) noexcept {
     using UTy = typename std::make_unsigned<Ty>::type;
     return static_cast<Ty>(to_integral_common<reduce_type_t<UTy>>(p, end, last, std::numeric_limits<UTy>::max()));
 }
 
 template<typename Ty, typename CharT>
-Ty to_float(const CharT* p, const CharT* end, const CharT*& last) NOEXCEPT {
+Ty to_float(const CharT* p, const CharT* end, const CharT*& last) noexcept {
     using FpTy = std::conditional_t<(sizeof(Ty) <= sizeof(double)), Ty, double>;
     return static_cast<Ty>(fp_traits<FpTy>::from_u64(
         to_float_common(p, end, last, fp_traits<FpTy>::bits_per_mantissa, fp_traits<FpTy>::exp_max)));
@@ -442,7 +440,7 @@ struct has_formatter : detail::has_formatter<Ty, StrTy>::type {};
 #define UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(ty, from_chars_func, fmt_func) \
     template<typename CharT> \
     struct string_parser<ty, CharT> { \
-        const CharT* from_chars(const CharT* first, const CharT* last, ty& val) const NOEXCEPT { \
+        const CharT* from_chars(const CharT* first, const CharT* last, ty& val) const noexcept { \
             auto t = from_chars_func<ty>(first, last, last); \
             if (last != first) { val = t; } \
             return last; \

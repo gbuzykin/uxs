@@ -278,7 +278,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     using record_iterator = list_iterator<record_t, detail::list_node_traits<CharT, Alloc>, false>;
     using const_record_iterator = list_iterator<record_t, detail::list_node_traits<CharT, Alloc>, true>;
 
-    basic_value() NOEXCEPT_IF(std::is_nothrow_default_constructible<alloc_type>::value)
+    basic_value() noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
         : alloc_type(), type_(dtype::null) {}
     basic_value(bool b) : alloc_type(), type_(dtype::boolean) { value_.b = b; }
     basic_value(int32_t i) : alloc_type(), type_(dtype::integer) { value_.i = i; }
@@ -293,10 +293,10 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     basic_value(const char_type* cstr) : alloc_type(), type_(dtype::string) {
         value_.str = alloc_string(std::basic_string_view<char_type>(cstr));
     }
-    basic_value(std::nullptr_t) NOEXCEPT_IF(std::is_nothrow_default_constructible<alloc_type>::value)
+    basic_value(std::nullptr_t) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
         : alloc_type(), type_(dtype::null) {}
 
-    explicit basic_value(const Alloc& al) NOEXCEPT : alloc_type(al), type_(dtype::null) {}
+    explicit basic_value(const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) {}
     basic_value(bool b, const Alloc& al) : alloc_type(al), type_(dtype::boolean) { value_.b = b; }
     basic_value(int32_t i, const Alloc& al) : alloc_type(al), type_(dtype::integer) { value_.i = i; }
     basic_value(uint32_t u, const Alloc& al) : alloc_type(al), type_(dtype::unsigned_integer) { value_.u = u; }
@@ -310,7 +310,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     basic_value(const char_type* cstr, const Alloc& al) : alloc_type(al), type_(dtype::string) {
         value_.str = alloc_string(std::basic_string_view<char_type>(cstr));
     }
-    basic_value(std::nullptr_t, const Alloc& al) NOEXCEPT : alloc_type(al), type_(dtype::null) {}
+    basic_value(std::nullptr_t, const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) {}
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     basic_value(InputIt first, InputIt last, const Alloc& al = Alloc()) : alloc_type(al) {
@@ -332,14 +332,14 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         return *this;
     }
 
-    basic_value(basic_value&& other) NOEXCEPT : alloc_type(std::move(other)), type_(other.type_), value_(other.value_) {
+    basic_value(basic_value&& other) noexcept : alloc_type(std::move(other)), type_(other.type_), value_(other.value_) {
         other.type_ = dtype::null;
     }
-    basic_value(basic_value&& other, const Alloc& al) NOEXCEPT_IF(is_alloc_always_equal<alloc_type>::value)
+    basic_value(basic_value&& other, const Alloc& al) noexcept(is_alloc_always_equal<alloc_type>::value)
         : alloc_type(al), type_(other.type_) {
         construct_impl(std::move(other), is_alloc_always_equal<alloc_type>());
     }
-    basic_value& operator=(basic_value&& other) NOEXCEPT {
+    basic_value& operator=(basic_value&& other) noexcept {
         if (&other == this) { return *this; }
         if (type_ != dtype::null) { destroy(); }
         alloc_type::operator=(std::move(other));
@@ -385,7 +385,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         return *this;
     }
 
-    void swap(basic_value& other) NOEXCEPT {
+    void swap(basic_value& other) noexcept {
         if (&other == this) { return; }
         std::swap(static_cast<alloc_type&>(*this), static_cast<alloc_type&>(other));
         std::swap(value_, other.value_);
@@ -397,11 +397,11 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     template<typename CharT_, typename Alloc_>
     friend bool operator!=(const basic_value<CharT_, Alloc_>& lhs, const basic_value<CharT_, Alloc_>& rhs);
 
-    dtype type() const NOEXCEPT { return type_; }
-    allocator_type get_allocator() const NOEXCEPT { return allocator_type(*this); }
+    dtype type() const noexcept { return type_; }
+    allocator_type get_allocator() const noexcept { return allocator_type(*this); }
 
     template<typename Ty>
-    bool is() const NOEXCEPT;
+    bool is() const noexcept;
 
     template<typename Ty>
     Ty as() const;
@@ -435,19 +435,19 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         return value_or<Ty>(name, Ty());
     }
 
-    bool is_null() const NOEXCEPT { return type_ == dtype::null; }
-    bool is_bool() const NOEXCEPT { return type_ == dtype::boolean; }
-    UXS_EXPORT bool is_int() const NOEXCEPT;
-    UXS_EXPORT bool is_uint() const NOEXCEPT;
-    UXS_EXPORT bool is_int64() const NOEXCEPT;
-    UXS_EXPORT bool is_uint64() const NOEXCEPT;
-    UXS_EXPORT bool is_integral() const NOEXCEPT;
-    bool is_float() const NOEXCEPT { return is_numeric(); }
-    bool is_double() const NOEXCEPT { return is_numeric(); }
-    bool is_numeric() const NOEXCEPT { return type_ >= dtype::integer && type_ <= dtype::double_precision; }
-    bool is_string() const NOEXCEPT { return type_ == dtype::string; }
-    bool is_array() const NOEXCEPT { return type_ == dtype::array; }
-    bool is_record() const NOEXCEPT { return type_ == dtype::record; }
+    bool is_null() const noexcept { return type_ == dtype::null; }
+    bool is_bool() const noexcept { return type_ == dtype::boolean; }
+    UXS_EXPORT bool is_int() const noexcept;
+    UXS_EXPORT bool is_uint() const noexcept;
+    UXS_EXPORT bool is_int64() const noexcept;
+    UXS_EXPORT bool is_uint64() const noexcept;
+    UXS_EXPORT bool is_integral() const noexcept;
+    bool is_float() const noexcept { return is_numeric(); }
+    bool is_double() const noexcept { return is_numeric(); }
+    bool is_numeric() const noexcept { return type_ >= dtype::integer && type_ <= dtype::double_precision; }
+    bool is_string() const noexcept { return type_ == dtype::string; }
+    bool is_array() const noexcept { return type_ == dtype::array; }
+    bool is_record() const noexcept { return type_ == dtype::record; }
 
     UXS_EXPORT uxs::optional<bool> get_bool() const;
     UXS_EXPORT uxs::optional<int32_t> get_int() const;
@@ -471,15 +471,15 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     UXS_EXPORT bool convert(dtype type);
 
-    UXS_EXPORT bool empty() const NOEXCEPT;
-    UXS_EXPORT size_t size() const NOEXCEPT;
+    UXS_EXPORT bool empty() const noexcept;
+    UXS_EXPORT size_t size() const noexcept;
     explicit operator bool() const { return !is_null(); }
 
     basic_value& append_string(std::basic_string_view<char_type> s);
     basic_value& append_string(const char_type* cstr) { return append_string(std::basic_string_view<char_type>(cstr)); }
 
-    uxs::span<const basic_value> as_array() const NOEXCEPT;
-    uxs::span<basic_value> as_array() NOEXCEPT;
+    uxs::span<const basic_value> as_array() const noexcept;
+    uxs::span<basic_value> as_array() noexcept;
 
     iterator_range<const_record_iterator> as_record() const;
     iterator_range<record_iterator> as_record();
@@ -504,12 +504,12 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     const_record_iterator find(std::basic_string_view<char_type> name) const;
     record_iterator find(std::basic_string_view<char_type> name);
-    const_record_iterator nil() const NOEXCEPT;
-    record_iterator nil() NOEXCEPT;
+    const_record_iterator nil() const noexcept;
+    record_iterator nil() noexcept;
     bool contains(std::basic_string_view<char_type> name) const;
     size_t count(std::basic_string_view<char_type> name) const;
 
-    UXS_EXPORT void clear() NOEXCEPT;
+    UXS_EXPORT void clear() noexcept;
     UXS_EXPORT void reserve(size_t sz);
     UXS_EXPORT void resize(size_t sz);
 
@@ -637,7 +637,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     UXS_EXPORT void assign_impl(const basic_value& other);
     UXS_EXPORT void destroy();
 
-    void construct_impl(basic_value&& other, std::true_type) NOEXCEPT {
+    void construct_impl(basic_value&& other, std::true_type) noexcept {
         type_ = other.type_, value_ = other.value_;
         other.type_ = dtype::null;
     }
@@ -861,13 +861,13 @@ void basic_value<CharT, Alloc>::insert(InputIt first, InputIt last) {
 }
 
 template<typename CharT, typename Alloc>
-uxs::span<const basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() const NOEXCEPT {
+uxs::span<const basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() const noexcept {
     if (type_ == dtype::array) { return array_view(); }
     return type_ != dtype::null ? uxs::as_span(this, 1) : uxs::span<basic_value>();
 }
 
 template<typename CharT, typename Alloc>
-uxs::span<basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() NOEXCEPT {
+uxs::span<basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() noexcept {
     if (type_ == dtype::array) { return array_view(); }
     return type_ != dtype::null ? uxs::as_span(this, 1) : uxs::span<basic_value>();
 }
@@ -899,12 +899,12 @@ typename basic_value<CharT, Alloc>::record_iterator basic_value<CharT, Alloc>::f
 }
 
 template<typename CharT, typename Alloc>
-typename basic_value<CharT, Alloc>::const_record_iterator basic_value<CharT, Alloc>::nil() const NOEXCEPT {
+typename basic_value<CharT, Alloc>::const_record_iterator basic_value<CharT, Alloc>::nil() const noexcept {
     return const_record_iterator(type_ == dtype::record ? &value_.rec->head : nullptr);
 }
 
 template<typename CharT, typename Alloc>
-typename basic_value<CharT, Alloc>::record_iterator basic_value<CharT, Alloc>::nil() NOEXCEPT {
+typename basic_value<CharT, Alloc>::record_iterator basic_value<CharT, Alloc>::nil() noexcept {
     return record_iterator(type_ == dtype::record ? &value_.rec->head : nullptr);
 }
 
@@ -1149,7 +1149,7 @@ UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::basic_string_view<CharT>, _string_vie
 
 template<typename CharT, typename Alloc>
 template<typename Ty>
-bool basic_value<CharT, Alloc>::is() const NOEXCEPT {
+bool basic_value<CharT, Alloc>::is() const noexcept {
     return detail::value_getters_specializer<CharT, Alloc, Ty>::is(*this);
 }
 
@@ -1177,7 +1177,7 @@ using value = basic_value<char>;
 
 namespace std {
 template<typename CharT, typename Alloc>
-void swap(uxs::db::basic_value<CharT, Alloc>& v1, uxs::db::basic_value<CharT, Alloc>& v2) NOEXCEPT {
+void swap(uxs::db::basic_value<CharT, Alloc>& v1, uxs::db::basic_value<CharT, Alloc>& v2) noexcept {
     v1.swap(v2);
 }
 }  // namespace std

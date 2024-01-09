@@ -29,7 +29,7 @@ class basic_filebuf : public basic_devbuf<CharT> {
         : basic_filebuf(fname,
                         detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::text : iomode::none)) {}
     UXS_EXPORT ~basic_filebuf() override;
-    UXS_EXPORT basic_filebuf(basic_filebuf&& other) NOEXCEPT;
+    UXS_EXPORT basic_filebuf(basic_filebuf&& other) noexcept;
     UXS_EXPORT basic_filebuf& operator=(basic_filebuf&& other);
 
     UXS_EXPORT void attach(file_desc_t fd, iomode mode);

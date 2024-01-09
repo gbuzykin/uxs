@@ -32,16 +32,16 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
     using iterator = typename super::iterator;
     using const_iterator = typename super::const_iterator;
 
-    map() NOEXCEPT_IF(noexcept(super())) : super() {}
-    explicit map(const allocator_type& alloc) NOEXCEPT_IF(noexcept(super(alloc))) : super(alloc) {}
+    map() noexcept(noexcept(super())) : super() {}
+    explicit map(const allocator_type& alloc) noexcept(noexcept(super(alloc))) : super(alloc) {}
     explicit map(const key_compare& comp, const allocator_type& alloc = allocator_type()) : super(comp, alloc) {}
 
 #if __cplusplus < 201703L
     ~map() = default;
     map(const map&) = default;
     map& operator=(const map&) = default;
-    map(map&& other) NOEXCEPT_IF(noexcept(super(std::move(other)))) : super(std::move(other)) {}
-    map& operator=(map&& other) NOEXCEPT_IF(std::is_nothrow_move_assignable<super>::value) {
+    map(map&& other) noexcept(noexcept(super(std::move(other)))) : super(std::move(other)) {}
+    map& operator=(map&& other) noexcept(std::is_nothrow_move_assignable<super>::value) {
         super::operator=(std::move(other));
         return *this;
     }
@@ -95,10 +95,10 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
     }
 
     map(const map& other, const allocator_type& alloc) : super(other, alloc) {}
-    map(map&& other, const allocator_type& alloc) NOEXCEPT_IF(noexcept(super(std::move(other), alloc)))
+    map(map&& other, const allocator_type& alloc) noexcept(noexcept(super(std::move(other), alloc)))
         : super(std::move(other), alloc) {}
 
-    void swap(map& other) NOEXCEPT_IF(std::is_nothrow_swappable<key_compare>::value) {
+    void swap(map& other) noexcept(std::is_nothrow_swappable<key_compare>::value) {
         if (std::addressof(other) == this) { return; }
         this->swap_impl(other, typename alloc_traits::propagate_on_container_swap());
     }
@@ -291,8 +291,7 @@ bool operator>=(const map<Key, Ty, Comp, Alloc>& lhs, const map<Key, Ty, Comp, A
 
 namespace std {
 template<typename Key, typename Ty, typename Comp, typename Alloc>
-void swap(uxs::map<Key, Ty, Comp, Alloc>& m1, uxs::map<Key, Ty, Comp, Alloc>& m2)
-    NOEXCEPT_IF(NOEXCEPT_IF(m1.swap(m2))) {
+void swap(uxs::map<Key, Ty, Comp, Alloc>& m1, uxs::map<Key, Ty, Comp, Alloc>& m2) noexcept(noexcept(m1.swap(m2))) {
     m1.swap(m2);
 }
 }  // namespace std

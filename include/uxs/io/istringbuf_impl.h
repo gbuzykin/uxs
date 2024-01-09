@@ -5,13 +5,13 @@
 namespace uxs {
 
 template<typename CharT>
-basic_istringbuf<CharT>::basic_istringbuf(basic_istringbuf&& other) NOEXCEPT : basic_iobuf<CharT>(std::move(other)),
-                                                                               str_(std::move(other.str_)) {
+basic_istringbuf<CharT>::basic_istringbuf(basic_istringbuf&& other) noexcept
+    : basic_iobuf<CharT>(std::move(other)), str_(std::move(other.str_)) {
     if (this->first() != &str_[0]) { redirect_ptrs(); }
 }
 
 template<typename CharT>
-basic_istringbuf<CharT>& basic_istringbuf<CharT>::operator=(basic_istringbuf&& other) NOEXCEPT {
+basic_istringbuf<CharT>& basic_istringbuf<CharT>::operator=(basic_istringbuf&& other) noexcept {
     if (&other == this) { return *this; }
     basic_iobuf<CharT>::operator=(std::move(other));
     str_ = std::move(other.str_);

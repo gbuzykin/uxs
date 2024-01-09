@@ -22,7 +22,7 @@ class basic_zipfilebuf : public basic_devbuf<CharT> {
         if (zip_file_.valid()) { this->initbuf(mode); }
     }
     UXS_EXPORT ~basic_zipfilebuf() override;
-    UXS_EXPORT basic_zipfilebuf(basic_zipfilebuf&& other) NOEXCEPT;
+    UXS_EXPORT basic_zipfilebuf(basic_zipfilebuf&& other) noexcept;
     UXS_EXPORT basic_zipfilebuf& operator=(basic_zipfilebuf&& other);
 
     UXS_EXPORT bool open(ziparch& arch, const char* fname,
