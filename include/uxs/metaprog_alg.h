@@ -40,7 +40,7 @@ struct type_pack_element<0, Ty, Rest...> {
     using type = Ty;
 };
 
-#if __cplusplus < 201402L && _MSC_VER < 1920  // VS2019 bug
+#if __cplusplus < 201402L
 template<typename...>
 struct minimum;
 template<typename Ty>

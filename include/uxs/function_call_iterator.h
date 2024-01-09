@@ -34,9 +34,4 @@ function_call_iterator<Func> function_caller(const Func& func) {
     return function_call_iterator<Func>(func);
 }
 
-#if UXS_USE_CHECKED_ITERATORS != 0
-template<typename Func>
-struct std::_Is_checked_helper<function_call_iterator<Func>> : std::true_type {};
-#endif  // UXS_USE_CHECKED_ITERATORS
-
 }  // namespace uxs

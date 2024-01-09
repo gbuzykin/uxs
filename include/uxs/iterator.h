@@ -12,10 +12,6 @@
 #    define iterator_assert(cond) ((void)0)
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
 
-#if defined(_MSC_VER) && _MSC_VER <= 1800
-#    define UXS_USE_CHECKED_ITERATORS 1
-#endif  // defined(_MSC_VER) && _MSC_VER <= 1800
-
 namespace uxs {
 
 template<typename Iter>
@@ -591,14 +587,4 @@ struct pointer_traits<uxs::array_iterator<Traits, Const>> {
     }
 };
 #endif  // pointer_traits
-#if UXS_USE_CHECKED_ITERATORS != 0
-template<typename Traits, bool Const>
-struct _Is_checked_helper<uxs::array_iterator<Traits, Const>> : std::true_type {};
-template<typename Traits, typename NodeTraits, bool Const>
-struct _Is_checked_helper<uxs::list_iterator<Traits, NodeTraits, Const>> : std::true_type {};
-template<typename Val>
-struct _Is_checked_helper<uxs::const_value_iterator<Val>> : std::true_type {};
-template<typename BaseIt>
-struct std::_Is_checked_helper<limited_output_iterator<BaseIt>> : std::true_type {};
-#endif  // UXS_USE_CHECKED_ITERATORS
 }  // namespace std

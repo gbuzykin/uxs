@@ -19,12 +19,7 @@ const ulog2_table_t g_ulog2_tbl;
 inline uint64_t umul128(uint64_t x, uint64_t y, uint64_t bias, uint64_t& result_hi) {
 #if SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
     uint64_t result_lo = _umul128(x, y, &result_hi);
-#    if _MSC_VER <= 1800  // VS2013 compiler bug workaround
-    result_lo += bias;
-    if (result_lo < bias) { ++result_hi; }
-#    else
     result_hi += _addcarry_u64(0, result_lo, bias, &result_lo);
-#    endif
     return result_lo;
 #elif SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
     gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x) * y + bias;
@@ -63,7 +58,7 @@ inline uint64_t umul64x32(uint64_t x, uint32_t y, uint32_t bias, uint64_t& resul
 #endif
 }
 
-#if SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && _MSC_VER > 1800 && defined(_M_X64)
+#if SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(_M_X64)
 // VS2013 compiler has a bug concerning these intrinsics
 using one_bit_t = unsigned char;
 inline one_bit_t add64_carry(uint64_t a, uint64_t b, uint64_t& c, one_bit_t carry = 0) {

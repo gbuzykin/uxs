@@ -700,17 +700,10 @@ class basic_format_string {
     std::basic_string_view<CharT> checked;
 };
 
-#if defined(_MSC_VER) && _MSC_VER <= 1800
-template<typename... Args>
-using format_string = basic_format_string<char>;
-template<typename... Args>
-using wformat_string = basic_format_string<wchar_t>;
-#else   // defined(_MSC_VER) && _MSC_VER <= 1800
 template<typename... Args>
 using format_string = basic_format_string<char, type_identity_t<Args>...>;
 template<typename... Args>
 using wformat_string = basic_format_string<wchar_t, type_identity_t<Args>...>;
-#endif  // defined(_MSC_VER) && _MSC_VER <= 1800
 
 // ---- vformat
 
