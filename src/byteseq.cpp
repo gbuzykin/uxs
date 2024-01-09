@@ -235,7 +235,7 @@ void byteseq::clear_and_reserve(size_t cap) {
 /*static*/ byteseq::chunk_t* byteseq::chunk_t::alloc(alloc_type& al, size_t cap) {
     const size_t alloc_sz = get_alloc_sz(cap);
     chunk_t* chunk = al.allocate(alloc_sz);
-    chunk->boundary = reinterpret_cast<uint8_t*>(&chunk[alloc_sz]);
+    chunk->boundary = chunk->data + alloc_sz * sizeof(chunk_t) - offsetof(chunk_t, data);
     assert(chunk->capacity() >= cap && get_alloc_sz(chunk->capacity()) == alloc_sz);
     return chunk;
 }

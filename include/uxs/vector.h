@@ -603,8 +603,8 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
     pointer insert_fill(pointer p, size_type count, const value_type& val) {
         if (count <= static_cast<size_type>(v_.boundary - v_.end)) {
             if (!count) { return p; }
-            typename std::aligned_storage<sizeof(Ty), std::alignment_of<Ty>::value>::type buf;
-            auto* val_copy = reinterpret_cast<value_type*>(std::addressof(buf));
+            alignas(std::alignment_of<value_type>::value) uint8_t buf[sizeof(value_type)];
+            value_type* val_copy = reinterpret_cast<value_type*>(&buf);
             alloc_traits::construct(*this, val_copy, val);
             try {
                 insert_no_relocate(p, count, const_value(*val_copy), std::is_copy_assignable<Ty>());
@@ -799,8 +799,8 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
 
         template<typename... Args>
         static void emplace(alloc_type& alloc, pointer pos, pointer end, Args&&... args) {
-            typename std::aligned_storage<sizeof(Ty), std::alignment_of<Ty>::value>::type buf;
-            auto* val = reinterpret_cast<Ty*>(std::addressof(buf));
+            alignas(std::alignment_of<value_type>::value) uint8_t buf[sizeof(value_type)];
+            value_type* val = reinterpret_cast<value_type*>(&buf);
             alloc_traits::construct(alloc, val, std::forward<Args>(args)...);
             try {
                 helpers::emplace(alloc, pos, end, std::move(*val));

@@ -52,7 +52,7 @@ struct flexarray_t {
     using array_value_t = std::conditional_t<store_values, basic_value<CharT, Alloc>, CharT>;
     size_t size;
     size_t capacity;
-    typename std::aligned_storage<sizeof(array_value_t), std::alignment_of<array_value_t>::value>::type buf[1];
+    alignas(std::alignment_of<array_value_t>::value) uint8_t x[sizeof(array_value_t)];
 
     enum : unsigned { start_capacity = 8 };
 
@@ -62,20 +62,19 @@ struct flexarray_t {
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<flexarray_t>;
 
     uxs::span<const array_value_t> view() const {
-        return uxs::as_span(reinterpret_cast<const array_value_t*>(&buf), size);
+        return uxs::as_span(reinterpret_cast<const array_value_t*>(&x), size);
     }
-    uxs::span<array_value_t> view() { return uxs::as_span(reinterpret_cast<array_value_t*>(&buf), size); }
-    const array_value_t& operator[](size_t i) const { return reinterpret_cast<const array_value_t*>(&buf)[i]; }
-    array_value_t& operator[](size_t i) { return reinterpret_cast<array_value_t*>(&buf)[i]; }
+    uxs::span<array_value_t> view() { return uxs::as_span(reinterpret_cast<array_value_t*>(&x), size); }
+    const array_value_t& operator[](size_t i) const { return reinterpret_cast<const array_value_t*>(&x)[i]; }
+    array_value_t& operator[](size_t i) { return reinterpret_cast<array_value_t*>(&x)[i]; }
 
     static size_t max_size(const alloc_type& arr_al) {
-        return (std::allocator_traits<alloc_type>::max_size(arr_al) * sizeof(flexarray_t) - offsetof(flexarray_t, buf)) /
+        return (std::allocator_traits<alloc_type>::max_size(arr_al) * sizeof(flexarray_t) - offsetof(flexarray_t, x)) /
                sizeof(array_value_t);
     }
 
     static size_t get_alloc_sz(size_t cap) {
-        return (offsetof(flexarray_t, buf) + cap * sizeof(array_value_t) + sizeof(flexarray_t) - 1) /
-               sizeof(flexarray_t);
+        return (offsetof(flexarray_t, x) + cap * sizeof(array_value_t) + sizeof(flexarray_t) - 1) / sizeof(flexarray_t);
     }
 
     UXS_EXPORT static flexarray_t* alloc(alloc_type& arr_al, size_t cap);
@@ -92,12 +91,12 @@ struct flexarray_t {
 template<typename Ty>
 struct record_value {
     using char_type = typename Ty::char_type;
-    typename std::aligned_storage<sizeof(Ty), std::alignment_of<Ty>::value>::type v;
+    alignas(std::alignment_of<Ty>::value) uint8_t x[sizeof(Ty)];
     size_t name_sz;
     char_type name_chars[1];
     std::basic_string_view<char_type> name() const { return std::basic_string_view<char_type>(name_chars, name_sz); }
-    const Ty& val() const { return *reinterpret_cast<const Ty*>(&v); }
-    Ty& val() { return *reinterpret_cast<Ty*>(&v); }
+    const Ty& val() const { return *reinterpret_cast<const Ty*>(&x); }
+    Ty& val() { return *reinterpret_cast<Ty*>(&x); }
 };
 
 template<typename Ty>

@@ -69,7 +69,7 @@ template<typename CharT, typename Alloc, bool store_values>
 /*static*/ auto flexarray_t<CharT, Alloc, store_values>::alloc(alloc_type& arr_al, size_t cap) -> flexarray_t* {
     const size_t alloc_sz = get_alloc_sz(cap);
     flexarray_t* arr = arr_al.allocate(alloc_sz);
-    arr->capacity = (alloc_sz * sizeof(flexarray_t) - offsetof(flexarray_t, buf)) / sizeof(array_value_t);
+    arr->capacity = (alloc_sz * sizeof(flexarray_t) - offsetof(flexarray_t, x)) / sizeof(array_value_t);
     assert(arr->capacity >= cap && get_alloc_sz(arr->capacity) == alloc_sz);
     return arr;
 }

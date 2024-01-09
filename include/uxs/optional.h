@@ -112,7 +112,7 @@ class optional {
 
  private:
     bool valid_ = false;
-    typename std::aligned_storage<sizeof(value_type), std::alignment_of<value_type>::value>::type data_;
+    alignas(std::alignment_of<value_type>::value) uint8_t data_[sizeof(value_type)];
 
     const value_type& val() const { return *reinterpret_cast<const value_type*>(&data_); }
     value_type& val() { return *reinterpret_cast<value_type*>(&data_); }

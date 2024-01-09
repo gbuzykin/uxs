@@ -29,7 +29,7 @@ class pool {
     struct pool_desc_t : alloc_type {
         dllist_node_t free;
         dllist_node_t partitions;
-        dllist_node_t* new_node;
+        void* new_node;
         pool_desc_t* root_pool;
         pool_desc_t* next_pool;
         uint32_t size_and_alignment;
@@ -38,7 +38,7 @@ class pool {
         uint32_t partition_size;
 
         void (*tidy_pool)(pool_desc_t*);
-        dllist_node_t* (*allocate_new)(pool_desc_t*);
+        void* (*allocate_new)(pool_desc_t*);
         void (*deallocate_partition)(pool_desc_t*, pool_part_hdr_t*);
     };
 
@@ -58,7 +58,7 @@ class pool {
     ~pool() { reset(nullptr); }
 
     template<typename Ty>
-    dllist_node_t* allocate() {
+    void* allocate() {
         if (desc_->size_and_alignment != pool_specializer_t<Ty>::size_and_alignment) {
             desc_ = pool_specializer_t<Ty>::specialize(desc_);
         }
@@ -66,15 +66,15 @@ class pool {
     }
 
     template<typename Ty>
-    void deallocate(dllist_node_t* node) {
+    void deallocate(void* node) {
         if (desc_->size_and_alignment != pool_specializer_t<Ty>::size_and_alignment) {
             desc_ = pool_specializer_t<Ty>::specialize(desc_);
         }
         deallocate(desc_, node);
     }
 
-    static dllist_node_t* allocate(pool_desc_t* desc) {
-        auto* node = desc->free.next;
+    static void* allocate(pool_desc_t* desc) {
+        dllist_node_t* node = desc->free.next;
         if (node != &desc->free) {
             inc_use_count(node);
             dllist_remove(node);
@@ -83,8 +83,8 @@ class pool {
         return desc->allocate_new(desc);
     }
 
-    static void deallocate(pool_desc_t* desc, dllist_node_t* node) {
-        dllist_insert_before(&desc->free, node);
+    static void deallocate(pool_desc_t* desc, void* node) {
+        dllist_insert_before(&desc->free, static_cast<dllist_node_t*>(node));
         if (dec_use_count(node) == 0) { desc->deallocate_partition(desc, header(node)); }
     }
 
@@ -106,14 +106,12 @@ class pool {
     template<typename, uint16_t, uint16_t>
     friend struct pool_specializer;
 
-    static pool_part_hdr_t* header(dllist_node_t* node) { return *(reinterpret_cast<pool_part_hdr_t**>(node) - 1); }
+    static pool_part_hdr_t* header(void* node) { return *(static_cast<pool_part_hdr_t**>(node) - 1); }
 
-    static void set_header(dllist_node_t* node, pool_part_hdr_t* hdr) {
-        *(reinterpret_cast<pool_part_hdr_t**>(node) - 1) = hdr;
-    }
+    static void set_header(void* node, pool_part_hdr_t* hdr) { *(static_cast<pool_part_hdr_t**>(node) - 1) = hdr; }
 
-    static void inc_use_count(dllist_node_t* node) { ++header(node)->use_count; }
-    static size_t dec_use_count(dllist_node_t* node) { return --header(node)->use_count; }
+    static void inc_use_count(void* node) { ++header(node)->use_count; }
+    static size_t dec_use_count(void* node) { return --header(node)->use_count; }
 
     UXS_EXPORT static void tidy(pool_desc_t* desc);
     UXS_EXPORT static pool_desc_t* find_pool(pool_desc_t* desc, uint32_t size_and_alignment);
@@ -131,16 +129,14 @@ struct pool_specializer {
 
     enum : uint32_t { size_and_alignment = Size | (static_cast<uint32_t>(Alignment) << 16) };
 
-    struct record_t {
-        typename std::aligned_storage<Size + sizeof(pool_part_hdr_t*), Alignment>::type placeholder;
-        dllist_node_t* node() { return reinterpret_cast<dllist_node_t*>(&placeholder); }
-        static record_t* from_node(dllist_node_t* node) { return reinterpret_cast<record_t*>(node); }
+    struct alignas(Alignment) record_t {
+        uint8_t x[Size + sizeof(pool_part_hdr_t*)];
     };
 
     static pool_desc_t* specialize(pool_desc_t* desc);
     static void tidy_pool(pool_desc_t* desc);
-    static dllist_node_t* allocate_new(pool_desc_t* desc);
-    static dllist_node_t* allocate_new_partition(pool_desc_t* desc);
+    static void* allocate_new(pool_desc_t* desc);
+    static void* allocate_new_partition(pool_desc_t* desc);
     static void deallocate_partition(pool_desc_t* desc, pool_part_hdr_t* part_hdr);
 
     static pool_desc_t* global_pool_desc() {
@@ -152,11 +148,11 @@ struct pool_specializer {
 
 template<typename Pool, uint16_t Size, uint16_t Alignment>
 /*static*/ typename Pool::pool_desc_t* pool_specializer<Pool, Size, Alignment>::specialize(pool_desc_t* desc) {
-    if (auto* found = Pool::find_pool(desc, size_and_alignment)) {
+    if (pool_desc_t* found = Pool::find_pool(desc, size_and_alignment)) {
         return found;  // pool for desired size and alignment found
     } else if (!dllist_is_empty(&desc->partitions)) {
         // create new pool for desired size and alignment
-        auto* prev_desc = desc;
+        pool_desc_t* prev_desc = desc;
         desc = Pool::allocate_new_pool(*desc);
         desc->root_pool = prev_desc->root_pool;
         desc->next_pool = prev_desc->next_pool;
@@ -176,18 +172,18 @@ template<typename Pool, uint16_t Size, uint16_t Alignment>
 
 template<typename Pool, uint16_t Size, uint16_t Alignment>
 /*static*/ void pool_specializer<Pool, Size, Alignment>::tidy_pool(pool_desc_t* desc) {
-    auto* part_hdr = desc->partitions.next;
+    dllist_node_t* part_hdr = desc->partitions.next;
     while (part_hdr != &desc->partitions) {
-        auto* next_part = part_hdr->next;
-        alloc_type(*desc).deallocate(record_t::from_node(part_hdr), desc->node_count_per_partition);
+        dllist_node_t* next_part = part_hdr->next;
+        alloc_type(*desc).deallocate(reinterpret_cast<record_t*>(part_hdr), desc->node_count_per_partition);
         part_hdr = next_part;
     }
 }
 
 template<typename Pool, uint16_t Size, uint16_t Alignment>
-/*static*/ dllist_node_t* pool_specializer<Pool, Size, Alignment>::allocate_new(pool_desc_t* desc) {
-    auto* node = desc->new_node;
-    auto* next_node = (record_t::from_node(node) - 1)->node();
+/*static*/ void* pool_specializer<Pool, Size, Alignment>::allocate_new(pool_desc_t* desc) {
+    void* node = desc->new_node;
+    void* next_node = static_cast<record_t*>(node) - 1;
     if (Pool::header(node) == next_node) {
         desc->allocate_new = allocate_new_partition;
         return node;
@@ -198,13 +194,13 @@ template<typename Pool, uint16_t Size, uint16_t Alignment>
 }
 
 template<typename Pool, uint16_t Size, uint16_t Alignment>
-/*static*/ dllist_node_t* pool_specializer<Pool, Size, Alignment>::allocate_new_partition(pool_desc_t* desc) {
-    auto* part = alloc_type(*desc).allocate(desc->node_count_per_partition);
-    auto* node = (part + desc->node_count_per_partition - 1)->node();
-    auto* hdr = static_cast<pool_part_hdr_t*>(part->node());
+/*static*/ void* pool_specializer<Pool, Size, Alignment>::allocate_new_partition(pool_desc_t* desc) {
+    record_t* part = alloc_type(*desc).allocate(desc->node_count_per_partition);
+    void* node = part + desc->node_count_per_partition - 1;
+    pool_part_hdr_t* hdr = reinterpret_cast<pool_part_hdr_t*>(part);
     hdr->use_count = desc->node_count_per_partition - 1;
-    dllist_insert_after(&desc->partitions, part->node());
-    desc->new_node = (part + desc->node_count_per_partition - 2)->node();
+    dllist_insert_after<dllist_node_t>(&desc->partitions, hdr);
+    desc->new_node = part + desc->node_count_per_partition - 2;
     Pool::set_header(node, hdr);
     Pool::set_header(desc->new_node, hdr);
     desc->allocate_new = allocate_new;
@@ -214,9 +210,9 @@ template<typename Pool, uint16_t Size, uint16_t Alignment>
 template<typename Pool, uint16_t Size, uint16_t Alignment>
 /*static*/ void pool_specializer<Pool, Size, Alignment>::deallocate_partition(pool_desc_t* desc,
                                                                               pool_part_hdr_t* part_hdr) {
-    auto* part = record_t::from_node(part_hdr);
-    for (auto* record = part; record < part + desc->node_count_per_partition; ++record) {
-        dllist_remove(record->node());
+    record_t* part = reinterpret_cast<record_t*>(part_hdr);
+    for (record_t* record = part; record < part + desc->node_count_per_partition; ++record) {
+        dllist_remove(reinterpret_cast<dllist_node_t*>(record));
     }
     if (desc->allocate_new == allocate_new && part_hdr == Pool::header(desc->new_node)) {
         desc->new_node = nullptr;
@@ -258,14 +254,14 @@ class pool_allocator {
     void swap(pool_allocator& other) noexcept { pool_.swap(other.pool_); }
 
     Ty* allocate(size_t sz) {
-        if (sz == 1) { return reinterpret_cast<Ty*>(pool_.template allocate<Ty>()); }
+        if (sz == 1) { return static_cast<Ty*>(pool_.template allocate<Ty>()); }
         using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>;
         return alloc_type(*pool_.desc()).allocate(sz);
     }
 
     void deallocate(Ty* p, size_t sz) {
         if (sz == 1) {
-            pool_.template deallocate<Ty>(reinterpret_cast<dllist_node_t*>(p));
+            pool_.template deallocate<Ty>(p);
         } else {
             using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>;
             alloc_type(*pool_.desc()).deallocate(p, sz);
@@ -318,15 +314,14 @@ class global_pool_allocator {
 
     Ty* allocate(size_t sz) {
         if (sz == 1) {
-            return reinterpret_cast<Ty*>(pool_type::allocate(pool_type::pool_specializer_t<Ty>::global_pool_desc()));
+            return static_cast<Ty*>(pool_type::allocate(pool_type::pool_specializer_t<Ty>::global_pool_desc()));
         }
         return base_allocator().allocate(sz);
     }
 
     void deallocate(Ty* p, size_t sz) {
         if (sz == 1) {
-            pool_type::deallocate(pool_type::pool_specializer_t<Ty>::global_pool_desc(),
-                                  reinterpret_cast<dllist_node_t*>(p));
+            pool_type::deallocate(pool_type::pool_specializer_t<Ty>::global_pool_desc(), p);
         } else {
             base_allocator().deallocate(p, sz);
         }
