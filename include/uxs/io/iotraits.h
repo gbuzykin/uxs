@@ -10,6 +10,7 @@ struct iotraits {
     using int_type = int;
     using pos_type = uint64_t;
     using off_type = int64_t;
+    static CONSTEXPR pos_type npos() { return static_cast<pos_type>(-1); }
     static CONSTEXPR int_type eof() { return -1; }
     static CONSTEXPR int_type to_int_type(char_type ch) {
         return static_cast<int_type>(static_cast<typename std::make_unsigned<char_type>::type>(ch));

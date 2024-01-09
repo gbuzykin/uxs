@@ -115,7 +115,7 @@ class basic_iobuf : public iostate {
 
     UXS_EXPORT pos_type seek(off_type off, seekdir dir = seekdir::beg);
     pos_type tell() {
-        if (this->fail()) { return -1; }
+        if (this->fail()) { return traits_type::npos(); }
         return seekimpl(0, seekdir::curr);
     }
 

@@ -414,11 +414,11 @@ int basic_devbuf<CharT, Alloc>::overflow() {
     if (!buf_) {  // mappable
         size_type count = this->curr() - this->first();
         if (dev_->seek(count * sizeof(char_type), seekdir::curr) < 0) { return -1; }
+        pos_ += count;
         size_t sz = 0;
         char_type* p = reinterpret_cast<char_type*>(dev_->map(sz, true));
         if (!p || !sz) { return -1; }
         this->setview(p, p, p + sz / sizeof(char_type));
-        pos_ += count;
         return 0;
     }
     return flush_buffer();
@@ -427,6 +427,7 @@ int basic_devbuf<CharT, Alloc>::overflow() {
 template<typename CharT, typename Alloc>
 typename basic_devbuf<CharT, Alloc>::pos_type basic_devbuf<CharT, Alloc>::seekimpl(off_type off, seekdir dir) {
     assert(dev_);
+    if (!!(this->mode() & iomode::z_compr)) { return pos_; }
     if (dir != seekdir::end) {
         std::ptrdiff_t delta = !!(this->mode() & iomode::out) ? this->curr() - this->first() :
                                                                 this->curr() - this->last();
@@ -434,14 +435,14 @@ typename basic_devbuf<CharT, Alloc>::pos_type basic_devbuf<CharT, Alloc>::seekim
         if (dir == seekdir::curr) {
             if (off == 0) { return pos; }
             off += static_cast<off_type>(delta);
-        } else if (pos == off) {
+        } else if (pos == static_cast<pos_type>(off)) {
             return pos;
         }
     }
-    if (!!(this->mode() & (iomode::append | iomode::z_compr))) { return pos_; }
+    if (!!(this->mode() & iomode::out) && !!(this->mode() & iomode::append)) { return pos_; }
     int64_t abs_off = dev_->seek(off * sizeof(char_type), dir);
-    if (abs_off < 0) { return -1; }
-    pos_ = abs_off / sizeof(char_type);
+    if (abs_off < 0) { return traits_type::npos(); }
+    pos_ = static_cast<pos_type>(abs_off / sizeof(char_type));
     if (!buf_ || !!(this->mode() & iomode::in)) { this->setview(nullptr, nullptr, nullptr); }
     return pos_;
 }

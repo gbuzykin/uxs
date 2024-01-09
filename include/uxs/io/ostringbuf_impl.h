@@ -44,16 +44,16 @@ typename basic_ostringbuf<CharT, Alloc>::pos_type basic_ostringbuf<CharT, Alloc>
     size_type pos = this->curr() - this->first(), new_pos = pos;
     switch (dir) {
         case seekdir::beg: {
-            if (off < 0) { return -1; }
+            if (off < 0) { return traits_type::npos(); }
             new_pos = static_cast<size_type>(off);
         } break;
         case seekdir::curr: {
             if (off == 0) { return pos; }
-            if (off < 0 && static_cast<size_type>(-off) >= new_pos) { return -1; }
+            if (off < 0 && static_cast<size_type>(-off) >= new_pos) { return traits_type::npos(); }
             new_pos += static_cast<size_type>(off);
         } break;
         case seekdir::end: {
-            if (off < 0 && static_cast<size_type>(-off) >= sz) { return -1; }
+            if (off < 0 && static_cast<size_type>(-off) >= sz) { return traits_type::npos(); }
             new_pos = sz + static_cast<size_type>(off);
         } break;
     }
@@ -61,7 +61,7 @@ typename basic_ostringbuf<CharT, Alloc>::pos_type basic_ostringbuf<CharT, Alloc>
     if (new_pos > capacity) { grow(new_pos - sz); }
     this->setcurr(this->first() + new_pos);
     if (this->curr() > top_) { std::fill(top_, this->curr(), '\0'); }
-    return new_pos;
+    return static_cast<pos_type>(new_pos);
 }
 
 template<typename CharT, typename Alloc>

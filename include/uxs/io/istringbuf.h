@@ -10,6 +10,7 @@ template<typename CharT>
 class basic_istringbuf : public basic_iobuf<CharT> {
  public:
     using char_type = typename basic_iobuf<CharT>::char_type;
+    using traits_type = typename basic_iobuf<CharT>::traits_type;
     using size_type = typename basic_iobuf<CharT>::size_type;
     using int_type = typename basic_iobuf<CharT>::int_type;
     using pos_type = typename basic_iobuf<CharT>::pos_type;
