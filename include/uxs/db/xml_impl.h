@@ -107,16 +107,10 @@ struct writer_stack_item_t {
         : v(p), element(el), record_it(it) {}
     const value_t* v;
     decltype(uxs::detail::utf8_string_converter<CharT>::to({})) element;
-#if !defined(_MSC_VER) || _MSC_VER > 1800
     union {
         const value_t* array_it;
         typename value_t::const_record_iterator record_it;
     };
-#else   // !defined(_MSC_VER) || _MSC_VER > 1800
-        // Old versions of VS compiler don't support such unions
-    const value_t* array_it = nullptr;
-    typename value_t::const_record_iterator record_it;
-#endif  // !defined(_MSC_VER) || _MSC_VER > 1800
 };
 
 template<typename CharT>

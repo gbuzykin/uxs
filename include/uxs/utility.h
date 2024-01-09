@@ -46,7 +46,7 @@ struct make_index_sequence<0U, Next...> {
 }  // namespace detail
 }  // namespace uxs
 namespace std {
-#    if __cplusplus < 201402L && (!defined(_MSC_VER) || _MSC_VER > 1800)
+#    if __cplusplus < 201402L
 template<bool B, typename Ty = void>
 using enable_if_t = typename enable_if<B, Ty>::type;
 template<typename Ty>
@@ -80,7 +80,7 @@ void as_const(const Ty&&) = delete;
 template<typename Ty, typename... Ts>
 using void_t = typename uxs::type_identity<void, Ty, Ts...>::type;
 #    endif  // void_t
-#    if (!defined(_MSC_VER) || _MSC_VER > 1800) && !defined(__cpp_lib_is_swappable)
+#    if !defined(__cpp_lib_is_swappable)
 template<typename Ty>
 using is_nothrow_swappable = bool_constant<noexcept(swap(declval<Ty&>(), declval<Ty&>()))>;
 #    endif  // is swappable

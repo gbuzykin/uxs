@@ -24,15 +24,8 @@
 #    endif
 #endif
 
-#if !defined(NOEXCEPT)
-#    if defined(_MSC_VER) && _MSC_VER <= 1800
-#        define NOEXCEPT throw()
-#        define NOEXCEPT_IF(x)
-#    else  // defined(_MSC_VER) && _MSC_VER <= 1800
-#        define NOEXCEPT       noexcept
-#        define NOEXCEPT_IF(x) noexcept(x)
-#    endif  // defined(_MSC_VER) && _MSC_VER <= 1800
-#endif      // !defined(NOEXCEPT)
+#define NOEXCEPT       noexcept
+#define NOEXCEPT_IF(x) noexcept(x)
 
 #if !defined(CONSTEVAL)
 #    if __cplusplus >= 202002L && \
