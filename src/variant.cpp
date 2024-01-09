@@ -13,7 +13,7 @@ UXS_IMPLEMENT_VARIANT_TYPE(double, convert_from, convert_to);
 
 variant_error::variant_error(const char* message) : std::runtime_error(message) {}
 variant_error::variant_error(const std::string& message) : std::runtime_error(message) {}
-const char* variant_error::what() const NOEXCEPT { return std::runtime_error::what(); }
+const char* variant_error::what() const noexcept { return std::runtime_error::what(); }
 
 //---------------------------------------------------------------------------------
 // Variant type implementation
@@ -66,7 +66,7 @@ variant& variant::operator=(const variant& v) {
     return *this;
 }
 
-variant& variant::operator=(variant&& v) NOEXCEPT {
+variant& variant::operator=(variant&& v) noexcept {
     if (&v == this) { return *this; }
     if (vtable_ == v.vtable_) {
         if (vtable_) { vtable_->assign_move(&data_, &v.data_); }

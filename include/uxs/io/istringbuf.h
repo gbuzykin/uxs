@@ -19,8 +19,8 @@ class basic_istringbuf : public basic_iobuf<CharT> {
     explicit basic_istringbuf(std::basic_string<char_type> s) : basic_iobuf<CharT>(iomode::in), str_(std::move(s)) {
         redirect_ptrs();
     }
-    UXS_EXPORT basic_istringbuf(basic_istringbuf&& other) NOEXCEPT;
-    UXS_EXPORT basic_istringbuf& operator=(basic_istringbuf&& other) NOEXCEPT;
+    UXS_EXPORT basic_istringbuf(basic_istringbuf&& other) noexcept;
+    UXS_EXPORT basic_istringbuf& operator=(basic_istringbuf&& other) noexcept;
 
  protected:
     UXS_EXPORT pos_type seekimpl(off_type off, seekdir dir) override;

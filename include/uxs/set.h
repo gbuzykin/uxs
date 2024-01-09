@@ -27,16 +27,16 @@ class set : public detail::rbtree_unique<detail::set_node_traits<Key>, Alloc, Co
     using key_compare = typename super::key_compare;
     using value_compare = typename super::key_compare;
 
-    set() NOEXCEPT_IF(noexcept(super())) : super() {}
-    explicit set(const allocator_type& alloc) NOEXCEPT_IF(noexcept(super(alloc))) : super(alloc) {}
+    set() noexcept(noexcept(super())) : super() {}
+    explicit set(const allocator_type& alloc) noexcept(noexcept(super(alloc))) : super(alloc) {}
     explicit set(const key_compare& comp, const allocator_type& alloc = allocator_type()) : super(comp, alloc) {}
 
 #if __cplusplus < 201703L
     ~set() = default;
     set(const set&) = default;
     set& operator=(const set&) = default;
-    set(set&& other) NOEXCEPT_IF(noexcept(super(std::move(other)))) : super(std::move(other)) {}
-    set& operator=(set&& other) NOEXCEPT_IF(std::is_nothrow_move_assignable<super>::value) {
+    set(set&& other) noexcept(noexcept(super(std::move(other)))) : super(std::move(other)) {}
+    set& operator=(set&& other) noexcept(std::is_nothrow_move_assignable<super>::value) {
         super::operator=(std::move(other));
         return *this;
     }
@@ -90,10 +90,10 @@ class set : public detail::rbtree_unique<detail::set_node_traits<Key>, Alloc, Co
     }
 
     set(const set& other, const allocator_type& alloc) : super(other, alloc) {}
-    set(set&& other, const allocator_type& alloc) NOEXCEPT_IF(noexcept(super(std::move(other), alloc)))
+    set(set&& other, const allocator_type& alloc) noexcept(noexcept(super(std::move(other), alloc)))
         : super(std::move(other), alloc) {}
 
-    void swap(set& other) NOEXCEPT_IF(std::is_nothrow_swappable<key_compare>::value) {
+    void swap(set& other) noexcept(std::is_nothrow_swappable<key_compare>::value) {
         if (std::addressof(other) == this) { return; }
         this->swap_impl(other, typename alloc_traits::propagate_on_container_swap());
     }
@@ -166,7 +166,7 @@ bool operator>=(const set<Key, Comp, Alloc>& lhs, const set<Key, Comp, Alloc>& r
 
 namespace std {
 template<typename Key, typename Comp, typename Alloc>
-void swap(uxs::set<Key, Comp, Alloc>& s1, uxs::set<Key, Comp, Alloc>& s2) NOEXCEPT_IF(NOEXCEPT_IF(s1.swap(s2))) {
+void swap(uxs::set<Key, Comp, Alloc>& s1, uxs::set<Key, Comp, Alloc>& s2) noexcept(noexcept(s1.swap(s2))) {
     s1.swap(s2);
 }
 }  // namespace std

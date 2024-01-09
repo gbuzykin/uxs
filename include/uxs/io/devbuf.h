@@ -30,8 +30,8 @@ class basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_all
         initbuf(mode, bufsz);
     }
     UXS_EXPORT ~basic_devbuf() override;
-    UXS_EXPORT basic_devbuf(basic_devbuf&& other) NOEXCEPT;
-    UXS_EXPORT basic_devbuf& operator=(basic_devbuf&& other) NOEXCEPT;
+    UXS_EXPORT basic_devbuf(basic_devbuf&& other) noexcept;
+    UXS_EXPORT basic_devbuf& operator=(basic_devbuf&& other) noexcept;
 
     iodevice* dev() const { return dev_; }
     basic_iobuf<CharT>* tie() const { return tie_buf_; }
@@ -39,7 +39,7 @@ class basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_all
 
     UXS_EXPORT void initbuf(iomode mode, size_type bufsz = 0);
     UXS_EXPORT void freebuf();
-    allocator_type get_allocator() const NOEXCEPT { return allocator_type(*this); }
+    allocator_type get_allocator() const noexcept { return allocator_type(*this); }
 
  protected:
     UXS_EXPORT int underflow() override;

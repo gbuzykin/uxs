@@ -87,7 +87,7 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC variant_error : public std::runtime_error {
  public:
     UXS_EXPORT explicit variant_error(const char* message);
     UXS_EXPORT explicit variant_error(const std::string& message);
-    UXS_EXPORT const char* what() const NOEXCEPT override;
+    UXS_EXPORT const char* what() const noexcept override;
 };
 
 template<typename Ty>
@@ -104,7 +104,7 @@ class variant {
     enum : size_t { storage_size = sizeof(storage_t) };
     enum : size_t { storage_alignment = std::alignment_of<storage_t>::value };
 
-    variant() NOEXCEPT {}
+    variant() noexcept {}
     explicit variant(variant_id type) : vtable_(get_vtable(type)) {
         if (vtable_) { vtable_->construct_default(&data_); }
     }
@@ -112,7 +112,7 @@ class variant {
     variant(const variant& v) : vtable_(v.vtable_) {
         if (vtable_) { v.vtable_->construct_copy(&data_, &v.data_); }
     }
-    variant(variant&& v) NOEXCEPT : vtable_(v.vtable_) {
+    variant(variant&& v) noexcept : vtable_(v.vtable_) {
         if (vtable_) { vtable_->construct_move(&data_, &v.data_); }
     }
     UXS_EXPORT variant(variant_id type, const variant& v);
@@ -134,7 +134,7 @@ class variant {
     }
 
     UXS_EXPORT variant& operator=(const variant& v);
-    UXS_EXPORT variant& operator=(variant&& v) NOEXCEPT;
+    UXS_EXPORT variant& operator=(variant&& v) noexcept;
 
     template<typename Ty, typename... Args, typename = std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
     Ty& emplace(Args&&... args);
@@ -142,16 +142,16 @@ class variant {
     template<typename Ty, typename = std::void_t<typename variant_type_impl<std::decay_t<Ty>>::is_variant_type_impl>>
     variant& operator=(Ty&& val);
 
-    bool has_value() const NOEXCEPT { return vtable_ != nullptr; }
-    explicit operator bool() const NOEXCEPT { return vtable_ != nullptr; }
-    variant_id type() const NOEXCEPT { return vtable_ ? vtable_->type : variant_id::invalid; }
+    bool has_value() const noexcept { return vtable_ != nullptr; }
+    explicit operator bool() const noexcept { return vtable_ != nullptr; }
+    variant_id type() const noexcept { return vtable_ ? vtable_->type : variant_id::invalid; }
 
     template<typename Ty, typename = std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
-    bool is() const NOEXCEPT {
+    bool is() const noexcept {
         return vtable_ && vtable_->type == variant_type_impl<Ty>::type_id;
     }
 
-    void reset() NOEXCEPT {
+    void reset() noexcept {
         if (vtable_) { vtable_->destroy(&data_); }
         vtable_ = nullptr;
     }
@@ -204,12 +204,12 @@ class variant {
         variant_id type;
         void* (*construct_default)(void*);
         void (*construct_copy)(void*, const void*);
-        void (*construct_move)(void*, void*) NOEXCEPT;
-        void (*destroy)(void*) NOEXCEPT;
+        void (*construct_move)(void*, void*) noexcept;
+        void (*destroy)(void*) noexcept;
         void (*assign_copy)(void*, const void*);
-        void (*assign_move)(void*, void*) NOEXCEPT;
-        const void* (*get_value_const_ptr)(const void*)NOEXCEPT;
-        void* (*get_value_ptr)(void*)NOEXCEPT;
+        void (*assign_move)(void*, void*) noexcept;
+        const void* (*get_value_const_ptr)(const void*) noexcept;
+        void* (*get_value_ptr)(void*) noexcept;
         bool (*is_equal)(const void*, const void*);
 #ifdef USE_QT
         void (*serialize_qt)(QDataStream&, const void*);
@@ -379,8 +379,8 @@ struct variant_type_base_impl {
     }
     static void* construct_default(void* p) { return &*deref(new (p) cow_ptr<Ty>()); }
     static void construct_copy(void* p, const void* src) { new (p) cow_ptr<Ty>(deref(src)); }
-    static void construct_move(void* p, void* src) NOEXCEPT { new (p) cow_ptr<Ty>(std::move(deref(src))); }
-    static void destroy(void* p) NOEXCEPT { deref(p).~cow_ptr<Ty>(); }
+    static void construct_move(void* p, void* src) noexcept { new (p) cow_ptr<Ty>(std::move(deref(src))); }
+    static void destroy(void* p) noexcept { deref(p).~cow_ptr<Ty>(); }
 
     template<typename U>
     static Ty& assign(void* p, U&& val) {
@@ -389,9 +389,9 @@ struct variant_type_base_impl {
         return *deref(p);
     }
     static void assign_copy(void* p, const void* src) { deref(p) = deref(src); }
-    static void assign_move(void* p, void* src) NOEXCEPT { deref(p) = std::move(deref(src)); }
-    static const void* get_value_const_ptr(const void* p) NOEXCEPT { return &*deref(p); }
-    static void* get_value_ptr(void* p) NOEXCEPT { return &*deref(p); }
+    static void assign_move(void* p, void* src) noexcept { deref(p) = std::move(deref(src)); }
+    static const void* get_value_const_ptr(const void* p) noexcept { return &*deref(p); }
+    static void* get_value_ptr(void* p) noexcept { return &*deref(p); }
     static bool is_equal(const void* lhs, const void* rhs) { return *deref(lhs) == *deref(rhs); }
 #ifdef USE_QT
     static void serialize_qt(QDataStream& os, const void* p) { os << *deref(p); }
@@ -420,17 +420,17 @@ struct variant_type_base_impl<
     }
     static void* construct_default(void* p) { return new (p) Ty(); }
     static void construct_copy(void* p, const void* src) { new (p) Ty(deref(src)); }
-    static void construct_move(void* p, void* src) NOEXCEPT { new (p) Ty(std::move(deref(src))); }
-    static void destroy(void* p) NOEXCEPT { deref(p).~Ty(); }
+    static void construct_move(void* p, void* src) noexcept { new (p) Ty(std::move(deref(src))); }
+    static void destroy(void* p) noexcept { deref(p).~Ty(); }
 
     template<typename U>
     static Ty& assign(void* p, U&& val) {
         return deref(p) = std::forward<U>(val);
     }
     static void assign_copy(void* p, const void* src) { deref(p) = deref(src); }
-    static void assign_move(void* p, void* src) NOEXCEPT { deref(p) = std::move(deref(src)); }
-    static const void* get_value_const_ptr(const void* p) NOEXCEPT { return p; }
-    static void* get_value_ptr(void* p) NOEXCEPT { return p; }
+    static void assign_move(void* p, void* src) noexcept { deref(p) = std::move(deref(src)); }
+    static const void* get_value_const_ptr(const void* p) noexcept { return p; }
+    static void* get_value_ptr(void* p) noexcept { return p; }
     static bool is_equal(const void* lhs, const void* rhs) { return deref(lhs) == deref(rhs); }
 #ifdef USE_QT
     static void serialize_qt(QDataStream& os, const void* p) { os << deref(p); }

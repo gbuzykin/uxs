@@ -5,15 +5,13 @@
 namespace uxs {
 
 template<typename CharT>
-basic_iobuf<CharT>::basic_iobuf(basic_iobuf&& other) NOEXCEPT : iostate(other),
-                                                                first_(other.first_),
-                                                                curr_(other.curr_),
-                                                                last_(other.last_) {
+basic_iobuf<CharT>::basic_iobuf(basic_iobuf&& other) noexcept
+    : iostate(other), first_(other.first_), curr_(other.curr_), last_(other.last_) {
     other.first_ = other.curr_ = other.last_ = nullptr;
 }
 
 template<typename CharT>
-basic_iobuf<CharT>& basic_iobuf<CharT>::operator=(basic_iobuf&& other) NOEXCEPT {
+basic_iobuf<CharT>& basic_iobuf<CharT>::operator=(basic_iobuf&& other) noexcept {
     if (&other == this) { return *this; }
     iostate::operator=(other);
     first_ = other.first_, curr_ = other.curr_, last_ = other.last_;

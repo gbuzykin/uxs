@@ -46,20 +46,19 @@ class rbtree_unique : public rbtree_base<NodeTraits, Alloc, Comp> {
         node_type node;
     };
 
-    rbtree_unique() NOEXCEPT_IF(noexcept(super())) : super() {}
-    explicit rbtree_unique(const allocator_type& alloc) NOEXCEPT_IF(noexcept(super(alloc))) : super(alloc) {}
+    rbtree_unique() noexcept(noexcept(super())) : super() {}
+    explicit rbtree_unique(const allocator_type& alloc) noexcept(noexcept(super(alloc))) : super(alloc) {}
     explicit rbtree_unique(const key_compare& comp, const allocator_type& alloc) : super(comp, alloc) {}
     rbtree_unique(const rbtree_unique& other, const allocator_type& alloc) : super(other, alloc) {}
-    rbtree_unique(rbtree_unique&& other, const allocator_type& alloc)
-        NOEXCEPT_IF(noexcept(super(std::move(other), alloc)))
+    rbtree_unique(rbtree_unique&& other, const allocator_type& alloc) noexcept(noexcept(super(std::move(other), alloc)))
         : super(std::move(other), alloc) {}
 
 #if __cplusplus < 201703L
     ~rbtree_unique() = default;
     rbtree_unique(const rbtree_unique&) = default;
     rbtree_unique& operator=(const rbtree_unique&) = default;
-    rbtree_unique(rbtree_unique&& other) NOEXCEPT_IF(noexcept(super(std::move(other)))) : super(std::move(other)) {}
-    rbtree_unique& operator=(rbtree_unique&& other) NOEXCEPT_IF(std::is_nothrow_move_assignable<super>::value) {
+    rbtree_unique(rbtree_unique&& other) noexcept(noexcept(super(std::move(other)))) : super(std::move(other)) {}
+    rbtree_unique& operator=(rbtree_unique&& other) noexcept(std::is_nothrow_move_assignable<super>::value) {
         super::operator=(std::move(other));
         return *this;
     }

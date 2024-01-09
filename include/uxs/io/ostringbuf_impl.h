@@ -12,13 +12,11 @@ basic_ostringbuf<CharT, Alloc>::~basic_ostringbuf() {
 }
 
 template<typename CharT, typename Alloc>
-basic_ostringbuf<CharT, Alloc>::basic_ostringbuf(basic_ostringbuf&& other) NOEXCEPT
-    : alloc_type(std::move(other)),
-      basic_iobuf<CharT>(std::move(other)),
-      top_(other.top_) {}
+basic_ostringbuf<CharT, Alloc>::basic_ostringbuf(basic_ostringbuf&& other) noexcept
+    : alloc_type(std::move(other)), basic_iobuf<CharT>(std::move(other)), top_(other.top_) {}
 
 template<typename CharT, typename Alloc>
-basic_ostringbuf<CharT, Alloc>& basic_ostringbuf<CharT, Alloc>::operator=(basic_ostringbuf&& other) NOEXCEPT {
+basic_ostringbuf<CharT, Alloc>& basic_ostringbuf<CharT, Alloc>::operator=(basic_ostringbuf&& other) noexcept {
     if (&other == this) { return *this; }
     alloc_type::operator=(std::move(other));
     basic_iobuf<CharT>::operator=(std::move(other));

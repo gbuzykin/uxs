@@ -65,24 +65,24 @@ class intrusive_list {
     intrusive_list& operator=(const intrusive_list&) = delete;
     ~intrusive_list() { clear(); }
 
-    bool empty() const NOEXCEPT { return size_ == 0; }
-    size_type size() const NOEXCEPT { return size_; }
+    bool empty() const noexcept { return size_ == 0; }
+    size_type size() const noexcept { return size_; }
 
     iterator begin() { return iterator(head_.next); }
     const_iterator begin() const { return const_iterator(head_.next); }
     const_iterator cbegin() const { return const_iterator(head_.next); }
 
-    iterator end() NOEXCEPT { return iterator(std::addressof(head_)); }
-    const_iterator end() const NOEXCEPT { return const_iterator(std::addressof(head_)); }
-    const_iterator cend() const NOEXCEPT { return const_iterator(std::addressof(head_)); }
+    iterator end() noexcept { return iterator(std::addressof(head_)); }
+    const_iterator end() const noexcept { return const_iterator(std::addressof(head_)); }
+    const_iterator cend() const noexcept { return const_iterator(std::addressof(head_)); }
 
-    reverse_iterator rbegin() NOEXCEPT { return reverse_iterator(end()); }
-    const_reverse_iterator rbegin() const NOEXCEPT { return const_reverse_iterator(end()); }
-    const_reverse_iterator crbegin() const NOEXCEPT { return const_reverse_iterator(end()); }
+    reverse_iterator rbegin() noexcept { return reverse_iterator(end()); }
+    const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
+    const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(end()); }
 
-    reverse_iterator rend() NOEXCEPT { return reverse_iterator(begin()); }
-    const_reverse_iterator rend() const NOEXCEPT { return const_reverse_iterator(begin()); }
-    const_reverse_iterator crend() const NOEXCEPT { return const_reverse_iterator(begin()); }
+    reverse_iterator rend() noexcept { return reverse_iterator(begin()); }
+    const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
+    const_reverse_iterator crend() const noexcept { return const_reverse_iterator(begin()); }
 
     reference front() {
         assert(size_);
@@ -154,8 +154,8 @@ class intrusive_list {
     typename hook_t::internal_pointer_t extract_front() { return extract(begin()); }
     typename hook_t::internal_pointer_t extract_back() { return extract(std::prev(end())); }
 
-    const_iterator to_iterator(const_reference r) const NOEXCEPT { return const_iterator(&(r.*PtrToMember)); }
-    iterator to_iterator(reference r) NOEXCEPT { return iterator(&(r.*PtrToMember)); }
+    const_iterator to_iterator(const_reference r) const noexcept { return const_iterator(&(r.*PtrToMember)); }
+    iterator to_iterator(reference r) noexcept { return iterator(&(r.*PtrToMember)); }
 
  private:
     size_t size_ = 0;

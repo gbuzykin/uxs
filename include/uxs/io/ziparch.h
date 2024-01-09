@@ -14,7 +14,7 @@ class ziparch {
     ziparch(const char* name, const char* mode) : ziparch(name, detail::iomode_from_str(mode, iomode::in)) {}
     ziparch(const wchar_t* name, const char* mode) : ziparch(name, detail::iomode_from_str(mode, iomode::in)) {}
     ~ziparch() { close(); }
-    ziparch(ziparch&& other) NOEXCEPT : zip_(other.zip_) { other.zip_ = nullptr; }
+    ziparch(ziparch&& other) noexcept : zip_(other.zip_) { other.zip_ = nullptr; }
     ziparch& operator=(ziparch&& other) {
         if (&other == this) { return *this; }
         zip_ = other.zip_;

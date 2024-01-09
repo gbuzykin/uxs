@@ -29,8 +29,8 @@ class basic_iobuf : public iostate {
     virtual ~basic_iobuf() = default;
     basic_iobuf(const basic_iobuf&) = delete;
     basic_iobuf& operator=(const basic_iobuf&) = delete;
-    UXS_EXPORT basic_iobuf(basic_iobuf&& other) NOEXCEPT;
-    UXS_EXPORT basic_iobuf& operator=(basic_iobuf&& other) NOEXCEPT;
+    UXS_EXPORT basic_iobuf(basic_iobuf&& other) noexcept;
+    UXS_EXPORT basic_iobuf& operator=(basic_iobuf&& other) noexcept;
 
     size_type avail() const { return last_ - curr_; }
     char_type* first_avail() const { return curr_; }

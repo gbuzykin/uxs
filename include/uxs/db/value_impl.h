@@ -669,7 +669,7 @@ uxs::optional<std::basic_string_view<CharT>> basic_value<CharT, Alloc>::get_stri
 // --------------------------
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::is_int() const NOEXCEPT {
+bool basic_value<CharT, Alloc>::is_int() const noexcept {
     switch (type_) {
         case dtype::integer: return true;
         case dtype::unsigned_integer: return value_.u <= static_cast<uint32_t>(std::numeric_limits<int32_t>::max());
@@ -687,7 +687,7 @@ bool basic_value<CharT, Alloc>::is_int() const NOEXCEPT {
 }
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::is_uint() const NOEXCEPT {
+bool basic_value<CharT, Alloc>::is_uint() const noexcept {
     switch (type_) {
         case dtype::integer: return value_.i >= 0;
         case dtype::unsigned_integer: return true;
@@ -703,7 +703,7 @@ bool basic_value<CharT, Alloc>::is_uint() const NOEXCEPT {
 }
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::is_int64() const NOEXCEPT {
+bool basic_value<CharT, Alloc>::is_int64() const noexcept {
     switch (type_) {
         case dtype::integer:
         case dtype::unsigned_integer:
@@ -721,7 +721,7 @@ bool basic_value<CharT, Alloc>::is_int64() const NOEXCEPT {
 }
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::is_uint64() const NOEXCEPT {
+bool basic_value<CharT, Alloc>::is_uint64() const noexcept {
     switch (type_) {
         case dtype::integer: return value_.i >= 0;
         case dtype::unsigned_integer: return true;
@@ -737,7 +737,7 @@ bool basic_value<CharT, Alloc>::is_uint64() const NOEXCEPT {
 }
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::is_integral() const NOEXCEPT {
+bool basic_value<CharT, Alloc>::is_integral() const noexcept {
     switch (type_) {
         case dtype::integer:
         case dtype::unsigned_integer:
@@ -793,7 +793,7 @@ bool basic_value<CharT, Alloc>::convert(dtype type) {
 }
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::empty() const NOEXCEPT {
+bool basic_value<CharT, Alloc>::empty() const noexcept {
     switch (type_) {
         case dtype::null: return true;
         case dtype::array: return !value_.arr || !value_.arr->size;
@@ -804,7 +804,7 @@ bool basic_value<CharT, Alloc>::empty() const NOEXCEPT {
 }
 
 template<typename CharT, typename Alloc>
-size_t basic_value<CharT, Alloc>::size() const NOEXCEPT {
+size_t basic_value<CharT, Alloc>::size() const noexcept {
     switch (type_) {
         case dtype::null: return 0;
         case dtype::array: return value_.arr ? value_.arr->size : 0;
@@ -840,7 +840,7 @@ basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::operator[](std::basic_stri
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::clear() NOEXCEPT {
+void basic_value<CharT, Alloc>::clear() noexcept {
     if (type_ == dtype::record) {
         typename record_t::alloc_type rec_al(*this);
         value_.rec->clear(rec_al);

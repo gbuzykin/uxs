@@ -18,7 +18,7 @@ class UXS_EXPORT byteseq {
     byteseq() = default;
     explicit byteseq(byteseq_flags flags) : flags_(flags) {}
     byteseq(const byteseq& other) { assign(other); }
-    byteseq(byteseq&& other) NOEXCEPT : head_(other.head_), size_(other.size_), flags_(other.flags_) {
+    byteseq(byteseq&& other) noexcept : head_(other.head_), size_(other.size_), flags_(other.flags_) {
         other.head_ = nullptr, other.size_ = 0;
     }
     ~byteseq();
@@ -27,7 +27,7 @@ class UXS_EXPORT byteseq {
         if (&other != this) { assign(other); }
         return *this;
     }
-    byteseq& operator=(byteseq&& other) NOEXCEPT {
+    byteseq& operator=(byteseq&& other) noexcept {
         if (&other != this) {
             head_ = other.head_, size_ = other.size_, flags_ = other.flags_;
             other.head_ = nullptr, other.size_ = 0;

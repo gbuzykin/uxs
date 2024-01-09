@@ -25,13 +25,13 @@ class basic_ostringbuf : protected std::allocator_traits<Alloc>::template rebind
     basic_ostringbuf() : alloc_type(), basic_iobuf<CharT>(iomode::out) {}
     explicit basic_ostringbuf(const Alloc& al) : alloc_type(al), basic_iobuf<CharT>(iomode::out) {}
     UXS_EXPORT ~basic_ostringbuf() override;
-    UXS_EXPORT basic_ostringbuf(basic_ostringbuf&& other) NOEXCEPT;
-    UXS_EXPORT basic_ostringbuf& operator=(basic_ostringbuf&& other) NOEXCEPT;
+    UXS_EXPORT basic_ostringbuf(basic_ostringbuf&& other) noexcept;
+    UXS_EXPORT basic_ostringbuf& operator=(basic_ostringbuf&& other) noexcept;
 
     size_type size() const { return (top_ > this->curr() ? top_ : this->curr()) - this->first(); }
     std::basic_string_view<char_type> view() const { return std::basic_string_view<char_type>(this->first(), size()); }
     std::basic_string<char_type> str() const { return std::basic_string<char_type>(this->first(), size()); }
-    allocator_type get_allocator() const NOEXCEPT { return allocator_type(*this); }
+    allocator_type get_allocator() const noexcept { return allocator_type(*this); }
 
     void truncate(size_type sz) {
         if (sz > size()) { sz = size(); }

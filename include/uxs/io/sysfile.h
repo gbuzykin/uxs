@@ -23,7 +23,7 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC sysfile : public iodevice {
         open(fname, detail::iomode_from_str(mode, iomode::none));
     }
     UXS_EXPORT ~sysfile() override;
-    sysfile(sysfile&& other) NOEXCEPT : fd_(other.detach()) {}
+    sysfile(sysfile&& other) noexcept : fd_(other.detach()) {}
     sysfile& operator=(sysfile&& other) {
         if (&other == this) { return *this; }
         attach(other.detach());

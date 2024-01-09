@@ -24,9 +24,6 @@
 #    endif
 #endif
 
-#define NOEXCEPT       noexcept
-#define NOEXCEPT_IF(x) noexcept(x)
-
 #if !defined(CONSTEVAL)
 #    if __cplusplus >= 202002L && \
         (__GNUC__ >= 10 || __clang_major__ >= 12 || (_MSC_VER >= 1920 && defined(__cpp_consteval)))

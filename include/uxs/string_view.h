@@ -37,31 +37,31 @@ class basic_string_view {
 
     static const size_type npos = std::string::npos;
 
-    basic_string_view() NOEXCEPT {}
+    basic_string_view() noexcept {}
     basic_string_view(const CharT* s, size_type count) : begin_(s), size_(count) {}
     basic_string_view(const CharT* s) : begin_(s) {
         for (; *s; ++s, ++size_) {}
     }
     template<typename Alloc>
-    basic_string_view(const basic_string<CharT, Traits, Alloc>& s) NOEXCEPT : basic_string_view(s.data(), s.size()) {}
+    basic_string_view(const basic_string<CharT, Traits, Alloc>& s) noexcept : basic_string_view(s.data(), s.size()) {}
 
-    size_type size() const NOEXCEPT { return size_; }
-    size_type length() const NOEXCEPT { return size_; }
-    bool empty() const NOEXCEPT { return size_ == 0; }
+    size_type size() const noexcept { return size_; }
+    size_type length() const noexcept { return size_; }
+    bool empty() const noexcept { return size_ == 0; }
 
     explicit operator basic_string<CharT, Traits>() const { return basic_string<CharT, Traits>(begin_, size_); }
 
-    const_iterator begin() const NOEXCEPT { return const_iterator(begin_, begin_, begin_ + size_); }
-    const_iterator cbegin() const NOEXCEPT { return const_iterator(begin_, begin_, begin_ + size_); }
+    const_iterator begin() const noexcept { return const_iterator(begin_, begin_, begin_ + size_); }
+    const_iterator cbegin() const noexcept { return const_iterator(begin_, begin_, begin_ + size_); }
 
-    const_iterator end() const NOEXCEPT { return const_iterator(begin_ + size_, begin_, begin_ + size_); }
-    const_iterator cend() const NOEXCEPT { return const_iterator(begin_ + size_, begin_, begin_ + size_); }
+    const_iterator end() const noexcept { return const_iterator(begin_ + size_, begin_, begin_ + size_); }
+    const_iterator cend() const noexcept { return const_iterator(begin_ + size_, begin_, begin_ + size_); }
 
-    const_reverse_iterator rbegin() const NOEXCEPT { return const_reverse_iterator{end()}; }
-    const_reverse_iterator crbegin() const NOEXCEPT { return const_reverse_iterator{end()}; }
+    const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator{end()}; }
+    const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator{end()}; }
 
-    const_reverse_iterator rend() const NOEXCEPT { return const_reverse_iterator{begin()}; }
-    const_reverse_iterator crend() const NOEXCEPT { return const_reverse_iterator{begin()}; }
+    const_reverse_iterator rend() const noexcept { return const_reverse_iterator{begin()}; }
+    const_reverse_iterator crend() const noexcept { return const_reverse_iterator{begin()}; }
 
     const_reference operator[](size_type pos) const {
         assert(pos < size_);
@@ -79,7 +79,7 @@ class basic_string_view {
         assert(size_ > 0);
         return *(begin_ + size_ - 1);
     }
-    const_pointer data() const NOEXCEPT { return begin_; }
+    const_pointer data() const noexcept { return begin_; }
 
     basic_string_view substr(size_type pos, size_type count = npos) const {
         if (pos > size_) { pos = size_; }

@@ -266,7 +266,7 @@ struct bignum_t {
 };
 
 SCVT_CONSTEXPR_DATA int bigpow10_tbl_size = 19;
-SCVT_FORCE_INLINE bignum_t get_bigpow10(unsigned index) NOEXCEPT {
+SCVT_FORCE_INLINE bignum_t get_bigpow10(unsigned index) noexcept {
     static SCVT_CONSTEXPR_DATA uint64_t bigpow10[] = {
         0xde0b6b3a76400000, 0xc097ce7bc90715b3, 0x4b9f100000000000, 0xa70c3c40a64e6c51, 0x999090b65f67d924,
         0x90e40fbeea1d3a4a, 0xbc8955e946fe31cd, 0xcf66f634e1000000, 0xfb5878494ace3a5f, 0x04ab48a04065c723,
@@ -341,7 +341,7 @@ inline uint64_t umul96x64_higher128(uint96_t x, uint64_t y, uint64_t& result_hi)
 }
 
 SCVT_CONSTEXPR_DATA int pow10_max = 344;
-SCVT_FORCE_INLINE uint96_t get_cached_pow10(int pow) NOEXCEPT {
+SCVT_FORCE_INLINE uint96_t get_cached_pow10(int pow) noexcept {
     assert(pow >= -pow10_max && pow <= pow10_max);
     static SCVT_CONSTEXPR_DATA uint64_t higher64[] = {
         0x98ee4a22ecf3188b, 0xe3e27a444d8d98b7, 0xa9c98d8ccb009506, 0xfd00b897478238d0, 0xbc807527ed3e12bc,
@@ -395,7 +395,7 @@ inline int exp10to2(int exp) {
     return static_cast<int>(hi32(ln10_ln2 * exp));
 }
 
-static uint64_t fp10_to_fp2_slow(fp10_t& fp10, const unsigned bpm, const int exp_max) NOEXCEPT {
+static uint64_t fp10_to_fp2_slow(fp10_t& fp10, const unsigned bpm, const int exp_max) noexcept {
     unsigned sz_num = fp10.bits_used;
     uint64_t* m10 = &fp10.bits[max_fp10_mantissa_size - sz_num];
 
@@ -495,7 +495,7 @@ static uint64_t fp10_to_fp2_slow(fp10_t& fp10, const unsigned bpm, const int exp
     return (static_cast<uint64_t>(exp2) << bpm) | (m & ((1ull << bpm) - 1));  // normalized
 }
 
-uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) NOEXCEPT {
+uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) noexcept {
     unsigned sz_num = fp10.bits_used;
     uint64_t m = fp10.bits[max_fp10_mantissa_size - sz_num];
 
@@ -560,11 +560,8 @@ uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) NOEXCE
 
 // --------------------------
 
-fp_hex_fmt_t::fp_hex_fmt_t(const fp_m64_t& fp2, const fmt_opts& fmt, const unsigned bpm, const int exp_bias) NOEXCEPT
-    : significand_(fp2.m),
-      exp_(fp2.exp),
-      prec_(fmt.prec),
-      n_zeroes_(0),
+fp_hex_fmt_t::fp_hex_fmt_t(const fp_m64_t& fp2, const fmt_opts& fmt, const unsigned bpm, const int exp_bias) noexcept
+    : significand_(fp2.m), exp_(fp2.exp), prec_(fmt.prec), n_zeroes_(0),
       alternate_(!!(fmt.flags & fmt_flags::alternate)) {
     if (significand_ == 0 && exp_ == 0) {  // real zero
         exp_ = 0, prec_ = n_zeroes_ = prec_ < 0 ? 0 : (prec_ & 0xffff);
@@ -621,11 +618,8 @@ SCVT_FORCE_INLINE int remove_trailing_zeros(uint64_t& n, int max_remove) {
     return max_remove - s;
 }
 
-fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, const int exp_bias) NOEXCEPT
-    : significand_(0),
-      prec_(fmt.prec),
-      n_zeroes_(0),
-      alternate_(!!(fmt.flags & fmt_flags::alternate)) {
+fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, const int exp_bias) noexcept
+    : significand_(0), prec_(fmt.prec), n_zeroes_(0), alternate_(!!(fmt.flags & fmt_flags::alternate)) {
     const int default_prec = 6;
     const fmt_flags fp_fmt = fmt.flags & fmt_flags::float_field;
     fixed_ = fp_fmt == fmt_flags::fixed;
@@ -730,7 +724,7 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, cons
     if (!!(fmt.flags & fmt_flags::json_compat) && prec_ == 0) { significand_ *= 10u, prec_ = 1; }
 }
 
-void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT {
+void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) noexcept {
     assert(n_digs < digs_per_64);
     ++n_digs;  // one additional digit for rounding
 
@@ -786,7 +780,7 @@ finish:
     }
 }
 
-void fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT {
+void fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) noexcept {
     // `max_pow10_size` uint64-s are enough to hold all (normalized!) 10^n, n <= 324 + digs_per_64
     uint64_t num[max_pow10_size + 1];  // +1 to multiply by uint64
     unsigned sz_num = 1;
@@ -852,7 +846,7 @@ void fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, co
     }
 }
 
-void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) NOEXCEPT {
+void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) noexcept {
     assert(n_digs >= digs_per_64);
     ++n_digs;  // one additional digit for rounding
 
@@ -970,17 +964,17 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fm
     n_zeroes_ = n_digs;
 }
 
-template UXS_EXPORT uint32_t to_integral_common(const char*, const char*, const char*&, uint32_t) NOEXCEPT;
-template UXS_EXPORT uint64_t to_integral_common(const char*, const char*, const char*&, uint64_t) NOEXCEPT;
+template UXS_EXPORT uint32_t to_integral_common(const char*, const char*, const char*&, uint32_t) noexcept;
+template UXS_EXPORT uint64_t to_integral_common(const char*, const char*, const char*&, uint64_t) noexcept;
 template UXS_EXPORT uint64_t to_float_common(const char*, const char*, const char*& last, const unsigned,
-                                             const int) NOEXCEPT;
-template UXS_EXPORT bool to_boolean(const char*, const char*, const char*& last) NOEXCEPT;
+                                             const int) noexcept;
+template UXS_EXPORT bool to_boolean(const char*, const char*, const char*& last) noexcept;
 
-template UXS_EXPORT uint32_t to_integral_common(const wchar_t*, const wchar_t*, const wchar_t*&, uint32_t) NOEXCEPT;
-template UXS_EXPORT uint64_t to_integral_common(const wchar_t*, const wchar_t*, const wchar_t*&, uint64_t) NOEXCEPT;
+template UXS_EXPORT uint32_t to_integral_common(const wchar_t*, const wchar_t*, const wchar_t*&, uint32_t) noexcept;
+template UXS_EXPORT uint64_t to_integral_common(const wchar_t*, const wchar_t*, const wchar_t*&, uint64_t) noexcept;
 template UXS_EXPORT uint64_t to_float_common(const wchar_t*, const wchar_t*, const wchar_t*& last, const unsigned,
-                                             const int) NOEXCEPT;
-template UXS_EXPORT bool to_boolean(const wchar_t*, const wchar_t*, const wchar_t*& last) NOEXCEPT;
+                                             const int) noexcept;
+template UXS_EXPORT bool to_boolean(const wchar_t*, const wchar_t*, const wchar_t*& last) noexcept;
 
 template UXS_EXPORT void fmt_integral_common(membuffer&, int32_t, const fmt_opts&);
 template UXS_EXPORT void fmt_integral_common(membuffer&, int64_t, const fmt_opts&);

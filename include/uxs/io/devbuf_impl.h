@@ -45,14 +45,12 @@ basic_devbuf<CharT, Alloc>::~basic_devbuf() {
 }
 
 template<typename CharT, typename Alloc>
-basic_devbuf<CharT, Alloc>::basic_devbuf(basic_devbuf&& other) NOEXCEPT : alloc_type(std::move(other)),
-                                                                          basic_iobuf<CharT>(std::move(other)),
-                                                                          dev_(other.dev_),
-                                                                          buf_(other.buf_),
-                                                                          tie_buf_(other.tie_buf_) {}
+basic_devbuf<CharT, Alloc>::basic_devbuf(basic_devbuf&& other) noexcept
+    : alloc_type(std::move(other)), basic_iobuf<CharT>(std::move(other)), dev_(other.dev_), buf_(other.buf_),
+      tie_buf_(other.tie_buf_) {}
 
 template<typename CharT, typename Alloc>
-basic_devbuf<CharT, Alloc>& basic_devbuf<CharT, Alloc>::operator=(basic_devbuf&& other) NOEXCEPT {
+basic_devbuf<CharT, Alloc>& basic_devbuf<CharT, Alloc>::operator=(basic_devbuf&& other) noexcept {
     if (&other == this) { return *this; }
     freebuf();
     alloc_type::operator=(std::move(other));

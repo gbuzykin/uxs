@@ -27,16 +27,16 @@ class multiset : public detail::rbtree_multi<detail::set_node_traits<Key>, Alloc
     using key_compare = typename super::key_compare;
     using value_compare = typename super::key_compare;
 
-    multiset() NOEXCEPT_IF(noexcept(super())) : super() {}
-    explicit multiset(const allocator_type& alloc) NOEXCEPT_IF(noexcept(super(alloc))) : super(alloc) {}
+    multiset() noexcept(noexcept(super())) : super() {}
+    explicit multiset(const allocator_type& alloc) noexcept(noexcept(super(alloc))) : super(alloc) {}
     explicit multiset(const key_compare& comp, const allocator_type& alloc = allocator_type()) : super(comp, alloc) {}
 
 #if __cplusplus < 201703L
     ~multiset() = default;
     multiset(const multiset&) = default;
     multiset& operator=(const multiset&) = default;
-    multiset(multiset&& other) NOEXCEPT_IF(noexcept(super(std::move(other)))) : super(std::move(other)) {}
-    multiset& operator=(multiset&& other) NOEXCEPT_IF(std::is_nothrow_move_assignable<super>::value) {
+    multiset(multiset&& other) noexcept(noexcept(super(std::move(other)))) : super(std::move(other)) {}
+    multiset& operator=(multiset&& other) noexcept(std::is_nothrow_move_assignable<super>::value) {
         super::operator=(std::move(other));
         return *this;
     }
@@ -90,10 +90,10 @@ class multiset : public detail::rbtree_multi<detail::set_node_traits<Key>, Alloc
     }
 
     multiset(const multiset& other, const allocator_type& alloc) : super(other, alloc) {}
-    multiset(multiset&& other, const allocator_type& alloc) NOEXCEPT_IF(noexcept(super(std::move(other), alloc)))
+    multiset(multiset&& other, const allocator_type& alloc) noexcept(noexcept(super(std::move(other), alloc)))
         : super(std::move(other), alloc) {}
 
-    void swap(multiset& other) NOEXCEPT_IF(std::is_nothrow_swappable<key_compare>::value) {
+    void swap(multiset& other) noexcept(std::is_nothrow_swappable<key_compare>::value) {
         if (std::addressof(other) == this) { return; }
         this->swap_impl(other, typename alloc_traits::propagate_on_container_swap());
     }
@@ -166,8 +166,7 @@ bool operator>=(const multiset<Key, Comp, Alloc>& lhs, const multiset<Key, Comp,
 
 namespace std {
 template<typename Key, typename Comp, typename Alloc>
-void swap(uxs::multiset<Key, Comp, Alloc>& s1, uxs::multiset<Key, Comp, Alloc>& s2)
-    NOEXCEPT_IF(NOEXCEPT_IF(s1.swap(s2))) {
+void swap(uxs::multiset<Key, Comp, Alloc>& s1, uxs::multiset<Key, Comp, Alloc>& s2) noexcept(noexcept(s1.swap(s2))) {
     s1.swap(s2);
 }
 }  // namespace std

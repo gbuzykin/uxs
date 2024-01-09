@@ -11,14 +11,12 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC byteseqdev : public iodevice {
     byteseqdev() : iodevice(iodevcaps::mappable) {}
     explicit byteseqdev(byteseq seq)
         : iodevice(iodevcaps::mappable), seq_(std::move(seq)), chunk_(seq_.head_ ? seq_.head_->next : nullptr) {}
-    byteseqdev(byteseqdev&& other) NOEXCEPT : seq_(std::move(other.seq_)),
-                                              pos0_(other.pos0_),
-                                              pos_(other.pos_),
-                                              chunk_(other.chunk_) {
+    byteseqdev(byteseqdev&& other) noexcept
+        : seq_(std::move(other.seq_)), pos0_(other.pos0_), pos_(other.pos_), chunk_(other.chunk_) {
         other.pos0_ = other.pos_ = 0;
         other.chunk_ = nullptr;
     }
-    byteseqdev& operator=(byteseqdev&& other) NOEXCEPT {
+    byteseqdev& operator=(byteseqdev&& other) noexcept {
         if (&other == this) { return *this; }
         seq_ = std::move(other.seq_);
         pos0_ = other.pos0_, pos_ = other.pos_;

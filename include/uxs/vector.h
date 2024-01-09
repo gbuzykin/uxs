@@ -34,8 +34,8 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
-    vector() NOEXCEPT_IF(std::is_nothrow_default_constructible<alloc_type>::value) : alloc_type(allocator_type()) {}
-    explicit vector(const allocator_type& alloc) NOEXCEPT : alloc_type(alloc) {}
+    vector() noexcept(std::is_nothrow_default_constructible<alloc_type>::value) : alloc_type(allocator_type()) {}
+    explicit vector(const allocator_type& alloc) noexcept : alloc_type(alloc) {}
     explicit vector(size_type sz, const allocator_type& alloc = allocator_type()) : alloc_type(alloc) {
         init_default(sz);
     }
@@ -71,18 +71,18 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
         return *this;
     }
 
-    vector(vector&& other) NOEXCEPT : alloc_type(std::move(other)) {
+    vector(vector&& other) noexcept : alloc_type(std::move(other)) {
         v_ = other.v_;
         other.v_.nullify();
     }
 
-    vector(vector&& other, const allocator_type& alloc) NOEXCEPT_IF(is_alloc_always_equal<alloc_type>::value)
+    vector(vector&& other, const allocator_type& alloc) noexcept(is_alloc_always_equal<alloc_type>::value)
         : alloc_type(alloc) {
         construct_impl(std::move(other), alloc, is_alloc_always_equal<alloc_type>());
     }
 
-    vector& operator=(vector&& other) NOEXCEPT_IF(alloc_traits::propagate_on_container_move_assignment::value ||
-                                                  is_alloc_always_equal<alloc_type>::value) {
+    vector& operator=(vector&& other) noexcept(alloc_traits::propagate_on_container_move_assignment::value ||
+                                               is_alloc_always_equal<alloc_type>::value) {
         if (std::addressof(other) == this) { return *this; }
         assign_impl(std::move(other), std::bool_constant<(alloc_traits::propagate_on_container_move_assignment::value ||
                                                           is_alloc_always_equal<alloc_type>::value)>());
@@ -91,36 +91,36 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
 
     ~vector() { tidy(); }
 
-    void swap(vector& other) NOEXCEPT {
+    void swap(vector& other) noexcept {
         if (std::addressof(other) == this) { return; }
         swap_impl(other, typename alloc_traits::propagate_on_container_swap());
     }
 
-    allocator_type get_allocator() const NOEXCEPT { return allocator_type(*this); }
+    allocator_type get_allocator() const noexcept { return allocator_type(*this); }
 
-    bool empty() const NOEXCEPT { return v_.end == v_.begin; }
-    size_type size() const NOEXCEPT { return static_cast<size_type>(v_.end - v_.begin); }
-    size_type capacity() const NOEXCEPT { return static_cast<size_type>(v_.boundary - v_.begin); }
-    size_type max_size() const NOEXCEPT { return alloc_traits::max_size(*this); }
+    bool empty() const noexcept { return v_.end == v_.begin; }
+    size_type size() const noexcept { return static_cast<size_type>(v_.end - v_.begin); }
+    size_type capacity() const noexcept { return static_cast<size_type>(v_.boundary - v_.begin); }
+    size_type max_size() const noexcept { return alloc_traits::max_size(*this); }
 
-    iterator begin() NOEXCEPT { return iterator(v_.begin, v_.begin, v_.end); }
-    const_iterator begin() const NOEXCEPT { return const_iterator(v_.begin, v_.begin, v_.end); }
-    const_iterator cbegin() const NOEXCEPT { return const_iterator(v_.begin, v_.begin, v_.end); }
+    iterator begin() noexcept { return iterator(v_.begin, v_.begin, v_.end); }
+    const_iterator begin() const noexcept { return const_iterator(v_.begin, v_.begin, v_.end); }
+    const_iterator cbegin() const noexcept { return const_iterator(v_.begin, v_.begin, v_.end); }
 
-    iterator end() NOEXCEPT { return iterator(v_.end, v_.begin, v_.end); }
-    const_iterator end() const NOEXCEPT { return const_iterator(v_.end, v_.begin, v_.end); }
-    const_iterator cend() const NOEXCEPT { return const_iterator(v_.end, v_.begin, v_.end); }
+    iterator end() noexcept { return iterator(v_.end, v_.begin, v_.end); }
+    const_iterator end() const noexcept { return const_iterator(v_.end, v_.begin, v_.end); }
+    const_iterator cend() const noexcept { return const_iterator(v_.end, v_.begin, v_.end); }
 
-    reverse_iterator rbegin() NOEXCEPT { return reverse_iterator(end()); }
-    const_reverse_iterator rbegin() const NOEXCEPT { return const_reverse_iterator(end()); }
-    const_reverse_iterator crbegin() const NOEXCEPT { return const_reverse_iterator(end()); }
+    reverse_iterator rbegin() noexcept { return reverse_iterator(end()); }
+    const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
+    const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(end()); }
 
-    reverse_iterator rend() NOEXCEPT { return reverse_iterator(begin()); }
-    const_reverse_iterator rend() const NOEXCEPT { return const_reverse_iterator(begin()); }
-    const_reverse_iterator crend() const NOEXCEPT { return const_reverse_iterator(begin()); }
+    reverse_iterator rend() noexcept { return reverse_iterator(begin()); }
+    const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
+    const_reverse_iterator crend() const noexcept { return const_reverse_iterator(begin()); }
 
-    pointer data() NOEXCEPT { return v_.begin; }
-    const_pointer data() const NOEXCEPT { return v_.begin; }
+    pointer data() noexcept { return v_.begin; }
+    const_pointer data() const noexcept { return v_.begin; }
 
     reference operator[](size_type i) {
         assert(i < size());
@@ -167,7 +167,7 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
         assign_range(first, last, is_random_access_iterator<InputIt>());
     }
 
-    void clear() NOEXCEPT { v_.end = helpers::truncate(*this, v_.begin, v_.end); }
+    void clear() noexcept { v_.end = helpers::truncate(*this, v_.begin, v_.end); }
 
     void reserve(size_type reserve_sz) {
         if (reserve_sz <= capacity()) { return; }
@@ -348,7 +348,7 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
         alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
     }
 
-    void construct_impl(vector&& other, const allocator_type& alloc, std::true_type) NOEXCEPT {
+    void construct_impl(vector&& other, const allocator_type& alloc, std::true_type) noexcept {
         v_ = other.v_;
         other.v_.nullify();
     }
@@ -374,7 +374,7 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
         }
     }
 
-    void assign_impl(vector&& other, std::true_type) NOEXCEPT {
+    void assign_impl(vector&& other, std::true_type) noexcept {
         reset(other.v_);
         if (alloc_traits::propagate_on_container_move_assignment::value) { alloc_type::operator=(std::move(other)); }
         other.v_.nullify();
@@ -389,8 +389,8 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
         }
     }
 
-    void swap_impl(vector& other, std::false_type) NOEXCEPT { std::swap(v_, other.v_); }
-    void swap_impl(vector& other, std::true_type) NOEXCEPT {
+    void swap_impl(vector& other, std::false_type) noexcept { std::swap(v_, other.v_); }
+    void swap_impl(vector& other, std::true_type) noexcept {
         std::swap(static_cast<alloc_type&>(*this), static_cast<alloc_type&>(other));
         std::swap(v_, other.v_);
     }
@@ -479,7 +479,7 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
         }
     }
 
-    void relocate(vector_ptrs_t& v, std::true_type /* nothrow move */) NOEXCEPT {
+    void relocate(vector_ptrs_t& v, std::true_type /* nothrow move */) noexcept {
         v.end = helpers::construct_relocate(*this, v.end, v_.begin, v_.end);
     }
 
@@ -851,7 +851,7 @@ bool operator>=(const vector<Ty, Alloc>& lhs, const vector<Ty, Alloc>& rhs) {
 
 namespace std {
 template<typename Ty, typename Alloc>
-void swap(uxs::vector<Ty, Alloc>& v1, uxs::vector<Ty, Alloc>& v2) NOEXCEPT_IF(NOEXCEPT_IF(v1.swap(v2))) {
+void swap(uxs::vector<Ty, Alloc>& v1, uxs::vector<Ty, Alloc>& v2) noexcept(noexcept(v1.swap(v2))) {
     v1.swap(v2);
 }
 }  // namespace std
