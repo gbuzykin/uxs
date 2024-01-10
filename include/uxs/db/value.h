@@ -118,40 +118,41 @@ using list_links_type = dllist_node_t;
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
 
 template<typename CharT, typename Alloc>
-struct list_node_type {
-    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<list_node_type>;
+struct record_node_type {
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<record_node_type>;
 
     list_links_type links;
-    list_links_type* bucket_next;
+    list_links_type* next_bucket;
     size_t hash_code;
     record_value<basic_value<CharT, Alloc>> v;
 
-    static list_node_type* from_links(list_links_type* links) {
-        return reinterpret_cast<list_node_type*>(reinterpret_cast<uint8_t*>(links) - offsetof(list_node_type, links));
+    static record_node_type* from_links(list_links_type* links) {
+        return reinterpret_cast<record_node_type*>(reinterpret_cast<uint8_t*>(links) -
+                                                   offsetof(record_node_type, links));
     }
 
     static size_t max_name_size(const alloc_type& node_al) {
-        return (std::allocator_traits<alloc_type>::max_size(node_al) * sizeof(list_node_type) -
-                offsetof(list_node_type, v.name_chars)) /
+        return (std::allocator_traits<alloc_type>::max_size(node_al) * sizeof(record_node_type) -
+                offsetof(record_node_type, v.name_chars)) /
                sizeof(CharT);
     }
 
     static size_t get_alloc_sz(size_t name_sz) {
-        return (offsetof(list_node_type, v.name_chars) + name_sz * sizeof(CharT) + sizeof(list_node_type) - 1) /
-               sizeof(list_node_type);
+        return (offsetof(record_node_type, v.name_chars) + name_sz * sizeof(CharT) + sizeof(record_node_type) - 1) /
+               sizeof(record_node_type);
     }
 
-    UXS_EXPORT static list_node_type* alloc_checked(alloc_type& node_al, std::basic_string_view<CharT> name);
+    UXS_EXPORT static record_node_type* alloc_checked(alloc_type& node_al, std::basic_string_view<CharT> name);
 
-    static void dealloc(alloc_type& node_al, list_node_type* node) {
+    static void dealloc(alloc_type& node_al, record_node_type* node) {
         node_al.deallocate(node, get_alloc_sz(node->v.name_sz));
     }
 };
 
 template<typename CharT, typename Alloc>
-struct list_node_traits {
+struct record_node_traits {
     using iterator_node_t = list_links_type;
-    using node_t = list_node_type<CharT, Alloc>;
+    using node_t = record_node_type<CharT, Alloc>;
     static list_links_type* get_next(list_links_type* node) { return node->next; }
     static list_links_type* get_prev(list_links_type* node) { return node->prev; }
 #if _ITERATOR_DEBUG_LEVEL != 0
@@ -176,6 +177,8 @@ struct record_t {
     using pointer = reference;
     using const_pointer = const_reference;
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<record_t>;
+    using node_traits = record_node_traits<CharT, Alloc>;
+    using node_t = typename node_traits::node_t;
 
     mutable list_links_type head;
     size_t size;
@@ -274,8 +277,8 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     using record_t = detail::record_t<CharT, Alloc>;
 
  public:
-    using record_iterator = list_iterator<record_t, detail::list_node_traits<CharT, Alloc>, false>;
-    using const_record_iterator = list_iterator<record_t, detail::list_node_traits<CharT, Alloc>, true>;
+    using record_iterator = list_iterator<record_t, typename record_t::node_traits, false>;
+    using const_record_iterator = list_iterator<record_t, typename record_t::node_traits, true>;
 
     basic_value() noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
         : alloc_type(), type_(dtype::null) {}
@@ -1099,23 +1102,23 @@ template<typename CharT, typename Alloc>
 template<typename... Args>
 list_links_type* record_t<CharT, Alloc>::new_node(alloc_type& rec_al, std::basic_string_view<CharT> name,
                                                   Args&&... args) {
-    typename list_node_type<CharT, Alloc>::alloc_type node_al(rec_al);
-    list_node_type<CharT, Alloc>* node = list_node_type<CharT, Alloc>::alloc_checked(node_al, name);
+    typename node_t::alloc_type node_al(rec_al);
+    node_t* node = node_t::alloc_checked(node_al, name);
     try {
         new (&node->v.val()) basic_value<CharT, Alloc>(std::forward<Args>(args)...);
         return &node->links;
     } catch (...) {
-        list_node_type<CharT, Alloc>::dealloc(node_al, node);
+        node_t::dealloc(node_al, node);
         throw;
     }
 }
 
 template<typename CharT, typename Alloc>
 /*static*/ void record_t<CharT, Alloc>::delete_node(alloc_type& rec_al, list_links_type* links) {
-    list_node_type<CharT, Alloc>* node = list_node_type<CharT, Alloc>::from_links(links);
+    node_t* node = node_t::from_links(links);
     node->v.val().~basic_value<CharT, Alloc>();
-    typename list_node_type<CharT, Alloc>::alloc_type node_al(rec_al);
-    list_node_type<CharT, Alloc>::dealloc(node_al, node);
+    typename node_t::alloc_type node_al(rec_al);
+    node_t::dealloc(node_al, node);
 }
 
 }  // namespace detail

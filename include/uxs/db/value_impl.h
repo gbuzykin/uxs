@@ -96,7 +96,7 @@ template<typename CharT, typename Alloc, bool store_values>
 template<typename CharT, typename Alloc>
 void record_t<CharT, Alloc>::init() {
     dllist_make_cycle(&head);
-    list_node_traits<CharT, Alloc>::set_head(&head, &head);
+    node_traits::set_head(&head, &head);
     for (auto& item : uxs::as_span(hashtbl, bucket_count)) { item = nullptr; }
     size = 0;
 }
@@ -112,13 +112,13 @@ void record_t<CharT, Alloc>::destroy(alloc_type& rec_al, list_links_type* node) 
 
 template<typename CharT, typename Alloc>
 list_links_type* record_t<CharT, Alloc>::find(std::basic_string_view<CharT> name, size_t hash_code) const {
-    list_links_type* bucket_next = hashtbl[hash_code % bucket_count];
-    while (bucket_next) {
-        if (list_node_type<CharT, Alloc>::from_links(bucket_next)->hash_code == hash_code &&
-            list_node_traits<CharT, Alloc>::get_value(bucket_next).name() == name) {
-            return bucket_next;
+    list_links_type* next_bucket = hashtbl[hash_code % bucket_count];
+    while (next_bucket) {
+        if (node_t::from_links(next_bucket)->hash_code == hash_code &&
+            node_traits::get_value(next_bucket).name() == name) {
+            return next_bucket;
         }
-        bucket_next = list_node_type<CharT, Alloc>::from_links(bucket_next)->bucket_next;
+        next_bucket = node_t::from_links(next_bucket)->next_bucket;
     }
     return &head;
 }
@@ -127,13 +127,13 @@ template<typename CharT, typename Alloc>
 size_t record_t<CharT, Alloc>::count(std::basic_string_view<CharT> name) const {
     size_t count = 0;
     const size_t hash_code = calc_hash_code(name);
-    list_links_type* bucket_next = hashtbl[hash_code % bucket_count];
-    while (bucket_next) {
-        if (list_node_type<CharT, Alloc>::from_links(bucket_next)->hash_code == hash_code &&
-            list_node_traits<CharT, Alloc>::get_value(bucket_next).name() == name) {
+    list_links_type* next_bucket = hashtbl[hash_code % bucket_count];
+    while (next_bucket) {
+        if (node_t::from_links(next_bucket)->hash_code == hash_code &&
+            node_traits::get_value(next_bucket).name() == name) {
             ++count;
         }
-        bucket_next = list_node_type<CharT, Alloc>::from_links(bucket_next)->bucket_next;
+        next_bucket = node_t::from_links(next_bucket)->next_bucket;
     }
     return count;
 }
@@ -184,9 +184,8 @@ template<typename CharT, typename Alloc>
     try {
         list_links_type* node = src.head.next;
         while (node != &src.head) {
-            const auto& v = list_node_traits<CharT, Alloc>::get_value(node);
-            rec = insert(rec_al, rec, list_node_type<CharT, Alloc>::from_links(node)->hash_code,
-                         rec->new_node(rec_al, v.name(), v.val()));
+            const auto& v = node_traits::get_value(node);
+            rec = insert(rec_al, rec, node_t::from_links(node)->hash_code, rec->new_node(rec_al, v.name(), v.val()));
             node = node->next;
         }
         return rec;
@@ -203,9 +202,8 @@ template<typename CharT, typename Alloc>
     rec->clear(rec_al);
     list_links_type* node = src.head.next;
     while (node != &src.head) {
-        const auto& v = list_node_traits<CharT, Alloc>::get_value(node);
-        rec = insert(rec_al, rec, list_node_type<CharT, Alloc>::from_links(node)->hash_code,
-                     rec->new_node(rec_al, v.name(), v.val()));
+        const auto& v = node_traits::get_value(node);
+        rec = insert(rec_al, rec, node_t::from_links(node)->hash_code, rec->new_node(rec_al, v.name(), v.val()));
         node = node->next;
     }
     return rec;
@@ -246,7 +244,7 @@ template<typename CharT, typename Alloc>
 template<typename CharT, typename Alloc>
 void record_t<CharT, Alloc>::add_to_hash(list_links_type* node, size_t hash_code) {
     list_links_type** slot = &hashtbl[hash_code % bucket_count];
-    list_node_type<CharT, Alloc>::from_links(node)->bucket_next = *slot;
+    node_t::from_links(node)->next_bucket = *slot;
     *slot = node;
 }
 
@@ -258,8 +256,8 @@ template<typename CharT, typename Alloc>
         const size_t sz = next_bucket_count(rec_al, rec->size);
         if (sz > rec->size) { rec = record_t::rehash(rec_al, rec, sz); }
     }
-    list_node_traits<CharT, Alloc>::set_head(node, &rec->head);
-    list_node_type<CharT, Alloc>::from_links(node)->hash_code = hash_code;
+    node_traits::set_head(node, &rec->head);
+    node_t::from_links(node)->hash_code = hash_code;
     rec->add_to_hash(node, hash_code);
     dllist_insert_before(&rec->head, node);
     ++rec->size;
@@ -268,12 +266,12 @@ template<typename CharT, typename Alloc>
 
 template<typename CharT, typename Alloc>
 list_links_type* record_t<CharT, Alloc>::erase(alloc_type& rec_al, list_links_type* node) {
-    list_links_type** p_bucket_next = &hashtbl[list_node_type<CharT, Alloc>::from_links(node)->hash_code % bucket_count];
-    while (*p_bucket_next != node) {
-        assert(*p_bucket_next);
-        p_bucket_next = &list_node_type<CharT, Alloc>::from_links(*p_bucket_next)->bucket_next;
+    list_links_type** p_next_bucket = &hashtbl[node_t::from_links(node)->hash_code % bucket_count];
+    while (*p_next_bucket != node) {
+        assert(*p_next_bucket);
+        p_next_bucket = &node_t::from_links(*p_next_bucket)->next_bucket;
     }
-    *p_bucket_next = list_node_type<CharT, Alloc>::from_links(*p_bucket_next)->bucket_next;
+    *p_next_bucket = node_t::from_links(*p_next_bucket)->next_bucket;
     list_links_type* next = dllist_remove(node);
     delete_node(rec_al, node);
     --size;
@@ -284,17 +282,17 @@ template<typename CharT, typename Alloc>
 size_t record_t<CharT, Alloc>::erase(alloc_type& rec_al, std::basic_string_view<CharT> name) {
     size_t old_size = size;
     const size_t hash_code = calc_hash_code(name);
-    list_links_type** p_bucket_next = &hashtbl[hash_code % bucket_count];
-    while (*p_bucket_next) {
-        if (list_node_type<CharT, Alloc>::from_links(*p_bucket_next)->hash_code == hash_code &&
-            list_node_traits<CharT, Alloc>::get_value(*p_bucket_next).name() == name) {
-            list_links_type* erased_node = *p_bucket_next;
-            *p_bucket_next = list_node_type<CharT, Alloc>::from_links(*p_bucket_next)->bucket_next;
+    list_links_type** p_next_bucket = &hashtbl[hash_code % bucket_count];
+    while (*p_next_bucket) {
+        if (node_t::from_links(*p_next_bucket)->hash_code == hash_code &&
+            node_traits::get_value(*p_next_bucket).name() == name) {
+            list_links_type* erased_node = *p_next_bucket;
+            *p_next_bucket = node_t::from_links(*p_next_bucket)->next_bucket;
             --size;
             dllist_remove(erased_node);
             delete_node(rec_al, erased_node);
         } else {
-            p_bucket_next = &list_node_type<CharT, Alloc>::from_links(*p_bucket_next)->bucket_next;
+            p_next_bucket = &node_t::from_links(*p_next_bucket)->next_bucket;
         }
     }
     return old_size - size;
@@ -329,25 +327,25 @@ template<typename CharT, typename Alloc>
     new_rec->head = rec->head;
     new_rec->size = rec->size;
     dealloc(rec_al, rec);
-    list_node_traits<CharT, Alloc>::set_head(&new_rec->head, &new_rec->head);
+    node_traits::set_head(&new_rec->head, &new_rec->head);
     for (auto& item : uxs::as_span(new_rec->hashtbl, new_rec->bucket_count)) { item = nullptr; }
     list_links_type* node = new_rec->head.next;
     node->prev = &new_rec->head;
     new_rec->head.prev->next = &new_rec->head;
     while (node != &new_rec->head) {
-        list_node_traits<CharT, Alloc>::set_head(node, &new_rec->head);
-        new_rec->add_to_hash(node, list_node_type<CharT, Alloc>::from_links(node)->hash_code);
+        node_traits::set_head(node, &new_rec->head);
+        new_rec->add_to_hash(node, node_t::from_links(node)->hash_code);
         node = node->next;
     }
     return new_rec;
 }
 
 template<typename CharT, typename Alloc>
-/*static*/ list_node_type<CharT, Alloc>* list_node_type<CharT, Alloc>::alloc_checked(
+/*static*/ record_node_type<CharT, Alloc>* record_node_type<CharT, Alloc>::alloc_checked(
     alloc_type& node_al, std::basic_string_view<CharT> name) {
     if (name.size() > max_name_size(node_al)) { throw std::length_error("too much to reserve"); }
     const size_t alloc_sz = get_alloc_sz(name.size());
-    list_node_type* node = node_al.allocate(alloc_sz);
+    record_node_type* node = node_al.allocate(alloc_sz);
     node->v.name_sz = name.size();
     std::copy_n(name.data(), name.size(), static_cast<CharT*>(node->v.name_chars));
     return node;
@@ -819,7 +817,7 @@ const basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::operator[](std::basi
     static const basic_value null;
     if (type_ != dtype::record) { throw database_error("not a record"); }
     detail::list_links_type* node = value_.rec->find(name, record_t::calc_hash_code(name));
-    return node != &value_.rec->head ? detail::list_node_traits<CharT, Alloc>::get_value(node).val() : null;
+    return node != &value_.rec->head ? record_t::node_traits::get_value(node).val() : null;
 }
 
 template<typename CharT, typename Alloc>
@@ -836,7 +834,7 @@ basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::operator[](std::basic_stri
         node = value_.rec->new_node(rec_al, name, static_cast<const Alloc&>(*this));
         value_.rec = record_t::insert(rec_al, value_.rec, hash_code, node);
     }
-    return detail::list_node_traits<CharT, Alloc>::get_value(node).val();
+    return record_t::node_traits::get_value(node).val();
 }
 
 template<typename CharT, typename Alloc>
@@ -896,7 +894,7 @@ template<typename CharT, typename Alloc>
 typename basic_value<CharT, Alloc>::record_iterator basic_value<CharT, Alloc>::erase(const_record_iterator it) {
     if (type_ != dtype::record) { throw database_error("not a record"); }
     detail::list_links_type* node = it.node();
-    iterator_assert((detail::list_node_traits<CharT, Alloc>::get_head(node) == &value_.rec->head));
+    iterator_assert(record_t::node_traits::get_head(node) == &value_.rec->head);
     assert(node != &value_.rec->head);
     typename record_t::alloc_type rec_al(*this);
     return record_iterator(value_.rec->erase(rec_al, node));
