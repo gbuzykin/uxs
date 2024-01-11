@@ -38,19 +38,20 @@ int byteseqdev::write(const void* data, size_t sz, size_t& n_written) {
 }
 
 void* byteseqdev::map(size_t& sz, bool wr) {
-    if (!wr || chunk_ != seq_.head_) {
+    if (!seq_ || (rdonly_ && wr)) { return nullptr; }
+    if (!wr || chunk_ != seq_->head_) {
         sz = chunk_ ? chunk_->size() - (pos_ - pos0_) : 0;
         return chunk_ ? chunk_->data + (pos_ - pos0_) : nullptr;
     }
     if (!chunk_) {
-        seq_.create_head_chunk();
-        chunk_ = seq_.head_;
+        seq_->create_head_chunk();
+        chunk_ = seq_->head_;
         std::memset(chunk_->data, 0, chunk_->capacity());
         chunk_->end = chunk_->data;
     } else if (pos_ - pos0_ == chunk_->capacity()) {
         pos0_ += chunk_->capacity();
-        seq_.create_next_chunk();
-        chunk_ = seq_.head_;
+        seq_->create_next_chunk();
+        chunk_ = seq_->head_;
         std::memset(chunk_->data, 0, chunk_->capacity());
         chunk_->end = chunk_->data;
     }
@@ -59,6 +60,8 @@ void* byteseqdev::map(size_t& sz, bool wr) {
 }
 
 int64_t byteseqdev::seek(int64_t off, seekdir dir) {
+    if (!seq_) { return -1; }
+
     switch (dir) {
         case uxs::seekdir::beg: {
             if (off < 0) { return -1; }
@@ -69,33 +72,42 @@ int64_t byteseqdev::seek(int64_t off, seekdir dir) {
             pos_ += static_cast<size_t>(off);
         } break;
         case uxs::seekdir::end: {
-            if (off < 0 && static_cast<size_t>(-off) > seq_.size()) { return -1; }
-            pos_ = seq_.size() + static_cast<size_t>(off);
+            if (off < 0 && static_cast<size_t>(-off) > seq_->size()) { return -1; }
+            pos_ = seq_->size() + static_cast<size_t>(off);
         } break;
     }
 
-    if (pos_ > 0 && !chunk_) {
-        seq_.create_head_chunk();
-        chunk_ = seq_.head_;
-        std::memset(chunk_->data, 0, chunk_->capacity());
-        chunk_->end = chunk_->data;
-    }
     if (pos_ > pos0_) {
-        while (chunk_ != seq_.head_ && pos_ - pos0_ >= chunk_->size()) {
+        if (!chunk_) {
+            if (!rdonly_) {
+                seq_->create_head_chunk();
+                chunk_ = seq_->head_;
+                std::memset(chunk_->data, 0, chunk_->capacity());
+                chunk_->end = chunk_->data;
+            } else {
+                pos_ = 0;
+                return static_cast<int64_t>(pos_);
+            }
+        }
+        while (chunk_ != seq_->head_ && pos_ - pos0_ >= chunk_->size()) {
             pos0_ += chunk_->size();
             chunk_ = chunk_->next;
         }
-        if (chunk_ == seq_.head_) {
-            while (pos_ - pos0_ > chunk_->capacity()) {
-                pos0_ += chunk_->capacity();
-                seq_.create_next_chunk();
-                chunk_ = seq_.head_;
-                std::memset(chunk_->data, 0, chunk_->capacity());
-                chunk_->end = chunk_->data;
-            }
-            if (pos_ - pos0_ > chunk_->size()) {
-                const size_t extra = pos_ - pos0_ - chunk_->size();
-                seq_.size_ += extra, chunk_->end += extra;
+        if (chunk_ == seq_->head_) {
+            if (!rdonly_) {
+                while (pos_ - pos0_ > chunk_->capacity()) {
+                    pos0_ += chunk_->capacity();
+                    seq_->create_next_chunk();
+                    chunk_ = seq_->head_;
+                    std::memset(chunk_->data, 0, chunk_->capacity());
+                    chunk_->end = chunk_->data;
+                }
+                if (pos_ - pos0_ > chunk_->size()) {
+                    const size_t extra = pos_ - pos0_ - chunk_->size();
+                    seq_->size_ += extra, chunk_->end += extra;
+                }
+            } else {
+                pos_ = std::min(pos_, pos0_ + chunk_->size());
             }
         }
     } else {
