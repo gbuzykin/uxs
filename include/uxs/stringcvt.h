@@ -94,8 +94,7 @@ class basic_membuffer {
  public:
     using value_type = Ty;
 
-    explicit basic_membuffer(Ty* first, Ty* last = reinterpret_cast<Ty*>(std::numeric_limits<uintptr_t>::max())) noexcept
-        : curr_(first), last_(last) {}
+    explicit basic_membuffer(Ty* first, Ty* last = reinterpret_cast<Ty*>(0)) noexcept : curr_(first), last_(last) {}
     virtual ~basic_membuffer() = default;
     basic_membuffer(const basic_membuffer&) = delete;
     basic_membuffer& operator=(const basic_membuffer&) = delete;
