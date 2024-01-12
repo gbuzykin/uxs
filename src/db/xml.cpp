@@ -20,7 +20,7 @@ static uint8_t g_spec_chars[256] = {
 namespace uxs {
 namespace db {
 
-xml::reader::reader(iobuf& input) : input_(input), name_cache_(16) { state_stack_.push_back(lex_detail::sc_initial); }
+xml::reader::reader(ibuf& input) : input_(input), name_cache_(16) { state_stack_.push_back(lex_detail::sc_initial); }
 
 std::pair<xml::token_t, std::string_view> xml::reader::read_next() {
     if (is_end_element_pending_) {
@@ -28,7 +28,7 @@ std::pair<xml::token_t, std::string_view> xml::reader::read_next() {
         return {token_t::end_element, name_cache_.front()};
     }
     if (!input_) { return {token_t::eof, {}}; }
-    while (input_.avail() || input_.peek() != iobuf::traits_type::eof()) {
+    while (input_.avail() || input_.peek() != ibuf::traits_type::eof()) {
         const char *first = input_.first_avail(), *last = input_.last_avail();
         std::string_view lval;
         if (*first == '<') {  // found '<'
@@ -164,8 +164,8 @@ xml::reader::lex_token_t xml::reader::parse_token(std::string_view& lval) {
                 stash_.append(input_.first_avail(), input_.first_avail() + len_rest);
                 input_.advance(len_rest);
             } else {  // at least one character in stash is yet unused
-                      // put unused chars back to `iobuf`
-                for (const char* p = stash_.last(); p != stash_.curr(); --p) { input_.unget(*(p - 1)); }
+                      // put unused chars back to `ibuf`
+                for (const char* p = stash_.curr(); p != stash_.last(); ++p) { input_.unget(); }
             }
             lexeme = stash_.data();
             stash_.clear();  // it resets end pointer, but retains the contents

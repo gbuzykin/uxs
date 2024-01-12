@@ -28,7 +28,7 @@ enum class next_action_type : int { step_into = 0, step_over, stop };
 
 class reader {
  public:
-    UXS_EXPORT explicit reader(iobuf& input);
+    UXS_EXPORT explicit reader(ibuf& input);
 
     template<typename ValueFunc, typename ArrItemFunc, typename ObjItemFunc, typename PopFunc>
     void read(const ValueFunc& fn_value, const ArrItemFunc& fn_arr_item, const ObjItemFunc& fn_obj_item,
@@ -38,7 +38,7 @@ class reader {
     UXS_EXPORT basic_value<CharT, Alloc> read(token_t tk_val = token_t::eof, const Alloc& al = Alloc());
 
  private:
-    iobuf& input_;
+    ibuf& input_;
     int n_ln_ = 1;
     inline_dynbuffer str_;
     inline_dynbuffer stash_;
@@ -64,7 +64,7 @@ class writer {
 template<typename ValueFunc, typename ArrItemFunc, typename ObjItemFunc, typename PopFunc>
 void reader::read(const ValueFunc& fn_value, const ArrItemFunc& fn_arr_item, const ObjItemFunc& fn_obj_item,
                   const PopFunc& fn_pop, token_t tk_val) {
-    if (input_.peek() == iobuf::traits_type::eof()) { throw database_error("empty input"); }
+    if (input_.peek() == ibuf::traits_type::eof()) { throw database_error("empty input"); }
 
     auto fn_value_checked = [this, &fn_value](int tt, std::string_view lval) -> next_action_type {
         if (tt >= static_cast<int>(token_t::null) || tt == '[' || tt == '{') {

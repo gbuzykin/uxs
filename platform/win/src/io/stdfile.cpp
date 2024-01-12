@@ -12,7 +12,7 @@ static filebuf g_logbuf(::GetStdHandle(STD_ERROR_HANDLE),
 static filebuf g_errbuf(::GetStdHandle(STD_ERROR_HANDLE),
                         iomode::out | iomode::append | iomode::cr_lf | iomode::ctrl_esc, &stdbuf::log);
 iobuf& stdbuf::out = g_outbuf;
-iobuf& stdbuf::in = g_inbuf;
+ibuf& stdbuf::in = g_inbuf;
 iobuf& stdbuf::log = g_logbuf;
 iobuf& stdbuf::err = g_errbuf;
 

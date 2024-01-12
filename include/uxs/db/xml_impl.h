@@ -14,7 +14,7 @@ namespace xml {
 
 template<typename CharT, typename Alloc>
 basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Alloc& al) {
-    if (input_.peek() == iobuf::traits_type::eof()) { throw database_error("empty input"); }
+    if (input_.peek() == ibuf::traits_type::eof()) { throw database_error("empty input"); }
 
     auto text_to_value = [&al](std::string_view sval) -> basic_value<CharT, Alloc> {
         switch (classify_string(sval)) {
