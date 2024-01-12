@@ -932,21 +932,21 @@ basic_iobuf<CharT>& print_quoted_text(basic_iobuf<CharT>& out, std::basic_string
     const CharT *p1 = text.data(), *pend = text.data() + text.size();
     out.put('\"');
     for (const CharT* p2 = text.data(); p2 != pend; ++p2) {
-        std::string_view esc;
+        char esc = '\0';
         switch (*p2) {
-            case '\"': esc = "\\\""; break;
-            case '\\': esc = "\\\\"; break;
-            case '\a': esc = "\\a"; break;
-            case '\b': esc = "\\b"; break;
-            case '\f': esc = "\\f"; break;
-            case '\n': esc = "\\n"; break;
-            case '\r': esc = "\\r"; break;
-            case '\t': esc = "\\t"; break;
-            case '\v': esc = "\\v"; break;
+            case '\"': esc = '\"'; break;
+            case '\\': esc = '\\'; break;
+            case '\a': esc = 'a'; break;
+            case '\b': esc = 'b'; break;
+            case '\f': esc = 'f'; break;
+            case '\n': esc = 'n'; break;
+            case '\r': esc = 'r'; break;
+            case '\t': esc = 't'; break;
+            case '\v': esc = 'v'; break;
             default: continue;
         }
         out.write(uxs::as_span(p1, p2 - p1));
-        for (char ch : esc) { out.put(ch); }
+        out.put('\\'), out.put(esc);
         p1 = p2 + 1;
     }
     out.write(uxs::as_span(p1, pend - p1));

@@ -94,8 +94,10 @@ void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
 
     auto write_value = [this, &stack, &indent](const basic_value<CharT, Alloc>& v) {
         switch (v.type_) {
-            case dtype::null: output_.write("null"); break;
-            case dtype::boolean: output_.write(v.value_.b ? "true" : "false"); break;
+            case dtype::null: output_.write(std::string_view("null", 4)); break;
+            case dtype::boolean: {
+                output_.write(v.value_.b ? std::string_view("true", 4) : std::string_view("false", 5));
+            } break;
             case dtype::integer: {
                 membuffer_for_iobuf buf(output_);
                 to_basic_string(buf, v.value_.i);
