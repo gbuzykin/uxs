@@ -22,9 +22,9 @@ class iodevice {
     iodevcaps caps() const { return caps_; }
     virtual int read(void* data, size_t sz, size_t& n_read) = 0;
     virtual int write(const void* data, size_t sz, size_t& n_written) = 0;
-    virtual void* map(size_t& sz, bool wr = false) { return nullptr; }
-    virtual int64_t seek(int64_t off, seekdir dir = seekdir::beg) { return -1; }
-    virtual int ctrlesc_color(uxs::span<uint8_t> v) { return -1; }
+    virtual void* map(size_t& sz, bool wr) { return nullptr; }
+    virtual int64_t seek(int64_t off, seekdir dir) { return -1; }
+    virtual int ctrlesc_color(uxs::span<const uint8_t> v) { return -1; }
     virtual int flush() = 0;
 
  private:

@@ -3,13 +3,11 @@
 #include "iobuf.h"
 
 #include <memory>
-#include <string>
 
 namespace uxs {
 
 template<typename CharT, typename Alloc = std::allocator<CharT>>
-class basic_ostringbuf : protected std::allocator_traits<Alloc>::template rebind_alloc<CharT>,
-                         public basic_iobuf<CharT> {
+class basic_oflatbuf : protected std::allocator_traits<Alloc>::template rebind_alloc<CharT>, public basic_iobuf<CharT> {
  protected:
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<CharT>;
 
@@ -22,21 +20,20 @@ class basic_ostringbuf : protected std::allocator_traits<Alloc>::template rebind
     using off_type = typename basic_iobuf<CharT>::off_type;
     using allocator_type = Alloc;
 
-    basic_ostringbuf() : alloc_type(), basic_iobuf<CharT>(iomode::out) {}
-    explicit basic_ostringbuf(const Alloc& al) : alloc_type(al), basic_iobuf<CharT>(iomode::out) {}
-    UXS_EXPORT ~basic_ostringbuf() override;
-    UXS_EXPORT basic_ostringbuf(basic_ostringbuf&& other) noexcept;
-    UXS_EXPORT basic_ostringbuf& operator=(basic_ostringbuf&& other) noexcept;
+    basic_oflatbuf() : alloc_type(), basic_iobuf<CharT>(iomode::out) {}
+    explicit basic_oflatbuf(const Alloc& al) : alloc_type(al), basic_iobuf<CharT>(iomode::out) {}
+    UXS_EXPORT ~basic_oflatbuf() override;
+    UXS_EXPORT basic_oflatbuf(basic_oflatbuf&& other) noexcept;
+    UXS_EXPORT basic_oflatbuf& operator=(basic_oflatbuf&& other) noexcept;
 
-    size_type size() const { return (top_ > this->curr() ? top_ : this->curr()) - this->first(); }
-    std::basic_string_view<char_type> view() const { return std::basic_string_view<char_type>(this->first(), size()); }
-    std::basic_string<char_type> str() const { return std::basic_string<char_type>(this->first(), size()); }
+    const char_type* data() const { return this->first(); }
+    size_type size() const { return std::max(top_, this->curr()) - this->first(); }
+    uxs::span<const char_type> view() const { return uxs::as_span(this->first(), size()); }
     allocator_type get_allocator() const noexcept { return allocator_type(*this); }
 
     void truncate(size_type sz) {
-        if (sz > size()) { sz = size(); }
-        top_ = this->first() + sz;
-        this->setcurr(this->curr() > top_ ? top_ : this->curr());
+        top_ = this->first() + std::min(sz, size());
+        this->setcurr(std::min(top_, this->curr()));
     }
 
  protected:
@@ -57,7 +54,8 @@ class basic_ostringbuf : protected std::allocator_traits<Alloc>::template rebind
     UXS_EXPORT void grow(size_type extra);
 };
 
-using ostringbuf = basic_ostringbuf<char>;
-using wostringbuf = basic_ostringbuf<wchar_t>;
+using oflatbuf = basic_oflatbuf<char>;
+using woflatbuf = basic_oflatbuf<wchar_t>;
+using u8oflatbuf = basic_oflatbuf<uint8_t>;
 
 }  // namespace uxs

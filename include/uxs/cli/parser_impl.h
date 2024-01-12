@@ -3,7 +3,7 @@
 #include "parser.h"
 
 #include "uxs/algorithm.h"
-#include "uxs/io/ostringbuf.h"
+#include "uxs/io/oflatbuf.h"
 
 #include <numeric>
 #include <unordered_set>
@@ -279,7 +279,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
     static const std::array<CharT, 4> color_normal{'\033', '[', '0', 'm'};
     static const unsigned tab_size = 4, max_width = 100, max_margin = 24, gap = 2;
 
-    basic_ostringbuf<CharT> osb;
+    basic_oflatbuf<CharT> osb;
     const bool start_with_nl = !overview_.empty() && overview_.front() == '\n';
     const bool end_width_nl = !overview_.empty() && overview_.back() == '\n';
 
@@ -463,7 +463,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
     print_parameters();
     print_options();
     print_subcommands();
-    return osb.str();
+    return std::basic_string<CharT>(osb.data(), osb.size());
 }
 
 }  // namespace cli

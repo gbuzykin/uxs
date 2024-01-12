@@ -278,7 +278,7 @@ int basic_devbuf<CharT, Alloc>::read_compressed(void* data, size_t sz, size_t& n
             } else {
                 if (dev_->seek(buf_->zstr.next_in - buf_->z_first, seekdir::curr) < 0) { return -1; }
                 size_t sz = 0;
-                buf_->z_first = static_cast<Bytef*>(dev_->map(sz));
+                buf_->z_first = static_cast<Bytef*>(dev_->map(sz, false));
                 buf_->z_in_finish = !buf_->z_first || !sz;
                 if (!buf_->z_in_finish) {
                     buf_->zstr.next_in = buf_->z_first;
@@ -378,7 +378,7 @@ int basic_devbuf<CharT, Alloc>::underflow() {
     if (tie_buf_) { tie_buf_->flush(); }
     if (!buf_) {  // mappable
         size_t sz = 0;
-        char_type* p = static_cast<char_type*>(dev_->map(sz));
+        char_type* p = static_cast<char_type*>(dev_->map(sz, false));
         if (!p || !sz) { return -1; }
         if (dev_->seek(sz, seekdir::curr) < 0) { return -1; }
         sz /= sizeof(char_type);
