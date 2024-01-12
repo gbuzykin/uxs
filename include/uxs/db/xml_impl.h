@@ -119,11 +119,11 @@ basic_iobuf<CharT>& print_xml_text(basic_iobuf<CharT>& out, std::basic_string_vi
     for (const CharT* p2 = text.data(); p2 != pend; ++p2) {
         std::string_view esc;
         switch (*p2) {
-            case '&': esc = "&amp;"; break;
-            case '<': esc = "&lt;"; break;
-            case '>': esc = "&gt;"; break;
-            case '\'': esc = "&apos;"; break;
-            case '\"': esc = "&quot;"; break;
+            case '&': esc = std::string_view("&amp;", 5); break;
+            case '<': esc = std::string_view("&lt;", 4); break;
+            case '>': esc = std::string_view("&gt;", 4); break;
+            case '\'': esc = std::string_view("&apos;", 6); break;
+            case '\"': esc = std::string_view("&quot;", 6); break;
             default: continue;
         }
         out.write(uxs::as_span(p1, p2 - p1));
@@ -142,8 +142,10 @@ void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_ele
 
     auto write_value = [this, &stack, &element, &indent](const basic_value<CharT, Alloc>& v) {
         switch (v.type_) {
-            case dtype::null: output_.write("null"); break;
-            case dtype::boolean: output_.write(v.value_.b ? "true" : "false"); break;
+            case dtype::null: output_.write(std::string_view("null", 4)); break;
+            case dtype::boolean: {
+                output_.write(v.value_.b ? std::string_view("true", 4) : std::string_view("false", 5));
+            } break;
             case dtype::integer: {
                 membuffer_for_iobuf buf(output_);
                 to_basic_string(buf, v.value_.i);

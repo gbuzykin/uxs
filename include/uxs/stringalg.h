@@ -428,21 +428,21 @@ OutputIt make_quoted_basic_string(std::basic_string_view<CharT, Traits> s, Outpu
     auto p1 = s.begin(), pend = s.end();
     *out++ = '\"';
     for (auto p2 = s.begin(); p2 != pend; ++p2) {
-        std::string_view esc;
+        char esc = '\0';
         switch (*p2) {
-            case '\"': esc = "\\\""; break;
-            case '\\': esc = "\\\\"; break;
-            case '\a': esc = "\\a"; break;
-            case '\b': esc = "\\b"; break;
-            case '\f': esc = "\\f"; break;
-            case '\n': esc = "\\n"; break;
-            case '\r': esc = "\\r"; break;
-            case '\t': esc = "\\t"; break;
-            case '\v': esc = "\\v"; break;
+            case '\"': esc = '\"'; break;
+            case '\\': esc = '\\'; break;
+            case '\a': esc = 'a'; break;
+            case '\b': esc = 'b'; break;
+            case '\f': esc = 'f'; break;
+            case '\n': esc = 'n'; break;
+            case '\r': esc = 'r'; break;
+            case '\t': esc = 't'; break;
+            case '\v': esc = 'v'; break;
             default: continue;
         }
         std::copy(p1, p2, out);
-        std::copy(esc.begin(), esc.end(), out);
+        *out++ = '\\', *out++ = esc;
         p1 = p2 + 1;
     }
     std::copy(p1, pend, out);

@@ -48,19 +48,21 @@ struct default_numpunct;
 template<>
 struct default_numpunct<char> {
     CONSTEXPR char decimal_point() const { return '.'; }
-    CONSTEXPR std::string_view infname(const bool upper = false) const { return upper ? "INF" : "inf"; }
-    CONSTEXPR std::string_view nanname(const bool upper = false) const { return upper ? "NAN" : "nan"; }
-    CONSTEXPR std::string_view truename(const bool upper = false) const { return upper ? "TRUE" : "true"; }
-    CONSTEXPR std::string_view falsename(const bool upper = false) const { return upper ? "FALSE" : "false"; }
+    CONSTEXPR std::string_view infname(bool upper) const { return std::string_view(upper ? "INF" : "inf", 3); }
+    CONSTEXPR std::string_view nanname(bool upper) const { return std::string_view(upper ? "NAN" : "nan", 3); }
+    CONSTEXPR std::string_view truename(bool upper) const { return std::string_view(upper ? "TRUE" : "true", 4); }
+    CONSTEXPR std::string_view falsename(bool upper) const { return std::string_view(upper ? "FALSE" : "false", 5); }
 };
 
 template<>
 struct default_numpunct<wchar_t> {
     CONSTEXPR wchar_t decimal_point() const { return '.'; }
-    CONSTEXPR std::wstring_view infname(const bool upper = false) const { return upper ? L"INF" : L"inf"; }
-    CONSTEXPR std::wstring_view nanname(const bool upper = false) const { return upper ? L"NAN" : L"nan"; }
-    CONSTEXPR std::wstring_view truename(const bool upper = false) const { return upper ? L"TRUE" : L"true"; }
-    CONSTEXPR std::wstring_view falsename(const bool upper = false) const { return upper ? L"FALSE" : L"false"; }
+    CONSTEXPR std::wstring_view infname(bool upper) const { return std::wstring_view(upper ? L"INF" : L"inf", 3); }
+    CONSTEXPR std::wstring_view nanname(bool upper) const { return std::wstring_view(upper ? L"NAN" : L"nan", 3); }
+    CONSTEXPR std::wstring_view truename(bool upper) const { return std::wstring_view(upper ? L"TRUE" : L"true", 4); }
+    CONSTEXPR std::wstring_view falsename(bool upper) const {
+        return std::wstring_view(upper ? L"FALSE" : L"false", 5);
+    }
 };
 
 struct fp_m64_t {
@@ -135,9 +137,9 @@ Ty to_boolean(const CharT* p, const CharT* end, const CharT*& last) noexcept {
     unsigned dig = 0;
     const CharT* p0 = p;
     bool val = false;
-    if ((p = starts_with(p, end, default_numpunct<CharT>().truename())) > p0) {
+    if ((p = starts_with(p, end, default_numpunct<CharT>().truename(false))) > p0) {
         val = true;
-    } else if ((p = starts_with(p, end, default_numpunct<CharT>().falsename())) > p0) {
+    } else if ((p = starts_with(p, end, default_numpunct<CharT>().falsename(false))) > p0) {
     } else if (p < end && (dig = dig_v(*p)) < 10) {
         do {
             if (dig) { val = true; }
@@ -258,9 +260,9 @@ uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, c
     const CharT* p1 = chars_to_fp10(p, end, fp10);
     if (p1 > p) {
         fp2 |= fp10_to_fp2(fp10, bpm, exp_max);
-    } else if ((p1 = starts_with(p, end, default_numpunct<CharT>().infname())) > p) {  // infinity
+    } else if ((p1 = starts_with(p, end, default_numpunct<CharT>().infname(false))) > p) {  // infinity
         fp2 |= static_cast<uint64_t>(exp_max) << bpm;
-    } else if ((p1 = starts_with(p, end, default_numpunct<CharT>().nanname())) > p) {  // NaN
+    } else if ((p1 = starts_with(p, end, default_numpunct<CharT>().nanname(false))) > p) {  // NaN
         fp2 |= (static_cast<uint64_t>(exp_max) << bpm) | ((1ull << bpm) - 1);
     } else {
         return 0;

@@ -620,12 +620,12 @@ template<typename CharT, typename Alloc>
 uxs::optional<std::basic_string<CharT>> basic_value<CharT, Alloc>::get_string() const {
     switch (type_) {
         case dtype::null: {
-            auto sval = std::make_pair("null", 4u);
-            return uxs::make_optional<std::basic_string<CharT>>(sval.first, sval.first + sval.second);
+            std::string_view sval("null", 4);
+            return uxs::make_optional<std::basic_string<CharT>>(sval.begin(), sval.end());
         } break;
         case dtype::boolean: {
-            auto sval = value_.b ? std::make_pair("true", 4u) : std::make_pair("false", 5u);
-            return uxs::make_optional<std::basic_string<CharT>>(sval.first, sval.first + sval.second);
+            auto sval = value_.b ? std::string_view("true", 4) : std::string_view("false", 5);
+            return uxs::make_optional<std::basic_string<CharT>>(sval.begin(), sval.end());
         } break;
         case dtype::integer: {
             inline_basic_dynbuffer<CharT> buf;
