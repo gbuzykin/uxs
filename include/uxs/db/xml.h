@@ -24,7 +24,7 @@ enum class token_t : int {
 
 class reader {
  public:
-    UXS_EXPORT explicit reader(iobuf& input);
+    UXS_EXPORT explicit reader(ibuf& input);
 
     class iterator : public iterator_facade<iterator, std::pair<token_t, std::string_view>, std::input_iterator_tag,
                                             const std::pair<token_t, std::string_view>&,
@@ -62,7 +62,7 @@ class reader {
     UXS_EXPORT std::pair<token_t, std::string_view> read_next();
 
  private:
-    iobuf& input_;
+    ibuf& input_;
     int n_ln_ = 1;
     bool is_end_element_pending_ = false;
     inline_dynbuffer str_;

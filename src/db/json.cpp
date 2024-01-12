@@ -20,7 +20,7 @@ static uint8_t g_whitespaces[256] = {
 namespace uxs {
 namespace db {
 
-json::reader::reader(iobuf& input) : input_(input) { state_stack_.push_back(lex_detail::sc_initial); }
+json::reader::reader(ibuf& input) : input_(input) { state_stack_.push_back(lex_detail::sc_initial); }
 
 int json::reader::parse_token(std::string_view& lval) {
     unsigned surrogate = 0;
@@ -37,7 +37,7 @@ int json::reader::parse_token(std::string_view& lval) {
                 });
                 input_.advance(first - input_.first_avail());
                 if (first != input_.last_avail()) { break; }
-                if (input_.peek() == iobuf::traits_type::eof()) { return static_cast<int>(token_t::eof); }
+                if (input_.peek() == ibuf::traits_type::eof()) { return static_cast<int>(token_t::eof); }
                 first = input_.first_avail();
             }
             // just process a single character if it can't be recognized with analyzer
@@ -83,8 +83,8 @@ int json::reader::parse_token(std::string_view& lval) {
                 stash_.append(input_.first_avail(), input_.first_avail() + len_rest);
                 input_.advance(len_rest);
             } else {  // at least one character in stash is yet unused
-                      // put unused chars back to `iobuf`
-                for (const char* p = stash_.last(); p != stash_.curr(); --p) { input_.unget(*(p - 1)); }
+                      // put unused chars back to `ibuf`
+                for (const char* p = stash_.curr(); p != stash_.last(); ++p) { input_.unget(); }
             }
             lexeme = stash_.data();
             stash_.clear();  // it resets end pointer, but retains the contents

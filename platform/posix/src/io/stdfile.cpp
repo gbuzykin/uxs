@@ -2,6 +2,8 @@
 
 #include <unistd.h>
 
+#include <cstdio>
+
 using namespace uxs;
 
 static filebuf g_outbuf(fileno(stdout),
@@ -14,7 +16,7 @@ static filebuf g_errbuf(fileno(stderr),
                         iomode::out | iomode::append | (isatty(fileno(stderr)) ? iomode::none : iomode::skip_ctrl_esc),
                         &stdbuf::log);
 iobuf& stdbuf::out = g_outbuf;
-iobuf& stdbuf::in = g_inbuf;
+ibuf& stdbuf::in = g_inbuf;
 iobuf& stdbuf::log = g_logbuf;
 iobuf& stdbuf::err = g_errbuf;
 
