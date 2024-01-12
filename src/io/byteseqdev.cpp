@@ -7,6 +7,25 @@ using namespace uxs;
 //---------------------------------------------------------------------------------
 // byteseqdev class implementation
 
+byteseqdev::byteseqdev(byteseqdev&& other) noexcept
+    : rdonly_(other.rdonly_), seq_(other.seq_), chunk_(other.chunk_), pos0_(other.pos0_), pos_(other.pos_) {
+    other.seq_ = nullptr;
+}
+byteseqdev& byteseqdev::operator=(byteseqdev&& other) noexcept {
+    if (&other == this) { return *this; }
+    rdonly_ = other.rdonly_, seq_ = other.seq_, chunk_ = other.chunk_;
+    pos0_ = other.pos0_, pos_ = other.pos_;
+    other.seq_ = nullptr;
+    return *this;
+}
+
+void byteseqdev::clear() {
+    if (!seq_ || rdonly_) { return; }
+    seq_->clear();
+    chunk_ = seq_->head_;
+    pos0_ = pos_ = 0;
+}
+
 int byteseqdev::read(void* data, size_t sz, size_t& n_read) {
     const size_t sz0 = sz;
     while (sz) {
