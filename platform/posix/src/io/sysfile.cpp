@@ -78,11 +78,10 @@ int64_t sysfile::seek(int64_t off, seekdir dir) {
 }
 
 int sysfile::ctrlesc_color(uxs::span<const uint8_t> v) {
-    uxs::inline_dynbuffer buf;
+    inline_dynbuffer buf;
     buf += "\033[";
-    join_basic_strings(buf, v, ';',
-                       std::bind(to_basic_string<uxs::membuffer, uint8_t>, std::placeholders::_1, std::placeholders::_2,
-                                 scvt::g_default_opts));
+    uxs::join_basic_strings(buf, v, ';',
+                            [](membuffer& s, uint8_t x) -> membuffer& { return uxs::to_basic_string(s, x); });
     buf += 'm';
     return ::write(fd_, buf.data(), buf.size()) < 0 ? -1 : 0;
 }
