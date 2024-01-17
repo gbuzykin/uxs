@@ -64,7 +64,6 @@ class basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_all
     struct flexbuf_t;
     iodevice* dev_ = nullptr;
     flexbuf_t* buf_ = nullptr;
-    pos_type pos_ = 0;
     basic_iobuf<char_type>* tie_buf_ = nullptr;
 
     UXS_EXPORT const char_type* find_end_of_ctrlesc(const char_type* first, const char_type* last);
