@@ -9,11 +9,10 @@ namespace uxs {
 class UXS_EXPORT_ALL_STUFF_FOR_GNUC byteseqdev : public iodevice {
  public:
     explicit byteseqdev(const byteseq& seq)
-        : iodevice(iodevcaps::mappable), rdonly_(true), seq_(&const_cast<byteseq&>(seq)),
+        : iodevice(iodevcaps::rdonly | iodevcaps::mappable), seq_(&const_cast<byteseq&>(seq)),
           chunk_(seq_->head_ ? seq_->head_->next : nullptr) {}
     explicit byteseqdev(byteseq& seq)
-        : iodevice(iodevcaps::mappable), rdonly_(false), seq_(&seq), chunk_(seq_->head_ ? seq_->head_->next : nullptr) {
-    }
+        : iodevice(iodevcaps::mappable), seq_(&seq), chunk_(seq_->head_ ? seq_->head_->next : nullptr) {}
     UXS_EXPORT byteseqdev(byteseqdev&& other) noexcept;
     UXS_EXPORT byteseqdev& operator=(byteseqdev&& other) noexcept;
 
@@ -26,7 +25,6 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC byteseqdev : public iodevice {
     int flush() final { return 0; }
 
  private:
-    bool rdonly_;
     byteseq* seq_;
     byteseq::chunk_t* chunk_ = nullptr;
     size_t pos0_ = 0;
