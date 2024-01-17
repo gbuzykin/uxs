@@ -6,10 +6,7 @@
 
 namespace uxs {
 
-enum class iodevcaps : unsigned {
-    none = 0,
-    mappable = 1,
-};
+enum class iodevcaps : unsigned { none = 0, rdonly = 1, mappable = 2 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iodevcaps, unsigned);
 
 class iodevice {
