@@ -150,28 +150,28 @@ bool variant::is_equal_to(const variant& v) const {
     return result;
 }
 
-#ifdef USE_QT
-void variant::serialize(QDataStream& os) const {
-    if (vtable_) {
-        os << static_cast<unsigned>(vtable_->type);
-        vtable_->serialize_qt(os, &data_);
-    } else {
-        os << static_cast<unsigned>(variant_id::invalid);
+u8ibuf& uxs::operator>>(u8ibuf& is, variant& v) {
+    variant_id type = variant_id::invalid;
+    is >> read_enum(type);
+    auto* tgt_vtable = variant::get_vtable(static_cast<variant_id>(type));
+    if (v.vtable_ != tgt_vtable) {
+        v.reset();
+        if (tgt_vtable) { tgt_vtable->construct_default(&v.data_); }
+        v.vtable_ = tgt_vtable;
     }
+    if (v.vtable_) { v.vtable_->deserialize(is, &v.data_); }
+    return is;
 }
 
-void variant::deserialize(QDataStream& is) {
-    unsigned type = 0;
-    is >> type;
-    auto* tgt_vtable = variant::get_vtable(static_cast<variant_id>(type));
-    if (vtable_ != tgt_vtable) {
-        reset();
-        if (tgt_vtable) { tgt_vtable->construct_default(&data_); }
-        vtable_ = tgt_vtable;
+u8iobuf& uxs::operator<<(u8iobuf& os, const variant& v) {
+    if (v.vtable_) {
+        os << write_enum(v.vtable_->type);
+        v.vtable_->serialize(os, &v.data_);
+    } else {
+        os << write_enum(variant_id::invalid);
     }
-    if (vtable_) { vtable_->deserialize_qt(is, &data_); }
+    return os;
 }
-#endif  // USE_QT
 
 //---------------------------------------------------------------------------------
 // Basic type convertors
