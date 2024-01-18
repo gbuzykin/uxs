@@ -2,6 +2,7 @@
 
 #include "alignment.h"
 #include "cow_ptr.h"
+#include "io/stream.h"
 #include "optional.h"
 #include "stringcvt.h"
 
@@ -25,32 +26,18 @@
         return true; \
     }
 
-#ifdef USE_QT
-#    define UXS_IMPLEMENT_VARIANT_TYPE(ty, ...) \
-        uxs::variant::vtable_t uxs::variant_type_impl<ty>::vtable{ \
-            type_id,      construct_default, construct_copy,      construct_move, destroy, \
-            assign_copy,  assign_move,       get_value_const_ptr, get_value_ptr,  is_equal, \
-            serialize_qt, deserialize_qt,    __VA_ARGS__}; \
-        uxs::variant_type_impl<ty>::variant_type_impl() { \
-            static_assert(static_cast<unsigned>(type_id) < uxs::variant::max_type_id, "bad variant identifier"); \
-            assert(vtable.type == type_id); \
-            assert(!uxs::variant::vtables_[static_cast<unsigned>(type_id)]); \
-            uxs::variant::vtables_[static_cast<unsigned>(type_id)] = &vtable; \
-        } \
-        static uxs::variant_type_impl<ty> TOKENPASTE2(g_variant_type_impl_, __LINE__)
-#else
-#    define UXS_IMPLEMENT_VARIANT_TYPE(ty, ...) \
-        uxs::variant::vtable_t uxs::variant_type_impl<ty>::vtable{ \
-            type_id,     construct_default,   construct_copy, construct_move, destroy,    assign_copy, \
-            assign_move, get_value_const_ptr, get_value_ptr,  is_equal,       __VA_ARGS__}; \
-        uxs::variant_type_impl<ty>::variant_type_impl() { \
-            static_assert(static_cast<unsigned>(type_id) < uxs::variant::max_type_id, "bad variant identifier"); \
-            assert(vtable.type == type_id); \
-            assert(!uxs::variant::vtables_[static_cast<unsigned>(type_id)]); \
-            uxs::variant::vtables_[static_cast<unsigned>(type_id)] = &vtable; \
-        } \
-        static uxs::variant_type_impl<ty> TOKENPASTE2(g_variant_type_impl_, __LINE__)
-#endif  // USE_QT
+#define UXS_IMPLEMENT_VARIANT_TYPE(ty, ...) \
+    uxs::variant::vtable_t uxs::variant_type_impl<ty>::vtable{ \
+        type_id,     construct_default, construct_copy,      construct_move, destroy, \
+        assign_copy, assign_move,       get_value_const_ptr, get_value_ptr,  is_equal, \
+        serialize,   deserialize,       __VA_ARGS__}; \
+    uxs::variant_type_impl<ty>::variant_type_impl() { \
+        static_assert(static_cast<unsigned>(type_id) < uxs::variant::max_type_id, "bad variant identifier"); \
+        assert(vtable.type == type_id); \
+        assert(!uxs::variant::vtables_[static_cast<unsigned>(type_id)]); \
+        uxs::variant::vtables_[static_cast<unsigned>(type_id)] = &vtable; \
+    } \
+    static uxs::variant_type_impl<ty> TOKENPASTE2(g_variant_type_impl_, __LINE__)
 
 #define UXS_IMPLEMENT_VARIANT_TYPE_WITH_STRING_CONVERTER(ty) \
     UXS_IMPLEMENT_VARIANT_STRING_CONVERTER(ty) \
@@ -196,11 +183,6 @@ class variant {
     variant& operator=(const char* cstr);
     bool is_equal_to(const char* cstr) const;
 
-#ifdef USE_QT
-    UXS_EXPORT void serialize(QDataStream& os) const;
-    UXS_EXPORT void deserialize(QDataStream& is);
-#endif  // USE_QT
-
  private:
     struct vtable_t {
         variant_id type;
@@ -213,13 +195,14 @@ class variant {
         const void* (*get_value_const_ptr)(const void*) noexcept;
         void* (*get_value_ptr)(void*) noexcept;
         bool (*is_equal)(const void*, const void*);
-#ifdef USE_QT
-        void (*serialize_qt)(QDataStream&, const void*);
-        void (*deserialize_qt)(QDataStream&, void*);
-#endif  // USE_QT
+        void (*serialize)(u8iobuf&, const void*);
+        void (*deserialize)(u8ibuf&, void*);
         bool (*convert_from)(variant_id, void*, const void*);
         bool (*convert_to)(variant_id, void*, const void*);
     };
+
+    friend UXS_EXPORT u8ibuf& operator>>(u8ibuf& is, variant& v);
+    friend UXS_EXPORT u8iobuf& operator<<(u8iobuf& os, const variant& v);
 
     template<typename>
     friend struct variant_type_impl;
@@ -395,13 +378,11 @@ struct variant_type_base_impl {
     static const void* get_value_const_ptr(const void* p) noexcept { return &*deref(p); }
     static void* get_value_ptr(void* p) noexcept { return &*deref(p); }
     static bool is_equal(const void* lhs, const void* rhs) { return *deref(lhs) == *deref(rhs); }
-#ifdef USE_QT
-    static void serialize_qt(QDataStream& os, const void* p) { os << *deref(p); }
-    static void deserialize_qt(QDataStream& is, void* p) {
+    static void serialize(u8iobuf& os, const void* p) { os << *deref(p); }
+    static void deserialize(u8ibuf& is, void* p) {
         if (!deref(p)) { deref(p) = make_cow<Ty>(); }
         is >> *deref(p);
     }
-#endif  // USE_QT
 };
 
 template<typename Ty, variant_id TypeId>
@@ -434,10 +415,8 @@ struct variant_type_base_impl<
     static const void* get_value_const_ptr(const void* p) noexcept { return p; }
     static void* get_value_ptr(void* p) noexcept { return p; }
     static bool is_equal(const void* lhs, const void* rhs) { return deref(lhs) == deref(rhs); }
-#ifdef USE_QT
-    static void serialize_qt(QDataStream& os, const void* p) { os << deref(p); }
-    static void deserialize_qt(QDataStream& is, void* p) { is >> deref(p); }
-#endif  // USE_QT
+    static void serialize(u8iobuf& os, const void* p) { os << deref(p); }
+    static void deserialize(u8ibuf& is, void* p) { is >> deref(p); }
 };
 
 UXS_DECLARE_VARIANT_TYPE(std::string, variant_id::string);
