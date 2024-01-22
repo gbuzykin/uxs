@@ -3,7 +3,6 @@
 #include "stringcvt.h"
 
 #include <cstdlib>
-#include <cstring>
 
 #define SCVT_USE_COMPILER_128BIT_EXTENSIONS 1
 

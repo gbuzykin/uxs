@@ -5,6 +5,7 @@
 #include "string_view.h"
 
 #include <algorithm>
+#include <cstring>
 #include <locale>
 #include <memory>
 #include <stdexcept>
@@ -283,14 +284,22 @@ namespace scvt {
 template<typename Ty>
 struct fp_traits;
 
+template<typename TyTo, typename TyFrom>
+TyTo bit_cast(const TyFrom& v) {
+    static_assert(sizeof(TyTo) == sizeof(TyFrom), "bad bit cast");
+    TyTo ret;
+    std::memcpy(&ret, &v, sizeof(TyFrom));
+    return ret;
+}
+
 template<>
 struct fp_traits<double> {
     static_assert(sizeof(double) == sizeof(uint64_t), "type size mismatch");
     enum : unsigned { total_bits = 64, bits_per_mantissa = 52 };
     enum : uint64_t { mantissa_mask = (1ull << bits_per_mantissa) - 1 };
     enum : int { exp_max = (1 << (total_bits - bits_per_mantissa - 1)) - 1 };
-    static uint64_t to_u64(const double& f) { return *reinterpret_cast<const uint64_t*>(&f); }
-    static double from_u64(const uint64_t& u64) { return *reinterpret_cast<const double*>(&u64); }
+    static uint64_t to_u64(const double& f) { return bit_cast<uint64_t>(f); }
+    static double from_u64(const uint64_t& u64) { return bit_cast<double>(u64); }
 };
 
 template<>
@@ -299,8 +308,8 @@ struct fp_traits<float> {
     enum : unsigned { total_bits = 32, bits_per_mantissa = 23 };
     enum : uint64_t { mantissa_mask = (1ull << bits_per_mantissa) - 1 };
     enum : int { exp_max = (1 << (total_bits - bits_per_mantissa - 1)) - 1 };
-    static uint64_t to_u64(const float& f) { return *reinterpret_cast<const uint32_t*>(&f); }
-    static float from_u64(const uint64_t& u64) { return *reinterpret_cast<const float*>(&u64); }
+    static uint64_t to_u64(const float& f) { return bit_cast<uint32_t>(f); }
+    static float from_u64(const uint64_t& u64) { return bit_cast<float>(static_cast<uint32_t>(u64)); }
 };
 
 extern UXS_EXPORT const fmt_opts g_default_opts;

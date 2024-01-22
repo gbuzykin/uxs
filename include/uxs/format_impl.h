@@ -3,8 +3,6 @@
 #include "format.h"
 #include "utf.h"
 
-#include <cstring>
-
 namespace uxs {
 namespace sfmt {
 
