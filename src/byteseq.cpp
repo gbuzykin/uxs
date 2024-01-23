@@ -35,7 +35,7 @@ uint32_t byteseq::calc_crc32() const {
 }
 
 byteseq& byteseq::assign(const byteseq& other) {
-    return assign(other.size_, other.flags_, [&other](uint8_t* dst, size_t dst_sz) {
+    return assign(other.size_, [&other](uint8_t* dst, size_t dst_sz) {
         other.scan([&dst](const uint8_t* p, size_t sz) {
             std::memcpy(dst, p, sz);
             dst += sz;
@@ -45,12 +45,7 @@ byteseq& byteseq::assign(const byteseq& other) {
 }
 
 bool byteseq::compress() {
-    if (!!(flags_ & byteseq_flags::compressed)) {
-        return true;
-    } else if (empty()) {
-        flags_ |= byteseq_flags::compressed;
-        return true;
-    }
+    if (empty()) { return true; }
     auto buf = make_compressed();
     if (buf.empty()) { return false; }
     *this = std::move(buf);
@@ -58,12 +53,7 @@ bool byteseq::compress() {
 }
 
 bool byteseq::uncompress() {
-    if (!(flags_ & byteseq_flags::compressed)) {
-        return true;
-    } else if (empty()) {
-        flags_ &= ~byteseq_flags::compressed;
-        return true;
-    }
+    if (empty()) { return true; }
     auto buf = make_uncompressed();
     if (buf.empty()) { return false; }
     *this = std::move(buf);
@@ -76,9 +66,9 @@ std::vector<uint8_t> byteseq::make_vector() const {
     return result;
 }
 
-/*static*/ byteseq byteseq::from_vector(uxs::span<const uint8_t> v, byteseq_flags flags) {
+/*static*/ byteseq byteseq::from_vector(uxs::span<const uint8_t> v) {
     byteseq seq;
-    return seq.assign(v.size(), flags, [&v](uint8_t* dst, size_t dst_sz) {
+    return seq.assign(v.size(), [&v](uint8_t* dst, size_t dst_sz) {
         std::memcpy(dst, v.data(), dst_sz);
         return dst_sz;
     });
@@ -87,13 +77,9 @@ std::vector<uint8_t> byteseq::make_vector() const {
 
 #if defined(UXS_USE_ZLIB)
 byteseq byteseq::make_compressed() const {
-    if (!!(flags_ & byteseq_flags::compressed)) {
-        return *this;
-    } else if (empty()) {
-        return byteseq(flags_ | byteseq_flags::compressed);
-    }
+    if (empty()) { return {}; }
 
-    byteseq buf(flags_ | byteseq_flags::compressed);
+    byteseq buf;
     buf.create_head_chunk();
 
     z_stream zstr;
@@ -134,13 +120,9 @@ byteseq byteseq::make_compressed() const {
 }
 
 byteseq byteseq::make_uncompressed() const {
-    if (!(flags_ & byteseq_flags::compressed)) {
-        return *this;
-    } else if (empty()) {
-        return byteseq(flags_ & ~byteseq_flags::compressed);
-    }
+    if (empty()) { return {}; }
 
-    byteseq buf(flags_ & ~byteseq_flags::compressed);
+    byteseq buf;
     buf.create_head_chunk();
 
     z_stream zstr;
@@ -162,11 +144,11 @@ byteseq byteseq::make_uncompressed() const {
 
         int ret = inflate(&zstr, zstr.avail_in ? Z_NO_FLUSH : Z_FINISH);
         if (ret == Z_STREAM_END) {
-            if (inflateEnd(&zstr) != Z_OK) { return byteseq(byteseq_flags::compressed); }
+            if (inflateEnd(&zstr) != Z_OK) { return {}; }
             break;
         } else if (ret != Z_OK) {
             inflateEnd(&zstr);
-            return byteseq(byteseq_flags::compressed);
+            return {};
         }
 
         if (zstr.next_out == buf.head_->boundary) {

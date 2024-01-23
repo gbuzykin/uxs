@@ -8,9 +8,6 @@ namespace uxs {
 
 class byteseqdev;
 
-enum class byteseq_flags : unsigned { none = 0, compressed = 1 };
-UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(byteseq_flags, unsigned);
-
 namespace detail {
 struct byteseq_chunk_t {
     using alloc_type = std::allocator<byteseq_chunk_t>;
@@ -39,9 +36,8 @@ struct byteseq_chunk_t {
 class byteseq : public detail::byteseq_chunk_t::alloc_type {
  public:
     byteseq() = default;
-    explicit byteseq(byteseq_flags flags) : flags_(flags) {}
     byteseq(const byteseq& other) { assign(other); }
-    byteseq(byteseq&& other) noexcept : flags_(other.flags_), head_(other.head_), size_(other.size_) {
+    byteseq(byteseq&& other) noexcept : head_(other.head_), size_(other.size_) {
         other.head_ = nullptr, other.size_ = 0;
     }
     UXS_EXPORT ~byteseq();
@@ -49,7 +45,7 @@ class byteseq : public detail::byteseq_chunk_t::alloc_type {
     byteseq& operator=(const byteseq& other) { return &other != this ? assign(other) : *this; }
     byteseq& operator=(byteseq&& other) noexcept {
         if (&other != this) {
-            flags_ = other.flags_, head_ = other.head_, size_ = other.size_;
+            head_ = other.head_, size_ = other.size_;
             other.head_ = nullptr, other.size_ = 0;
         }
         return *this;
@@ -57,20 +53,16 @@ class byteseq : public detail::byteseq_chunk_t::alloc_type {
 
     size_t size() const { return size_; }
     bool empty() const { return size_ == 0; }
-    byteseq_flags flags() const { return flags_; }
-    bool compressed() const { return !!(flags_ & byteseq_flags::compressed); }
     void clear() { clear_and_reserve(0); }
     UXS_EXPORT uint32_t calc_crc32() const;
 
     void swap(byteseq& other) {
-        std::swap(flags_, other.flags_);
         std::swap(head_, other.head_);
         std::swap(size_, other.size_);
     }
 
     template<typename FillFunc>
-    byteseq& assign(size_t max_size, byteseq_flags flags, FillFunc func) {
-        flags_ = flags;
+    byteseq& assign(size_t max_size, FillFunc func) {
         clear_and_reserve(max_size);
         if (head_) {
             size_ = func(head_->data, max_size);
@@ -91,7 +83,7 @@ class byteseq : public detail::byteseq_chunk_t::alloc_type {
 
     UXS_EXPORT byteseq& assign(const byteseq& other);
     UXS_EXPORT std::vector<uint8_t> make_vector() const;
-    UXS_EXPORT static byteseq from_vector(uxs::span<const uint8_t> v, byteseq_flags flags);
+    UXS_EXPORT static byteseq from_vector(uxs::span<const uint8_t> v);
 
     UXS_EXPORT byteseq make_compressed() const;
     UXS_EXPORT byteseq make_uncompressed() const;
@@ -105,7 +97,6 @@ class byteseq : public detail::byteseq_chunk_t::alloc_type {
 
     enum : size_t { chunk_size = 0x100000, max_avail_count = 0x40000000 };
 
-    byteseq_flags flags_ = byteseq_flags::none;
     chunk_t* head_ = nullptr;
     size_t size_ = 0;
 
