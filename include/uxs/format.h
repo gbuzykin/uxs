@@ -588,17 +588,22 @@ UXS_EXPORT StrTy& vformat(StrTy& s, std::basic_string_view<typename StrTy::value
 
 template<typename StrTy>
 using basic_format_args = sfmt::arg_list<StrTy>;
-using format_args = basic_format_args<membuffer>;
-using wformat_args = basic_format_args<wmembuffer>;
+using format_args = uxs::basic_format_args<membuffer>;
+using wformat_args = uxs::basic_format_args<wmembuffer>;
 
-template<typename StrTy = membuffer, typename... Args>
-NODISCARD sfmt::arg_store<StrTy, Args...> make_format_args(const Args&... args) noexcept {
+template<typename StrTy, typename... Args>
+NODISCARD sfmt::arg_store<StrTy, Args...> make_basic_format_args(const Args&... args) noexcept {
     return sfmt::arg_store<StrTy, Args...>{args...};
 }
 
-template<typename StrTy = wmembuffer, typename... Args>
-NODISCARD sfmt::arg_store<StrTy, Args...> make_wformat_args(const Args&... args) noexcept {
-    return sfmt::arg_store<StrTy, Args...>{args...};
+template<typename... Args>
+NODISCARD sfmt::arg_store<membuffer, Args...> make_format_args(const Args&... args) noexcept {
+    return sfmt::arg_store<membuffer, Args...>{args...};
+}
+
+template<typename... Args>
+NODISCARD sfmt::arg_store<wmembuffer, Args...> make_wformat_args(const Args&... args) noexcept {
+    return sfmt::arg_store<wmembuffer, Args...>{args...};
 }
 
 template<typename CharT>
@@ -705,31 +710,54 @@ using format_string = basic_format_string<char, type_identity_t<Args>...>;
 template<typename... Args>
 using wformat_string = basic_format_string<wchar_t, type_identity_t<Args>...>;
 
+// ---- basic_vformat
+
+template<typename StrTy>
+StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
+                     uxs::basic_format_args<StrTy> args) {
+    return sfmt::vformat(s, fmt, args);
+}
+
+template<typename StrTy>
+StrTy& basic_vformat(StrTy& s, const std::locale& loc, std::basic_string_view<typename StrTy::value_type> fmt,
+                     uxs::basic_format_args<StrTy> args) {
+    return sfmt::vformat(s, fmt, args, &loc);
+}
+
+// ---- basic_format
+
+template<typename StrTy, typename... Args>
+StrTy& basic_format(StrTy& s, uxs::basic_format_string<typename StrTy::value_type, Args...> fmt, const Args&... args) {
+    return sfmt::vformat(s, fmt.get(), uxs::make_basic_format_args<StrTy>(args...));
+}
+
+template<typename StrTy, typename... Args>
+StrTy& basic_format(StrTy& s, const std::locale& loc, uxs::basic_format_string<typename StrTy::value_type, Args...> fmt,
+                    const Args&... args) {
+    return sfmt::vformat(s, fmt.get(), uxs::make_basic_format_args<StrTy>(args...), &loc);
+}
+
 // ---- vformat
 
-template<typename... Args>
-NODISCARD std::string vformat(std::string_view fmt, format_args args) {
+NODISCARD inline std::string vformat(std::string_view fmt, uxs::format_args args) {
     inline_dynbuffer buf;
     sfmt::vformat<membuffer>(buf, fmt, args);
     return std::string(buf.data(), buf.size());
 }
 
-template<typename... Args>
-NODISCARD std::wstring vformat(std::wstring_view fmt, wformat_args args) {
+NODISCARD inline std::wstring vformat(std::wstring_view fmt, uxs::wformat_args args) {
     inline_wdynbuffer buf;
     sfmt::vformat<wmembuffer>(buf, fmt, args);
     return std::wstring(buf.data(), buf.size());
 }
 
-template<typename... Args>
-NODISCARD std::string vformat(const std::locale& loc, std::string_view fmt, format_args args) {
+NODISCARD inline std::string vformat(const std::locale& loc, std::string_view fmt, uxs::format_args args) {
     inline_dynbuffer buf;
     sfmt::vformat<membuffer>(buf, fmt, args, &loc);
     return std::string(buf.data(), buf.size());
 }
 
-template<typename... Args>
-NODISCARD std::wstring vformat(const std::locale& loc, std::wstring_view fmt, wformat_args args) {
+NODISCARD inline std::wstring vformat(const std::locale& loc, std::wstring_view fmt, uxs::wformat_args args) {
     inline_wdynbuffer buf;
     sfmt::vformat<wmembuffer>(buf, fmt, args, &loc);
     return std::wstring(buf.data(), buf.size());
@@ -738,78 +766,70 @@ NODISCARD std::wstring vformat(const std::locale& loc, std::wstring_view fmt, wf
 // ---- format
 
 template<typename... Args>
-NODISCARD std::string format(format_string<Args...> fmt, const Args&... args) {
-    return vformat(fmt.get(), make_format_args(args...));
+NODISCARD std::string format(uxs::format_string<Args...> fmt, const Args&... args) {
+    return vformat(fmt.get(), uxs::make_format_args(args...));
 }
 
 template<typename... Args>
-NODISCARD std::wstring format(wformat_string<Args...> fmt, const Args&... args) {
-    return vformat(fmt.get(), make_wformat_args(args...));
+NODISCARD std::wstring format(uxs::wformat_string<Args...> fmt, const Args&... args) {
+    return vformat(fmt.get(), uxs::make_wformat_args(args...));
 }
 
 template<typename... Args>
-NODISCARD std::string format(const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
-    return vformat(loc, fmt.get(), make_format_args(args...));
+NODISCARD std::string format(const std::locale& loc, uxs::format_string<Args...> fmt, const Args&... args) {
+    return vformat(loc, fmt.get(), uxs::make_format_args(args...));
 }
 
 template<typename... Args>
-NODISCARD std::wstring format(const std::locale& loc, wformat_string<Args...> fmt, const Args&... args) {
-    return vformat(loc, fmt.get(), make_wformat_args(args...));
+NODISCARD std::wstring format(const std::locale& loc, uxs::wformat_string<Args...> fmt, const Args&... args) {
+    return vformat(loc, fmt.get(), uxs::make_wformat_args(args...));
 }
 
 // ---- vformat_to
 
-template<typename... Args>
-char* vformat_to(char* p, std::string_view fmt, format_args args) {
+inline char* vformat_to(char* p, std::string_view fmt, uxs::format_args args) {
     membuffer buf(p);
     return sfmt::vformat<membuffer>(buf, fmt, args).curr();
 }
 
-template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt vformat_to(OutputIt out, std::string_view fmt, format_args args) {
+template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
+OutputIt vformat_to(OutputIt out, std::string_view fmt, uxs::format_args args) {
     inline_dynbuffer buf;
     sfmt::vformat<membuffer>(buf, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
-template<typename... Args>
-wchar_t* vformat_to(wchar_t* p, std::wstring_view fmt, wformat_args args) {
+inline wchar_t* vformat_to(wchar_t* p, std::wstring_view fmt, uxs::wformat_args args) {
     wmembuffer buf(p);
     return sfmt::vformat<wmembuffer>(buf, fmt, args).curr();
 }
 
-template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt vformat_to(OutputIt out, std::wstring_view fmt, wformat_args args) {
+template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
+OutputIt vformat_to(OutputIt out, std::wstring_view fmt, uxs::wformat_args args) {
     inline_wdynbuffer buf;
     sfmt::vformat<wmembuffer>(buf, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
-template<typename... Args>
-char* vformat_to(char* p, const std::locale& loc, std::string_view fmt, format_args args) {
+inline char* vformat_to(char* p, const std::locale& loc, std::string_view fmt, uxs::format_args args) {
     membuffer buf(p);
     return sfmt::vformat<membuffer>(buf, fmt, args, &loc).curr();
 }
 
-template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt vformat_to(OutputIt out, const std::locale& loc, std::string_view fmt, format_args args) {
+template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
+OutputIt vformat_to(OutputIt out, const std::locale& loc, std::string_view fmt, uxs::format_args args) {
     inline_dynbuffer buf;
     sfmt::vformat<membuffer>(buf, fmt, args, &loc);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
-template<typename... Args>
-wchar_t* vformat_to(wchar_t* p, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
+inline wchar_t* vformat_to(wchar_t* p, const std::locale& loc, std::wstring_view fmt, uxs::wformat_args args) {
     wmembuffer buf(p);
     return sfmt::vformat<wmembuffer>(buf, fmt, args, &loc).curr();
 }
 
-template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt vformat_to(OutputIt out, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
+template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
+OutputIt vformat_to(OutputIt out, const std::locale& loc, std::wstring_view fmt, uxs::wformat_args args) {
     inline_wdynbuffer buf;
     sfmt::vformat<wmembuffer>(buf, fmt, args, &loc);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
@@ -819,81 +839,74 @@ OutputIt vformat_to(OutputIt out, const std::locale& loc, std::wstring_view fmt,
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt format_to(OutputIt out, format_string<Args...> fmt, const Args&... args) {
-    return vformat_to(std::move(out), fmt.get(), make_format_args(args...));
+OutputIt format_to(OutputIt out, uxs::format_string<Args...> fmt, const Args&... args) {
+    return vformat_to(std::move(out), fmt.get(), uxs::make_format_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt format_to(OutputIt out, wformat_string<Args...> fmt, const Args&... args) {
-    return vformat_to(std::move(out), fmt.get(), make_wformat_args(args...));
+OutputIt format_to(OutputIt out, uxs::wformat_string<Args...> fmt, const Args&... args) {
+    return vformat_to(std::move(out), fmt.get(), uxs::make_wformat_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt format_to(OutputIt out, const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
-    return vformat_to(std::move(out), loc, fmt.get(), make_format_args(args...));
+OutputIt format_to(OutputIt out, const std::locale& loc, uxs::format_string<Args...> fmt, const Args&... args) {
+    return vformat_to(std::move(out), loc, fmt.get(), uxs::make_format_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt format_to(OutputIt out, const std::locale& loc, wformat_string<Args...> fmt, const Args&... args) {
-    return vformat_to(std::move(out), loc, fmt.get(), make_wformat_args(args...));
+OutputIt format_to(OutputIt out, const std::locale& loc, uxs::wformat_string<Args...> fmt, const Args&... args) {
+    return vformat_to(std::move(out), loc, fmt.get(), uxs::make_wformat_args(args...));
 }
 
 // ---- vformat_to_n
 
-template<typename... Args>
-char* vformat_to_n(char* p, size_t n, std::string_view fmt, format_args args) {
+inline char* vformat_to_n(char* p, size_t n, std::string_view fmt, uxs::format_args args) {
     membuffer buf(p, p + n);
     return sfmt::vformat<membuffer>(buf, fmt, args).curr();
 }
 
-template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt vformat_to_n(OutputIt out, size_t n, std::string_view fmt, format_args args) {
+template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
+OutputIt vformat_to_n(OutputIt out, size_t n, std::string_view fmt, uxs::format_args args) {
     inline_dynbuffer buf;
     sfmt::vformat<membuffer>(buf, fmt, args);
     return std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out));
 }
 
-template<typename... Args>
-wchar_t* vformat_to_n(wchar_t* p, size_t n, std::wstring_view fmt, wformat_args args) {
+inline wchar_t* vformat_to_n(wchar_t* p, size_t n, std::wstring_view fmt, uxs::wformat_args args) {
     wmembuffer buf(p, p + n);
     return sfmt::vformat<wmembuffer>(buf, fmt, args).curr();
 }
 
-template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt vformat_to_n(OutputIt out, size_t n, std::wstring_view fmt, wformat_args args) {
+template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
+OutputIt vformat_to_n(OutputIt out, size_t n, std::wstring_view fmt, uxs::wformat_args args) {
     inline_wdynbuffer buf;
     sfmt::vformat<wmembuffer>(buf, fmt, args);
     return std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out));
 }
 
-template<typename... Args>
-char* vformat_to_n(char* p, size_t n, const std::locale& loc, std::string_view fmt, format_args args) {
+inline char* vformat_to_n(char* p, size_t n, const std::locale& loc, std::string_view fmt, uxs::format_args args) {
     membuffer buf(p, p + n);
     return sfmt::vformat<membuffer>(buf, fmt, args, &loc).curr();
 }
 
-template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt vformat_to_n(OutputIt out, size_t n, const std::locale& loc, std::string_view fmt, format_args args) {
+template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
+OutputIt vformat_to_n(OutputIt out, size_t n, const std::locale& loc, std::string_view fmt, uxs::format_args args) {
     inline_dynbuffer buf;
     sfmt::vformat<membuffer>(buf, fmt, args, &loc);
     return std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out));
 }
 
-template<typename... Args>
-wchar_t* vformat_to_n(wchar_t* p, size_t n, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
+inline wchar_t* vformat_to_n(wchar_t* p, size_t n, const std::locale& loc, std::wstring_view fmt,
+                             uxs::wformat_args args) {
     wmembuffer buf(p, p + n);
     return sfmt::vformat<wmembuffer>(buf, fmt, args, &loc).curr();
 }
 
-template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt vformat_to_n(OutputIt out, size_t n, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
+template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
+OutputIt vformat_to_n(OutputIt out, size_t n, const std::locale& loc, std::wstring_view fmt, uxs::wformat_args args) {
     inline_wdynbuffer buf;
     sfmt::vformat<wmembuffer>(buf, fmt, args, &loc);
     return std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out));
@@ -903,26 +916,28 @@ OutputIt vformat_to_n(OutputIt out, size_t n, const std::locale& loc, std::wstri
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt format_to_n(OutputIt out, size_t n, format_string<Args...> fmt, const Args&... args) {
-    return vformat_to_n(std::move(out), n, fmt.get(), make_format_args(args...));
+OutputIt format_to_n(OutputIt out, size_t n, uxs::format_string<Args...> fmt, const Args&... args) {
+    return vformat_to_n(std::move(out), n, fmt.get(), uxs::make_format_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt format_to_n(OutputIt out, size_t n, wformat_string<Args...> fmt, const Args&... args) {
-    return vformat_to_n(std::move(out), n, fmt.get(), make_wformat_args(args...));
+OutputIt format_to_n(OutputIt out, size_t n, uxs::wformat_string<Args...> fmt, const Args&... args) {
+    return vformat_to_n(std::move(out), n, fmt.get(), uxs::make_wformat_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt format_to_n(OutputIt out, size_t n, const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
-    return vformat_to_n(std::move(out), n, loc, fmt.get(), make_format_args(args...));
+OutputIt format_to_n(OutputIt out, size_t n, const std::locale& loc, uxs::format_string<Args...> fmt,
+                     const Args&... args) {
+    return vformat_to_n(std::move(out), n, loc, fmt.get(), uxs::make_format_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt format_to_n(OutputIt out, size_t n, const std::locale& loc, wformat_string<Args...> fmt, const Args&... args) {
-    return vformat_to_n(std::move(out), n, loc, fmt.get(), make_wformat_args(args...));
+OutputIt format_to_n(OutputIt out, size_t n, const std::locale& loc, uxs::wformat_string<Args...> fmt,
+                     const Args&... args) {
+    return vformat_to_n(std::move(out), n, loc, fmt.get(), uxs::make_wformat_args(args...));
 }
 
 // ---- vprint
@@ -975,29 +990,25 @@ class basic_membuffer_for_iobuf final : public basic_membuffer<Ty> {
 using membuffer_for_iobuf = basic_membuffer_for_iobuf<char>;
 using wmembuffer_for_iobuf = basic_membuffer_for_iobuf<wchar_t>;
 
-template<typename... Args>
-iobuf& vprint(iobuf& out, std::string_view fmt, format_args args) {
+inline iobuf& vprint(iobuf& out, std::string_view fmt, uxs::format_args args) {
     membuffer_for_iobuf buf(out);
     sfmt::vformat<membuffer>(buf, fmt, args);
     return out;
 }
 
-template<typename... Args>
-wiobuf& vprint(wiobuf& out, std::wstring_view fmt, wformat_args args) {
+inline wiobuf& vprint(wiobuf& out, std::wstring_view fmt, uxs::wformat_args args) {
     wmembuffer_for_iobuf buf(out);
     sfmt::vformat<wmembuffer>(buf, fmt, args);
     return out;
 }
 
-template<typename... Args>
-iobuf& vprint(iobuf& out, const std::locale& loc, std::string_view fmt, format_args args) {
+inline iobuf& vprint(iobuf& out, const std::locale& loc, std::string_view fmt, uxs::format_args args) {
     membuffer_for_iobuf buf(out);
     sfmt::vformat<membuffer>(buf, fmt, args, &loc);
     return out;
 }
 
-template<typename... Args>
-wiobuf& vprint(wiobuf& out, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
+inline wiobuf& vprint(wiobuf& out, const std::locale& loc, std::wstring_view fmt, uxs::wformat_args args) {
     wmembuffer_for_iobuf buf(out);
     sfmt::vformat<wmembuffer>(buf, fmt, args, &loc);
     return out;
@@ -1006,65 +1017,65 @@ wiobuf& vprint(wiobuf& out, const std::locale& loc, std::wstring_view fmt, wform
 // ---- print
 
 template<typename... Args>
-iobuf& print(iobuf& out, format_string<Args...> fmt, const Args&... args) {
-    return vprint(out, fmt.get(), make_format_args(args...));
+iobuf& print(iobuf& out, uxs::format_string<Args...> fmt, const Args&... args) {
+    return vprint(out, fmt.get(), uxs::make_format_args(args...));
 }
 
 template<typename... Args>
-wiobuf& print(wiobuf& out, wformat_string<Args...> fmt, const Args&... args) {
-    return vprint(out, fmt.get(), make_wformat_args(args...));
+wiobuf& print(wiobuf& out, uxs::wformat_string<Args...> fmt, const Args&... args) {
+    return vprint(out, fmt.get(), uxs::make_wformat_args(args...));
 }
 
 template<typename... Args>
-iobuf& print(format_string<Args...> fmt, const Args&... args) {
-    return vprint(stdbuf::out, fmt.get(), make_format_args(args...));
+iobuf& print(uxs::format_string<Args...> fmt, const Args&... args) {
+    return vprint(stdbuf::out, fmt.get(), uxs::make_format_args(args...));
 }
 
 template<typename... Args>
-iobuf& print(iobuf& out, const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
-    return vprint(out, loc, fmt.get(), make_format_args(args...));
+iobuf& print(iobuf& out, const std::locale& loc, uxs::format_string<Args...> fmt, const Args&... args) {
+    return vprint(out, loc, fmt.get(), uxs::make_format_args(args...));
 }
 
 template<typename... Args>
-wiobuf& print(wiobuf& out, const std::locale& loc, wformat_string<Args...> fmt, const Args&... args) {
-    return vprint(out, loc, fmt.get(), make_wformat_args(args...));
+wiobuf& print(wiobuf& out, const std::locale& loc, uxs::wformat_string<Args...> fmt, const Args&... args) {
+    return vprint(out, loc, fmt.get(), uxs::make_wformat_args(args...));
 }
 
 template<typename... Args>
-iobuf& print(const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
-    return vprint(stdbuf::out, loc, fmt.get(), make_format_args(args...));
+iobuf& print(const std::locale& loc, uxs::format_string<Args...> fmt, const Args&... args) {
+    return vprint(stdbuf::out, loc, fmt.get(), uxs::make_format_args(args...));
 }
 
 // ---- println
 
 template<typename... Args>
-iobuf& println(iobuf& out, format_string<Args...> fmt, const Args&... args) {
-    return vprint(out, fmt.get(), make_format_args(args...)).endl();
+iobuf& println(iobuf& out, uxs::format_string<Args...> fmt, const Args&... args) {
+    return vprint(out, fmt.get(), uxs::make_format_args(args...)).endl();
 }
 
 template<typename... Args>
-wiobuf& println(wiobuf& out, wformat_string<Args...> fmt, const Args&... args) {
-    return vprint(out, fmt.get(), make_wformat_args(args...)).endl();
+wiobuf& println(wiobuf& out, uxs::wformat_string<Args...> fmt, const Args&... args) {
+    return vprint(out, fmt.get(), uxs::make_wformat_args(args...)).endl();
 }
 
 template<typename... Args>
-iobuf& println(format_string<Args...> fmt, const Args&... args) {
-    return vprint(stdbuf::out, fmt.get(), make_format_args(args...)).endl();
+iobuf& println(uxs::format_string<Args...> fmt, const Args&... args) {
+    return vprint(stdbuf::out, fmt.get(), uxs::make_format_args(args...)).endl();
 }
 
 template<typename... Args>
-iobuf& println(iobuf& out, const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
-    return vprint(out, loc, fmt.get(), make_format_args(args...)).endl();
+iobuf& println(iobuf& out, const std::locale& loc, uxs::format_string<Args...> fmt, const Args&... args) {
+    return vprint(out, loc, fmt.get(), uxs::make_format_args(args...)).endl();
 }
 
 template<typename... Args>
-wiobuf& println(wiobuf& out, const std::locale& loc, wformat_string<Args...> fmt, const Args&... args) {
-    return vprint(out, loc, fmt.get(), make_wformat_args(args...)).endl();
+wiobuf& println(wiobuf& out, const std::locale& loc, uxs::wformat_string<Args...> fmt, const Args&... args) {
+    return vprint(out, loc, fmt.get(), uxs::make_wformat_args(args...)).endl();
 }
 
 template<typename... Args>
-iobuf& println(const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
-    return vprint(stdbuf::out, loc, fmt.get(), make_format_args(args...)).endl();
+iobuf& println(const std::locale& loc, uxs::format_string<Args...> fmt, const Args&... args) {
+    return vprint(stdbuf::out, loc, fmt.get(), uxs::make_format_args(args...)).endl();
 }
 
 }  // namespace uxs
