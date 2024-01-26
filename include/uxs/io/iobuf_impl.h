@@ -10,6 +10,17 @@ basic_iobuf<CharT>& basic_iobuf<CharT>::write(uxs::span<const char_type> s) {
 }
 
 template<typename CharT>
+basic_iobuf<CharT>& basic_iobuf<CharT>::write_with_endian(uxs::span<const char_type> s, size_type element_sz) {
+    if (!(this->mode() & iomode::invert_endian) || element_sz <= 1) { return write(s.begin(), s.end()); }
+    auto p = s.begin();
+    while (element_sz < static_cast<size_type>(s.end() - p)) {
+        write(std::make_reverse_iterator(p + element_sz), std::make_reverse_iterator(p));
+        p += element_sz;
+    }
+    return write(std::make_reverse_iterator(s.end()), std::make_reverse_iterator(p));
+}
+
+template<typename CharT>
 basic_iobuf<CharT>& basic_iobuf<CharT>::fill_n(size_type count, char_type ch) {
     if (!count) { return *this; }
     for (size_type n_avail = this->avail(); count > n_avail; n_avail = this->avail()) {

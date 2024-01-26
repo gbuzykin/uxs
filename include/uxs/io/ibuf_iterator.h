@@ -2,8 +2,6 @@
 
 #include "ibuf.h"
 
-#include "uxs/iterator.h"
-
 namespace uxs {
 
 template<typename CharT>
