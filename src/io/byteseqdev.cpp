@@ -81,14 +81,14 @@ int64_t byteseqdev::seek(int64_t off, seekdir dir) {
     if (!seq_) { return -1; }
 
     switch (dir) {
-        case uxs::seekdir::beg: {
+        case seekdir::beg: {
             pos_ = off > 0 ? static_cast<size_t>(off) : 0;
         } break;
-        case uxs::seekdir::curr: {
+        case seekdir::curr: {
             if (off == 0) { return pos_; }
             pos_ = off > 0 || static_cast<size_t>(-off) < pos_ ? pos_ + off : 0;
         } break;
-        case uxs::seekdir::end: {
+        case seekdir::end: {
             pos_ = off > 0 || static_cast<size_t>(-off) < seq_->size_ ? seq_->size_ + off : 0;
         } break;
     }

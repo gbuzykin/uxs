@@ -3,6 +3,7 @@
 #include "iostate.h"
 #include "iotraits.h"
 
+#include "uxs/iterator.h"
 #include "uxs/span.h"
 
 #include <cassert>
@@ -63,7 +64,28 @@ class basic_ibuf : public iostate {
         return *this;
     }
 
+    template<typename OutputIt, typename = std::enable_if_t<is_random_access_iterator<OutputIt>::value &&
+                                                            is_output_iterator<OutputIt, CharT>::value>>
+    size_type read(OutputIt first, OutputIt last) {
+        assert(first <= last);
+        const size_type sz = static_cast<size_type>(last - first);
+        size_type count = sz;
+        if (!count) { return 0; }
+        for (size_type n_avail = avail(); count > n_avail; n_avail = avail()) {
+            if (n_avail) { first = std::copy_n(curr_, n_avail, first), curr_ = last_, count -= n_avail; }
+            if (!this->good() || underflow() < 0) {
+                this->setstate(iostate_bits::eof | iostate_bits::fail);
+                return sz - count;
+            }
+        }
+        std::copy_n(curr_, count, first), curr_ += count;
+        return sz;
+    }
+
     UXS_EXPORT size_type read(uxs::span<char_type> s);
+    UXS_EXPORT size_type read_with_endian(uxs::span<char_type> s, size_type element_sz);
+    template<typename Ty, size_t N>
+    size_type read(Ty (&)[N]) = delete;
     UXS_EXPORT size_type skip(size_type count);
     UXS_EXPORT pos_type seek(off_type off, seekdir dir = seekdir::beg);
     pos_type tell() {

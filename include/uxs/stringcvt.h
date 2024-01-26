@@ -116,7 +116,8 @@ class basic_membuffer {
 
     template<typename InputIt, typename = std::enable_if_t<is_random_access_iterator<InputIt>::value>>
     basic_membuffer& append_by_chunks(InputIt first, InputIt last) {
-        size_t count = last - first, n_avail = avail();
+        assert(first <= last);
+        size_t count = static_cast<size_t>(last - first), n_avail = avail();
         while (count > n_avail) {
             curr_ = std::copy_n(first, n_avail, curr_);
             if (!try_grow()) { return *this; }
@@ -141,7 +142,8 @@ class basic_membuffer {
 
     template<typename InputIt, typename = std::enable_if_t<is_random_access_iterator<InputIt>::value>>
     basic_membuffer& append(InputIt first, InputIt last) {
-        const size_t count = last - first;
+        assert(first <= last);
+        const size_t count = static_cast<size_t>(last - first);
         if (avail() >= count || try_grow(count)) {
             curr_ = std::copy(first, last, curr_);
             return *this;

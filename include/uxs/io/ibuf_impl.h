@@ -23,18 +23,19 @@ basic_ibuf<CharT>& basic_ibuf<CharT>::operator=(basic_ibuf&& other) noexcept {
 
 template<typename CharT>
 typename basic_ibuf<CharT>::size_type basic_ibuf<CharT>::read(uxs::span<char_type> s) {
+    return read(s.begin(), s.end());
+}
+
+template<typename CharT>
+typename basic_ibuf<CharT>::size_type basic_ibuf<CharT>::read_with_endian(uxs::span<char_type> s, size_type element_sz) {
+    if (!(this->mode() & iomode::invert_endian) || element_sz <= 1) { return read(s.begin(), s.end()); }
+    size_type count = 0;
     auto p = s.begin();
-    size_type count = s.end() - p;
-    if (!count) { return 0; }
-    for (size_type n_avail = avail(); count > n_avail; n_avail = avail()) {
-        if (n_avail) { p = std::copy_n(curr_, n_avail, p), curr_ = last_, count -= n_avail; }
-        if (!this->good() || underflow() < 0) {
-            this->setstate(iostate_bits::eof | iostate_bits::fail);
-            return p - s.begin();
-        }
+    while (element_sz < static_cast<size_type>(s.end() - p)) {
+        count += read(std::make_reverse_iterator(p + element_sz), std::make_reverse_iterator(p));
+        p += element_sz;
     }
-    std::copy_n(curr_, count, p), curr_ += count;
-    return s.size();
+    return count + read(std::make_reverse_iterator(s.end()), std::make_reverse_iterator(p));
 }
 
 template<typename CharT>

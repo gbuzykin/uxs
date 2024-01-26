@@ -2,8 +2,6 @@
 
 #include "ibuf.h"
 
-#include "uxs/iterator.h"
-
 #include <algorithm>
 
 namespace uxs {
@@ -43,7 +41,8 @@ class basic_iobuf : public basic_ibuf<CharT> {
 
     template<typename InputIt, typename = std::enable_if_t<is_random_access_iterator<InputIt>::value>>
     basic_iobuf& write(InputIt first, InputIt last) {
-        size_type count = last - first;
+        assert(first <= last);
+        size_type count = static_cast<size_type>(last - first);
         if (!count) { return *this; }
         for (size_type n_avail = this->avail(); count > n_avail; n_avail = this->avail()) {
             if (n_avail) {
@@ -60,8 +59,9 @@ class basic_iobuf : public basic_ibuf<CharT> {
     }
 
     UXS_EXPORT basic_iobuf& write(uxs::span<const char_type> s);
-    template<size_t N>
-    basic_iobuf& write(const char_type (&)[N]) = delete;
+    UXS_EXPORT basic_iobuf& write_with_endian(uxs::span<const char_type> s, size_type element_sz);
+    template<typename Ty, size_t N>
+    basic_iobuf& write(Ty (&)[N]) = delete;
     UXS_EXPORT basic_iobuf& fill_n(size_type count, char_type ch);
     UXS_EXPORT basic_iobuf& flush();
     basic_iobuf& endl() { return put('\n').flush(); }

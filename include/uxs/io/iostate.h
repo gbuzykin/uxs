@@ -21,6 +21,7 @@ enum class iomode : uint16_t {
 #endif  // defined(WIN32)
     ctrl_esc = 0x100,
     skip_ctrl_esc = 0x300,
+    invert_endian = 0x8000,
 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iomode, uint16_t);
 
