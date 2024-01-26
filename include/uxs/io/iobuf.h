@@ -2,8 +2,6 @@
 
 #include "ibuf.h"
 
-#include <algorithm>
-
 namespace uxs {
 
 template<typename CharT>
