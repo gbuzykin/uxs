@@ -127,8 +127,7 @@ struct record_node_type {
     record_value<basic_value<CharT, Alloc>> v;
 
     static record_node_type* from_links(list_links_type* links) {
-        return reinterpret_cast<record_node_type*>(reinterpret_cast<uint8_t*>(links) -
-                                                   offsetof(record_node_type, links));
+        return get_containing_record<record_node_type, offsetof(record_node_type, links)>(links);
     }
 
     static size_t max_name_size(const alloc_type& node_al) {
