@@ -178,6 +178,11 @@ Ty get_and_set(Ty& v, Ty v_new) {
     return v_new;
 }
 
+template<typename Ty, size_t Offset, typename MemberTy>
+Ty* get_containing_record(MemberTy* member_ptr) {
+    return reinterpret_cast<Ty*>(reinterpret_cast<uint8_t*>(member_ptr) - Offset);
+}
+
 struct nofunc {
     template<typename Ty>
     auto operator()(Ty&& v) const -> decltype(std::forward<Ty>(v)) {
