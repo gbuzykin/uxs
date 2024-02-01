@@ -659,8 +659,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
     void merge_impl(list&& other, Comp comp);
     template<typename Comp>
     void merge_impl(dllist_node_t* head_tgt, dllist_node_t* head_src, Comp comp);
-
-};  // namespace uxs
+};
 
 template<typename Ty, typename Alloc>
 void list<Ty, Alloc>::splice_impl(const_iterator pos, list&& other) {

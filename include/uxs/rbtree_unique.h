@@ -177,7 +177,34 @@ class rbtree_unique : public rbtree_base<NodeTraits, Alloc, Comp> {
         assert(super::check_iterator_range(first, last, is_random_access_iterator<InputIt>()));
         for (; first != last; ++first) { emplace_hint(this->end(), *first); }
     }
-};  // namespace detail
+
+    template<typename Key2, typename... Args>
+    std::pair<iterator, bool> try_emplace_impl(Key2&& key, Args&&... args) {
+        auto result = rbtree_find_insert_unique_pos<node_traits>(std::addressof(this->head_), key, this->get_compare());
+        if (result.second) {
+            auto* node = this->new_node(std::piecewise_construct, std::forward_as_tuple(std::forward<Key2>(key)),
+                                        std::forward_as_tuple(std::forward<Args>(args)...));
+            rbtree_insert(std::addressof(this->head_), node, result.first, result.second);
+            ++this->size_;
+            return std::make_pair(iterator(node), true);
+        }
+        return std::make_pair(iterator(result.first), false);
+    }
+
+    template<typename Key2, typename... Args>
+    std::pair<iterator, bool> try_emplace_hint_impl(const_iterator hint, Key2&& key, Args&&... args) {
+        auto result = rbtree_find_insert_unique_pos<node_traits>(std::addressof(this->head_), this->to_ptr(hint), key,
+                                                                 this->get_compare());
+        if (result.second) {
+            auto* node = this->new_node(std::piecewise_construct, std::forward_as_tuple(std::forward<Key2>(key)),
+                                        std::forward_as_tuple(std::forward<Args>(args)...));
+            rbtree_insert(std::addressof(this->head_), node, result.first, result.second);
+            ++this->size_;
+            return std::make_pair(iterator(node), true);
+        }
+        return std::make_pair(iterator(result.first), false);
+    }
+};
 
 template<typename NodeTraits, typename Alloc, typename Comp>
 template<typename InputIt>
