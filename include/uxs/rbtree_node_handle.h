@@ -100,7 +100,7 @@ class rbtree_node_handle : public rbtree_node_handle_getters<NodeTraits, Alloc, 
         std::swap(node_, nh.node_);
     }
 
- protected:
+ private:
     rbtree_node_t* node_ = nullptr;
 
     template<typename, typename, typename, typename>

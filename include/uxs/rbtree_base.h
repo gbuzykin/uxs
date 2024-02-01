@@ -441,16 +441,6 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     }
 
  protected:
-    mutable typename node_traits::links_t head_;
-    size_type size_ = 0;
-
-    template<typename, typename>
-    friend class rbtree_node_handle;
-    template<typename, typename, typename>
-    friend class rbtree_unique;
-    template<typename, typename, typename>
-    friend class rbtree_multi;
-
     struct value_compare_func {
         using result_type = bool;
         using first_argument_type = value_type;
@@ -461,6 +451,54 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
         }
         key_compare comp;
     };
+
+    void tidy() {
+        if (!size_) { return; }
+        auto* root = head_.left;
+        reset();
+        delete_recursive(root);
+    }
+
+    void swap_impl(rbtree_base& other, std::true_type) noexcept(std::is_nothrow_swappable<key_compare>::value) {
+        std::swap(static_cast<alloc_type&>(*this), static_cast<alloc_type&>(other));
+        swap_impl(other, std::false_type());
+    }
+
+    void swap_impl(rbtree_base& other, std::false_type) noexcept(std::is_nothrow_swappable<key_compare>::value) {
+        this->swap_compare(other.get_compare());
+        if (!size_) {
+            steal_data(other);
+            return;
+        } else if (other.size_) {
+            std::swap(head_.left, other.head_.left);
+            std::swap(head_.right, other.head_.right);
+            std::swap(head_.parent, other.head_.parent);
+            std::swap(head_.left->parent, other.head_.left->parent);
+            std::swap(size_, other.size_);
+            node_traits::set_head(head_.parent, std::addressof(head_), std::addressof(head_));
+        } else {
+            other.head_.left = head_.left;
+            head_.left = nullptr;
+            other.head_.right = head_.right;
+            other.head_.parent = head_.parent;
+            other.head_.left->parent = std::addressof(other.head_);
+            head_.right = head_.parent = std::addressof(head_);
+            other.size_ = size_;
+            size_ = 0;
+        }
+        node_traits::set_head(other.head_.parent, std::addressof(other.head_), std::addressof(other.head_));
+    }
+
+ private:
+    mutable typename node_traits::links_t head_;
+    size_type size_ = 0;
+
+    template<typename, typename>
+    friend class rbtree_node_handle;
+    template<typename, typename, typename>
+    friend class rbtree_unique;
+    template<typename, typename, typename>
+    friend class rbtree_multi;
 
     bool is_same_alloc(const alloc_type& alloc) { return static_cast<alloc_type&>(*this) == alloc; }
 
@@ -513,13 +551,6 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
         if (node->left) { delete_recursive(node->left); }
         if (node->right) { delete_recursive(node->right); }
         delete_node(node);
-    }
-
-    void tidy() {
-        if (!size_) { return; }
-        auto* root = head_.left;
-        reset();
-        delete_recursive(root);
     }
 
     void steal_data(rbtree_base& other) {
@@ -603,36 +634,6 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
         } else {
             assign_impl(other, node_traits::get_rref_value);
         }
-    }
-
-    void swap_impl(rbtree_base& other, std::true_type) noexcept(std::is_nothrow_swappable<key_compare>::value) {
-        std::swap(static_cast<alloc_type&>(*this), static_cast<alloc_type&>(other));
-        swap_impl(other, std::false_type());
-    }
-
-    void swap_impl(rbtree_base& other, std::false_type) noexcept(std::is_nothrow_swappable<key_compare>::value) {
-        this->swap_compare(other.get_compare());
-        if (!size_) {
-            steal_data(other);
-            return;
-        } else if (other.size_) {
-            std::swap(head_.left, other.head_.left);
-            std::swap(head_.right, other.head_.right);
-            std::swap(head_.parent, other.head_.parent);
-            std::swap(head_.left->parent, other.head_.left->parent);
-            std::swap(size_, other.size_);
-            node_traits::set_head(head_.parent, std::addressof(head_), std::addressof(head_));
-        } else {
-            other.head_.left = head_.left;
-            head_.left = nullptr;
-            other.head_.right = head_.right;
-            other.head_.parent = head_.parent;
-            other.head_.left->parent = std::addressof(other.head_);
-            head_.right = head_.parent = std::addressof(head_);
-            other.size_ = size_;
-            size_ = 0;
-        }
-        node_traits::set_head(other.head_.parent, std::addressof(other.head_), std::addressof(other.head_));
     }
 
     template<typename Other>
