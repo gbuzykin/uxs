@@ -59,7 +59,7 @@ static int accept[46] = {
     16, 0, 0, 0, 19, 19, 21, 20, 18, 18
 };
 
-static int lex(const char* first, const char* last, int8_t** p_sptr, unsigned* p_llen, int has_more) {
+static int lex(const char* first, const char* last, int8_t** p_sptr, unsigned* p_llen, int flags) {
     int8_t *sptr = *p_sptr, *sptr0 = sptr - *p_llen;
     int8_t state = *(sptr - 1);
     while (first < last) { /* Analyze till transition is impossible */
@@ -67,7 +67,7 @@ static int lex(const char* first, const char* last, int8_t** p_sptr, unsigned* p
         if (state < 0) { goto unroll; }
         *sptr++ = state, ++first;
     }
-    if (has_more || sptr == sptr0) {
+    if ((flags & flag_has_more) || sptr == sptr0) {
         *p_sptr = sptr;
         *p_llen = (unsigned)(sptr - sptr0);
         return err_end_of_input;

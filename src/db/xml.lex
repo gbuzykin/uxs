@@ -42,7 +42,7 @@ end_element_open    <\/{name}
 end_element_close   \/>
 pi_open             <\?{name}
 pi_close            \?>
-comment             <!--
+comment             <\!--
 whitespace          {ws}
 
 %%
