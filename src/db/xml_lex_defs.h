@@ -2,6 +2,11 @@
 /* clang-format off */
 
 enum {
+    flag_has_more = 1,
+    flag_at_beg_of_line = 2
+};
+
+enum {
     err_end_of_input = -1,
     predef_pat_default = 0,
     pat_null,
