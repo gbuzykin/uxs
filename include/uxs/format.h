@@ -33,7 +33,8 @@ enum class type_id : uint8_t {
 
 template<typename StrTy>
 struct arg_custom_value {
-    arg_custom_value(const void* v, void (*fn)(StrTy&, const void*, fmt_opts&)) noexcept : val(v), print_fn(fn) {}
+    CONSTEXPR arg_custom_value(const void* v, void (*fn)(StrTy&, const void*, fmt_opts&)) noexcept
+        : val(v), print_fn(fn) {}
     const void* val;                                   // value pointer
     void (*print_fn)(StrTy&, const void*, fmt_opts&);  // printing function pointer
 };
@@ -134,8 +135,10 @@ class arg_store {
  public:
     using char_type = typename StrTy::value_type;
     static const size_t arg_count = sizeof...(Args);
-    explicit arg_store(const Args&... args) noexcept { store_values(0, arg_count * sizeof(unsigned), args...); }
-    const void* data() const noexcept { return data_; }
+    CONSTEXPR explicit arg_store(const Args&... args) noexcept {
+        store_values(0, arg_count * sizeof(unsigned), args...);
+    }
+    CONSTEXPR const void* data() const noexcept { return data_; }
 
  private:
     static const size_t storage_size = arg_store_size_evaluator<StrTy, arg_count * sizeof(unsigned), Args...>::value;
@@ -143,31 +146,31 @@ class arg_store {
     alignas(storage_alignment) uint8_t data_[storage_size];
 
     template<typename Ty>
-    static void store_value(const Ty& v,
-                            std::enable_if_t<(arg_type_id<Ty>::value < type_id::pointer), void*> data) noexcept {
+    CONSTEXPR static void store_value(
+        const Ty& v, std::enable_if_t<(arg_type_id<Ty>::value < type_id::pointer), void*> data) noexcept {
         static_assert(arg_type_id<Ty>::value != type_id::character || sizeof(Ty) <= sizeof(char_type),
                       "inconsistent character argument type");
         ::new (data) arg_store_type_t<StrTy, Ty>(v);
     }
 
     template<typename Ty>
-    static void store_value(const Ty& v,
-                            std::enable_if_t<(arg_type_id<Ty>::value == type_id::custom), void*> data) noexcept {
+    CONSTEXPR static void store_value(
+        const Ty& v, std::enable_if_t<(arg_type_id<Ty>::value == type_id::custom), void*> data) noexcept {
         static_assert(has_formatter<scvt::reduce_type_t<Ty>, StrTy>::value, "value of this type cannot be formatted");
         ::new (data) arg_custom_value<StrTy>(&v, &arg_fmt_func_t<StrTy, scvt::reduce_type_t<Ty>>::func);
     }
 
     template<typename Ty>
-    static void store_value(Ty* v, void* data) noexcept {
+    CONSTEXPR static void store_value(Ty* v, void* data) noexcept {
         static_assert(!is_character<Ty>::value || std::is_same<std::remove_cv_t<Ty>, char_type>::value,
                       "inconsistent string argument type");
         ::new (data) const void*(v);
     }
 
-    static void store_value(std::nullptr_t, void* data) noexcept { ::new (data) const void*(nullptr); }
+    CONSTEXPR static void store_value(std::nullptr_t, void* data) noexcept { ::new (data) const void*(nullptr); }
 
     template<typename CharT, typename Traits>
-    static void store_value(const std::basic_string_view<CharT, Traits>& s, void* data) noexcept {
+    CONSTEXPR static void store_value(const std::basic_string_view<CharT, Traits>& s, void* data) noexcept {
         using Ty = std::basic_string_view<CharT, Traits>;
         static_assert(std::is_same<CharT, char_type>::value, "inconsistent string argument type");
         static_assert(std::is_trivially_copyable<Ty>::value && std::is_trivially_destructible<Ty>::value,
@@ -176,7 +179,7 @@ class arg_store {
     }
 
     template<typename CharT, typename Traits, typename Alloc>
-    static void store_value(const std::basic_string<CharT, Traits, Alloc>& s, void* data) noexcept {
+    CONSTEXPR static void store_value(const std::basic_string<CharT, Traits, Alloc>& s, void* data) noexcept {
         using Ty = std::basic_string_view<CharT, Traits>;
         static_assert(std::is_same<CharT, char_type>::value, "inconsistent string argument type");
         static_assert(std::is_trivially_copyable<Ty>::value && std::is_trivially_destructible<Ty>::value,
@@ -184,10 +187,10 @@ class arg_store {
         ::new (data) Ty(s.data(), s.size());
     }
 
-    void store_values(size_t i, size_t offset) noexcept {}
+    CONSTEXPR void store_values(size_t i, size_t offset) noexcept {}
 
     template<typename Ty, typename... Ts>
-    void store_values(size_t i, size_t offset, const Ty& v, const Ts&... other) noexcept {
+    CONSTEXPR void store_values(size_t i, size_t offset, const Ty& v, const Ts&... other) noexcept {
         offset = uxs::align_up<arg_alignment<StrTy, Ty>::value>::value(offset);
         ::new (reinterpret_cast<unsigned*>(&data_) + i) unsigned(static_cast<unsigned>(offset << 8) |
                                                                  static_cast<unsigned>(arg_type_id<Ty>::value));
@@ -201,25 +204,22 @@ class arg_store<StrTy> {
  public:
     using char_type = typename StrTy::value_type;
     static const size_t arg_count = 0;
-    const void* data() const noexcept { return &data_; }
-
- private:
-    uint8_t data_ = 0;
+    CONSTEXPR const void* data() const noexcept { return nullptr; }
 };
 
 template<typename StrTy>
 class arg_list {
  public:
     template<typename... Args>
-    arg_list(const arg_store<StrTy, Args...>& store) noexcept
+    CONSTEXPR arg_list(const arg_store<StrTy, Args...>& store) noexcept
         : data_(store.data()), size_(arg_store<StrTy, Args...>::arg_count) {}
 
-    size_t size() const noexcept { return size_; }
-    bool empty() const noexcept { return !size_; }
-    type_id type(size_t i) const noexcept {
+    CONSTEXPR size_t size() const noexcept { return size_; }
+    CONSTEXPR bool empty() const noexcept { return !size_; }
+    CONSTEXPR type_id type(size_t i) const noexcept {
         return static_cast<type_id>(static_cast<const unsigned*>(data_)[i] & 0xff);
     }
-    const void* data(size_t i) const noexcept {
+    CONSTEXPR const void* data(size_t i) const noexcept {
         return static_cast<const uint8_t*>(data_) + (static_cast<const unsigned*>(data_)[i] >> 8);
     }
 
@@ -592,17 +592,17 @@ using format_args = uxs::basic_format_args<membuffer>;
 using wformat_args = uxs::basic_format_args<wmembuffer>;
 
 template<typename StrTy, typename... Args>
-NODISCARD sfmt::arg_store<StrTy, Args...> make_basic_format_args(const Args&... args) noexcept {
+NODISCARD CONSTEXPR sfmt::arg_store<StrTy, Args...> make_basic_format_args(const Args&... args) noexcept {
     return sfmt::arg_store<StrTy, Args...>{args...};
 }
 
 template<typename... Args>
-NODISCARD sfmt::arg_store<membuffer, Args...> make_format_args(const Args&... args) noexcept {
+NODISCARD CONSTEXPR sfmt::arg_store<membuffer, Args...> make_format_args(const Args&... args) noexcept {
     return sfmt::arg_store<membuffer, Args...>{args...};
 }
 
 template<typename... Args>
-NODISCARD sfmt::arg_store<wmembuffer, Args...> make_wformat_args(const Args&... args) noexcept {
+NODISCARD CONSTEXPR sfmt::arg_store<wmembuffer, Args...> make_wformat_args(const Args&... args) noexcept {
     return sfmt::arg_store<wmembuffer, Args...>{args...};
 }
 
@@ -613,12 +613,12 @@ struct basic_runtime_string {
 
 template<typename Str, typename = std::enable_if_t<
                            std::is_convertible<const Str&, std::basic_string_view<typename Str::value_type>>::value>>
-NODISCARD basic_runtime_string<typename Str::value_type> make_runtime_string(const Str& s) noexcept {
+NODISCARD CONSTEXPR basic_runtime_string<typename Str::value_type> make_runtime_string(const Str& s) noexcept {
     return basic_runtime_string<typename Str::value_type>{s};
 }
 
 template<typename CharT>
-NODISCARD basic_runtime_string<CharT> make_runtime_string(const CharT* s) noexcept {
+NODISCARD CONSTEXPR basic_runtime_string<CharT> make_runtime_string(const CharT* s) noexcept {
     return basic_runtime_string<CharT>{s};
 }
 
@@ -698,8 +698,8 @@ class basic_format_string {
         }
 #endif  // defined(HAS_CONSTEVAL)
     }
-    basic_format_string(basic_runtime_string<CharT> fmt) noexcept : checked(fmt.s) {}
-    std::basic_string_view<CharT> get() const noexcept { return checked; }
+    CONSTEXPR basic_format_string(basic_runtime_string<CharT> fmt) noexcept : checked(fmt.s) {}
+    CONSTEXPR std::basic_string_view<CharT> get() const noexcept { return checked; }
 
  private:
     std::basic_string_view<CharT> checked;
