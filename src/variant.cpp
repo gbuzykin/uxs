@@ -150,7 +150,8 @@ bool variant::is_equal_to(const variant& v) const {
     return result;
 }
 
-u8ibuf& uxs::operator>>(u8ibuf& is, variant& v) {
+namespace uxs {
+u8ibuf& operator>>(u8ibuf& is, variant& v) {
     variant_id type = variant_id::invalid;
     is >> read_enum(type);
     auto* tgt_vtable = variant::get_vtable(static_cast<variant_id>(type));
@@ -163,7 +164,7 @@ u8ibuf& uxs::operator>>(u8ibuf& is, variant& v) {
     return is;
 }
 
-u8iobuf& uxs::operator<<(u8iobuf& os, const variant& v) {
+u8iobuf& operator<<(u8iobuf& os, const variant& v) {
     if (v.vtable_) {
         os << write_enum(v.vtable_->type);
         v.vtable_->serialize(os, &v.data_);
@@ -172,6 +173,7 @@ u8iobuf& uxs::operator<<(u8iobuf& os, const variant& v) {
     }
     return os;
 }
+}  // namespace uxs
 
 //---------------------------------------------------------------------------------
 // Basic type convertors

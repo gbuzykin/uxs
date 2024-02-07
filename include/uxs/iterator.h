@@ -586,4 +586,10 @@ struct pointer_traits<uxs::array_iterator<Traits, Const>> {
     }
 };
 #endif  // pointer_traits
+#if __cplusplus < 201402L && !defined(__cpp_lib_make_reverse_iterator)
+template<typename Iter>
+std::reverse_iterator<Iter> make_reverse_iterator(Iter it) {
+    return std::reverse_iterator<Iter>(it);
+}
+#endif  // make reverse iterator
 }  // namespace std
