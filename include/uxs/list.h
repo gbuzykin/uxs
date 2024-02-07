@@ -14,36 +14,37 @@ namespace uxs {
 
 namespace detail {
 
-struct list_links_type : dllist_node_t {
+struct list_links_t {
+    list_links_t* next;
+    list_links_t* prev;
 #if _ITERATOR_DEBUG_LEVEL != 0
-    dllist_node_t* head;
+    list_links_t* head;
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
 };
 
 template<typename Ty>
-struct list_node_type : list_links_type {
+struct list_node_type : list_links_t {
     Ty value;
 };
 
 template<typename Ty>
 struct list_node_traits {
-    using iterator_node_t = dllist_node_t;
-    using links_t = list_links_type;
+    using iterator_node_t = list_links_t;
     using node_t = list_node_type<Ty>;
-    static dllist_node_t* get_next(dllist_node_t* node) { return node->next; }
-    static dllist_node_t* get_prev(dllist_node_t* node) { return node->prev; }
+    static list_links_t* get_next(list_links_t* node) { return node->next; }
+    static list_links_t* get_prev(list_links_t* node) { return node->prev; }
 #if _ITERATOR_DEBUG_LEVEL != 0
-    static void set_head(dllist_node_t* node, dllist_node_t* head) { static_cast<links_t*>(node)->head = head; }
-    static void set_head(dllist_node_t* first, dllist_node_t* last, dllist_node_t* head) {
+    static void set_head(list_links_t* node, list_links_t* head) { node->head = head; }
+    static void set_head(list_links_t* first, list_links_t* last, list_links_t* head) {
         for (auto* p = first; p != last; p = get_next(p)) { set_head(p, head); }
     }
-    static dllist_node_t* get_head(dllist_node_t* node) { return static_cast<links_t*>(node)->head; }
-    static dllist_node_t* get_front(dllist_node_t* head) { return head->next; }
+    static list_links_t* get_head(list_links_t* node) { return node->head; }
+    static list_links_t* get_front(list_links_t* head) { return head->next; }
 #else   // _ITERATOR_DEBUG_LEVEL != 0
-    static void set_head(dllist_node_t* node, dllist_node_t* head) {}
-    static void set_head(dllist_node_t* first, dllist_node_t* last, dllist_node_t* head) {}
+    static void set_head(list_links_t* node, list_links_t* head) {}
+    static void set_head(list_links_t* first, list_links_t* last, list_links_t* head) {}
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
-    static Ty& get_value(dllist_node_t* node) { return static_cast<node_t*>(node)->value; }
+    static Ty& get_value(list_links_t* node) { return static_cast<node_t*>(node)->value; }
 };
 
 }  // namespace detail
@@ -52,6 +53,7 @@ template<typename Ty, typename Alloc = std::allocator<Ty>>
 class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
                  typename detail::list_node_traits<Ty>::node_t> {
  private:
+    using list_links_t = detail::list_links_t;
     using node_traits = detail::list_node_traits<Ty>;
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<typename node_traits::node_t>;
     using alloc_traits = std::allocator_traits<alloc_type>;
@@ -271,7 +273,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
     template<typename... Args>
     reference emplace_front(Args&&... args) {
         auto* node = new_node(std::forward<Args>(args)...);
-        dllist_insert_after<dllist_node_t>(std::addressof(head_), node);
+        dllist_insert_after<list_links_t>(std::addressof(head_), node);
         ++size_;
         return node_traits::get_value(node);
     }
@@ -289,7 +291,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
     template<typename... Args>
     reference emplace_back(Args&&... args) {
         auto* node = new_node(std::forward<Args>(args)...);
-        dllist_insert_before<dllist_node_t>(std::addressof(head_), node);
+        dllist_insert_before<list_links_t>(std::addressof(head_), node);
         ++size_;
         return node_traits::get_value(node);
     }
@@ -320,7 +322,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
 
     size_type remove(const value_type& val) {
         size_type old_sz = size_;
-        dllist_node_t* removed = nullptr;
+        list_links_t* removed = nullptr;
         try {
             for (auto* p = head_.next; p != std::addressof(head_); p = p->next) {
                 if (node_traits::get_value(p) == val) {
@@ -340,7 +342,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
     template<typename Pred>
     size_type remove_if(Pred pred) {
         size_type old_sz = size_;
-        dllist_node_t* removed = nullptr;
+        list_links_t* removed = nullptr;
         try {
             for (auto* p = head_.next; p != std::addressof(head_); p = p->next) {
                 if (pred(node_traits::get_value(p))) {
@@ -361,7 +363,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
     template<typename Pred>
     size_type unique(Pred pred) {
         size_type old_sz = size_;
-        dllist_node_t* removed = nullptr;
+        list_links_t* removed = nullptr;
         try {
             if (!old_sz) { return 0; }
             for (auto *p0 = head_.next, *p = p0->next; p != std::addressof(head_); p = p->next) {
@@ -383,7 +385,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
 
     void reverse() {
         if (!size_) { return; }
-        auto* p = static_cast<dllist_node_t*>(std::addressof(head_));
+        auto* p = static_cast<list_links_t*>(std::addressof(head_));
         do {
             std::swap(p->next, p->prev);
             p = p->prev;
@@ -417,7 +419,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
     void sort() { sort(less_op()); }
 
  private:
-    mutable typename node_traits::links_t head_;
+    mutable list_links_t head_;
     size_type size_ = 0;
 
     bool is_same_alloc(const alloc_type& alloc) { return static_cast<alloc_type&>(*this) == alloc; }
@@ -446,15 +448,15 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
         }
     };
 
-    dllist_node_t* to_ptr(const_iterator it) const {
+    list_links_t* to_ptr(const_iterator it) const {
         auto* node = it.node();
         iterator_assert(node_traits::get_head(node) == std::addressof(head_));
         return node;
     }
 
     template<typename... Args>
-    dllist_node_t* new_node(Args&&... args) {
-        auto* node = static_cast<dllist_node_t*>(std::addressof(*alloc_traits::allocate(*this, 1)));
+    list_links_t* new_node(Args&&... args) {
+        auto* node = static_cast<list_links_t*>(std::addressof(*alloc_traits::allocate(*this, 1)));
         try {
             alloc_traits::construct(*this, std::addressof(node_traits::get_value(node)), std::forward<Args>(args)...);
             node_traits::set_head(node, std::addressof(head_));
@@ -465,7 +467,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
         }
     }
 
-    void delete_node(dllist_node_t* node) {
+    void delete_node(list_links_t* node) {
         alloc_traits::destroy(*this, std::addressof(node_traits::get_value(node)));
         alloc_traits::deallocate(*this, static_cast<typename node_traits::node_t*>(node), 1);
     }
@@ -490,7 +492,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
         }
     }
 
-    void delete_removed(dllist_node_t* node) {
+    void delete_removed(list_links_t* node) {
         while (node) {
             auto* prev = node->prev;
             this->delete_node(node);
@@ -573,7 +575,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
             std::swap(size_, other.size_);
             node_traits::set_head(head_.next, std::addressof(head_), std::addressof(head_));
         } else {
-            dllist_insert_after<dllist_node_t>(std::addressof(other.head_), head_.next, head_.prev);
+            dllist_insert_after<list_links_t>(std::addressof(other.head_), head_.next, head_.prev);
             other.size_ = size_;
             reset();
         }
@@ -609,7 +611,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
     }
 
     template<typename InputIt>
-    dllist_node_t* insert_impl(dllist_node_t* pos, InputIt first, InputIt last) {
+    list_links_t* insert_impl(list_links_t* pos, InputIt first, InputIt last) {
         assert(check_iterator_range(first, last, is_random_access_iterator<InputIt>()));
         auto* pre_first = pos->prev;
         for (; first != last; ++first) {
@@ -620,7 +622,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
         return pre_first->next;
     }
 
-    dllist_node_t* insert_fill(dllist_node_t* pos, size_type sz, const value_type& val) {
+    list_links_t* insert_fill(list_links_t* pos, size_type sz, const value_type& val) {
         auto* pre_first = pos->prev;
         for (; sz; --sz) {
             auto* node = new_node(val);
@@ -630,7 +632,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
         return pre_first->next;
     }
 
-    dllist_node_t* insert_default(dllist_node_t* pos, size_type sz) {
+    list_links_t* insert_default(list_links_t* pos, size_type sz) {
         auto* pre_first = pos->prev;
         for (; sz; --sz) {
             auto* node = new_node();
@@ -640,7 +642,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
         return pre_first->next;
     }
 
-    void erase_impl(dllist_node_t* first, dllist_node_t* last) {
+    void erase_impl(list_links_t* first, list_links_t* last) {
         assert(first != last);
         dllist_remove(first, last);
         do {
@@ -658,7 +660,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
     template<typename Comp>
     void merge_impl(list&& other, Comp comp);
     template<typename Comp>
-    void merge_impl(dllist_node_t* head_tgt, dllist_node_t* head_src, Comp comp);
+    void merge_impl(list_links_t* head_tgt, list_links_t* head_src, Comp comp);
 };
 
 template<typename Ty, typename Alloc>
@@ -733,7 +735,7 @@ void list<Ty, Alloc>::merge_impl(list&& other, Comp comp) {
     try {
         merge_impl(std::addressof(head_), head_src, comp);
     } catch (...) {
-        dllist_insert_before<dllist_node_t>(std::addressof(head_), head_src->next, head_src->prev);
+        dllist_insert_before<list_links_t>(std::addressof(head_), head_src->next, head_src->prev);
         dllist_make_cycle(head_src);
         throw;
     }
@@ -741,7 +743,7 @@ void list<Ty, Alloc>::merge_impl(list&& other, Comp comp) {
 
 template<typename Ty, typename Alloc>
 template<typename Comp>
-void list<Ty, Alloc>::merge_impl(dllist_node_t* head_tgt, dllist_node_t* head_src, Comp comp) {
+void list<Ty, Alloc>::merge_impl(list_links_t* head_tgt, list_links_t* head_src, Comp comp) {
     auto* p_first = head_src->next;
     auto* p_last = p_first;
     for (auto* p = head_tgt->next; p != head_tgt && p_last != head_src; p = p->next) {
@@ -769,7 +771,7 @@ void list<Ty, Alloc>::sort(Comp comp) {
     // worth sorting, do it
     const size_type max_bins = 25;
     size_type maxbin = 0;
-    dllist_node_t tmp_list, bin_lists[max_bins];
+    list_links_t tmp_list, bin_lists[max_bins];
 
     dllist_make_cycle(std::addressof(tmp_list));
 
@@ -803,13 +805,13 @@ void list<Ty, Alloc>::sort(Comp comp) {
         }
 
         // result in last bin
-        dllist_insert_before<dllist_node_t>(std::addressof(head_), bin_lists[maxbin - 1].next,
-                                            bin_lists[maxbin - 1].prev);
+        dllist_insert_before<list_links_t>(std::addressof(head_), bin_lists[maxbin - 1].next,
+                                           bin_lists[maxbin - 1].prev);
     } catch (...) {
         // collect all stuff
-        dllist_insert_before<dllist_node_t>(std::addressof(head_), tmp_list.next, tmp_list.prev);
+        dllist_insert_before<list_links_t>(std::addressof(head_), tmp_list.next, tmp_list.prev);
         for (size_type bin = 0; bin < maxbin; ++bin) {
-            dllist_insert_before<dllist_node_t>(std::addressof(head_), bin_lists[bin].next, bin_lists[bin].prev);
+            dllist_insert_before<list_links_t>(std::addressof(head_), bin_lists[bin].next, bin_lists[bin].prev);
         }
         throw;
     }
