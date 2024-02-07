@@ -11,33 +11,32 @@ namespace detail {
 //-----------------------------------------------------------------------------
 // Red-black tree implementation
 
-struct rbtree_links_type : rbtree_node_t {
+struct rbtree_links_t : rbtree_node_t {
 #if _ITERATOR_DEBUG_LEVEL != 0
     rbtree_node_t* head;
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
 };
 
 template<typename Key>
-struct set_node_type : rbtree_links_type {
+struct set_node_type : rbtree_links_t {
     Key value;
 };
 
 template<typename Key, typename Ty>
-struct map_node_type : rbtree_links_type {
+struct map_node_type : rbtree_links_t {
     std::pair<const Key, Ty> value;
 };
 
 struct rbtree_node_traits {
     using iterator_node_t = rbtree_node_t;
-    using links_t = rbtree_links_type;
     static rbtree_node_t* get_next(rbtree_node_t* node) { return rbtree_next(node); }
     static rbtree_node_t* get_prev(rbtree_node_t* node) { return rbtree_prev(node); }
 #if _ITERATOR_DEBUG_LEVEL != 0
-    static void set_head(rbtree_node_t* node, rbtree_node_t* head) { static_cast<links_t*>(node)->head = head; }
+    static void set_head(rbtree_node_t* node, rbtree_node_t* head) { static_cast<rbtree_links_t*>(node)->head = head; }
     static void set_head(rbtree_node_t* first, rbtree_node_t* last, rbtree_node_t* head) {
         for (auto* p = first; p != last; p = get_next(p)) { set_head(p, head); }
     }
-    static rbtree_node_t* get_head(rbtree_node_t* node) { return static_cast<links_t*>(node)->head; }
+    static rbtree_node_t* get_head(rbtree_node_t* node) { return static_cast<rbtree_links_t*>(node)->head; }
     static rbtree_node_t* get_front(rbtree_node_t* head) { return head->parent; }
 #else   // _ITERATOR_DEBUG_LEVEL != 0
     static void set_head(rbtree_node_t* node, rbtree_node_t* head) {}
@@ -490,7 +489,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     }
 
  private:
-    mutable typename node_traits::links_t head_;
+    mutable rbtree_links_t head_;
     size_type size_ = 0;
 
     template<typename, typename>
