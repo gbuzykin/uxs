@@ -86,10 +86,10 @@ int64_t byteseqdev::seek(int64_t off, seekdir dir) {
         } break;
         case seekdir::curr: {
             if (off == 0) { return pos_; }
-            pos_ = off > 0 || static_cast<size_t>(-off) < pos_ ? pos_ + off : 0;
+            pos_ = static_cast<size_t>(off > 0 || static_cast<size_t>(-off) < pos_ ? pos_ + off : 0);
         } break;
         case seekdir::end: {
-            pos_ = off > 0 || static_cast<size_t>(-off) < seq_->size_ ? seq_->size_ + off : 0;
+            pos_ = static_cast<size_t>(off > 0 || static_cast<size_t>(-off) < seq_->size_ ? seq_->size_ + off : 0);
         } break;
     }
 
