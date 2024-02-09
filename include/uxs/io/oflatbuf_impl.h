@@ -46,10 +46,10 @@ typename basic_oflatbuf<CharT, Alloc>::pos_type basic_oflatbuf<CharT, Alloc>::se
         } break;
         case seekdir::curr: {
             if (off == 0) { return pos; }
-            pos = off > 0 || static_cast<size_type>(-off) < pos ? pos + off : 0;
+            pos = static_cast<size_t>(off > 0 || static_cast<size_type>(-off) < pos ? pos + off : 0);
         } break;
         case seekdir::end: {
-            pos = off > 0 || static_cast<size_type>(-off) < sz ? sz + off : 0;
+            pos = static_cast<size_t>(off > 0 || static_cast<size_type>(-off) < sz ? sz + off : 0);
         } break;
     }
     const size_type capacity = this->last() - this->first();
