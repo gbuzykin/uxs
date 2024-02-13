@@ -56,7 +56,7 @@ struct list_hook_traits<Ty, HookTy, opt_internal_pointer<HookTy, InternalPtrTy, 
 
 template<typename ParentTy, typename HookTy, HookTy ParentTy::*HookMember>
 struct list_hook_getter<opt_member_hook<ParentTy, HookTy, HookMember>> {
-    HookTy* get_hook(ParentTy& parent) const { return &(parent.*HookMember); }
+    HookTy* get_hook(ParentTy* parent) const { return std::addressof(parent->*HookMember); }
 };
 
 namespace detail {
@@ -208,15 +208,17 @@ template<typename Ty, typename HookTraits = list_hook_traits<Ty, list_links_t>, 
 class list : public list_enumerator<Ty, HookTraits> {
  private:
     using hook_t = typename HookTraits::hook_t;
-    using owning_pointer_t = typename HookTraits::owning_pointer_t;
     using node_traits = typename list_enumerator<Ty, HookTraits>::node_traits;
-    using parent_t = std::remove_reference_t<decltype(*std::declval<owning_pointer_t>())>;
 
  public:
     using reference = typename list_enumerator<Ty, HookTraits>::reference;
     using const_reference = typename list_enumerator<Ty, HookTraits>::const_reference;
+    using pointer = typename list_enumerator<Ty, HookTraits>::reference;
+    using const_pointer = typename list_enumerator<Ty, HookTraits>::const_reference;
     using iterator = typename list_enumerator<Ty, HookTraits>::iterator;
     using const_iterator = typename list_enumerator<Ty, HookTraits>::const_iterator;
+    using owning_pointer_t = typename HookTraits::owning_pointer_t;
+    using parent_object_t = std::remove_reference_t<decltype(*std::declval<owning_pointer_t>())>;
 
     ~list() { node_traits::dispose_all(&this->head_); }
 
@@ -227,7 +229,7 @@ class list : public list_enumerator<Ty, HookTraits> {
     }
 
     iterator insert(const_iterator pos, owning_pointer_t obj) {
-        auto* item = get_hook(*obj);
+        auto* item = get_hook(std::addressof(*obj));
         node_traits::reset_pointer(item, std::move(obj));
         node_traits::set_head(item, &this->head_);
         auto* after = pos.node();
@@ -262,19 +264,19 @@ class list : public list_enumerator<Ty, HookTraits> {
         return result.first;
     }
 
-    static const_iterator to_iterator(const parent_t& obj) noexcept {
-        return const_iterator(get_hook(const_cast<parent_t&>(obj)));
+    static const_iterator to_iterator(const parent_object_t* obj) noexcept {
+        return const_iterator(get_hook(const_cast<parent_object_t*>(obj)));
     }
-    static iterator to_iterator(parent_t& obj) noexcept { return iterator(get_hook(obj)); }
+    static iterator to_iterator(parent_object_t* obj) noexcept { return iterator(get_hook(obj)); }
 
  private:
     template<typename ParentTy, typename HookGetter_ = HookGetter>
-    static auto get_hook(ParentTy& obj) -> decltype(HookGetter_{}.get_hook(obj)) {
+    static auto get_hook(ParentTy* obj) -> decltype(HookGetter_{}.get_hook(obj)) {
         return HookGetter{}.get_hook(obj);
     }
     template<typename ParentTy, typename... Dummy>
-    static hook_t* get_hook(ParentTy& obj, Dummy&&...) {
-        return &obj;
+    static hook_t* get_hook(ParentTy* obj, Dummy&&...) {
+        return obj;
     }
 };
 
