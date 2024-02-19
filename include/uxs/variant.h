@@ -46,7 +46,7 @@
 namespace uxs {
 
 // Two variant are compared as values of type with greater identifier.
-enum class variant_id : unsigned {
+enum class variant_id : std::uint32_t {
     invalid = 0,
     string,
     boolean,
@@ -63,11 +63,11 @@ enum class variant_id : unsigned {
     matrix4x4,
     custom0
 };
-CONSTEXPR variant_id operator+(variant_id lhs, unsigned rhs) {
-    return static_cast<variant_id>(static_cast<unsigned>(lhs) + rhs);
+CONSTEXPR variant_id operator+(variant_id lhs, std::uint32_t rhs) {
+    return static_cast<variant_id>(static_cast<std::uint32_t>(lhs) + rhs);
 }
-CONSTEXPR variant_id operator+(unsigned lhs, variant_id rhs) {
-    return static_cast<variant_id>(lhs + static_cast<unsigned>(rhs));
+CONSTEXPR variant_id operator+(std::uint32_t lhs, variant_id rhs) {
+    return static_cast<variant_id>(lhs + static_cast<std::uint32_t>(rhs));
 }
 
 class UXS_EXPORT_ALL_STUFF_FOR_GNUC variant_error : public std::runtime_error {
@@ -215,8 +215,8 @@ class variant {
     storage_t data_;
 
     static vtable_t* get_vtable(variant_id type) {
-        assert(static_cast<unsigned>(type) < max_type_id);
-        return vtables_[static_cast<unsigned>(type)];
+        assert(static_cast<std::uint32_t>(type) < max_type_id);
+        return vtables_[static_cast<std::uint32_t>(type)];
     }
 };
 
