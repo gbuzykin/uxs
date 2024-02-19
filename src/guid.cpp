@@ -15,8 +15,8 @@ static std::mt19937 g_generator(g_seed);
 
 /*static*/ guid guid::generate() {
     guid id;
-    std::uniform_int_distribution<uint32_t> distribution(0, std::numeric_limits<uint32_t>::max());
-    for (uint32_t& l : id.data32_) { l = distribution(g_generator); }
+    std::uniform_int_distribution<std::uint32_t> distribution(0, std::numeric_limits<std::uint32_t>::max());
+    for (std::uint32_t& l : id.data32_) { l = distribution(g_generator); }
     // set version: must be 0b0100xxxx
     id.data8_[7] = (id.data8_[7] & 0x4F) | 0x40;
     // set variant: must be 0b10xxxxxx

@@ -11,25 +11,25 @@ class byteseqdev;
 namespace detail {
 struct byteseq_chunk_t {
     using alloc_type = std::allocator<byteseq_chunk_t>;
-    size_t size() const { return static_cast<size_t>(end - data); }
-    size_t capacity() const { return static_cast<size_t>(boundary - data); }
-    size_t avail() const { return static_cast<size_t>(boundary - end); }
-    static size_t get_alloc_sz(size_t cap) {
+    std::size_t size() const { return static_cast<std::size_t>(end - data); }
+    std::size_t capacity() const { return static_cast<std::size_t>(boundary - data); }
+    std::size_t avail() const { return static_cast<std::size_t>(boundary - end); }
+    static std::size_t get_alloc_sz(std::size_t cap) {
         return (offsetof(byteseq_chunk_t, data) + cap + sizeof(byteseq_chunk_t) - 1) / sizeof(byteseq_chunk_t);
     }
-    static size_t max_size(const alloc_type& al) {
+    static std::size_t max_size(const alloc_type& al) {
         return (std::allocator_traits<alloc_type>::max_size(al) * sizeof(byteseq_chunk_t) -
                 offsetof(byteseq_chunk_t, data));
     }
     static void dealloc(alloc_type& al, byteseq_chunk_t* chunk) {
         al.deallocate(chunk, get_alloc_sz(chunk->capacity()));
     }
-    static byteseq_chunk_t* alloc(alloc_type& al, size_t cap);
+    static byteseq_chunk_t* alloc(alloc_type& al, std::size_t cap);
     byteseq_chunk_t* next;
     byteseq_chunk_t* prev;
-    uint8_t* end;
-    uint8_t* boundary;
-    alignas(std::alignment_of<max_align_t>::value) uint8_t data[1];
+    std::uint8_t* end;
+    std::uint8_t* boundary;
+    alignas(std::alignment_of<max_align_t>::value) std::uint8_t data[1];
 };
 }  // namespace detail
 
@@ -51,10 +51,10 @@ class byteseq : public detail::byteseq_chunk_t::alloc_type {
         return *this;
     }
 
-    size_t size() const { return size_; }
+    std::size_t size() const { return size_; }
     bool empty() const { return size_ == 0; }
     void clear() { clear_and_reserve(0); }
-    UXS_EXPORT uint32_t calc_crc32() const;
+    UXS_EXPORT std::uint32_t calc_crc32() const;
 
     void swap(byteseq& other) {
         std::swap(head_, other.head_);
@@ -62,7 +62,7 @@ class byteseq : public detail::byteseq_chunk_t::alloc_type {
     }
 
     template<typename FillFunc>
-    byteseq& assign(size_t max_size, FillFunc func) {
+    byteseq& assign(std::size_t max_size, FillFunc func) {
         clear_and_reserve(max_size);
         if (head_) {
             size_ = func(head_->data, max_size);
@@ -82,8 +82,8 @@ class byteseq : public detail::byteseq_chunk_t::alloc_type {
     }
 
     UXS_EXPORT byteseq& assign(const byteseq& other);
-    UXS_EXPORT std::vector<uint8_t> make_vector() const;
-    UXS_EXPORT static byteseq from_vector(uxs::span<const uint8_t> v);
+    UXS_EXPORT std::vector<std::uint8_t> make_vector() const;
+    UXS_EXPORT static byteseq from_vector(uxs::span<const std::uint8_t> v);
 
     UXS_EXPORT byteseq make_compressed() const;
     UXS_EXPORT byteseq make_uncompressed() const;
@@ -95,13 +95,13 @@ class byteseq : public detail::byteseq_chunk_t::alloc_type {
 
     friend class byteseqdev;
 
-    enum : size_t { chunk_size = 0x100000, max_avail_count = 0x40000000 };
+    enum : std::size_t { chunk_size = 0x100000, max_avail_count = 0x40000000 };
 
     chunk_t* head_ = nullptr;
-    size_t size_ = 0;
+    std::size_t size_ = 0;
 
-    UXS_EXPORT void clear_and_reserve(size_t cap);
-    UXS_EXPORT void create_head(size_t cap);
+    UXS_EXPORT void clear_and_reserve(std::size_t cap);
+    UXS_EXPORT void create_head(std::size_t cap);
     UXS_EXPORT void create_head_chunk();
     UXS_EXPORT void create_next_chunk();
 };

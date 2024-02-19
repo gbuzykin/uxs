@@ -31,11 +31,11 @@ class ziparch {
     bool open(const wchar_t* name, const char* mode) { return open(name, detail::iomode_from_str(mode, iomode::in)); }
     UXS_EXPORT void close();
 
-    UXS_EXPORT bool stat_size(const char* fname, uint64_t& sz);
-    UXS_EXPORT bool stat_crc(const char* fname, uint32_t& crc);
+    UXS_EXPORT bool stat_size(const char* fname, std::uint64_t& sz);
+    UXS_EXPORT bool stat_crc(const char* fname, std::uint32_t& crc);
 
-    UXS_EXPORT bool stat_size(const wchar_t* fname, uint64_t& sz);
-    UXS_EXPORT bool stat_crc(const wchar_t* fname, uint32_t& crc);
+    UXS_EXPORT bool stat_size(const wchar_t* fname, std::uint64_t& sz);
+    UXS_EXPORT bool stat_crc(const wchar_t* fname, std::uint32_t& crc);
 
  private:
     friend class zipfile;

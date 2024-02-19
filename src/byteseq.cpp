@@ -28,15 +28,15 @@ byteseq::~byteseq() {
     chunk_t::dealloc(*this, head_);
 }
 
-uint32_t byteseq::calc_crc32() const {
-    uint32_t crc32 = 0xffffffff;
-    scan([&crc32](const uint8_t* p, size_t sz) { crc32 = crc32::calc(p, p + sz, crc32); });
+std::uint32_t byteseq::calc_crc32() const {
+    std::uint32_t crc32 = 0xffffffff;
+    scan([&crc32](const std::uint8_t* p, std::size_t sz) { crc32 = crc32::calc(p, p + sz, crc32); });
     return crc32;
 }
 
 byteseq& byteseq::assign(const byteseq& other) {
-    return assign(other.size_, [&other](uint8_t* dst, size_t dst_sz) {
-        other.scan([&dst](const uint8_t* p, size_t sz) {
+    return assign(other.size_, [&other](std::uint8_t* dst, std::size_t dst_sz) {
+        other.scan([&dst](const std::uint8_t* p, std::size_t sz) {
             std::memcpy(dst, p, sz);
             dst += sz;
         });
@@ -60,15 +60,15 @@ bool byteseq::uncompress() {
     return true;
 }
 
-std::vector<uint8_t> byteseq::make_vector() const {
-    std::vector<uint8_t> result;
-    scan([&result](const uint8_t* p, size_t sz) { result.insert(result.end(), p, p + sz); });
+std::vector<std::uint8_t> byteseq::make_vector() const {
+    std::vector<std::uint8_t> result;
+    scan([&result](const std::uint8_t* p, std::size_t sz) { result.insert(result.end(), p, p + sz); });
     return result;
 }
 
-/*static*/ byteseq byteseq::from_vector(uxs::span<const uint8_t> v) {
+/*static*/ byteseq byteseq::from_vector(uxs::span<const std::uint8_t> v) {
     byteseq seq;
-    return seq.assign(v.size(), [&v](uint8_t* dst, size_t dst_sz) {
+    return seq.assign(v.size(), [&v](std::uint8_t* dst, std::size_t dst_sz) {
         std::memcpy(dst, v.data(), dst_sz);
         return dst_sz;
     });
@@ -96,7 +96,7 @@ byteseq byteseq::make_compressed() const {
             zstr.next_in = chunk->data;
         }
 
-        zstr.avail_in = static_cast<uInt>(std::min<size_t>(chunk->end - zstr.next_in, max_avail_count));
+        zstr.avail_in = static_cast<uInt>(std::min<std::size_t>(chunk->end - zstr.next_in, max_avail_count));
         zstr.avail_out = static_cast<uInt>(buf.head_->boundary - zstr.next_out);
 
         int ret = deflate(&zstr, zstr.avail_in ? Z_NO_FLUSH : Z_FINISH);
@@ -139,7 +139,7 @@ byteseq byteseq::make_uncompressed() const {
             zstr.next_in = chunk->data;
         }
 
-        zstr.avail_in = static_cast<uInt>(std::min<size_t>(chunk->end - zstr.next_in, max_avail_count));
+        zstr.avail_in = static_cast<uInt>(std::min<std::size_t>(chunk->end - zstr.next_in, max_avail_count));
         zstr.avail_out = static_cast<uInt>(buf.head_->boundary - zstr.next_out);
 
         int ret = inflate(&zstr, zstr.avail_in ? Z_NO_FLUSH : Z_FINISH);
@@ -166,7 +166,7 @@ byteseq byteseq::make_compressed() const { return *this; }
 byteseq byteseq::make_uncompressed() const { return *this; }
 #endif
 
-void byteseq::clear_and_reserve(size_t cap) {
+void byteseq::clear_and_reserve(std::size_t cap) {
     if (head_) {
         // delete chunks excepts of the last
         chunk_t* chunk = head_->next;
@@ -189,8 +189,8 @@ void byteseq::clear_and_reserve(size_t cap) {
     }
 }
 
-/*static*/ detail::byteseq_chunk_t* detail::byteseq_chunk_t::alloc(alloc_type& al, size_t cap) {
-    const size_t alloc_sz = get_alloc_sz(cap);
+/*static*/ detail::byteseq_chunk_t* detail::byteseq_chunk_t::alloc(alloc_type& al, std::size_t cap) {
+    const std::size_t alloc_sz = get_alloc_sz(cap);
     detail::byteseq_chunk_t* chunk = al.allocate(alloc_sz);
     chunk->boundary = chunk->data + alloc_sz * sizeof(detail::byteseq_chunk_t) -
                       offsetof(detail::byteseq_chunk_t, data);
@@ -198,7 +198,7 @@ void byteseq::clear_and_reserve(size_t cap) {
     return chunk;
 }
 
-void byteseq::create_head(size_t cap) {
+void byteseq::create_head(std::size_t cap) {
     if (cap > chunk_t::max_size(*this)) { throw std::length_error("too much to reserve"); }
     head_ = chunk_t::alloc(*this, cap);
     dllist_make_cycle(head_);

@@ -603,7 +603,7 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
     pointer insert_fill(pointer p, size_type count, const value_type& val) {
         if (count <= static_cast<size_type>(v_.boundary - v_.end)) {
             if (!count) { return p; }
-            alignas(std::alignment_of<value_type>::value) uint8_t buf[sizeof(value_type)];
+            alignas(std::alignment_of<value_type>::value) std::uint8_t buf[sizeof(value_type)];
             value_type* val_copy = reinterpret_cast<value_type*>(&buf);
             alloc_traits::construct(*this, val_copy, val);
             try {
@@ -799,7 +799,7 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
 
         template<typename... Args>
         static void emplace(alloc_type& alloc, pointer pos, pointer end, Args&&... args) {
-            alignas(std::alignment_of<value_type>::value) uint8_t buf[sizeof(value_type)];
+            alignas(std::alignment_of<value_type>::value) std::uint8_t buf[sizeof(value_type)];
             value_type* val = reinterpret_cast<value_type*>(&buf);
             alloc_traits::construct(alloc, val, std::forward<Args>(args)...);
             try {

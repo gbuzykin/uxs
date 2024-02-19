@@ -176,12 +176,12 @@ auto unique(Container& c, Pred p = Pred{}) -> decltype(c.size()) {
 // ---- emplace & erase for random access containers
 
 template<typename Container, typename... Args>
-auto emplace_at(Container& c, size_t i, Args&&... args) -> std::void_t<decltype(std::begin(c) + i)> {
+auto emplace_at(Container& c, std::size_t i, Args&&... args) -> std::void_t<decltype(std::begin(c) + i)> {
     c.emplace(std::begin(c) + i, std::forward<Args>(args)...);
 }
 
 template<typename Container>
-auto erase_at(Container& c, size_t i) -> std::void_t<decltype(std::begin(c) + i)> {
+auto erase_at(Container& c, std::size_t i) -> std::void_t<decltype(std::begin(c) + i)> {
     c.erase(std::begin(c) + i);
 }
 
@@ -189,9 +189,9 @@ auto erase_at(Container& c, size_t i) -> std::void_t<decltype(std::begin(c) + i)
 
 namespace detail {
 template<typename Iter, typename Key, typename KeyFn = key>
-Iter lower_bound(Iter first, size_t count, const Key& k, KeyFn fn = KeyFn{}) {
+Iter lower_bound(Iter first, std::size_t count, const Key& k, KeyFn fn = KeyFn{}) {
     while (count > 0) {
-        size_t count2 = count / 2;
+        std::size_t count2 = count / 2;
         auto mid = std::next(first, count2);
         if (fn(*mid) < k) {
             first = ++mid;
@@ -203,9 +203,9 @@ Iter lower_bound(Iter first, size_t count, const Key& k, KeyFn fn = KeyFn{}) {
     return first;
 }
 template<typename Iter, typename Key, typename KeyFn = key>
-Iter upper_bound(Iter first, size_t count, const Key& k, KeyFn fn = KeyFn{}) {
+Iter upper_bound(Iter first, std::size_t count, const Key& k, KeyFn fn = KeyFn{}) {
     while (count > 0) {
-        size_t count2 = count / 2;
+        std::size_t count2 = count / 2;
         auto mid = std::next(first, count2);
         if (!(k < fn(*mid))) {
             first = ++mid;
@@ -220,21 +220,21 @@ Iter upper_bound(Iter first, size_t count, const Key& k, KeyFn fn = KeyFn{}) {
 
 template<typename Range, typename Key, typename KeyFn = key>
 auto lower_bound(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::begin(r) + 1) {
-    return detail::lower_bound(std::begin(r), static_cast<size_t>(std::end(r) - std::begin(r)), k, fn);
+    return detail::lower_bound(std::begin(r), static_cast<std::size_t>(std::end(r) - std::begin(r)), k, fn);
 }
 
 template<typename Range, typename Key, typename KeyFn = key>
 auto upper_bound(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::begin(r) + 1) {
-    return detail::upper_bound(std::begin(r), static_cast<size_t>(std::end(r) - std::begin(r)), k, fn);
+    return detail::upper_bound(std::begin(r), static_cast<std::size_t>(std::end(r) - std::begin(r)), k, fn);
 }
 
 template<typename Range, typename Key, typename KeyFn = key>
 auto equal_range(Range&& r, const Key& k, KeyFn fn = KeyFn{})
     -> std::pair<decltype(std::begin(r) + 1), decltype(std::end(r))> {
     auto first = std::begin(r);
-    size_t count = static_cast<size_t>(std::end(r) - first);
+    std::size_t count = static_cast<std::size_t>(std::end(r) - first);
     while (count > 0) {
-        size_t count2 = count / 2;
+        std::size_t count2 = count / 2;
         auto mid = std::next(first, count2);
         if (fn(*mid) < k) {
             first = ++mid;
@@ -265,7 +265,7 @@ bool binary_contains(const Range& r, const Key& k, KeyFn fn = KeyFn{}) {
 // ---- sorted container insert & remove
 
 namespace detail {
-template<typename Container, typename Key, typename... Args, size_t... Indices, typename KeyFn>
+template<typename Container, typename Key, typename... Args, std::size_t... Indices, typename KeyFn>
 auto binary_emplace_unique(Container& c, const Key& k, const std::tuple<Args...>& args, std::index_sequence<Indices...>,
                            KeyFn fn) -> std::pair<decltype(std::end(c)), bool> {
     auto result = uxs::binary_find(c, k, fn);
@@ -295,7 +295,7 @@ auto binary_access_unique(Container& c, Key&& k, KeyFn fn = KeyFn{}) -> decltype
 }
 
 namespace detail {
-template<typename Container, typename Key, typename... Args, size_t... Indices, typename KeyFn>
+template<typename Container, typename Key, typename... Args, std::size_t... Indices, typename KeyFn>
 auto binary_emplace_new(Container& c, const Key& k, const std::tuple<Args...>& args, std::index_sequence<Indices...>,
                         KeyFn fn) -> decltype(std::end(c)) {
     return c.emplace(uxs::lower_bound(c, k, fn), std::forward<Args>(std::get<Indices>(args))...);

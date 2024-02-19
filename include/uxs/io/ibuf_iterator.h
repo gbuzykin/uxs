@@ -35,6 +35,6 @@ class basic_ibuf_iterator : public iterator_facade<basic_ibuf_iterator<CharT>, C
 
 using ibuf_iterator = basic_ibuf_iterator<char>;
 using wibuf_iterator = basic_ibuf_iterator<wchar_t>;
-using u8ibuf_iterator = basic_ibuf_iterator<uint8_t>;
+using u8ibuf_iterator = basic_ibuf_iterator<std::uint8_t>;
 
 }  // namespace uxs

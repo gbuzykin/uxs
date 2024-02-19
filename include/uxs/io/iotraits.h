@@ -8,8 +8,8 @@ template<typename CharT>
 struct iotraits {
     using char_type = CharT;
     using int_type = int;
-    using pos_type = uint64_t;
-    using off_type = int64_t;
+    using pos_type = std::uint64_t;
+    using off_type = std::int64_t;
     static CONSTEXPR pos_type npos() { return static_cast<pos_type>(-1); }
     static CONSTEXPR int_type eof() { return -1; }
     static CONSTEXPR int_type to_int_type(char_type ch) {

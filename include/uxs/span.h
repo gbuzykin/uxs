@@ -30,13 +30,13 @@ class span {
     using const_reference = const Ty&;
     using iterator = uxs::array_iterator<span, false>;
     using reverse_iterator = std::reverse_iterator<iterator>;
-    using size_type = size_t;
+    using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
 
     CONSTEXPR span() noexcept {}
     template<typename Ty2, typename = std::enable_if_t<std::is_convertible<Ty2*, Ty*>::value>>
     CONSTEXPR span(Ty2* v, size_type count) noexcept : begin_(v), size_(count) {}
-    template<typename Ty2, size_t N, typename = std::enable_if_t<std::is_convertible<Ty2*, Ty*>::value>>
+    template<typename Ty2, std::size_t N, typename = std::enable_if_t<std::is_convertible<Ty2*, Ty*>::value>>
     explicit CONSTEXPR span(Ty2 (&v)[N]) noexcept : begin_(v), size_(N) {}
     template<typename Range, typename = std::enable_if_t<is_contiguous_range<std::remove_reference_t<Range>, Ty>::value>>
     CONSTEXPR span(Range&& r) noexcept : begin_(r.data()), size_(r.size()) {}
@@ -75,7 +75,7 @@ class span {
 
  private:
     Ty* begin_ = nullptr;
-    size_t size_ = 0;
+    std::size_t size_ = 0;
 };
 
 }  // namespace uxs
@@ -89,7 +89,7 @@ CONSTEXPR span<Ty> as_span(Ty* v, typename span<Ty>::size_type count) noexcept {
     return span<Ty>(v, count);
 }
 
-template<typename Ty, size_t N>
+template<typename Ty, std::size_t N>
 CONSTEXPR span<Ty> as_span(Ty (&v)[N]) noexcept {
     return span<Ty>(v, N);
 }

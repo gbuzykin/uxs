@@ -11,41 +11,41 @@ struct count_utf_chars;
 
 template<>
 struct count_utf_chars<char> {
-    unsigned operator()(uint8_t ch) const { return get_utf8_byte_count(ch); }
+    unsigned operator()(std::uint8_t ch) const { return get_utf8_byte_count(ch); }
 };
 
 #if defined(WCHAR_MAX) && WCHAR_MAX > 0xffff
 template<>
 struct count_utf_chars<wchar_t> {
-    unsigned operator()(uint32_t ch) const { return 1; }
+    unsigned operator()(std::uint32_t ch) const { return 1; }
 };
 #else   // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
 template<>
 struct count_utf_chars<wchar_t> {
-    unsigned operator()(uint16_t ch) const { return get_utf16_word_count(ch); }
+    unsigned operator()(std::uint16_t ch) const { return get_utf16_word_count(ch); }
 };
 #endif  // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
 
 template<typename CharT, typename StrTy>
 void adjust_string(StrTy& s, std::basic_string_view<CharT> val, fmt_opts& fmt) {
     const CharT *first = val.data(), *last = first + val.size();
-    size_t len = 0;
+    std::size_t len = 0;
     unsigned count = 0;
     const CharT* p = first;
     if (fmt.prec >= 0) {
         unsigned prec = fmt.prec;
         len = prec;
-        while (prec > 0 && static_cast<size_t>(last - p) > count) {
+        while (prec > 0 && static_cast<std::size_t>(last - p) > count) {
             p += count;
             count = count_utf_chars<CharT>()(*p), --prec;
         }
         if (prec > 0) {
             len -= prec;
-        } else if (static_cast<size_t>(last - p) > count) {
+        } else if (static_cast<std::size_t>(last - p) > count) {
             last = p + count;
         }
     } else if (fmt.width > 0) {
-        while (static_cast<size_t>(last - p) > count) {
+        while (static_cast<std::size_t>(last - p) > count) {
             p += count;
             count = count_utf_chars<CharT>()(*p), ++len;
         }
@@ -176,7 +176,7 @@ StrTy& vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
                     if (!!(specs.fmt.flags & fmt_flags::sign_field)) { signed_needed(); }
                     if (!!(specs.fmt.flags & fmt_flags::leading_zeroes)) { numeric_needed(); }
                     if (id >= type_id::integer && id <= type_id::unsigned_long_integer) {
-                        int64_t code = 0;
+                        std::int64_t code = 0;
                         switch (id) {
 #define UXS_FMT_ARG_INTEGER_VALUE_CASE(ty, id) \
     case id: { \
@@ -189,7 +189,7 @@ StrTy& vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
 #undef UXS_FMT_ARG_INTEGER_VALUE_CASE
                             default: UNREACHABLE_CODE;
                         }
-                        const int64_t char_mask = (1ull << (8 * sizeof(CharT))) - 1;
+                        const std::int64_t char_mask = (1ull << (8 * sizeof(CharT))) - 1;
                         if ((code & char_mask) != code && (~code & char_mask) != code) {
                             throw format_error("integral cannot be represented as character");
                         }

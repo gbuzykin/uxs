@@ -4,7 +4,7 @@
 
 namespace uxs {
 
-enum class iomode : uint16_t {
+enum class iomode : std::uint16_t {
     none = 0,
     in = 1,
     out = 2,
@@ -23,13 +23,13 @@ enum class iomode : uint16_t {
     skip_ctrl_esc = 0x300,
     invert_endian = 0x8000,
 };
-UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iomode, uint16_t);
+UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iomode, std::uint16_t);
 
-enum class iostate_bits : uint8_t { good = 0, bad = 1, fail = 2, eof = 4 };
-UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iostate_bits, uint8_t);
+enum class iostate_bits : std::uint8_t { good = 0, bad = 1, fail = 2, eof = 4 };
+UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iostate_bits, std::uint8_t);
 
-enum class seekdir : uint8_t { beg = 0, end, curr };
-UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(seekdir, uint8_t);
+enum class seekdir : std::uint8_t { beg = 0, end, curr };
+UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(seekdir, std::uint8_t);
 
 class iostate {
  public:

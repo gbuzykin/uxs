@@ -42,7 +42,7 @@ class reader {
     int n_ln_ = 1;
     inline_dynbuffer str_;
     inline_dynbuffer stash_;
-    inline_basic_dynbuffer<int8_t> state_stack_;
+    inline_basic_dynbuffer<std::int8_t> state_stack_;
 
     int parse_token(std::string_view& lval);
 };

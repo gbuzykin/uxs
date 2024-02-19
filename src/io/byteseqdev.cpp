@@ -26,37 +26,37 @@ void byteseqdev::clear() {
     pos0_ = pos_ = 0;
 }
 
-int byteseqdev::read(void* data, size_t sz, size_t& n_read) {
-    const size_t sz0 = sz;
+int byteseqdev::read(void* data, std::size_t sz, std::size_t& n_read) {
+    const std::size_t sz0 = sz;
     while (sz) {
-        size_t mapped_sz = 0;
+        std::size_t mapped_sz = 0;
         void* p = map(mapped_sz, false);
         if (!p || !mapped_sz) { break; }
         if (sz < mapped_sz) { mapped_sz = sz; }
         std::memcpy(data, p, mapped_sz);
         seek(mapped_sz, seekdir::curr);
-        data = static_cast<uint8_t*>(data) + mapped_sz, sz -= mapped_sz;
+        data = static_cast<std::uint8_t*>(data) + mapped_sz, sz -= mapped_sz;
     }
     n_read = sz0 - sz;
     return 0;
 }
 
-int byteseqdev::write(const void* data, size_t sz, size_t& n_written) {
-    const size_t sz0 = sz;
+int byteseqdev::write(const void* data, std::size_t sz, std::size_t& n_written) {
+    const std::size_t sz0 = sz;
     while (sz) {
-        size_t mapped_sz = 0;
+        std::size_t mapped_sz = 0;
         void* p = map(mapped_sz, true);
         if (!p || !mapped_sz) { return -1; }
         if (sz < mapped_sz) { mapped_sz = sz; }
         std::memcpy(p, data, mapped_sz);
         seek(mapped_sz, seekdir::curr);
-        data = static_cast<const uint8_t*>(data) + mapped_sz, sz -= mapped_sz;
+        data = static_cast<const std::uint8_t*>(data) + mapped_sz, sz -= mapped_sz;
     }
     n_written = sz0;
     return 0;
 }
 
-void* byteseqdev::map(size_t& sz, bool wr) {
+void* byteseqdev::map(std::size_t& sz, bool wr) {
     if (!seq_ || (wr && !!(this->caps() & iodevcaps::rdonly))) { return nullptr; }
     if (!wr || chunk_ != seq_->head_) {
         sz = chunk_ ? chunk_->size() - (pos_ - pos0_) : 0;
@@ -77,19 +77,20 @@ void* byteseqdev::map(size_t& sz, bool wr) {
     return chunk_->data;
 }
 
-int64_t byteseqdev::seek(int64_t off, seekdir dir) {
+std::int64_t byteseqdev::seek(std::int64_t off, seekdir dir) {
     if (!seq_) { return -1; }
 
     switch (dir) {
         case seekdir::beg: {
-            pos_ = off > 0 ? static_cast<size_t>(off) : 0;
+            pos_ = off > 0 ? static_cast<std::size_t>(off) : 0;
         } break;
         case seekdir::curr: {
             if (off == 0) { return pos_; }
-            pos_ = static_cast<size_t>(off > 0 || static_cast<size_t>(-off) < pos_ ? pos_ + off : 0);
+            pos_ = static_cast<std::size_t>(off > 0 || static_cast<std::size_t>(-off) < pos_ ? pos_ + off : 0);
         } break;
         case seekdir::end: {
-            pos_ = static_cast<size_t>(off > 0 || static_cast<size_t>(-off) < seq_->size_ ? seq_->size_ + off : 0);
+            pos_ = static_cast<std::size_t>(
+                off > 0 || static_cast<std::size_t>(-off) < seq_->size_ ? seq_->size_ + off : 0);
         } break;
     }
 
@@ -101,7 +102,7 @@ int64_t byteseqdev::seek(int64_t off, seekdir dir) {
         if (chunk_ == seq_->head_) {
             if (!!(this->caps() & iodevcaps::rdonly)) {
                 pos_ = std::min(pos_, seq_->size_);
-                return static_cast<int64_t>(pos_);
+                return static_cast<std::int64_t>(pos_);
             }
             if (!chunk_) {
                 seq_->create_head_chunk();
@@ -115,7 +116,7 @@ int64_t byteseqdev::seek(int64_t off, seekdir dir) {
                 std::memset(chunk_->data, 0, chunk_->capacity());
             }
             if (pos_ - pos0_ > chunk_->size()) {
-                const size_t extra = pos_ - pos0_ - chunk_->size();
+                const std::size_t extra = pos_ - pos0_ - chunk_->size();
                 seq_->size_ += extra, chunk_->end += extra;
             }
         }
@@ -125,5 +126,5 @@ int64_t byteseqdev::seek(int64_t off, seekdir dir) {
             pos0_ -= chunk_->size();
         }
     }
-    return static_cast<int64_t>(pos_);
+    return static_cast<std::int64_t>(pos_);
 }

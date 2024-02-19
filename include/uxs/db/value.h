@@ -50,9 +50,9 @@ struct is_record_value<CharT, Alloc, std::pair<FirstTy, SecondTy>,
 template<typename CharT, typename Alloc, bool store_values>
 struct flexarray_t {
     using array_value_t = std::conditional_t<store_values, basic_value<CharT, Alloc>, CharT>;
-    size_t size;
-    size_t capacity;
-    alignas(std::alignment_of<array_value_t>::value) uint8_t x[sizeof(array_value_t)];
+    std::size_t size;
+    std::size_t capacity;
+    alignas(std::alignment_of<array_value_t>::value) std::uint8_t x[sizeof(array_value_t)];
 
     enum : unsigned { start_capacity = 8 };
 
@@ -65,24 +65,24 @@ struct flexarray_t {
         return uxs::as_span(reinterpret_cast<const array_value_t*>(&x), size);
     }
     uxs::span<array_value_t> view() { return uxs::as_span(reinterpret_cast<array_value_t*>(&x), size); }
-    const array_value_t& operator[](size_t i) const { return reinterpret_cast<const array_value_t*>(&x)[i]; }
-    array_value_t& operator[](size_t i) { return reinterpret_cast<array_value_t*>(&x)[i]; }
+    const array_value_t& operator[](std::size_t i) const { return reinterpret_cast<const array_value_t*>(&x)[i]; }
+    array_value_t& operator[](std::size_t i) { return reinterpret_cast<array_value_t*>(&x)[i]; }
 
-    static size_t max_size(const alloc_type& arr_al) {
+    static std::size_t max_size(const alloc_type& arr_al) {
         return (std::allocator_traits<alloc_type>::max_size(arr_al) * sizeof(flexarray_t) - offsetof(flexarray_t, x)) /
                sizeof(array_value_t);
     }
 
-    static size_t get_alloc_sz(size_t cap) {
+    static std::size_t get_alloc_sz(std::size_t cap) {
         return (offsetof(flexarray_t, x) + cap * sizeof(array_value_t) + sizeof(flexarray_t) - 1) / sizeof(flexarray_t);
     }
 
-    UXS_EXPORT static flexarray_t* alloc(alloc_type& arr_al, size_t cap);
-    UXS_EXPORT static flexarray_t* grow(alloc_type& arr_al, flexarray_t* arr, size_t extra);
+    UXS_EXPORT static flexarray_t* alloc(alloc_type& arr_al, std::size_t cap);
+    UXS_EXPORT static flexarray_t* grow(alloc_type& arr_al, flexarray_t* arr, std::size_t extra);
 
     static void dealloc(alloc_type& arr_al, flexarray_t* arr) { arr_al.deallocate(arr, get_alloc_sz(arr->capacity)); }
 
-    static flexarray_t* alloc_checked(alloc_type& arr_al, size_t cap) {
+    static flexarray_t* alloc_checked(alloc_type& arr_al, std::size_t cap) {
         if (cap > max_size(arr_al)) { throw std::length_error("too much to reserve"); }
         return alloc(arr_al, cap);
     }
@@ -91,8 +91,8 @@ struct flexarray_t {
 template<typename Ty>
 struct record_value {
     using char_type = typename Ty::char_type;
-    alignas(std::alignment_of<Ty>::value) uint8_t x[sizeof(Ty)];
-    size_t name_sz;
+    alignas(std::alignment_of<Ty>::value) std::uint8_t x[sizeof(Ty)];
+    std::size_t name_sz;
     char_type name_chars[1];
     std::basic_string_view<char_type> name() const { return std::basic_string_view<char_type>(name_chars, name_sz); }
     const Ty& val() const { return *reinterpret_cast<const Ty*>(&x); }
@@ -123,20 +123,20 @@ struct record_node_type {
 
     list_links_type links;
     list_links_type* next_bucket;
-    size_t hash_code;
+    std::size_t hash_code;
     record_value<basic_value<CharT, Alloc>> v;
 
     static record_node_type* from_links(list_links_type* links) {
         return get_containing_record<record_node_type, offsetof(record_node_type, links)>(links);
     }
 
-    static size_t max_name_size(const alloc_type& node_al) {
+    static std::size_t max_name_size(const alloc_type& node_al) {
         return (std::allocator_traits<alloc_type>::max_size(node_al) * sizeof(record_node_type) -
                 offsetof(record_node_type, v.name_chars)) /
                sizeof(CharT);
     }
 
-    static size_t get_alloc_sz(size_t name_sz) {
+    static std::size_t get_alloc_sz(std::size_t name_sz) {
         return (offsetof(record_node_type, v.name_chars) + name_sz * sizeof(CharT) + sizeof(record_node_type) - 1) /
                sizeof(record_node_type);
     }
@@ -169,7 +169,7 @@ struct record_node_traits {
 template<typename CharT, typename Alloc>
 struct record_t {
     using value_type = std::pair<std::basic_string_view<CharT>, basic_value<CharT, Alloc>>;
-    using size_type = size_t;
+    using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
     using reference = record_value_proxy<basic_value<CharT, Alloc>>;
     using const_reference = record_value_proxy<const basic_value<CharT, Alloc>>;
@@ -180,8 +180,8 @@ struct record_t {
     using node_t = typename node_traits::node_t;
 
     mutable list_links_type head;
-    size_t size;
-    size_t bucket_count;
+    std::size_t size;
+    std::size_t bucket_count;
     list_links_type* hashtbl[1];
 
     enum : unsigned { min_bucket_count_inc = 12 };
@@ -192,8 +192,8 @@ struct record_t {
     UXS_EXPORT void init();
     UXS_EXPORT void destroy(alloc_type& rec_al, list_links_type* node);
 
-    UXS_EXPORT list_links_type* find(std::basic_string_view<CharT> name, size_t hash_code) const;
-    UXS_EXPORT size_t count(std::basic_string_view<CharT> name) const;
+    UXS_EXPORT list_links_type* find(std::basic_string_view<CharT> name, std::size_t hash_code) const;
+    UXS_EXPORT std::size_t count(std::basic_string_view<CharT> name) const;
 
     static record_t* create(alloc_type& rec_al) {
         record_t* rec = alloc(rec_al, 1);
@@ -219,25 +219,25 @@ struct record_t {
     template<typename... Args>
     list_links_type* new_node(alloc_type& rec_al, std::basic_string_view<CharT> name, Args&&... args);
     static void delete_node(alloc_type& rec_al, list_links_type* node);
-    UXS_EXPORT static size_t calc_hash_code(std::basic_string_view<CharT> name);
-    void add_to_hash(list_links_type* node, size_t hash_code);
-    UXS_EXPORT static record_t* insert(alloc_type& rec_al, record_t* rec, size_t hash_code, list_links_type* node);
+    UXS_EXPORT static std::size_t calc_hash_code(std::basic_string_view<CharT> name);
+    void add_to_hash(list_links_type* node, std::size_t hash_code);
+    UXS_EXPORT static record_t* insert(alloc_type& rec_al, record_t* rec, std::size_t hash_code, list_links_type* node);
     list_links_type* erase(alloc_type& rec_al, list_links_type* node);
-    size_t erase(alloc_type& rec_al, std::basic_string_view<CharT> name);
+    std::size_t erase(alloc_type& rec_al, std::basic_string_view<CharT> name);
 
-    static size_t max_size(const alloc_type& rec_al) {
+    static std::size_t max_size(const alloc_type& rec_al) {
         return (std::allocator_traits<alloc_type>::max_size(rec_al) * sizeof(record_t) - offsetof(record_t, hashtbl)) /
                sizeof(list_links_type*);
     }
 
-    static size_t get_alloc_sz(size_t bckt_cnt) {
+    static std::size_t get_alloc_sz(std::size_t bckt_cnt) {
         return (offsetof(record_t, hashtbl) + bckt_cnt * sizeof(list_links_type*) + sizeof(record_t) - 1) /
                sizeof(record_t);
     }
 
-    static size_t next_bucket_count(const alloc_type& rec_al, size_t sz);
-    UXS_EXPORT static record_t* alloc(alloc_type& rec_al, size_t bckt_cnt);
-    static record_t* rehash(alloc_type& rec_al, record_t* rec, size_t bckt_cnt);
+    static std::size_t next_bucket_count(const alloc_type& rec_al, std::size_t sz);
+    UXS_EXPORT static record_t* alloc(alloc_type& rec_al, std::size_t bckt_cnt);
+    static record_t* rehash(alloc_type& rec_al, record_t* rec, std::size_t bckt_cnt);
     UXS_EXPORT static void dealloc(alloc_type& rec_al, record_t* rec) {
         rec_al.deallocate(rec, get_alloc_sz(rec->bucket_count));
     }
@@ -282,10 +282,10 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     basic_value() noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
         : alloc_type(), type_(dtype::null) {}
     basic_value(bool b) : alloc_type(), type_(dtype::boolean) { value_.b = b; }
-    basic_value(int32_t i) : alloc_type(), type_(dtype::integer) { value_.i = i; }
-    basic_value(uint32_t u) : alloc_type(), type_(dtype::unsigned_integer) { value_.u = u; }
-    basic_value(int64_t i) : alloc_type(), type_(dtype::long_integer) { value_.i64 = i; }
-    basic_value(uint64_t u) : alloc_type(), type_(dtype::unsigned_long_integer) { value_.u64 = u; }
+    basic_value(std::int32_t i) : alloc_type(), type_(dtype::integer) { value_.i = i; }
+    basic_value(std::uint32_t u) : alloc_type(), type_(dtype::unsigned_integer) { value_.u = u; }
+    basic_value(std::int64_t i) : alloc_type(), type_(dtype::long_integer) { value_.i64 = i; }
+    basic_value(std::uint64_t u) : alloc_type(), type_(dtype::unsigned_long_integer) { value_.u64 = u; }
     basic_value(float f) : alloc_type(), type_(dtype::double_precision) { value_.dbl = f; }
     basic_value(double d) : alloc_type(), type_(dtype::double_precision) { value_.dbl = d; }
     basic_value(std::basic_string_view<char_type> s) : alloc_type(), type_(dtype::string) {
@@ -299,10 +299,12 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     explicit basic_value(const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) {}
     basic_value(bool b, const Alloc& al) : alloc_type(al), type_(dtype::boolean) { value_.b = b; }
-    basic_value(int32_t i, const Alloc& al) : alloc_type(al), type_(dtype::integer) { value_.i = i; }
-    basic_value(uint32_t u, const Alloc& al) : alloc_type(al), type_(dtype::unsigned_integer) { value_.u = u; }
-    basic_value(int64_t i, const Alloc& al) : alloc_type(al), type_(dtype::long_integer) { value_.i64 = i; }
-    basic_value(uint64_t u, const Alloc& al) : alloc_type(al), type_(dtype::unsigned_long_integer) { value_.u64 = u; }
+    basic_value(std::int32_t i, const Alloc& al) : alloc_type(al), type_(dtype::integer) { value_.i = i; }
+    basic_value(std::uint32_t u, const Alloc& al) : alloc_type(al), type_(dtype::unsigned_integer) { value_.u = u; }
+    basic_value(std::int64_t i, const Alloc& al) : alloc_type(al), type_(dtype::long_integer) { value_.i64 = i; }
+    basic_value(std::uint64_t u, const Alloc& al) : alloc_type(al), type_(dtype::unsigned_long_integer) {
+        value_.u64 = u;
+    }
     basic_value(float f, const Alloc& al) : alloc_type(al), type_(dtype::double_precision) { value_.dbl = f; }
     basic_value(double d, const Alloc& al) : alloc_type(al), type_(dtype::double_precision) { value_.dbl = d; }
     basic_value(std::basic_string_view<char_type> s, const Alloc& al) : alloc_type(al), type_(dtype::string) {
@@ -369,10 +371,10 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         return *this; \
     }
     UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(bool, dtype::boolean, b)
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(int32_t, dtype::integer, i)
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(uint32_t, dtype::unsigned_integer, u)
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(int64_t, dtype::long_integer, i64)
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(uint64_t, dtype::unsigned_long_integer, u64)
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(std::int32_t, dtype::integer, i)
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(std::uint32_t, dtype::unsigned_integer, u)
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(std::int64_t, dtype::long_integer, i64)
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(std::uint64_t, dtype::unsigned_long_integer, u64)
     UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(float, dtype::double_precision, dbl)
     UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(double, dtype::double_precision, dbl)
 #undef UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT
@@ -451,20 +453,20 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     bool is_record() const noexcept { return type_ == dtype::record; }
 
     UXS_EXPORT uxs::optional<bool> get_bool() const;
-    UXS_EXPORT uxs::optional<int32_t> get_int() const;
-    UXS_EXPORT uxs::optional<uint32_t> get_uint() const;
-    UXS_EXPORT uxs::optional<int64_t> get_int64() const;
-    UXS_EXPORT uxs::optional<uint64_t> get_uint64() const;
+    UXS_EXPORT uxs::optional<std::int32_t> get_int() const;
+    UXS_EXPORT uxs::optional<std::uint32_t> get_uint() const;
+    UXS_EXPORT uxs::optional<std::int64_t> get_int64() const;
+    UXS_EXPORT uxs::optional<std::uint64_t> get_uint64() const;
     UXS_EXPORT uxs::optional<float> get_float() const;
     UXS_EXPORT uxs::optional<double> get_double() const;
     UXS_EXPORT uxs::optional<std::basic_string<char_type>> get_string() const;
     UXS_EXPORT uxs::optional<std::basic_string_view<char_type>> get_string_view() const;
 
     bool as_bool() const;
-    int32_t as_int() const;
-    uint32_t as_uint() const;
-    int64_t as_int64() const;
-    uint64_t as_uint64() const;
+    std::int32_t as_int() const;
+    std::uint32_t as_uint() const;
+    std::int64_t as_int64() const;
+    std::uint64_t as_uint64() const;
     float as_float() const;
     double as_double() const;
     std::basic_string<char_type> as_string() const;
@@ -473,7 +475,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     UXS_EXPORT bool convert(dtype type);
 
     UXS_EXPORT bool empty() const noexcept;
-    UXS_EXPORT size_t size() const noexcept;
+    UXS_EXPORT std::size_t size() const noexcept;
     explicit operator bool() const { return !is_null(); }
 
     basic_value& append_string(std::basic_string_view<char_type> s);
@@ -485,16 +487,16 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     iterator_range<const_record_iterator> as_record() const;
     iterator_range<record_iterator> as_record();
 
-    const basic_value& operator[](size_t i) const { return as_array()[i]; }
-    basic_value& operator[](size_t i) { return as_array()[i]; }
+    const basic_value& operator[](std::size_t i) const { return as_array()[i]; }
+    basic_value& operator[](std::size_t i) { return as_array()[i]; }
 
-    const basic_value& at(size_t i) const {
+    const basic_value& at(std::size_t i) const {
         auto range = as_array();
         if (i < range.size()) { return range[i]; }
         throw database_error("index out of range");
     }
 
-    basic_value& at(size_t i) {
+    basic_value& at(std::size_t i) {
         auto range = as_array();
         if (i < range.size()) { return range[i]; }
         throw database_error("index out of range");
@@ -508,11 +510,11 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     const_record_iterator nil() const noexcept;
     record_iterator nil() noexcept;
     bool contains(std::basic_string_view<char_type> name) const;
-    size_t count(std::basic_string_view<char_type> name) const;
+    std::size_t count(std::basic_string_view<char_type> name) const;
 
     UXS_EXPORT void clear() noexcept;
-    UXS_EXPORT void reserve(size_t sz);
-    UXS_EXPORT void resize(size_t sz);
+    UXS_EXPORT void reserve(std::size_t sz);
+    UXS_EXPORT void resize(std::size_t sz);
 
     template<typename... Args>
     basic_value& emplace_back(Args&&... args);
@@ -521,9 +523,9 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     void pop_back();
 
     template<typename... Args>
-    basic_value* emplace(size_t pos, Args&&... args);
-    basic_value* insert(size_t pos, const basic_value& v) { return emplace(pos, v); }
-    basic_value* insert(size_t pos, basic_value&& v) { return emplace(pos, std::move(v)); }
+    basic_value* emplace(std::size_t pos, Args&&... args);
+    basic_value* insert(std::size_t pos, const basic_value& v) { return emplace(pos, v); }
+    basic_value* insert(std::size_t pos, basic_value&& v) { return emplace(pos, std::move(v)); }
 
     template<typename... Args>
     record_iterator emplace(std::basic_string_view<char_type> name, Args&&... args);
@@ -542,8 +544,8 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
-    void insert(size_t pos, InputIt first, InputIt last);
-    UXS_EXPORT void insert(size_t pos, std::initializer_list<basic_value> init);
+    void insert(std::size_t pos, InputIt first, InputIt last);
+    UXS_EXPORT void insert(std::size_t pos, std::initializer_list<basic_value> init);
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>,
              typename = std::enable_if_t<
@@ -551,9 +553,9 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     void insert(InputIt first, InputIt last);
     UXS_EXPORT void insert(std::initializer_list<std::pair<std::basic_string_view<char_type>, basic_value>> init);
 
-    UXS_EXPORT void erase(size_t pos);
+    UXS_EXPORT void erase(std::size_t pos);
     UXS_EXPORT record_iterator erase(const_record_iterator it);
-    UXS_EXPORT size_t erase(std::basic_string_view<char_type> name);
+    UXS_EXPORT std::size_t erase(std::basic_string_view<char_type> name);
 
  private:
     friend class json::writer;
@@ -581,10 +583,10 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     union {
         bool b;
-        int32_t i;
-        uint32_t u;
-        int64_t i64;
-        uint64_t u64;
+        std::int32_t i;
+        std::uint32_t u;
+        std::int64_t i64;
+        std::uint64_t u64;
         double dbl;
         char_flexarray_t* str;
         value_flexarray_t* arr;
@@ -604,35 +606,35 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     UXS_EXPORT void assign_string(std::basic_string_view<char_type> s);
 
     template<typename RandIt>
-    value_flexarray_t* alloc_array(size_t sz, RandIt src);
+    value_flexarray_t* alloc_array(std::size_t sz, RandIt src);
     template<typename RandIt>
     value_flexarray_t* alloc_array(RandIt first, RandIt last, std::true_type /* random access iterator */) {
-        return alloc_array(static_cast<size_t>(last - first), first);
+        return alloc_array(static_cast<std::size_t>(last - first), first);
     }
     template<typename InputIt>
     value_flexarray_t* alloc_array(InputIt first, InputIt last, std::false_type);
     value_flexarray_t* alloc_array(uxs::span<const basic_value> v) { return alloc_array(v.size(), v.data()); }
 
     template<typename RandIt>
-    void assign_array(size_t sz, RandIt src);
+    void assign_array(std::size_t sz, RandIt src);
     template<typename RandIt>
     void assign_array(RandIt first, RandIt last, std::true_type /* random access iterator */) {
-        assign_array(static_cast<size_t>(last - first), first);
+        assign_array(static_cast<std::size_t>(last - first), first);
     }
     template<typename InputIt>
     void assign_array(InputIt first, InputIt last, std::false_type /* random access iterator */);
     void assign_array(uxs::span<const basic_value> v) { assign_array(v.size(), v.data()); }
 
     template<typename RandIt>
-    void append_array(size_t sz, RandIt src);
+    void append_array(std::size_t sz, RandIt src);
     template<typename RandIt>
-    size_t append_array(RandIt first, RandIt last, std::true_type /* random access iterator */) {
-        size_t count = static_cast<size_t>(last - first);
+    std::size_t append_array(RandIt first, RandIt last, std::true_type /* random access iterator */) {
+        std::size_t count = static_cast<std::size_t>(last - first);
         append_array(count, first);
         return count;
     }
     template<typename InputIt>
-    size_t append_array(InputIt first, InputIt last, std::false_type /* random access iterator */);
+    std::size_t append_array(InputIt first, InputIt last, std::false_type /* random access iterator */);
 
     UXS_EXPORT void init_from(const basic_value& other);
     UXS_EXPORT void assign_impl(const basic_value& other);
@@ -670,8 +672,8 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     void assign_impl(InputIt first, InputIt last, std::false_type /* range of pairs */);
 
     UXS_EXPORT void reserve_back();
-    UXS_EXPORT void reserve_string(size_t extra);
-    UXS_EXPORT void rotate_back(size_t pos);
+    UXS_EXPORT void reserve_string(std::size_t extra);
+    UXS_EXPORT void rotate_back(std::size_t pos);
 };
 
 // --------------------------
@@ -787,7 +789,7 @@ void basic_value<CharT, Alloc>::pop_back() {
 
 template<typename CharT, typename Alloc>
 template<typename... Args>
-basic_value<CharT, Alloc>* basic_value<CharT, Alloc>::emplace(size_t pos, Args&&... args) {
+basic_value<CharT, Alloc>* basic_value<CharT, Alloc>::emplace(std::size_t pos, Args&&... args) {
     if (type_ != dtype::array || !value_.arr || value_.arr->size == value_.arr->capacity) { reserve_back(); }
     new (&(*value_.arr)[value_.arr->size]) basic_value(std::forward<Args>(args)...);
     ++value_.arr->size;
@@ -820,7 +822,7 @@ auto basic_value<CharT, Alloc>::emplace_unique(std::basic_string_view<char_type>
         value_.rec = record_t::create(rec_al);
         type_ = dtype::record;
     }
-    const size_t hash_code = record_t::calc_hash_code(name);
+    const std::size_t hash_code = record_t::calc_hash_code(name);
     detail::list_links_type* node = value_.rec->find(name, hash_code);
     if (node == &value_.rec->head) {
         node = value_.rec->new_node(rec_al, name, std::forward<Args>(args)...);
@@ -832,13 +834,13 @@ auto basic_value<CharT, Alloc>::emplace_unique(std::basic_string_view<char_type>
 
 template<typename CharT, typename Alloc>
 template<typename InputIt, typename>
-void basic_value<CharT, Alloc>::insert(size_t pos, InputIt first, InputIt last) {
+void basic_value<CharT, Alloc>::insert(std::size_t pos, InputIt first, InputIt last) {
     if (type_ != dtype::array) {
         if (type_ != dtype::null) { throw database_error("not an array"); }
         value_.arr = alloc_array(first, last, is_random_access_iterator<InputIt>());
         type_ = dtype::array;
     } else if (first != last) {
-        size_t count = append_array(first, last, is_random_access_iterator<InputIt>());
+        std::size_t count = append_array(first, last, is_random_access_iterator<InputIt>());
         if (pos < value_.arr->size - count) {
             std::rotate(&(*value_.arr)[pos], &(*value_.arr)[value_.arr->size - count], &(*value_.arr)[value_.arr->size]);
         }
@@ -915,7 +917,7 @@ bool basic_value<CharT, Alloc>::contains(std::basic_string_view<char_type> name)
 }
 
 template<typename CharT, typename Alloc>
-size_t basic_value<CharT, Alloc>::count(std::basic_string_view<char_type> name) const {
+std::size_t basic_value<CharT, Alloc>::count(std::basic_string_view<char_type> name) const {
     if (type_ != dtype::record) { throw database_error("not a record"); }
     return value_.rec->count(name);
 }
@@ -924,7 +926,7 @@ size_t basic_value<CharT, Alloc>::count(std::basic_string_view<char_type> name) 
 
 template<typename CharT, typename Alloc>
 template<typename RandIt>
-auto basic_value<CharT, Alloc>::alloc_array(size_t sz, RandIt src) -> value_flexarray_t* {
+auto basic_value<CharT, Alloc>::alloc_array(std::size_t sz, RandIt src) -> value_flexarray_t* {
     if (!sz) { return nullptr; }
     typename value_flexarray_t::alloc_type arr_al(*this);
     value_flexarray_t* arr = value_flexarray_t::alloc_checked(arr_al, sz);
@@ -963,7 +965,7 @@ auto basic_value<CharT, Alloc>::alloc_array(InputIt first, InputIt last, std::fa
 
 template<typename CharT, typename Alloc>
 template<typename RandIt>
-void basic_value<CharT, Alloc>::assign_array(size_t sz, RandIt src) {
+void basic_value<CharT, Alloc>::assign_array(std::size_t sz, RandIt src) {
     if (value_.arr && sz <= value_.arr->capacity) {
         if (sz <= value_.arr->size) {
             basic_value* p = sz ? std::copy_n(src, sz, &(*value_.arr)[0]) : &(*value_.arr)[0];
@@ -1012,7 +1014,7 @@ void basic_value<CharT, Alloc>::assign_array(InputIt first, InputIt last,
 
 template<typename CharT, typename Alloc>
 template<typename RandIt>
-void basic_value<CharT, Alloc>::append_array(size_t sz, RandIt src) {
+void basic_value<CharT, Alloc>::append_array(std::size_t sz, RandIt src) {
     if (value_.arr) {
         if (sz > value_.arr->capacity - value_.arr->size) {
             typename value_flexarray_t::alloc_type arr_al(*this);
@@ -1027,12 +1029,12 @@ void basic_value<CharT, Alloc>::append_array(size_t sz, RandIt src) {
 
 template<typename CharT, typename Alloc>
 template<typename InputIt>
-size_t basic_value<CharT, Alloc>::append_array(InputIt first, InputIt last,
-                                               std::false_type /* random access iterator */) {
+std::size_t basic_value<CharT, Alloc>::append_array(InputIt first, InputIt last,
+                                                    std::false_type /* random access iterator */) {
     if (first == last) { return 0; }
     if (value_.arr) {
         typename value_flexarray_t::alloc_type arr_al(*this);
-        size_t old_sz = value_.arr->size;
+        std::size_t old_sz = value_.arr->size;
         for (; first != last; ++first) {
             if (value_.arr->size == value_.arr->capacity) {
                 value_.arr = value_flexarray_t::grow(arr_al, value_.arr, 1);
@@ -1138,10 +1140,10 @@ template<typename CharT, typename Alloc>
     }; \
     }
 UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(bool, _bool)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(int32_t, _int)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(uint32_t, _uint)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(int64_t, _int64)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(uint64_t, _uint64)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::int32_t, _int)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::uint32_t, _uint)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::int64_t, _int64)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::uint64_t, _uint64)
 UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(float, _float)
 UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(double, _double)
 UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::basic_string<CharT>, _string)

@@ -67,19 +67,19 @@ class basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_all
     basic_iobuf<char_type>* tie_buf_ = nullptr;
 
     UXS_EXPORT const char_type* find_end_of_ctrlesc(const char_type* first, const char_type* last);
-    UXS_EXPORT int write_buf(const void* data, size_t sz);
-    UXS_EXPORT int read_buf(void* data, size_t sz, size_t& n_read);
+    UXS_EXPORT int write_buf(const void* data, std::size_t sz);
+    UXS_EXPORT int read_buf(void* data, std::size_t sz, std::size_t& n_read);
     UXS_EXPORT int flush_compressed_buf();
-    UXS_EXPORT int write_compressed(const void* data, size_t sz);
+    UXS_EXPORT int write_compressed(const void* data, std::size_t sz);
     UXS_EXPORT void finish_compressed();
-    UXS_EXPORT int read_compressed(void* data, size_t sz, size_t& n_read);
+    UXS_EXPORT int read_compressed(void* data, std::size_t sz, std::size_t& n_read);
     UXS_EXPORT void parse_ctrlesc(const char_type* first, const char_type* last);
     UXS_EXPORT int flush_buffer();
-    UXS_EXPORT size_t remove_crlf(char_type* dst, size_t count);
+    UXS_EXPORT std::size_t remove_crlf(char_type* dst, std::size_t count);
 };
 
 using devbuf = basic_devbuf<char>;
 using wdevbuf = basic_devbuf<wchar_t>;
-using u8devbuf = basic_devbuf<uint8_t>;
+using u8devbuf = basic_devbuf<std::uint8_t>;
 
 }  // namespace uxs

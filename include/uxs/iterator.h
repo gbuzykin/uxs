@@ -49,9 +49,9 @@ using is_output_iterator = typename detail::is_output_iterator<Iter, Ty>::type;
 // Iterator range
 
 #if __cplusplus < 201703L
-const size_t dynamic_extent = ~size_t(0);
+const std::size_t dynamic_extent = ~std::size_t(0);
 #else   // __cplusplus < 201703L
-inline constexpr size_t dynamic_extent = std::numeric_limits<size_t>::max();
+inline constexpr std::size_t dynamic_extent = std::numeric_limits<std::size_t>::max();
 #endif  // __cplusplus < 201703L
 
 template<typename Iter, typename = void>
@@ -101,17 +101,17 @@ auto make_reverse_range(Range&& r) noexcept -> iterator_range<std::reverse_itera
 }
 
 template<typename Iter, typename = std::enable_if_t<is_random_access_iterator<Iter>::value>>
-iterator_range<Iter> make_subrange(const std::pair<Iter, Iter>& p, size_t offset,
-                                   size_t count = dynamic_extent) noexcept {
-    size_t sz = p.second - p.first;
+iterator_range<Iter> make_subrange(const std::pair<Iter, Iter>& p, std::size_t offset,
+                                   std::size_t count = dynamic_extent) noexcept {
+    std::size_t sz = p.second - p.first;
     if (offset > sz) { offset = sz; }
     return {p.first + offset, p.first + (count < sz - offset ? offset + count : sz)};
 }
 
 template<typename Range>
-auto make_subrange(Range&& r, size_t offset, size_t count = dynamic_extent) noexcept
+auto make_subrange(Range&& r, std::size_t offset, std::size_t count = dynamic_extent) noexcept
     -> std::enable_if_t<is_random_access_iterator<decltype(std::end(r))>::value, iterator_range<decltype(std::end(r))>> {
-    size_t sz = std::end(r) - std::begin(r);
+    std::size_t sz = std::end(r) - std::begin(r);
     if (offset > sz) { offset = sz; }
     return {std::begin(r) + offset, std::begin(r) + (count < sz - offset ? offset + count : sz)};
 }

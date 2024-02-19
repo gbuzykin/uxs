@@ -20,8 +20,8 @@ UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(devbuf_impl_flags, unsigned);
 template<typename CharT, typename Alloc>
 struct basic_devbuf<CharT, Alloc>::flexbuf_t {
     detail::devbuf_impl_flags flags;
-    size_t alloc_sz;
-    size_t sz;
+    std::size_t alloc_sz;
+    std::size_t sz;
 #if defined(UXS_USE_ZLIB)
     Bytef* z_first;
     Bytef* z_last;
@@ -29,11 +29,11 @@ struct basic_devbuf<CharT, Alloc>::flexbuf_t {
 #endif
     char_type data[1];
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<flexbuf_t>;
-    static size_t get_alloc_sz(size_t sz) {
+    static std::size_t get_alloc_sz(std::size_t sz) {
         return (offsetof(flexbuf_t, data) + sz * sizeof(char_type) + sizeof(flexbuf_t) - 1) / sizeof(flexbuf_t);
     }
-    static flexbuf_t* alloc(alloc_type al, size_t sz) {
-        const size_t alloc_sz = get_alloc_sz(sz);
+    static flexbuf_t* alloc(alloc_type al, std::size_t sz) {
+        const std::size_t alloc_sz = get_alloc_sz(sz);
         flexbuf_t* buf = al.allocate(alloc_sz);
         std::memset(buf, 0, sizeof(flexbuf_t));
         buf->alloc_sz = alloc_sz;
@@ -78,7 +78,7 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
             if (!!(mode & iomode::z_compr)) {
                 deflateInit(&buf_->zstr, Z_DEFAULT_COMPRESSION);
                 if (!mappable) {
-                    size_t tot_sz = buf_->sz;
+                    std::size_t tot_sz = buf_->sz;
                     buf_->sz /= 2;
                     buf_->z_first = reinterpret_cast<Bytef*>(&buf_->data[buf_->sz]);
                     buf_->z_last = reinterpret_cast<Bytef*>(&buf_->data[tot_sz]);
@@ -88,7 +88,7 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
             }
 #endif
             // reserve additional space for Lf->CrLf expansion
-            const size_t cr_reserve_sz = !!(mode & iomode::cr_lf) ? buf_->sz / cr_reserve_ratio : 0;
+            const std::size_t cr_reserve_sz = !!(mode & iomode::cr_lf) ? buf_->sz / cr_reserve_ratio : 0;
             this->setview(&buf_->data[cr_reserve_sz], &buf_->data[cr_reserve_sz], &buf_->data[buf_->sz]);
         }
     } else if (!mappable || !!(mode & (iomode::cr_lf | iomode::z_compr))) {
@@ -97,7 +97,7 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
         if (!!(mode & iomode::z_compr)) {
             inflateInit(&buf_->zstr);
             if (!mappable) {
-                size_t tot_sz = buf_->sz;
+                std::size_t tot_sz = buf_->sz;
                 buf_->sz /= 2;
                 buf_->z_first = reinterpret_cast<Bytef*>(&buf_->data[buf_->sz]);
                 buf_->z_last = reinterpret_cast<Bytef*>(&buf_->data[tot_sz]);
@@ -150,27 +150,27 @@ const typename basic_devbuf<CharT, Alloc>::char_type* basic_devbuf<CharT, Alloc>
 
 namespace detail {
 template<typename CharT>
-int write_all(iodevice* dev, const void* data, size_t sz) {
+int write_all(iodevice* dev, const void* data, std::size_t sz) {
     sz *= sizeof(CharT);
     do {
-        size_t chunk_sz = 0;
+        std::size_t chunk_sz = 0;
         int ret = dev->write(data, sz, chunk_sz);
         if (ret < 0) { return ret; }
         if (sz && !chunk_sz) { return -1; }
-        data = static_cast<const uint8_t*>(data) + chunk_sz, sz -= chunk_sz;
+        data = static_cast<const std::uint8_t*>(data) + chunk_sz, sz -= chunk_sz;
     } while (sz);
     return 0;
 }
 template<typename CharT>
-int read_at_least_one(iodevice* dev, void* data, size_t sz, size_t& n_read) {
+int read_at_least_one(iodevice* dev, void* data, std::size_t sz, std::size_t& n_read) {
     sz *= sizeof(CharT);
     n_read = 0;
     do {
-        size_t chunk_sz = 0;
+        std::size_t chunk_sz = 0;
         int ret = dev->read(data, sz, chunk_sz);
         if (ret < 0) { return ret; }
         if (!chunk_sz) { break; }
-        data = static_cast<uint8_t*>(data) + chunk_sz, n_read += chunk_sz;
+        data = static_cast<std::uint8_t*>(data) + chunk_sz, n_read += chunk_sz;
         sz = n_read & (sizeof(CharT) - 1);
     } while (sz);
     n_read /= sizeof(CharT);
@@ -179,14 +179,14 @@ int read_at_least_one(iodevice* dev, void* data, size_t sz, size_t& n_read) {
 }  // namespace detail
 
 template<typename CharT, typename Alloc>
-int basic_devbuf<CharT, Alloc>::write_buf(const void* data, size_t sz) {
+int basic_devbuf<CharT, Alloc>::write_buf(const void* data, std::size_t sz) {
     assert(buf_);
     return !!(this->mode() & iomode::z_compr) ? write_compressed(data, sz * sizeof(char_type)) :
                                                 detail::write_all<char_type>(dev_, data, sz);
 }
 
 template<typename CharT, typename Alloc>
-int basic_devbuf<CharT, Alloc>::read_buf(void* data, size_t sz, size_t& n_read) {
+int basic_devbuf<CharT, Alloc>::read_buf(void* data, std::size_t sz, std::size_t& n_read) {
     assert(buf_);
     int ret = 0;
     if (!!(this->mode() & iomode::z_compr)) {
@@ -208,7 +208,7 @@ int basic_devbuf<CharT, Alloc>::flush_compressed_buf() {
         buf_->zstr.avail_out = static_cast<uLong>(buf_->z_last - buf_->z_first);
         return 0;
     }
-    size_t sz = 0;
+    std::size_t sz = 0;
     if (dev_->seek(buf_->zstr.next_out - buf_->z_first, seekdir::curr) < 0) { return -1; }
     buf_->zstr.next_out = buf_->z_first = static_cast<Bytef*>(dev_->map(sz, true));
     buf_->zstr.avail_out = static_cast<uLong>(sz);
@@ -219,7 +219,7 @@ int basic_devbuf<CharT, Alloc>::flush_compressed_buf() {
 }
 
 template<typename CharT, typename Alloc>
-int basic_devbuf<CharT, Alloc>::write_compressed(const void* data, size_t sz) {
+int basic_devbuf<CharT, Alloc>::write_compressed(const void* data, std::size_t sz) {
 #if defined(UXS_USE_ZLIB)
     buf_->zstr.next_in = static_cast<const Bytef*>(data);
     buf_->zstr.avail_in = static_cast<uLong>(sz);
@@ -252,20 +252,20 @@ void basic_devbuf<CharT, Alloc>::finish_compressed() {
 }
 
 template<typename CharT, typename Alloc>
-int basic_devbuf<CharT, Alloc>::read_compressed(void* data, size_t sz, size_t& n_read) {
+int basic_devbuf<CharT, Alloc>::read_compressed(void* data, std::size_t sz, std::size_t& n_read) {
 #if defined(UXS_USE_ZLIB)
     buf_->zstr.next_out = static_cast<Bytef*>(data);
     buf_->zstr.avail_out = static_cast<uLong>(sz);
     do {
         if (!(buf_->flags & detail::devbuf_impl_flags::z_in_finish) && !buf_->zstr.avail_in) {
             if (!(dev_->caps() & iodevcaps::mappable)) {
-                size_t n_raw_read = 0;
+                std::size_t n_raw_read = 0;
                 detail::read_at_least_one<Bytef>(dev_, buf_->z_first, buf_->z_last - buf_->z_first, n_raw_read);
                 buf_->zstr.next_in = buf_->z_first;
                 buf_->zstr.avail_in = static_cast<uLong>(n_raw_read);
             } else {
                 if (dev_->seek(buf_->zstr.next_in - buf_->z_first, seekdir::curr) < 0) { return -1; }
-                size_t sz = 0;
+                std::size_t sz = 0;
                 buf_->zstr.next_in = buf_->z_first = static_cast<Bytef*>(dev_->map(sz, false));
                 buf_->zstr.avail_in = static_cast<uLong>(sz);
             }
@@ -286,7 +286,7 @@ int basic_devbuf<CharT, Alloc>::read_compressed(void* data, size_t sz, size_t& n
 template<typename CharT, typename Alloc>
 void basic_devbuf<CharT, Alloc>::parse_ctrlesc(const char_type* first, const char_type* last) {
     if (first == last || *first != '[' || *(last - 1) != 'm') { return; }  // not a color ANSI code
-    std::array<uint8_t, 16> v;
+    std::array<std::uint8_t, 16> v;
     unsigned n = 0;
     v[0] = 0;
     while (++first != last) {
@@ -294,7 +294,7 @@ void basic_devbuf<CharT, Alloc>::parse_ctrlesc(const char_type* first, const cha
             if (++n >= v.size()) { break; }
             v[n] = 0;
         } else if (*first >= '0' && *first <= '9') {
-            v[n] = static_cast<uint8_t>(10 * v[n] + static_cast<int>(*first - '0'));
+            v[n] = static_cast<std::uint8_t>(10 * v[n] + static_cast<int>(*first - '0'));
         } else {
             break;
         }
@@ -342,7 +342,7 @@ int basic_devbuf<CharT, Alloc>::flush_buffer() {
 }
 
 template<typename CharT, typename Alloc>
-size_t basic_devbuf<CharT, Alloc>::remove_crlf(char_type* dst, size_t count) {
+std::size_t basic_devbuf<CharT, Alloc>::remove_crlf(char_type* dst, std::size_t count) {
     if (!count) { return 0; }
     char_type* dst_end = dst + count;
     do {
@@ -354,7 +354,7 @@ size_t basic_devbuf<CharT, Alloc>::remove_crlf(char_type* dst, size_t count) {
         if (*(dst - 1) != '\r' || *dst != '\n') { ++p; }
         *(p - 1) = *dst;
     }
-    return count - static_cast<size_t>(dst_end - p);
+    return count - static_cast<std::size_t>(dst_end - p);
 }
 
 template<typename CharT, typename Alloc>
@@ -363,7 +363,7 @@ int basic_devbuf<CharT, Alloc>::underflow() {
     if (!(this->mode() & iomode::in)) { return -1; }
     if (tie_buf_) { tie_buf_->flush(); }
     if (!buf_) {  // mappable
-        size_t sz = 0;
+        std::size_t sz = 0;
         char_type* p = static_cast<char_type*>(dev_->map(sz, false));
         sz /= sizeof(char_type);
         if (sz && dev_->seek(sz * sizeof(char_type), seekdir::curr) < 0) { return -1; }
@@ -371,15 +371,15 @@ int basic_devbuf<CharT, Alloc>::underflow() {
         return sz ? 0 : -1;
     }
     int ret = 0;
-    size_t n_read = 0;
+    std::size_t n_read = 0;
     if (!!(this->mode() & iomode::cr_lf)) {
-        size_t sz = buf_->sz;
+        std::size_t sz = buf_->sz;
         char_type* p = buf_->data;
         if (!!(buf_->flags & detail::devbuf_impl_flags::pending_cr)) {
             *p++ = '\r', --sz, buf_->flags &= ~detail::devbuf_impl_flags::pending_cr;
         }
         if ((ret = read_buf(p, sz, n_read)) < 0) { return ret; }
-        n_read = remove_crlf(buf_->data, static_cast<size_t>((p + n_read) - buf_->data));
+        n_read = remove_crlf(buf_->data, static_cast<std::size_t>((p + n_read) - buf_->data));
         if (n_read && buf_->data[n_read - 1] == '\r') {
             --n_read, buf_->flags |= detail::devbuf_impl_flags::pending_cr;
         }
@@ -397,9 +397,9 @@ int basic_devbuf<CharT, Alloc>::overflow() {
     if (!(this->mode() & iomode::out)) { return -1; }
     if (tie_buf_) { tie_buf_->flush(); }
     if (!buf_) {  // mappable
-        const size_t count = this->curr() - this->first();
+        const std::size_t count = this->curr() - this->first();
         if (dev_->seek(count * sizeof(char_type), seekdir::curr) < 0) { return -1; }
-        size_t sz = 0;
+        std::size_t sz = 0;
         char_type* p = static_cast<char_type*>(dev_->map(sz, true));
         this->setview(p, p, p + sz / sizeof(char_type));
         return sz ? 0 : -1;
@@ -415,13 +415,13 @@ typename basic_devbuf<CharT, Alloc>::pos_type basic_devbuf<CharT, Alloc>::seekim
         const off_type delta = static_cast<off_type>(!!(this->mode() & iomode::out) ? this->curr() - this->first() :
                                                                                       this->curr() - this->last());
         if (off == 0) {
-            const int64_t dev_pos = dev_->seek(0, seekdir::curr);
+            const std::int64_t dev_pos = dev_->seek(0, seekdir::curr);
             if (dev_pos < 0) { return traits_type::npos(); }
             return static_cast<pos_type>(dev_pos / sizeof(char_type)) + delta;
         }
         off += delta;
     }
-    const int64_t dev_pos = dev_->seek(off * sizeof(char_type), dir);
+    const std::int64_t dev_pos = dev_->seek(off * sizeof(char_type), dir);
     if (dev_pos < 0) { return traits_type::npos(); }
     if (!buf_ || !!(this->mode() & iomode::in)) { this->setview(nullptr, nullptr, nullptr); }
     return static_cast<pos_type>(dev_pos / sizeof(char_type));
@@ -433,7 +433,7 @@ int basic_devbuf<CharT, Alloc>::sync() {
     if (!(this->mode() & iomode::out)) { return -1; }
     if (tie_buf_) { tie_buf_->flush(); }
     if (!buf_) {  // mappable
-        const size_t count = this->curr() - this->first();
+        const std::size_t count = this->curr() - this->first();
         if (dev_->seek(count * sizeof(char_type), seekdir::curr) < 0) { return -1; }
         this->setview(this->curr(), this->curr(), this->last());
     } else {

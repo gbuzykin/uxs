@@ -9,32 +9,32 @@ namespace uxs {
 class guid {
  public:
     guid() { data64_[0] = data64_[1] = 0; }
-    explicit guid(const uint32_t* id) { set_data(id); }
-    guid(uint32_t l, uint16_t w1, uint16_t w2, uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4, uint8_t b5, uint8_t b6,
-         uint8_t b7, uint8_t b8) {
+    explicit guid(const std::uint32_t* id) { set_data(id); }
+    guid(std::uint32_t l, std::uint16_t w1, std::uint16_t w2, std::uint8_t b1, std::uint8_t b2, std::uint8_t b3,
+         std::uint8_t b4, std::uint8_t b5, std::uint8_t b6, std::uint8_t b7, std::uint8_t b8) {
         data32_[0] = l, data16_[2] = w1, data16_[3] = w2;
         data8_[8] = b1, data8_[9] = b2, data8_[10] = b3, data8_[11] = b4;
         data8_[12] = b5, data8_[13] = b6, data8_[14] = b7, data8_[15] = b8;
     }
 
     bool valid() const { return data64_[0] || data64_[1]; }
-    guid make_xor(uint32_t a) const;
+    guid make_xor(std::uint32_t a) const;
 
-    uint8_t data8(unsigned i) const { return data8_[i]; }
-    uint16_t data16(unsigned i) const { return data16_[i]; }
-    uint32_t data32(unsigned i) const { return data32_[i]; }
-    uint64_t data64(unsigned i) const { return data64_[i]; }
+    std::uint8_t data8(unsigned i) const { return data8_[i]; }
+    std::uint16_t data16(unsigned i) const { return data16_[i]; }
+    std::uint32_t data32(unsigned i) const { return data32_[i]; }
+    std::uint64_t data64(unsigned i) const { return data64_[i]; }
 
-    uint8_t& data8(unsigned i) { return data8_[i]; }
-    uint16_t& data16(unsigned i) { return data16_[i]; }
-    uint32_t& data32(unsigned i) { return data32_[i]; }
-    uint64_t& data64(unsigned i) { return data64_[i]; }
+    std::uint8_t& data8(unsigned i) { return data8_[i]; }
+    std::uint16_t& data16(unsigned i) { return data16_[i]; }
+    std::uint32_t& data32(unsigned i) { return data32_[i]; }
+    std::uint64_t& data64(unsigned i) { return data64_[i]; }
 
-    void get_data(uint32_t* id) const {
+    void get_data(std::uint32_t* id) const {
         id[0] = data32_[0], id[1] = data32_[1], id[2] = data32_[2], id[3] = data32_[3];
     }
 
-    void set_data(const uint32_t* id) {
+    void set_data(const std::uint32_t* id) {
         data32_[0] = id[0], data32_[1] = id[1], data32_[2] = id[2], data32_[3] = id[3];
     }
 
@@ -71,14 +71,14 @@ class guid {
 
  private:
     union {
-        std::array<uint8_t, 16> data8_;
-        std::array<uint16_t, 8> data16_;
-        std::array<uint32_t, 4> data32_;
-        std::array<uint64_t, 2> data64_;
+        std::array<std::uint8_t, 16> data8_;
+        std::array<std::uint16_t, 8> data16_;
+        std::array<std::uint32_t, 4> data32_;
+        std::array<std::uint64_t, 2> data64_;
     };
 };
 
-inline guid guid::make_xor(uint32_t a) const {
+inline guid guid::make_xor(std::uint32_t a) const {
     guid id;
     id.data32_[0] = data32_[0] ^ a, id.data32_[1] = data32_[1] ^ a;
     id.data32_[2] = data32_[2] ^ a, id.data32_[3] = data32_[3] ^ a;
@@ -89,7 +89,7 @@ template<typename CharT, typename Traits, typename Alloc>
 void guid::to_per_byte_basic_string(std::basic_string<CharT, Traits, Alloc>& s) const {
     s.resize(32);
     auto* p = &s[0];
-    for (uint8_t b : data8_) { to_hex(b, p, 2, true), p += 2; }
+    for (std::uint8_t b : data8_) { to_hex(b, p, 2, true), p += 2; }
 }
 
 template<typename CharT, typename Traits>
@@ -97,15 +97,15 @@ template<typename CharT, typename Traits>
     guid id;
     if (s.size() < 32) { return id; }
     const auto* p = s.data();
-    for (uint8_t& b : id.data8_) { b = from_hex(p, 2), p += 2; }
+    for (std::uint8_t& b : id.data8_) { b = from_hex(p, 2), p += 2; }
     return id;
 }
 
 template<typename CharT>
 struct string_parser<guid, CharT> {
     const CharT* from_chars(const CharT* first, const CharT* last, guid& val) const noexcept {
-        const size_t len = 38;
-        if (static_cast<size_t>(last - first) < len) { return 0; }
+        const std::size_t len = 38;
+        if (static_cast<std::size_t>(last - first) < len) { return 0; }
         const auto* p = first;
         val.data32(0) = from_hex(p + 1, 8);
         val.data16(2) = from_hex(p + 10, 4);
@@ -144,8 +144,8 @@ struct formatter<guid, CharT> {
 namespace std {
 template<>
 struct hash<uxs::guid> {
-    size_t operator()(uxs::guid id) const {
-        return hash<uint64_t>{}(id.data64(0)) ^ (hash<uint64_t>{}(id.data64(1)) << 1);
+    std::size_t operator()(uxs::guid id) const {
+        return hash<std::uint64_t>{}(id.data64(0)) ^ (hash<std::uint64_t>{}(id.data64(1)) << 1);
     }
 };
 }  // namespace std

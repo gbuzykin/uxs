@@ -58,7 +58,7 @@ class basic_iobuf : public basic_ibuf<CharT> {
 
     UXS_EXPORT basic_iobuf& write(uxs::span<const char_type> s);
     UXS_EXPORT basic_iobuf& write_with_endian(uxs::span<const char_type> s, size_type element_sz);
-    template<typename Ty, size_t N>
+    template<typename Ty, std::size_t N>
     basic_iobuf& write(Ty (&)[N]) = delete;
     UXS_EXPORT basic_iobuf& fill_n(size_type count, char_type ch);
     UXS_EXPORT basic_iobuf& flush();
@@ -70,7 +70,7 @@ class basic_iobuf : public basic_ibuf<CharT> {
 
 using iobuf = basic_iobuf<char>;
 using wiobuf = basic_iobuf<wchar_t>;
-using u8iobuf = basic_iobuf<uint8_t>;
+using u8iobuf = basic_iobuf<std::uint8_t>;
 
 namespace stdbuf {
 extern UXS_EXPORT iobuf& out;

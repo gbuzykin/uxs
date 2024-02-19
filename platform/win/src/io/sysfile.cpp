@@ -64,21 +64,21 @@ bool sysfile::open(const char* fname, iomode mode) { return open(from_utf8_to_wi
 
 void sysfile::close() { ::CloseHandle(detach()); }
 
-int sysfile::read(void* data, size_t sz, size_t& n_read) {
+int sysfile::read(void* data, std::size_t sz, std::size_t& n_read) {
     DWORD n_read_native = 0;
     if (!::ReadFile(fd_, data, static_cast<DWORD>(sz), &n_read_native, NULL)) { return -1; }
-    n_read = static_cast<size_t>(n_read_native);
+    n_read = static_cast<std::size_t>(n_read_native);
     return 0;
 }
 
-int sysfile::write(const void* data, size_t sz, size_t& n_written) {
+int sysfile::write(const void* data, std::size_t sz, std::size_t& n_written) {
     DWORD n_written_native = 0;
     if (!::WriteFile(fd_, data, static_cast<DWORD>(sz), &n_written_native, NULL)) { return -1; }
-    n_written = static_cast<size_t>(n_written_native);
+    n_written = static_cast<std::size_t>(n_written_native);
     return 0;
 }
 
-int sysfile::ctrlesc_color(uxs::span<const uint8_t> v) {
+int sysfile::ctrlesc_color(uxs::span<const std::uint8_t> v) {
     CONSOLE_SCREEN_BUFFER_INFO info;
     std::memset(&info, 0, sizeof(info));
     if (!::GetConsoleScreenBufferInfo(fd_, &info)) { return -1; }
@@ -98,7 +98,7 @@ int sysfile::ctrlesc_color(uxs::span<const uint8_t> v) {
                                                  BACKGROUND_BLUE | BACKGROUND_RED,
                                                  BACKGROUND_BLUE | BACKGROUND_GREEN,
                                                  BACKGROUND_BLUE | BACKGROUND_RED | BACKGROUND_GREEN};
-    for (uint8_t c : v) {
+    for (std::uint8_t c : v) {
         if (c == 0) {
             info.wAttributes = fg_color[7];
         } else if (c == 1) {
@@ -117,7 +117,7 @@ int sysfile::ctrlesc_color(uxs::span<const uint8_t> v) {
     return 0;
 }
 
-int64_t sysfile::seek(int64_t off, seekdir dir) {
+std::int64_t sysfile::seek(std::int64_t off, seekdir dir) {
     DWORD method = FILE_BEGIN;
     LONG pos_hi = static_cast<long>(off >> 32);
     switch (dir) {
@@ -127,7 +127,7 @@ int64_t sysfile::seek(int64_t off, seekdir dir) {
     }
     DWORD pos_lo = ::SetFilePointer(fd_, static_cast<long>(off), &pos_hi, method);
     if (pos_lo == INVALID_SET_FILE_POINTER) { return -1; }
-    return (static_cast<int64_t>(pos_hi) << 32) | pos_lo;
+    return (static_cast<std::int64_t>(pos_hi) << 32) | pos_lo;
 }
 
 int sysfile::flush() { return 0; }

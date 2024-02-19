@@ -20,11 +20,11 @@ void zipfile::close() {
     zip_fd_ = nullptr;
 }
 
-int zipfile::read(void* buf, size_t sz, size_t& n_read) {
+int zipfile::read(void* buf, std::size_t sz, std::size_t& n_read) {
     if (!zip_fd_) { return -1; }
     zip_int64_t result = zip_fread(static_cast<zip_file_t*>(zip_fd_), buf, sz);
     if (result < 0) { return -1; }
-    n_read = static_cast<size_t>(result);
+    n_read = static_cast<std::size_t>(result);
     return 0;
 }
 
@@ -33,7 +33,7 @@ int zipfile::read(void* buf, size_t sz, size_t& n_read) {
 using namespace uxs;
 bool zipfile::open(ziparch& arch, const char* fname) { return false; }
 void zipfile::close() {}
-int zipfile::read(void* buf, size_t sz, size_t& n_read) { return -1; }
+int zipfile::read(void* buf, std::size_t sz, std::size_t& n_read) { return -1; }
 
 #endif  // defined(UXS_USE_LIBZIP)
 

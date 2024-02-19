@@ -22,14 +22,14 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
             case string_class::true_value: return {true, al};
             case string_class::false_value: return {false, al};
             case string_class::integer_number: {
-                uint64_t u64 = 0;
+                std::uint64_t u64 = 0;
                 if (stoval(sval, u64) != 0) {
-                    if (u64 <= static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
-                        return {static_cast<int32_t>(u64), al};
-                    } else if (u64 <= static_cast<uint64_t>(std::numeric_limits<uint32_t>::max())) {
-                        return {static_cast<uint32_t>(u64), al};
-                    } else if (u64 <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
-                        return {static_cast<int64_t>(u64), al};
+                    if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max())) {
+                        return {static_cast<std::int32_t>(u64), al};
+                    } else if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max())) {
+                        return {static_cast<std::uint32_t>(u64), al};
+                    } else if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+                        return {static_cast<std::int64_t>(u64), al};
                     }
                     return {u64, al};
                 }
@@ -37,10 +37,10 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
                 return {from_string<double>(sval), al};
             } break;
             case string_class::negative_integer_number: {
-                int64_t i64 = 0;
+                std::int64_t i64 = 0;
                 if (stoval(sval, i64) != 0) {
-                    if (i64 >= static_cast<int64_t>(std::numeric_limits<int32_t>::min())) {
-                        return {static_cast<int32_t>(i64), al};
+                    if (i64 >= static_cast<std::int64_t>(std::numeric_limits<std::int32_t>::min())) {
+                        return {static_cast<std::int32_t>(i64), al};
                     }
                     return {i64, al};
                 }
