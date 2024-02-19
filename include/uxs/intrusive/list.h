@@ -242,7 +242,7 @@ class list : public list_enumerator<Ty, HookTraits> {
     reference push_front(owning_pointer_t obj) { return *insert(this->begin(), std::move(obj)); }
     reference push_back(owning_pointer_t obj) { return *insert(this->end(), std::move(obj)); }
 
-    std::pair<iterator, owning_pointer_t> extract(const_iterator pos) {
+    std::pair<owning_pointer_t, iterator> extract(const_iterator pos) {
         auto* item = pos.node();
         assert(item != &this->head_);
         iterator_assert(node_traits::get_head(item) == &this->head_);
@@ -251,17 +251,17 @@ class list : public list_enumerator<Ty, HookTraits> {
         node_traits::set_head(item, nullptr);
         auto obj = node_traits::release_pointer(static_cast<hook_t*>(item));
         node_traits::reset_pointer(static_cast<hook_t*>(item), nullptr);
-        return std::make_pair(iterator(next), std::move(obj));
+        return std::make_pair(std::move(obj), iterator(next));
     }
 
-    owning_pointer_t extract_front() { return extract(this->begin()).second; }
-    owning_pointer_t extract_back() { return extract(std::prev(this->end())).second; }
-    void pop_front() { node_traits::dispose(extract(this->begin()).second); }
-    void pop_back() { node_traits::dispose(extract(std::prev(this->end())).second); }
+    owning_pointer_t extract_front() { return extract(this->begin()).first; }
+    owning_pointer_t extract_back() { return extract(std::prev(this->end())).first; }
+    void pop_front() { node_traits::dispose(extract(this->begin()).first); }
+    void pop_back() { node_traits::dispose(extract(std::prev(this->end())).first); }
     iterator erase(const_iterator pos) {
         auto result = extract(pos);
-        node_traits::dispose(std::move(result.second));
-        return result.first;
+        node_traits::dispose(std::move(result.first));
+        return result.second;
     }
 
     static const_iterator to_iterator(const parent_object_t* obj) noexcept {
