@@ -56,6 +56,6 @@ class basic_oflatbuf : protected std::allocator_traits<Alloc>::template rebind_a
 
 using oflatbuf = basic_oflatbuf<char>;
 using woflatbuf = basic_oflatbuf<wchar_t>;
-using u8oflatbuf = basic_oflatbuf<uint8_t>;
+using u8oflatbuf = basic_oflatbuf<std::uint8_t>;
 
 }  // namespace uxs

@@ -26,8 +26,8 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC zipfile : public iodevice {
     UXS_EXPORT bool open(ziparch& arch, const wchar_t* fname);
     UXS_EXPORT void close();
 
-    UXS_EXPORT int read(void* buf, size_t sz, size_t& n_read) override;
-    int write(const void* data, size_t sz, size_t& n_written) override { return -1; }
+    UXS_EXPORT int read(void* buf, std::size_t sz, std::size_t& n_read) override;
+    int write(const void* data, std::size_t sz, std::size_t& n_written) override { return -1; }
     int flush() override { return -1; }
 
  private:

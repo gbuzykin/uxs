@@ -16,43 +16,43 @@ const fmt_opts g_default_opts;
 const ulog2_table_t g_ulog2_tbl;
 #endif
 
-inline uint64_t umul128(uint64_t x, uint64_t y, uint64_t bias, uint64_t& result_hi) {
+inline std::uint64_t umul128(std::uint64_t x, std::uint64_t y, std::uint64_t bias, std::uint64_t& result_hi) {
 #if SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
-    uint64_t result_lo = _umul128(x, y, &result_hi);
+    std::uint64_t result_lo = _umul128(x, y, &result_hi);
     result_hi += _addcarry_u64(0, result_lo, bias, &result_lo);
     return result_lo;
 #elif SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
     gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x) * y + bias;
-    result_hi = static_cast<uint64_t>(p >> 64);
-    return static_cast<uint64_t>(p);
+    result_hi = static_cast<std::uint64_t>(p >> 64);
+    return static_cast<std::uint64_t>(p);
 #else
-    const uint64_t lower = lo32(x) * lo32(y) + lo32(bias), higher = hi32(x) * hi32(y);
-    const uint64_t mid1 = lo32(x) * hi32(y) + hi32(bias), mid2 = hi32(x) * lo32(y) + hi32(lower);
-    const uint64_t t = lo32(mid1) + lo32(mid2);
+    const std::uint64_t lower = lo32(x) * lo32(y) + lo32(bias), higher = hi32(x) * hi32(y);
+    const std::uint64_t mid1 = lo32(x) * hi32(y) + hi32(bias), mid2 = hi32(x) * lo32(y) + hi32(lower);
+    const std::uint64_t t = lo32(mid1) + lo32(mid2);
     result_hi = higher + hi32(mid1) + hi32(mid2) + hi32(t);
     return make64(lo32(t), lo32(lower));
 #endif
 }
 
-inline uint64_t umul128(uint64_t x, uint64_t y, uint64_t& result_hi) {
+inline std::uint64_t umul128(std::uint64_t x, std::uint64_t y, std::uint64_t& result_hi) {
 #if SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
     return _umul128(x, y, &result_hi);
 #elif SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
     gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x) * y;
-    result_hi = static_cast<uint64_t>(p >> 64);
-    return static_cast<uint64_t>(p);
+    result_hi = static_cast<std::uint64_t>(p >> 64);
+    return static_cast<std::uint64_t>(p);
 #else
     return umul128(x, y, 0, result_hi);
 #endif
 }
 
-inline uint64_t umul64x32(uint64_t x, uint32_t y, uint32_t bias, uint64_t& result_hi) {
+inline std::uint64_t umul64x32(std::uint64_t x, std::uint32_t y, std::uint32_t bias, std::uint64_t& result_hi) {
 #if SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && \
     ((defined(_MSC_VER) && defined(_M_X64)) || (defined(__GNUC__) && defined(__x86_64__)))
     return umul128(x, y, bias, result_hi);
 #else
-    const uint64_t lower = lo32(x) * y + bias;
-    const uint64_t higher = hi32(x) * y + hi32(lower);
+    const std::uint64_t lower = lo32(x) * y + bias;
+    const std::uint64_t higher = hi32(x) * y + hi32(lower);
     result_hi = hi32(higher);
     return make64(lo32(higher), lo32(lower));
 #endif
@@ -61,31 +61,31 @@ inline uint64_t umul64x32(uint64_t x, uint32_t y, uint32_t bias, uint64_t& resul
 #if SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(_M_X64)
 // VS2013 compiler has a bug concerning these intrinsics
 using one_bit_t = unsigned char;
-inline one_bit_t add64_carry(uint64_t a, uint64_t b, uint64_t& c, one_bit_t carry = 0) {
+inline one_bit_t add64_carry(std::uint64_t a, std::uint64_t b, std::uint64_t& c, one_bit_t carry = 0) {
     return _addcarry_u64(carry, a, b, &c);
 }
-inline one_bit_t sub64_borrow(uint64_t a, uint64_t b, uint64_t& c, one_bit_t borrow = 0) {
+inline one_bit_t sub64_borrow(std::uint64_t a, std::uint64_t b, std::uint64_t& c, one_bit_t borrow = 0) {
     return _subborrow_u64(borrow, a, b, &c);
 }
 #elif SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && SCVT_HAS_BUILTIN(__builtin_addcll) && \
     SCVT_HAS_BUILTIN(__builtin_subcll)
 using one_bit_t = unsigned long long;
-inline one_bit_t add64_carry(uint64_t a, uint64_t b, uint64_t& c, one_bit_t carry = 0) {
+inline one_bit_t add64_carry(std::uint64_t a, std::uint64_t b, std::uint64_t& c, one_bit_t carry = 0) {
     c = __builtin_addcll(a, b, carry, &carry);
     return carry;
 }
-inline one_bit_t sub64_borrow(uint64_t a, uint64_t b, uint64_t& c, one_bit_t borrow = 0) {
+inline one_bit_t sub64_borrow(std::uint64_t a, std::uint64_t b, std::uint64_t& c, one_bit_t borrow = 0) {
     c = __builtin_subcll(a, b, borrow, &borrow);
     return borrow;
 }
 #else
-using one_bit_t = uint8_t;
-inline one_bit_t add64_carry(uint64_t a, uint64_t b, uint64_t& c, one_bit_t carry = 0) {
+using one_bit_t = std::uint8_t;
+inline one_bit_t add64_carry(std::uint64_t a, std::uint64_t b, std::uint64_t& c, one_bit_t carry = 0) {
     b += carry;
     c = a + b;
     return c < b || b < carry;
 }
-inline one_bit_t sub64_borrow(uint64_t a, uint64_t b, uint64_t& c, one_bit_t borrow = 0) {
+inline one_bit_t sub64_borrow(std::uint64_t a, std::uint64_t b, std::uint64_t& c, one_bit_t borrow = 0) {
     b += borrow;
     c = a - b;
     return a < b || b < borrow;
@@ -93,19 +93,19 @@ inline one_bit_t sub64_borrow(uint64_t a, uint64_t b, uint64_t& c, one_bit_t bor
 #endif
 
 struct uint128_t {
-    uint64_t hi;
-    uint64_t lo;
+    std::uint64_t hi;
+    std::uint64_t lo;
 };
 
-inline uint64_t udiv128(uint128_t x, uint64_t y) {
+inline std::uint64_t udiv128(uint128_t x, std::uint64_t y) {
 #if SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && _MSC_VER >= 1920 && defined(_M_X64)
-    uint64_t r;
+    std::uint64_t r;
     return _udiv128(x.hi, x.lo, y, &r);
 #elif SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
-    return static_cast<uint64_t>(((static_cast<gcc_ints::uint128>(x.hi) << 64) | x.lo) / y);
+    return static_cast<std::uint64_t>(((static_cast<gcc_ints::uint128>(x.hi) << 64) | x.lo) / y);
 #else
     uint128_t denominator{y, 0};
-    uint64_t quotient = 0, bit = msb64;
+    std::uint64_t quotient = 0, bit = msb64;
     for (int i = 0; i < 64; ++i, bit >>= 1) {
         denominator.lo = (denominator.hi << 63) | (denominator.lo >> 1), denominator.hi >>= 1;
         if (x.hi > denominator.hi || (x.hi == denominator.hi && x.lo >= denominator.lo)) {
@@ -120,66 +120,67 @@ inline uint64_t udiv128(uint128_t x, uint64_t y) {
 // --------------------------
 
 // Is used by `accum_mantissa<>` template
-uint64_t bignum_mul32(uint64_t* x, unsigned sz, uint32_t mul, uint32_t bias) {
+std::uint64_t bignum_mul32(std::uint64_t* x, unsigned sz, std::uint32_t mul, std::uint32_t bias) {
     assert(sz > 0);
-    uint64_t higher = bias;
-    uint64_t* x0 = x;
+    std::uint64_t higher = bias;
+    std::uint64_t* x0 = x;
     x += sz;
-    do { --x, *x = umul64x32(*x, mul, static_cast<uint32_t>(higher), higher); } while (x != x0);
+    do { --x, *x = umul64x32(*x, mul, static_cast<std::uint32_t>(higher), higher); } while (x != x0);
     return higher;
 }
 
-inline uint64_t bignum_mul(uint64_t* x, unsigned sz, uint64_t mul) {
+inline std::uint64_t bignum_mul(std::uint64_t* x, unsigned sz, std::uint64_t mul) {
     assert(sz > 0);
-    uint64_t higher;
-    uint64_t* x0 = x;
+    std::uint64_t higher;
+    std::uint64_t* x0 = x;
     x += sz - 1;
     *x = umul128(*x, mul, higher);
     while (x != x0) { --x, *x = umul128(*x, mul, higher, higher); }
     return higher;
 }
 
-inline uint64_t bignum_mul(uint64_t* x, const uint64_t* y, unsigned sz, uint64_t mul) {
+inline std::uint64_t bignum_mul(std::uint64_t* x, const std::uint64_t* y, unsigned sz, std::uint64_t mul) {
     assert(sz > 0);
-    uint64_t higher;
-    uint64_t* x0 = x;
+    std::uint64_t higher;
+    std::uint64_t* x0 = x;
     x += sz - 1, y += sz - 1;
     *x = umul128(*y, mul, higher);
     while (x != x0) { --x, --y, *x = umul128(*y, mul, higher, higher); }
     return higher;
 }
 
-inline uint64_t bignum_addmul(uint64_t* x, const uint64_t* y, unsigned sz, uint64_t mul) {
+inline std::uint64_t bignum_addmul(std::uint64_t* x, const std::uint64_t* y, unsigned sz, std::uint64_t mul) {
     assert(sz > 0);
-    uint64_t higher;
-    uint64_t* x0 = x;
+    std::uint64_t higher;
+    std::uint64_t* x0 = x;
     x += sz - 1, y += sz;
     one_bit_t carry = add64_carry(*x, umul128(*--y, mul, higher), *x);
     while (x != x0) { --x, carry = add64_carry(*x, umul128(*--y, mul, higher, higher), *x, carry); }
     return higher + carry;
 }
 
-inline void bignum_mul_vec(uint64_t* x, const uint64_t* y, unsigned sz_x, unsigned sz_y) {
-    uint64_t* x0 = x;
+inline void bignum_mul_vec(std::uint64_t* x, const std::uint64_t* y, unsigned sz_x, unsigned sz_y) {
+    std::uint64_t* x0 = x;
     x += sz_x - 1;
     *x = bignum_mul(x + 1, y, sz_y, *x);
     while (x != x0) { --x, *x = bignum_addmul(x + 1, y, sz_y, *x); }
 }
 
-inline unsigned bignum_trim_unused(const uint64_t* x, unsigned sz) {
+inline unsigned bignum_trim_unused(const std::uint64_t* x, unsigned sz) {
     while (sz > 0 && !x[sz - 1]) { --sz; }
     return sz;
 }
 
-inline uint64_t bignum_submul(uint64_t* x, const uint64_t* y, unsigned sz_x, unsigned sz, uint64_t mul) {
+inline std::uint64_t bignum_submul(std::uint64_t* x, const std::uint64_t* y, unsigned sz_x, unsigned sz,
+                                   std::uint64_t mul) {
     // returns: x[0]...x[sz_x-1]000... - mul * y[0]...y[sz-1], MSB of y[0] is 1
     assert(sz > 0);
     one_bit_t borrow = 0;
-    uint64_t* x0 = x;
+    std::uint64_t* x0 = x;
     x += sz - 1, y += sz - 1;
-    uint64_t higher, lower = umul128(*y, mul, higher);
+    std::uint64_t higher, lower = umul128(*y, mul, higher);
     if (sz > sz_x) {
-        uint64_t* x1 = x0 + sz_x;
+        std::uint64_t* x1 = x0 + sz_x;
         borrow = sub64_borrow(0, lower, *x);
         while (x != x1) { --x, --y, borrow = sub64_borrow(0, umul128(*y, mul, higher, higher), *x, borrow); }
     } else {
@@ -189,16 +190,17 @@ inline uint64_t bignum_submul(uint64_t* x, const uint64_t* y, unsigned sz_x, uns
     return higher + borrow;
 }
 
-inline one_bit_t bignum_add(uint64_t* x, const uint64_t* y, unsigned sz) {
+inline one_bit_t bignum_add(std::uint64_t* x, const std::uint64_t* y, unsigned sz) {
     assert(sz > 0);
-    uint64_t* x0 = x;
+    std::uint64_t* x0 = x;
     x += sz - 1, y += sz - 1;
     one_bit_t carry = add64_carry(*x, *y, *x);
     while (x != x0) { --x, --y, carry = add64_carry(*x, *y, *x, carry); }
     return carry;
 }
 
-inline uint64_t bignum_divmod(uint64_t integral, uint64_t* x, const uint64_t* y, unsigned sz_x, unsigned sz) {
+inline std::uint64_t bignum_divmod(std::uint64_t integral, std::uint64_t* x, const std::uint64_t* y, unsigned sz_x,
+                                   unsigned sz) {
     // integral.x[0]...x[sz_x-1]000... / 0.y[0]...y[sz-1], MSB of y[0] is 1
     // returns: quotient, 0.x[0]...x[sz-1] - remainder
     assert(sz > 0);
@@ -206,7 +208,7 @@ inline uint64_t bignum_divmod(uint64_t integral, uint64_t* x, const uint64_t* y,
     if (sz_x > 1) { num128.hi += add64_carry(num128.lo, 1, num128.lo); }
     // Calculate quotient upper estimation.
     // In case if `num128.hi < 2^62` it is guaranteed, that q_est - q <= 1
-    uint64_t quotient = udiv128(num128, y[0]);
+    std::uint64_t quotient = udiv128(num128, y[0]);
     if (!quotient) { return 0; }
     // Subtract scaled denominator from numerator
     if (integral < bignum_submul(x, y, sz_x, sz, quotient)) {
@@ -216,42 +218,42 @@ inline uint64_t bignum_divmod(uint64_t integral, uint64_t* x, const uint64_t* y,
     return quotient;
 }
 
-inline uint64_t shl128(uint64_t x_hi, uint64_t x_lo, unsigned shift) {
+inline std::uint64_t shl128(std::uint64_t x_hi, std::uint64_t x_lo, unsigned shift) {
 #if SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
     return __shiftleft128(x_lo, x_hi, shift);
 #elif SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
     gcc_ints::uint128 x = ((static_cast<gcc_ints::uint128>(x_hi) << 64) | x_lo) << shift;
-    return static_cast<uint64_t>(x >> 64);
+    return static_cast<std::uint64_t>(x >> 64);
 #else
     return (x_hi << shift) | (x_lo >> (64 - shift));
 #endif
 }
 
-inline uint64_t bignum_shift_left(uint64_t* x, unsigned sz, unsigned shift) {
+inline std::uint64_t bignum_shift_left(std::uint64_t* x, unsigned sz, unsigned shift) {
     assert(sz > 0);
-    uint64_t* x0 = x + sz - 1;
-    uint64_t higher = *x >> (64 - shift);
+    std::uint64_t* x0 = x + sz - 1;
+    std::uint64_t higher = *x >> (64 - shift);
     while (x != x0) { *x = shl128(*x, *(x + 1), shift), ++x; }
     *x <<= shift;
     return higher;
 }
 
-inline uint64_t shr128(uint64_t x_hi, uint64_t x_lo, unsigned shift) {
+inline std::uint64_t shr128(std::uint64_t x_hi, std::uint64_t x_lo, unsigned shift) {
 #if SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
     return __shiftright128(x_lo, x_hi, shift);
 #elif SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
     gcc_ints::uint128 x = ((static_cast<gcc_ints::uint128>(x_hi) << 64) | x_lo) >> shift;
-    return static_cast<uint64_t>(x);
+    return static_cast<std::uint64_t>(x);
 #else
     return (x_hi << (64 - shift)) | (x_lo >> shift);
 #endif
 }
 
-inline uint64_t bignum_shift_right(uint64_t higher, uint64_t* x, unsigned sz, unsigned shift) {
+inline std::uint64_t bignum_shift_right(std::uint64_t higher, std::uint64_t* x, unsigned sz, unsigned shift) {
     assert(sz > 0);
-    uint64_t* x0 = x;
+    std::uint64_t* x0 = x;
     x += sz - 1;
-    uint64_t lower = *x << (64 - shift);
+    std::uint64_t lower = *x << (64 - shift);
     while (x != x0) { *x = shr128(*(x - 1), *x, shift), --x; }
     *x = shr128(higher, *x, shift);
     return lower;
@@ -260,14 +262,14 @@ inline uint64_t bignum_shift_right(uint64_t higher, uint64_t* x, unsigned sz, un
 // --------------------------
 
 struct bignum_t {
-    const uint64_t* x;
+    const std::uint64_t* x;
     unsigned sz;
     unsigned exp;
 };
 
 SCVT_CONSTEXPR_DATA int bigpow10_tbl_size = 19;
 SCVT_FORCE_INLINE bignum_t get_bigpow10(unsigned index) noexcept {
-    static SCVT_CONSTEXPR_DATA uint64_t bigpow10[] = {
+    static SCVT_CONSTEXPR_DATA std::uint64_t bigpow10[] = {
         0xde0b6b3a76400000, 0xc097ce7bc90715b3, 0x4b9f100000000000, 0xa70c3c40a64e6c51, 0x999090b65f67d924,
         0x90e40fbeea1d3a4a, 0xbc8955e946fe31cd, 0xcf66f634e1000000, 0xfb5878494ace3a5f, 0x04ab48a04065c723,
         0xe64cd7818d59b87f, 0xcddc800000000000, 0xda01ee641a708de9, 0xe80e6f4820cc9495, 0xd74baad03bc1d8d3,
@@ -307,35 +309,35 @@ SCVT_FORCE_INLINE bignum_t get_bigpow10(unsigned index) noexcept {
 // --------------------------
 
 struct uint96_t {
-    uint64_t hi;
-    uint32_t lo;
+    std::uint64_t hi;
+    std::uint32_t lo;
 };
 
-inline uint64_t umul96x32(uint96_t x, uint32_t y, uint64_t& result_hi) {
+inline std::uint64_t umul96x32(uint96_t x, std::uint32_t y, std::uint64_t& result_hi) {
 #if SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
-    return umul128(x.hi, static_cast<uint64_t>(y) << 32, static_cast<uint64_t>(x.lo) * y, result_hi);
+    return umul128(x.hi, static_cast<std::uint64_t>(y) << 32, static_cast<std::uint64_t>(x.lo) * y, result_hi);
 #elif SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
     gcc_ints::uint128 p = ((static_cast<gcc_ints::uint128>(x.hi) << 32) | x.lo) * y;
-    result_hi = static_cast<uint64_t>(p >> 64);
-    return static_cast<uint64_t>(p);
+    result_hi = static_cast<std::uint64_t>(p >> 64);
+    return static_cast<std::uint64_t>(p);
 #else
-    const uint64_t lower = static_cast<uint64_t>(x.lo) * y;
-    const uint64_t mid = lo32(x.hi) * y + hi32(lower);
+    const std::uint64_t lower = static_cast<std::uint64_t>(x.lo) * y;
+    const std::uint64_t mid = lo32(x.hi) * y + hi32(lower);
     result_hi = hi32(x.hi) * y + hi32(mid);
     return make64(lo32(mid), lo32(lower));
 #endif
 }
 
-inline uint64_t umul96x64_higher128(uint96_t x, uint64_t y, uint64_t& result_hi) {
+inline std::uint64_t umul96x64_higher128(uint96_t x, std::uint64_t y, std::uint64_t& result_hi) {
 #if SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
-    return umul128(x.hi, y, __umulh(static_cast<uint64_t>(x.lo) << 32, y), result_hi);
+    return umul128(x.hi, y, __umulh(static_cast<std::uint64_t>(x.lo) << 32, y), result_hi);
 #elif SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
-    gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(y) * (static_cast<uint64_t>(x.lo) << 32);
+    gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(y) * (static_cast<std::uint64_t>(x.lo) << 32);
     p = static_cast<gcc_ints::uint128>(y) * x.hi + (p >> 64);
-    result_hi = static_cast<uint64_t>(p >> 64);
-    return static_cast<uint64_t>(p);
+    result_hi = static_cast<std::uint64_t>(p >> 64);
+    return static_cast<std::uint64_t>(p);
 #else
-    const uint64_t lower = lo32(y) * x.lo;
+    const std::uint64_t lower = lo32(y) * x.lo;
     return umul128(x.hi, y, hi32(y) * x.lo + hi32(lower), result_hi);
 #endif
 }
@@ -343,7 +345,7 @@ inline uint64_t umul96x64_higher128(uint96_t x, uint64_t y, uint64_t& result_hi)
 SCVT_CONSTEXPR_DATA int pow10_max = 344;
 SCVT_FORCE_INLINE uint96_t get_cached_pow10(int pow) noexcept {
     assert(pow >= -pow10_max && pow <= pow10_max);
-    static SCVT_CONSTEXPR_DATA uint64_t higher64[] = {
+    static SCVT_CONSTEXPR_DATA std::uint64_t higher64[] = {
         0x98ee4a22ecf3188b, 0xe3e27a444d8d98b7, 0xa9c98d8ccb009506, 0xfd00b897478238d0, 0xbc807527ed3e12bc,
         0x8c71dcd9ba0b4925, 0xd1476e2c07286faa, 0x9becce62836ac577, 0xe858ad248f5c22c9, 0xad1c8eab5ee43b66,
         0x80fa687f881c7f8e, 0xc0314325637a1939, 0x8f31cc0937ae58d2, 0xd5605fcdcf32e1d6, 0x9efa548d26e5a6e1,
@@ -362,7 +364,7 @@ SCVT_FORCE_INLINE uint96_t get_cached_pow10(int pow) noexcept {
         0xaa7eebfb9df9de8d, 0xfe0efb53d30dd4d7, 0xbd49d14aa79dbc82, 0x8d07e33455637eb2, 0xd226fc195c6a2f8c,
         0x9c935e00d4b9d8d2, 0xe950df20247c83fd, 0xadd57a27d29339f6, 0x81842f29f2cce375, 0xc0fe908895cf3b44,
         0x8fcac257558ee4e6, 0xd6444e39c3db9b09};
-    static SCVT_CONSTEXPR_DATA uint32_t lower32[] = {
+    static SCVT_CONSTEXPR_DATA std::uint32_t lower32[] = {
         0x9028bed3, 0xfd1b1b23, 0x680efdaf, 0x8920b099, 0xc6050837, 0x9ff0c08b, 0x1af5af66, 0x4ee367f9, 0xd1b34010,
         0xda324365, 0x7ce66635, 0xfa911156, 0xd1b2ecb9, 0xfb1e4a9b, 0xc47bc501, 0xa4f8bf56, 0xbd8d794e, 0x4247cb9e,
         0xbedbfc44, 0x7b6306a3, 0x3badd625, 0xb8ada00e, 0xdc44e6c4, 0x59ed2167, 0xbd06742d, 0xfe64a52f, 0xa8c2a44f,
@@ -377,34 +379,34 @@ SCVT_FORCE_INLINE uint96_t get_cached_pow10(int pow) noexcept {
     int n = (pow10_max + pow) >> step_pow, k = pow & ((1 << step_pow) - 1);
     uint96_t result{higher64[n], lower32[n]};
     if (!k) { return result; }
-    static SCVT_CONSTEXPR_DATA uint32_t mul10[] = {0,          0xa0000000, 0xc8000000, 0xfa000000,
-                                                   0x9c400000, 0xc3500000, 0xf4240000, 0x98968000};
-    uint64_t t = umul96x32(result, mul10[k], result.hi);
+    static SCVT_CONSTEXPR_DATA std::uint32_t mul10[] = {0,          0xa0000000, 0xc8000000, 0xfa000000,
+                                                        0x9c400000, 0xc3500000, 0xf4240000, 0x98968000};
+    std::uint64_t t = umul96x32(result, mul10[k], result.hi);
     if (!(result.hi & msb64)) {
         result.hi = shl128(result.hi, t, 1);
         t <<= 1;
     }
-    result.lo = static_cast<uint32_t>(hi32(t + (1ull << 31)));
+    result.lo = static_cast<std::uint32_t>(hi32(t + (1ull << 31)));
     return result;
 }
 
 // --------------------------
 
 inline int exp10to2(int exp) {
-    SCVT_CONSTEXPR_DATA int64_t ln10_ln2 = 0x35269e12f;  // 2^32 * ln(10) / ln(2)
+    SCVT_CONSTEXPR_DATA std::int64_t ln10_ln2 = 0x35269e12f;  // 2^32 * ln(10) / ln(2)
     return static_cast<int>(hi32(ln10_ln2 * exp));
 }
 
-static uint64_t fp10_to_fp2_slow(fp10_t& fp10, const unsigned bpm, const int exp_max) noexcept {
+static std::uint64_t fp10_to_fp2_slow(fp10_t& fp10, const unsigned bpm, const int exp_max) noexcept {
     unsigned sz_num = fp10.bits_used;
-    uint64_t* m10 = &fp10.bits[max_fp10_mantissa_size - sz_num];
+    std::uint64_t* m10 = &fp10.bits[max_fp10_mantissa_size - sz_num];
 
     // Calculate lower digs_per_64-aligned decimal exponent
     int index = digs_per_64 * 1000000 + fp10.exp;
-    const uint64_t mul10 = get_pow10(divmod<digs_per_64>(index));
+    const std::uint64_t mul10 = get_pow10(divmod<digs_per_64>(index));
     index -= 1000000;
     if (mul10 != 1) {
-        const uint64_t higher = bignum_mul(m10, sz_num, mul10);
+        const std::uint64_t higher = bignum_mul(m10, sz_num, mul10);
         if (higher) { *--m10 = higher, ++sz_num; }
     }
 
@@ -417,21 +419,21 @@ static uint64_t fp10_to_fp2_slow(fp10_t& fp10, const unsigned bpm, const int exp
     if (log < 61) {
         bignum_shift_left(m10, sz_num, 61 - log);
     } else if (log > 61) {
-        const uint64_t lower = bignum_shift_right(0, m10, sz_num, log - 61);
+        const std::uint64_t lower = bignum_shift_right(0, m10, sz_num, log - 61);
         if (lower) { m10[sz_num++] = lower; }
     }
 
-    uint64_t m;
+    std::uint64_t m;
     --sz_num;  // count only m10[n] where n > 0
     if (index < 0) {
         const int index0 = -1 - index;
         index = std::min<int>(index0, bigpow10_tbl_size - 1);
         bignum_t denominator = get_bigpow10(index);
 
-        uint64_t big_denominator[max_fp10_mantissa_size + 1];  // all powers >= -1100 (aligned to -1116) will fit
+        std::uint64_t big_denominator[max_fp10_mantissa_size + 1];  // all powers >= -1100 (aligned to -1116) will fit
         if (index < index0) {
             // Calculate big denominator multiplying powers of 10 from table
-            std::memcpy(big_denominator, denominator.x, denominator.sz * sizeof(uint64_t));
+            std::memcpy(big_denominator, denominator.x, denominator.sz * sizeof(std::uint64_t));
             do {
                 const int index2 = std::min<int>(index0 - index - 1, bigpow10_tbl_size - 1);
                 const bignum_t denominator2 = get_bigpow10(index2);
@@ -453,7 +455,7 @@ static uint64_t fp10_to_fp2_slow(fp10_t& fp10, const unsigned bpm, const int exp
         sz_num = std::max(sz_num, denominator.sz), exp2 -= denominator.exp;
     } else {
         if (index > 0) {
-            if (--index >= bigpow10_tbl_size) { return static_cast<uint64_t>(exp_max) << bpm; }  // infinity
+            if (--index >= bigpow10_tbl_size) { return static_cast<std::uint64_t>(exp_max) << bpm; }  // infinity
             const bignum_t multiplier = get_bigpow10(index);
             sz_num = bignum_trim_unused(m10 + 1, sz_num);
             bignum_mul_vec(m10, multiplier.x, sz_num + 1, multiplier.sz);
@@ -468,7 +470,7 @@ static uint64_t fp10_to_fp2_slow(fp10_t& fp10, const unsigned bpm, const int exp
     if (!(m & (1ull << 62))) { m <<= 1, --exp2; }
 
     if (exp2 >= exp_max) {
-        return static_cast<uint64_t>(exp_max) << bpm;  // infinity
+        return static_cast<std::uint64_t>(exp_max) << bpm;  // infinity
     } else if (exp2 < -static_cast<int>(bpm)) {
         return 0;  // zero
     }
@@ -477,9 +479,9 @@ static uint64_t fp10_to_fp2_slow(fp10_t& fp10, const unsigned bpm, const int exp
     const unsigned n_bits = exp2 > 0 ? 1 + bpm : bpm + exp2;
 
     // Do banker's or `nearest even` rounding
-    const uint64_t lsb = 1ull << (63 - n_bits);
-    const uint64_t half = lsb >> 1;
-    const uint64_t frac = m & (lsb - 1);
+    const std::uint64_t lsb = 1ull << (63 - n_bits);
+    const std::uint64_t half = lsb >> 1;
+    const std::uint64_t frac = m & (lsb - 1);
     m >>= 63 - n_bits;  // shift mantissa to the right position
     if (frac > half || (frac == half && (!fp10.zero_tail || (m & 1) || bignum_trim_unused(m10 + 1, sz_num)))) {
         ++m;                         // round to upper
@@ -491,20 +493,20 @@ static uint64_t fp10_to_fp2_slow(fp10_t& fp10, const unsigned bpm, const int exp
     }
 
     // Compose floating point value
-    if (exp2 <= 0) { return m; }                                              // denormalized
-    return (static_cast<uint64_t>(exp2) << bpm) | (m & ((1ull << bpm) - 1));  // normalized
+    if (exp2 <= 0) { return m; }                                                   // denormalized
+    return (static_cast<std::uint64_t>(exp2) << bpm) | (m & ((1ull << bpm) - 1));  // normalized
 }
 
-uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) noexcept {
+std::uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) noexcept {
     unsigned sz_num = fp10.bits_used;
-    uint64_t m = fp10.bits[max_fp10_mantissa_size - sz_num];
+    std::uint64_t m = fp10.bits[max_fp10_mantissa_size - sz_num];
 
     // Note, that decimal mantissa can contain up to 772 digits. So, all numbers with
     // powers less than -772 - 324 = -1096 are zeroes in fact. We round this power to -1100
     if (m == 0 || fp10.exp < -1100) {
-        return 0;                                      // zero
-    } else if (fp10.exp > 310) {                       // too big power even for one specified digit
-        return static_cast<uint64_t>(exp_max) << bpm;  // infinity
+        return 0;                                           // zero
+    } else if (fp10.exp > 310) {                            // too big power even for one specified digit
+        return static_cast<std::uint64_t>(exp_max) << bpm;  // infinity
     }
 
     // If too many digits are specified or decimal power is too great use slow algorithm
@@ -519,11 +521,11 @@ uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) noexce
     // Obtain binary mantissa
     unsigned shift = 64;
     const uint96_t coef = get_cached_pow10(fp10.exp);
-    uint64_t frac = umul96x64_higher128(coef, m, m);
+    std::uint64_t frac = umul96x64_higher128(coef, m, m);
     if (!(m & msb64)) { --shift, --exp2; }
 
     if (exp2 >= exp_max) {
-        return static_cast<uint64_t>(exp_max) << bpm;  // infinity
+        return static_cast<std::uint64_t>(exp_max) << bpm;  // infinity
     } else if (exp2 < -static_cast<int>(bpm)) {
         return 0;  // zero
     }
@@ -532,7 +534,7 @@ uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) noexce
     const unsigned n_bits = exp2 > 0 ? 1 + bpm : bpm + exp2;
 
     // Shift mantissa to the right position
-    const uint64_t half = 1ull << 31;
+    const std::uint64_t half = 1ull << 31;
     shift -= n_bits;
     if (shift < 64) {
         frac = shr128(m, frac, shift), m >>= shift;
@@ -554,8 +556,8 @@ uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) noexce
     }
 
     // Compose floating point value
-    if (exp2 <= 0) { return m; }                                              // denormalized
-    return (static_cast<uint64_t>(exp2) << bpm) | (m & ((1ull << bpm) - 1));  // normalized
+    if (exp2 <= 0) { return m; }                                                   // denormalized
+    return (static_cast<std::uint64_t>(exp2) << bpm) | (m & ((1ull << bpm) - 1));  // normalized
 }
 
 // --------------------------
@@ -580,8 +582,8 @@ fp_hex_fmt_t::fp_hex_fmt_t(const fp_m64_t& fp2, const fmt_opts& fmt, const unsig
         prec_ = 15;
         while (!(significand_ & 0xf)) { significand_ >>= 4, --prec_; }
     } else if (prec_ < 15) {  // round
-        const uint64_t half = 1ull << (59 - 4 * prec_);
-        const uint64_t frac = significand_ & ((half << 1) - 1);
+        const std::uint64_t half = 1ull << (59 - 4 * prec_);
+        const std::uint64_t frac = significand_ & ((half << 1) - 1);
         significand_ >>= 60 - 4 * prec_;
         if (frac > half || (frac == half && (significand_ & 1))) { ++significand_; }
     } else {
@@ -593,27 +595,27 @@ fp_hex_fmt_t::fp_hex_fmt_t(const fp_m64_t& fp2, const fmt_opts& fmt, const unsig
 // --------------------------
 
 inline int exp2to10(int exp) {
-    SCVT_CONSTEXPR_DATA int64_t ln2_ln10 = 0x4d104d42;  // 2^32 * ln(2) / ln(10)
+    SCVT_CONSTEXPR_DATA std::int64_t ln2_ln10 = 0x4d104d42;  // 2^32 * ln(2) / ln(10)
     return static_cast<int>(hi32(ln2_ln10 * exp));
 }
 
 // Compilers should be able to optimize this into the ror instruction
-inline uint64_t rotr1(uint64_t n) { return (n >> 1) | (n << 63); }
-inline uint64_t rotr2(uint64_t n) { return (n >> 2) | (n << 62); }
+inline std::uint64_t rotr1(std::uint64_t n) { return (n >> 1) | (n << 63); }
+inline std::uint64_t rotr2(std::uint64_t n) { return (n >> 2) | (n << 62); }
 
 // Removes trailing zeros and returns the number of zeros removed
-SCVT_FORCE_INLINE int remove_trailing_zeros(uint64_t& n, int max_remove) {
+SCVT_FORCE_INLINE int remove_trailing_zeros(std::uint64_t& n, int max_remove) {
     int s = max_remove;
-    SCVT_CONSTEXPR_DATA uint64_t mod_inv_5 = 0xcccccccccccccccd;
-    SCVT_CONSTEXPR_DATA uint64_t mod_inv_25 = 0x8f5c28f5c28f5c29;
+    SCVT_CONSTEXPR_DATA std::uint64_t mod_inv_5 = 0xcccccccccccccccd;
+    SCVT_CONSTEXPR_DATA std::uint64_t mod_inv_25 = 0x8f5c28f5c28f5c29;
     while (s > 1) {
-        const uint64_t q = rotr2(n * mod_inv_25);
-        if (q > std::numeric_limits<uint64_t>::max() / 100u) { break; }
+        const std::uint64_t q = rotr2(n * mod_inv_25);
+        if (q > std::numeric_limits<std::uint64_t>::max() / 100u) { break; }
         s -= 2, n = q;
     }
     if (s > 0) {
-        const uint64_t q = rotr1(n * mod_inv_5);
-        if (q <= std::numeric_limits<uint64_t>::max() / 10u) { --s, n = q; }
+        const std::uint64_t q = rotr1(n * mod_inv_5);
+        if (q <= std::numeric_limits<std::uint64_t>::max() / 10u) { --s, n = q; }
     }
     return max_remove - s;
 }
@@ -672,10 +674,10 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, cons
     // Note: powers of 10 are normalized and belong [0.5, 1) range
     // To get the desired count of digits we get greater power of 10, it's equivalent to
     // multiplying the result by a certain power of 10
-    const uint64_t half = 1ull << 31;
+    const std::uint64_t half = 1ull << 31;
     const int cached_exp = prec_ - exp_;
     const uint96_t coef = get_cached_pow10(cached_exp);
-    uint64_t frac = umul96x64_higher128(coef, fp2.m, significand_);
+    std::uint64_t frac = umul96x64_higher128(coef, fp2.m, significand_);
     const unsigned shift = 62 - fp2.exp - exp10to2(cached_exp);
     assert(shift > 0 && shift < 64);
     frac = shr128(significand_, frac, shift), significand_ >>= shift;
@@ -684,12 +686,12 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, cons
 
     // Evaluate acceptable error range to pass roundtrip test
     assert(bpm + shift >= 30);
-    const uint64_t delta_minus = coef.hi >> (bpm + shift - 30);
-    const uint64_t delta_plus = fp2.m == msb64 && fp2.exp > 1 - exp_bias ? (delta_minus >> 1) : delta_minus;
+    const std::uint64_t delta_minus = coef.hi >> (bpm + shift - 30);
+    const std::uint64_t delta_plus = fp2.m == msb64 && fp2.exp > 1 - exp_bias ? (delta_minus >> 1) : delta_minus;
 
     // Try to remove two digits at once
-    const uint64_t significand0 = significand_;
-    const uint64_t err100_p = frac + (divmod<100u>(significand_) << 32), err100_m = (100ull << 32) - err100_p;
+    const std::uint64_t significand0 = significand_;
+    const std::uint64_t err100_p = frac + (divmod<100u>(significand_) << 32), err100_m = (100ull << 32) - err100_p;
     if (err100_p < delta_plus) {
         if (err100_m < err100_p || (err100_m == err100_p && (significand_ & 1))) { ++significand_; }
         prec_ -= 2;
@@ -698,7 +700,7 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, cons
     } else {
         // Try to remove only one digit
         significand_ = significand0;
-        const uint64_t err10_p = frac + (divmod<10u>(significand_) << 32), err10_m = (10ull << 32) - err10_p;
+        const std::uint64_t err10_p = frac + (divmod<10u>(significand_) << 32), err10_m = (10ull << 32) - err10_p;
         if (err10_p < delta_plus) {
             if (err10_m < err10_p || (err10_m == err10_p && (significand_ & 1))) { ++significand_; }
             --prec_;
@@ -734,7 +736,7 @@ void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, const f
     // multiplying the result by a certain power of 10
     const int cached_exp = n_digs - exp_ - 1;
     const uint96_t coef = get_cached_pow10(cached_exp);
-    uint64_t frac = umul96x64_higher128(coef, fp2.m, significand_);
+    std::uint64_t frac = umul96x64_higher128(coef, fp2.m, significand_);
     const unsigned shift = 62 - fp2.exp - exp10to2(cached_exp);
     assert(shift > 0 && shift < 64);
     frac = shr128(significand_, frac, shift), significand_ >>= shift;
@@ -744,7 +746,7 @@ void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, const f
     // Note, that the first digit formally can belong [1, 20) range, so we can get one digit more
     if (fp_fmt != fmt_flags::fixed && significand_ >= get_pow10(n_digs)) {  // one excess digit
         // Remove one excess digit for scientific format
-        const uint64_t err = frac + (divmod<100u>(significand_) << 32);
+        const std::uint64_t err = frac + (divmod<100u>(significand_) << 32);
         if (err > (50ull << 32)) {
             ++significand_;
         } else if (err >= (50ull << 32) - 1) {
@@ -753,7 +755,7 @@ void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, const f
         }
         ++exp_;
     } else {
-        const uint64_t err = frac + (divmod<10u>(significand_) << 32);
+        const std::uint64_t err = frac + (divmod<10u>(significand_) << 32);
         if (err > (5ull << 32)) {
             ++significand_;
         } else if (err >= (5ull << 32) - 1) {
@@ -782,16 +784,16 @@ finish:
 
 void fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) noexcept {
     // `max_pow10_size` uint64-s are enough to hold all (normalized!) 10^n, n <= 324 + digs_per_64
-    uint64_t num[max_pow10_size + 1];  // +1 to multiply by uint64
+    std::uint64_t num[max_pow10_size + 1];  // +1 to multiply by uint64
     unsigned sz_num = 1;
 
     // Calculate upper digs_per_64-aligned decimal exponent and multiplier for correction
     int index = digs_per_64 * 1000000 + exp_ - n_digs;
-    const uint64_t mul10 = get_pow10(digs_per_64 - 1 - divmod<digs_per_64>(index));
+    const std::uint64_t mul10 = get_pow10(digs_per_64 - 1 - divmod<digs_per_64>(index));
     index -= 999999;
 
-    auto mul_and_shift = [&num, &sz_num](uint64_t m, uint64_t mul, int shift) {
-        uint64_t digs;
+    auto mul_and_shift = [&num, &sz_num](std::uint64_t m, std::uint64_t mul, int shift) {
+        std::uint64_t digs;
         num[0] = umul128(m, mul, digs);
         if (shift > 0) {
             digs = shl128(digs, num[0], shift), num[0] <<= shift;
@@ -851,7 +853,7 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fm
     ++n_digs;  // one additional digit for rounding
 
     // `max_pow10_size` uint64-s are enough to hold all (normalized!) 10^n, n <= 324 + digs_per_64
-    uint64_t num[max_pow10_size + 1];  // +1 to multiply by uint64
+    std::uint64_t num[max_pow10_size + 1];  // +1 to multiply by uint64
     unsigned sz_num = 1;
 
     // Digits are generated by packs: the first pack length can be in range
@@ -864,7 +866,7 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fm
     index -= 1000000;
 
     char* p = digs_buf_;
-    auto gen_first_digit_pack = [this, fp_fmt, digs_first_len, &p, &n_digs](uint64_t digs) {
+    auto gen_first_digit_pack = [this, fp_fmt, digs_first_len, &p, &n_digs](std::uint64_t digs) {
         // Note, that the first digit formally can belong [1, 20) range,
         // so we can get one digit more while calculating the first pack
         if (digs < get_pow10(digs_first_len)) {
@@ -881,7 +883,7 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fm
         const unsigned shift = fp2.exp - denominator.exp;
 
         num[0] = fp2.m << shift;
-        uint64_t digs = bignum_divmod(fp2.m >> (64 - shift), num, denominator.x, 1, denominator.sz);
+        std::uint64_t digs = bignum_divmod(fp2.m >> (64 - shift), num, denominator.x, 1, denominator.sz);
         assert(digs);
 
         gen_first_digit_pack(digs);
@@ -906,7 +908,7 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fm
             p += digs_len, n_digs -= digs_len, --index;
         }
     } else {
-        uint64_t digs;
+        std::uint64_t digs;
         if (index < 0) {
             const bignum_t multiplier = get_bigpow10(-1 - index);
             const unsigned shift = 2 + fp2.exp + multiplier.exp;
@@ -964,32 +966,34 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fm
     n_zeroes_ = n_digs;
 }
 
-template UXS_EXPORT uint32_t to_integral_common(const char*, const char*, const char*&, uint32_t) noexcept;
-template UXS_EXPORT uint64_t to_integral_common(const char*, const char*, const char*&, uint64_t) noexcept;
-template UXS_EXPORT uint64_t to_float_common(const char*, const char*, const char*& last, const unsigned,
-                                             const int) noexcept;
+template UXS_EXPORT std::uint32_t to_integral_common(const char*, const char*, const char*&, std::uint32_t) noexcept;
+template UXS_EXPORT std::uint64_t to_integral_common(const char*, const char*, const char*&, std::uint64_t) noexcept;
+template UXS_EXPORT std::uint64_t to_float_common(const char*, const char*, const char*& last, const unsigned,
+                                                  const int) noexcept;
 template UXS_EXPORT bool to_boolean(const char*, const char*, const char*& last) noexcept;
 
-template UXS_EXPORT uint32_t to_integral_common(const wchar_t*, const wchar_t*, const wchar_t*&, uint32_t) noexcept;
-template UXS_EXPORT uint64_t to_integral_common(const wchar_t*, const wchar_t*, const wchar_t*&, uint64_t) noexcept;
-template UXS_EXPORT uint64_t to_float_common(const wchar_t*, const wchar_t*, const wchar_t*& last, const unsigned,
-                                             const int) noexcept;
+template UXS_EXPORT std::uint32_t to_integral_common(const wchar_t*, const wchar_t*, const wchar_t*&,
+                                                     std::uint32_t) noexcept;
+template UXS_EXPORT std::uint64_t to_integral_common(const wchar_t*, const wchar_t*, const wchar_t*&,
+                                                     std::uint64_t) noexcept;
+template UXS_EXPORT std::uint64_t to_float_common(const wchar_t*, const wchar_t*, const wchar_t*& last, const unsigned,
+                                                  const int) noexcept;
 template UXS_EXPORT bool to_boolean(const wchar_t*, const wchar_t*, const wchar_t*& last) noexcept;
 
-template UXS_EXPORT void fmt_integral_common(membuffer&, int32_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integral_common(membuffer&, int64_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integral_common(membuffer&, uint32_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integral_common(membuffer&, uint64_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral_common(membuffer&, std::int32_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral_common(membuffer&, std::int64_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral_common(membuffer&, std::uint32_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral_common(membuffer&, std::uint64_t, const fmt_opts&);
 template UXS_EXPORT void fmt_character(membuffer&, char, const fmt_opts&);
-template UXS_EXPORT void fmt_float_common(membuffer&, uint64_t, const fmt_opts&, const unsigned, const int);
+template UXS_EXPORT void fmt_float_common(membuffer&, std::uint64_t, const fmt_opts&, const unsigned, const int);
 template UXS_EXPORT void fmt_boolean(membuffer&, bool, const fmt_opts&);
 
-template UXS_EXPORT void fmt_integral_common(wmembuffer&, int32_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integral_common(wmembuffer&, int64_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integral_common(wmembuffer&, uint32_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integral_common(wmembuffer&, uint64_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral_common(wmembuffer&, std::int32_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral_common(wmembuffer&, std::int64_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral_common(wmembuffer&, std::uint32_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integral_common(wmembuffer&, std::uint64_t, const fmt_opts&);
 template UXS_EXPORT void fmt_character(wmembuffer&, wchar_t, const fmt_opts&);
-template UXS_EXPORT void fmt_float_common(wmembuffer&, uint64_t, const fmt_opts&, const unsigned, const int);
+template UXS_EXPORT void fmt_float_common(wmembuffer&, std::uint64_t, const fmt_opts&, const unsigned, const int);
 template UXS_EXPORT void fmt_boolean(wmembuffer&, bool, const fmt_opts&);
 
 }  // namespace scvt

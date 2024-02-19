@@ -59,7 +59,7 @@ struct string_finder<std::basic_string_view<CharT, Traits>, Traits> {
     using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
     explicit string_finder(std::basic_string_view<CharT, Traits> tgt) : s(tgt) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
-        if (static_cast<size_t>(end - begin) < s.size()) { return std::make_pair(end, end); }
+        if (static_cast<std::size_t>(end - begin) < s.size()) { return std::make_pair(end, end); }
         if (!s.size()) { return std::make_pair(begin, begin); }
         for (iterator last = end - s.size() + 1; begin != last; ++begin) {
             if (std::equal(s.begin(), s.end(), begin, Traits::eq)) { return std::make_pair(begin, begin + s.size()); }
@@ -75,7 +75,7 @@ struct reversed_string_finder<std::basic_string_view<CharT, Traits>, Traits> {
     using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
     explicit reversed_string_finder(std::basic_string_view<CharT, Traits> tgt) : s(tgt) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
-        if (static_cast<size_t>(end - begin) < s.size()) { return std::make_pair(begin, begin); }
+        if (static_cast<std::size_t>(end - begin) < s.size()) { return std::make_pair(begin, begin); }
         if (!s.size()) { return std::make_pair(end, end); }
         for (end -= s.size() - 1; begin != end; --end) {
             if (std::equal(s.begin(), s.end(), end - 1, Traits::eq)) {
@@ -170,10 +170,10 @@ std::wstring join_strings(const Range& r, SepTy sep, std::wstring prefix, JoinFn
 
 template<split_opts opts, typename CharT, typename Traits, typename Finder, typename OutputFn, typename OutputIt,
          typename = std::void_t<typename Finder::is_finder>>
-size_t split_basic_string(std::basic_string_view<CharT, Traits> s, Finder finder, OutputFn fn, OutputIt out,
-                          size_t n = std::numeric_limits<size_t>::max()) {
+std::size_t split_basic_string(std::basic_string_view<CharT, Traits> s, Finder finder, OutputFn fn, OutputIt out,
+                               std::size_t n = std::numeric_limits<std::size_t>::max()) {
     if (!n) { return 0; }
-    size_t count = 0;
+    std::size_t count = 0;
     for (auto p = s.begin();;) {
         auto sub = finder(p, s.end());
         if (!(opts & split_opts::skip_empty) || p != sub.first) {
@@ -188,8 +188,8 @@ size_t split_basic_string(std::basic_string_view<CharT, Traits> s, Finder finder
 
 template<split_opts opts = split_opts::no_opts, typename Finder, typename OutputFn, typename OutputIt,
          typename = std::void_t<typename Finder::is_finder>>
-size_t split_string(std::string_view s, Finder finder, OutputFn fn, OutputIt out,
-                    size_t n = std::numeric_limits<size_t>::max()) {
+std::size_t split_string(std::string_view s, Finder finder, OutputFn fn, OutputIt out,
+                         std::size_t n = std::numeric_limits<std::size_t>::max()) {
     return split_basic_string<opts>(s, finder, fn, out, n);
 }
 
@@ -203,8 +203,8 @@ auto split_string(std::string_view s, Finder finder, OutputFn fn = OutputFn{})
 
 template<split_opts opts = split_opts::no_opts, typename Finder, typename OutputFn, typename OutputIt,
          typename = std::void_t<typename Finder::is_finder>>
-size_t split_string(std::wstring_view s, Finder finder, OutputFn fn, OutputIt out,
-                    size_t n = std::numeric_limits<size_t>::max()) {
+std::size_t split_string(std::wstring_view s, Finder finder, OutputFn fn, OutputIt out,
+                         std::size_t n = std::numeric_limits<std::size_t>::max()) {
     return split_basic_string<opts>(s, finder, fn, out, n);
 }
 
@@ -220,10 +220,10 @@ auto split_string(std::wstring_view s, Finder finder, OutputFn fn = OutputFn{})
 
 template<split_opts opts, typename CharT, typename Traits, typename Finder>
 type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_finder> basic_string_section(
-    std::basic_string_view<CharT, Traits> s, Finder finder, size_t start,
-    size_t fin = std::numeric_limits<size_t>::max()) {
+    std::basic_string_view<CharT, Traits> s, Finder finder, std::size_t start,
+    std::size_t fin = std::numeric_limits<std::size_t>::max()) {
     if (fin < start) { fin = start; }
-    size_t count = 0;
+    std::size_t count = 0;
     auto p = s.begin(), from = s.end();
     for (;;) {
         auto sub = finder(p, s.end());
@@ -239,13 +239,13 @@ type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_finde
 
 template<split_opts opts = split_opts::no_opts, typename Finder>
 type_identity_t<std::string_view, typename Finder::is_finder> string_section(  //
-    std::string_view s, Finder finder, size_t start, size_t fin = std::numeric_limits<size_t>::max()) {
+    std::string_view s, Finder finder, std::size_t start, std::size_t fin = std::numeric_limits<std::size_t>::max()) {
     return basic_string_section<opts>(s, finder, start, fin);
 }
 
 template<split_opts opts = split_opts::no_opts, typename Finder>
 type_identity_t<std::wstring_view, typename Finder::is_finder> string_section(  //
-    std::wstring_view s, Finder finder, size_t start, size_t fin = std::numeric_limits<size_t>::max()) {
+    std::wstring_view s, Finder finder, std::size_t start, std::size_t fin = std::numeric_limits<std::size_t>::max()) {
     return basic_string_section<opts>(s, finder, start, fin);
 }
 
@@ -253,9 +253,9 @@ type_identity_t<std::wstring_view, typename Finder::is_finder> string_section(  
 
 template<split_opts opts, typename CharT, typename Traits, typename Finder>
 type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_reversed_finder> basic_string_section(
-    std::basic_string_view<CharT, Traits> s, Finder finder, size_t start, size_t fin = 0) {
+    std::basic_string_view<CharT, Traits> s, Finder finder, std::size_t start, std::size_t fin = 0) {
     if (fin > start) { fin = start; }
-    size_t count = 0;
+    std::size_t count = 0;
     auto p = s.end(), to = s.begin();
     for (;;) {
         auto sub = finder(s.begin(), p);
@@ -271,23 +271,23 @@ type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_rever
 
 template<split_opts opts = split_opts::no_opts, typename Finder>
 type_identity_t<std::string_view, typename Finder::is_reversed_finder> string_section(  //
-    std::string_view s, Finder finder, size_t start, size_t fin = 0) {
+    std::string_view s, Finder finder, std::size_t start, std::size_t fin = 0) {
     return basic_string_section<opts>(s, finder, start, fin);
 }
 
 template<split_opts opts = split_opts::no_opts, typename Finder>
 type_identity_t<std::wstring_view, typename Finder::is_reversed_finder> string_section(  //
-    std::wstring_view s, Finder finder, size_t start, size_t fin = 0) {
+    std::wstring_view s, Finder finder, std::size_t start, std::size_t fin = 0) {
     return basic_string_section<opts>(s, finder, start, fin);
 }
 
 // --------------------------
 
 template<typename CharT, typename Traits, typename OutputFn, typename OutputIt>
-size_t basic_string_to_words(std::basic_string_view<CharT, Traits> s, CharT sep, OutputFn fn, OutputIt out,
-                             size_t n = std::numeric_limits<size_t>::max()) {
+std::size_t basic_string_to_words(std::basic_string_view<CharT, Traits> s, CharT sep, OutputFn fn, OutputIt out,
+                                  std::size_t n = std::numeric_limits<std::size_t>::max()) {
     if (!n) { return 0; }
-    size_t count = 0;
+    std::size_t count = 0;
     enum class state_t : char { start = 0, sep_found, skip_sep } state = state_t::start;
     for (auto p = s.begin();; ++p) {
         while (p != s.end() && is_space(*p)) { ++p; }  // skip spaces
@@ -316,8 +316,8 @@ size_t basic_string_to_words(std::basic_string_view<CharT, Traits> s, CharT sep,
 }
 
 template<typename OutputFn, typename OutputIt>
-size_t string_to_words(std::string_view s, char sep, OutputFn fn, OutputIt out,
-                       size_t n = std::numeric_limits<size_t>::max()) {
+std::size_t string_to_words(std::string_view s, char sep, OutputFn fn, OutputIt out,
+                            std::size_t n = std::numeric_limits<std::size_t>::max()) {
     return basic_string_to_words(s, sep, fn, out, n);
 }
 
@@ -330,8 +330,8 @@ auto string_to_words(std::string_view s, char sep, OutputFn fn = OutputFn{})
 }
 
 template<typename OutputFn, typename OutputIt>
-size_t string_to_words(std::wstring_view s, wchar_t sep, OutputFn fn, OutputIt out,
-                       size_t n = std::numeric_limits<size_t>::max()) {
+std::size_t string_to_words(std::wstring_view s, wchar_t sep, OutputFn fn, OutputIt out,
+                            std::size_t n = std::numeric_limits<std::size_t>::max()) {
     return basic_string_to_words(s, sep, fn, out, n);
 }
 
@@ -383,10 +383,10 @@ std::wstring pack_strings(const Range& r, wchar_t sep, std::wstring prefix, Inpu
 // --------------------------
 
 template<typename CharT, typename Traits, typename OutputFn, typename OutputIt>
-size_t unpack_basic_strings(std::basic_string_view<CharT, Traits> s, CharT sep, OutputFn fn, OutputIt out,
-                            size_t n = std::numeric_limits<size_t>::max()) {
+std::size_t unpack_basic_strings(std::basic_string_view<CharT, Traits> s, CharT sep, OutputFn fn, OutputIt out,
+                                 std::size_t n = std::numeric_limits<std::size_t>::max()) {
     if (!n) { return 0; }
-    size_t count = 0;
+    std::size_t count = 0;
     for (auto p = s.begin();; ++p) {
         std::basic_string<CharT, Traits> result;
         auto p0 = p;  // append chars till separator
@@ -410,14 +410,14 @@ size_t unpack_basic_strings(std::basic_string_view<CharT, Traits> s, CharT sep, 
 }
 
 template<typename OutputFn, typename OutputIt>
-size_t unpack_strings(std::string_view s, char sep, OutputFn fn, OutputIt out,
-                      size_t n = std::numeric_limits<size_t>::max()) {
+std::size_t unpack_strings(std::string_view s, char sep, OutputFn fn, OutputIt out,
+                           std::size_t n = std::numeric_limits<std::size_t>::max()) {
     return unpack_basic_strings(s, sep, fn, out, n);
 }
 
 template<typename OutputFn, typename OutputIt>
-size_t unpack_strings(std::wstring_view s, wchar_t sep, OutputFn fn, OutputIt out,
-                      size_t n = std::numeric_limits<size_t>::max()) {
+std::size_t unpack_strings(std::wstring_view s, wchar_t sep, OutputFn fn, OutputIt out,
+                           std::size_t n = std::numeric_limits<std::size_t>::max()) {
     return unpack_basic_strings(s, sep, fn, out, n);
 }
 

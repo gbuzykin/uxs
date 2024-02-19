@@ -35,11 +35,11 @@ struct always_true : std::true_type {};
 #if __cplusplus < 201703L
 namespace uxs {
 namespace detail {
-template<size_t... Indices>
+template<std::size_t... Indices>
 struct index_sequence {};
-template<size_t N, size_t... Next>
+template<std::size_t N, std::size_t... Next>
 struct make_index_sequence : make_index_sequence<N - 1U, N - 1U, Next...> {};
-template<size_t... Next>
+template<std::size_t... Next>
 struct make_index_sequence<0U, Next...> {
     using type = index_sequence<Next...>;
 };
@@ -85,9 +85,9 @@ template<typename Ty>
 using is_nothrow_swappable = bool_constant<noexcept(swap(declval<Ty&>(), declval<Ty&>()))>;
 #    endif  // is swappable
 #    if __cplusplus < 201402L && !defined(__cpp_lib_integer_sequence)
-template<size_t... Indices>
+template<std::size_t... Indices>
 using index_sequence = uxs::detail::index_sequence<Indices...>;
-template<size_t N>
+template<std::size_t N>
 using make_index_sequence = typename uxs::detail::make_index_sequence<N>::type;
 template<typename... Ts>
 using index_sequence_for = make_index_sequence<sizeof...(Ts)>;
@@ -178,9 +178,9 @@ Ty get_and_set(Ty& v, Ty v_new) {
     return v_new;
 }
 
-template<typename Ty, size_t Offset, typename MemberTy>
+template<typename Ty, std::size_t Offset, typename MemberTy>
 Ty* get_containing_record(MemberTy* member_ptr) {
-    return reinterpret_cast<Ty*>(reinterpret_cast<uint8_t*>(member_ptr) - Offset);
+    return reinterpret_cast<Ty*>(reinterpret_cast<std::uint8_t*>(member_ptr) - Offset);
 }
 
 struct nofunc {

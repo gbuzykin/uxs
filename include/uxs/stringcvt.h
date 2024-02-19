@@ -100,7 +100,7 @@ class basic_membuffer {
     basic_membuffer(const basic_membuffer&) = delete;
     basic_membuffer& operator=(const basic_membuffer&) = delete;
 
-    size_t avail() const noexcept { return last_ - curr_; }
+    std::size_t avail() const noexcept { return last_ - curr_; }
     const Ty* curr() const noexcept { return curr_; }
     Ty* curr() noexcept { return curr_; }
     Ty** p_curr() noexcept { return &curr_; }
@@ -108,7 +108,7 @@ class basic_membuffer {
     Ty* last() noexcept { return last_; }
     Ty& back() noexcept { return *(curr_ - 1); }
 
-    basic_membuffer& advance(size_t n) noexcept {
+    basic_membuffer& advance(std::size_t n) noexcept {
         assert(n <= avail());
         curr_ += n;
         return *this;
@@ -117,7 +117,7 @@ class basic_membuffer {
     template<typename InputIt, typename = std::enable_if_t<is_random_access_iterator<InputIt>::value>>
     basic_membuffer& append_by_chunks(InputIt first, InputIt last) {
         assert(first <= last);
-        size_t count = static_cast<size_t>(last - first), n_avail = avail();
+        std::size_t count = static_cast<std::size_t>(last - first), n_avail = avail();
         while (count > n_avail) {
             curr_ = std::copy_n(first, n_avail, curr_);
             if (!try_grow()) { return *this; }
@@ -128,8 +128,8 @@ class basic_membuffer {
         return *this;
     }
 
-    basic_membuffer& append_by_chunks(size_t count, Ty val) {
-        size_t n_avail = avail();
+    basic_membuffer& append_by_chunks(std::size_t count, Ty val) {
+        std::size_t n_avail = avail();
         while (count > n_avail) {
             curr_ = std::fill_n(curr_, n_avail, val);
             if (!try_grow()) { return *this; }
@@ -143,7 +143,7 @@ class basic_membuffer {
     template<typename InputIt, typename = std::enable_if_t<is_random_access_iterator<InputIt>::value>>
     basic_membuffer& append(InputIt first, InputIt last) {
         assert(first <= last);
-        const size_t count = static_cast<size_t>(last - first);
+        const std::size_t count = static_cast<std::size_t>(last - first);
         if (avail() >= count || try_grow(count)) {
             curr_ = std::copy(first, last, curr_);
             return *this;
@@ -151,7 +151,7 @@ class basic_membuffer {
         return append_by_chunks(first, last);
     }
 
-    basic_membuffer& append(size_t count, Ty val) {
+    basic_membuffer& append(std::size_t count, Ty val) {
         if (avail() >= count || try_grow(count)) {
             curr_ = std::fill_n(curr_, count, val);
             return *this;
@@ -178,7 +178,7 @@ class basic_membuffer {
         return *this;
     }
 
-    virtual bool try_grow(size_t extra = 1) { return false; }
+    virtual bool try_grow(std::size_t extra = 1) { return false; }
 
  protected:
     void set(Ty* curr) noexcept { curr_ = curr; }
@@ -205,19 +205,19 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
     }
 
     bool empty() const noexcept { return first_ == this->curr(); }
-    size_t size() const noexcept { return this->curr() - first_; }
-    size_t capacity() const noexcept { return this->last() - first_; }
+    std::size_t size() const noexcept { return this->curr() - first_; }
+    std::size_t capacity() const noexcept { return this->last() - first_; }
     const Ty* data() const noexcept { return first_; }
     Ty* data() noexcept { return first_; }
     void clear() noexcept { this->set(first_); }
 
-    void reserve(size_t extra = 1) {
+    void reserve(std::size_t extra = 1) {
         if (extra > this->avail()) { try_grow(extra); }
     }
 
-    bool try_grow(size_t extra) override {
-        size_t sz = size(), cap = capacity(), delta_sz = std::max(extra, sz >> 1);
-        const size_t max_avail = std::allocator_traits<alloc_type>::max_size(*this) - sz;
+    bool try_grow(std::size_t extra) override {
+        std::size_t sz = size(), cap = capacity(), delta_sz = std::max(extra, sz >> 1);
+        const std::size_t max_avail = std::allocator_traits<alloc_type>::max_size(*this) - sz;
         if (delta_sz > max_avail) {
             if (extra > max_avail) { throw std::length_error("too much to reserve"); }
             delta_sz = std::max(extra, max_avail >> 1);
@@ -239,7 +239,7 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
     bool is_allocated_;
 };
 
-template<typename Ty, size_t InlineBufSize = 0, typename Alloc = std::allocator<Ty>>
+template<typename Ty, std::size_t InlineBufSize = 0, typename Alloc = std::allocator<Ty>>
 class inline_basic_dynbuffer final : public basic_dynbuffer<Ty, Alloc> {
  public:
     inline_basic_dynbuffer()
@@ -253,7 +253,7 @@ class inline_basic_dynbuffer final : public basic_dynbuffer<Ty, Alloc> {
         inline_buf_size = 7
 #endif  // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
     };
-    alignas(std::alignment_of<Ty>::value) uint8_t buf_[inline_buf_size * sizeof(Ty)];
+    alignas(std::alignment_of<Ty>::value) std::uint8_t buf_[inline_buf_size * sizeof(Ty)];
 };
 
 using inline_dynbuffer = inline_basic_dynbuffer<char>;
@@ -296,22 +296,22 @@ TyTo bit_cast(const TyFrom& v) {
 
 template<>
 struct fp_traits<double> {
-    static_assert(sizeof(double) == sizeof(uint64_t), "type size mismatch");
+    static_assert(sizeof(double) == sizeof(std::uint64_t), "type size mismatch");
     enum : unsigned { total_bits = 64, bits_per_mantissa = 52 };
-    enum : uint64_t { mantissa_mask = (1ull << bits_per_mantissa) - 1 };
+    enum : std::uint64_t { mantissa_mask = (1ull << bits_per_mantissa) - 1 };
     enum : int { exp_max = (1 << (total_bits - bits_per_mantissa - 1)) - 1 };
-    static uint64_t to_u64(const double& f) { return bit_cast<uint64_t>(f); }
-    static double from_u64(const uint64_t& u64) { return bit_cast<double>(u64); }
+    static std::uint64_t to_u64(const double& f) { return bit_cast<std::uint64_t>(f); }
+    static double from_u64(const std::uint64_t& u64) { return bit_cast<double>(u64); }
 };
 
 template<>
 struct fp_traits<float> {
-    static_assert(sizeof(float) == sizeof(uint32_t), "type size mismatch");
+    static_assert(sizeof(float) == sizeof(std::uint32_t), "type size mismatch");
     enum : unsigned { total_bits = 32, bits_per_mantissa = 23 };
-    enum : uint64_t { mantissa_mask = (1ull << bits_per_mantissa) - 1 };
+    enum : std::uint64_t { mantissa_mask = (1ull << bits_per_mantissa) - 1 };
     enum : int { exp_max = (1 << (total_bits - bits_per_mantissa - 1)) - 1 };
-    static uint64_t to_u64(const float& f) { return bit_cast<uint32_t>(f); }
-    static float from_u64(const uint64_t& u64) { return bit_cast<float>(static_cast<uint32_t>(u64)); }
+    static std::uint64_t to_u64(const float& f) { return bit_cast<std::uint32_t>(f); }
+    static float from_u64(const std::uint64_t& u64) { return bit_cast<float>(static_cast<std::uint32_t>(u64)); }
 };
 
 extern UXS_EXPORT const fmt_opts g_default_opts;
@@ -325,12 +325,12 @@ struct reduce_type {
 template<typename Ty>
 struct reduce_type<Ty, std::enable_if_t<std::is_integral<Ty>::value && std::is_unsigned<Ty>::value &&
                                         !is_boolean<Ty>::value && !is_character<Ty>::value>> {
-    using type = std::conditional_t<(sizeof(Ty) <= sizeof(uint32_t)), uint32_t, uint64_t>;
+    using type = std::conditional_t<(sizeof(Ty) <= sizeof(std::uint32_t)), std::uint32_t, std::uint64_t>;
 };
 template<typename Ty>
 struct reduce_type<Ty, std::enable_if_t<std::is_integral<Ty>::value && std::is_signed<Ty>::value &&
                                         !is_boolean<Ty>::value && !is_character<Ty>::value>> {
-    using type = std::conditional_t<(sizeof(Ty) <= sizeof(int32_t)), int32_t, int64_t>;
+    using type = std::conditional_t<(sizeof(Ty) <= sizeof(std::int32_t)), std::int32_t, std::int64_t>;
 };
 template<typename Ty>
 struct reduce_type<Ty, std::enable_if_t<std::is_array<Ty>::value>> {
@@ -367,8 +367,8 @@ template<typename Ty, typename CharT>
 UXS_EXPORT Ty to_integral_common(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) noexcept;
 
 template<typename CharT>
-UXS_EXPORT uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, const unsigned bpm,
-                                    const int exp_max) noexcept;
+UXS_EXPORT std::uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, const unsigned bpm,
+                                         const int exp_max) noexcept;
 
 template<typename Ty, typename CharT>
 Ty to_integer(const CharT* p, const CharT* end, const CharT*& last) noexcept {
@@ -395,7 +395,7 @@ template<typename CharT, typename Ty>
 UXS_EXPORT void fmt_integral_common(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt);
 
 template<typename CharT>
-UXS_EXPORT void fmt_float_common(basic_membuffer<CharT>& s, uint64_t u64, const fmt_opts& fmt, const unsigned bpm,
+UXS_EXPORT void fmt_float_common(basic_membuffer<CharT>& s, std::uint64_t u64, const fmt_opts& fmt, const unsigned bpm,
                                  const int exp_max);
 
 template<typename CharT, typename Ty>
@@ -497,17 +497,17 @@ const wchar_t* from_wchars(const wchar_t* first, const wchar_t* last, Ty& v) {
 }
 
 template<typename Ty, typename CharT, typename Traits = std::char_traits<CharT>>
-size_t basic_stoval(std::basic_string_view<CharT, Traits> s, Ty& v) {
+std::size_t basic_stoval(std::basic_string_view<CharT, Traits> s, Ty& v) {
     return string_parser<Ty, CharT>().from_chars(s.data(), s.data() + s.size(), v) - s.data();
 }
 
 template<typename Ty>
-size_t stoval(std::string_view s, Ty& v) {
+std::size_t stoval(std::string_view s, Ty& v) {
     return basic_stoval(s, v);
 }
 
 template<typename Ty>
-size_t wstoval(std::wstring_view s, Ty& v) {
+std::size_t wstoval(std::wstring_view s, Ty& v) {
     return basic_stoval(s, v);
 }
 
@@ -587,25 +587,25 @@ wchar_t* to_wchars(wchar_t* p, const Ty& val, const Opts&... opts) {
 }
 
 template<typename Ty>
-char* to_chars_n(char* p, size_t n, const Ty& val) {
+char* to_chars_n(char* p, std::size_t n, const Ty& val) {
     membuffer buf(p, p + n);
     return to_basic_string(buf, val).curr();
 }
 
 template<typename Ty, typename... Opts>
-char* to_chars_n(char* p, size_t n, const Ty& val, const Opts&... opts) {
+char* to_chars_n(char* p, std::size_t n, const Ty& val, const Opts&... opts) {
     membuffer buf(p, p + n);
     return to_basic_string(buf, val, fmt_opts(opts...)).curr();
 }
 
 template<typename Ty>
-wchar_t* to_wchars_n(wchar_t* p, size_t n, const Ty& val) {
+wchar_t* to_wchars_n(wchar_t* p, std::size_t n, const Ty& val) {
     wmembuffer buf(p, p + n);
     return to_basic_string(buf, val).curr();
 }
 
 template<typename Ty, typename... Opts>
-wchar_t* to_wchars_n(wchar_t* p, size_t n, const Ty& val, const Opts&... opts) {
+wchar_t* to_wchars_n(wchar_t* p, std::size_t n, const Ty& val, const Opts&... opts) {
     wmembuffer buf(p, p + n);
     return to_basic_string(buf, val, fmt_opts(opts...)).curr();
 }

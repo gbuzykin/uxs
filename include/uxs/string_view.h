@@ -32,7 +32,7 @@ class basic_string_view {
     using iterator = const_iterator;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
     using reverse_iterator = const_reverse_iterator;
-    using size_type = size_t;
+    using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
 
     static const size_type npos = std::string::npos;
@@ -250,14 +250,14 @@ using wstring_view = basic_string_view<wchar_t>;
 #    if defined(_MSC_VER)
 template<typename CharT, typename Traits>
 struct hash<basic_string_view<CharT, Traits>> {
-    size_t operator()(basic_string_view<CharT, Traits> s) const {
+    std::size_t operator()(basic_string_view<CharT, Traits> s) const {
         return _Hash_seq((const unsigned char*)s.data(), s.size());
     }
 };
 #    else   // defined(_MSC_VER)
 template<typename CharT, typename Traits>
 struct hash<basic_string_view<CharT, Traits>> {
-    size_t operator()(basic_string_view<CharT, Traits> s) const {
+    std::size_t operator()(basic_string_view<CharT, Traits> s) const {
         return std::hash<std::basic_string<CharT, Traits>>{}(static_cast<std::basic_string<CharT, Traits>>(s));
     }
 };

@@ -30,5 +30,5 @@ iomode detail::iomode_from_str(const char* mode, iomode def) {
 
 template class basic_ibuf<char>;
 template class basic_ibuf<wchar_t>;
-template class basic_ibuf<uint8_t>;
+template class basic_ibuf<std::uint8_t>;
 }  // namespace uxs

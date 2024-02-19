@@ -18,7 +18,7 @@ class basic_ibuf : public iostate {
  public:
     using char_type = CharT;
     using traits_type = iotraits<CharT>;
-    using size_type = size_t;
+    using size_type = std::size_t;
     using int_type = typename traits_type::int_type;
     using pos_type = typename traits_type::pos_type;
     using off_type = typename traits_type::off_type;
@@ -85,7 +85,7 @@ class basic_ibuf : public iostate {
 
     UXS_EXPORT size_type read(uxs::span<char_type> s);
     UXS_EXPORT size_type read_with_endian(uxs::span<char_type> s, size_type element_sz);
-    template<typename Ty, size_t N>
+    template<typename Ty, std::size_t N>
     size_type read(Ty (&)[N]) = delete;
     UXS_EXPORT size_type skip(size_type count);
     UXS_EXPORT pos_type seek(off_type off, seekdir dir = seekdir::beg);
@@ -120,7 +120,7 @@ class basic_ibuf : public iostate {
 
 using ibuf = basic_ibuf<char>;
 using wibuf = basic_ibuf<wchar_t>;
-using u8ibuf = basic_ibuf<uint8_t>;
+using u8ibuf = basic_ibuf<std::uint8_t>;
 
 namespace stdbuf {
 extern UXS_EXPORT ibuf& in;

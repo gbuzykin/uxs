@@ -18,17 +18,17 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC byteseqdev : public iodevice {
 
     const byteseq* get() const { return seq_; }
     UXS_EXPORT void clear();
-    UXS_EXPORT int read(void* data, size_t sz, size_t& n_read) final;
-    UXS_EXPORT int write(const void* data, size_t sz, size_t& n_written) final;
-    UXS_EXPORT void* map(size_t& sz, bool wr) final;
-    UXS_EXPORT int64_t seek(int64_t off, seekdir dir) final;
+    UXS_EXPORT int read(void* data, std::size_t sz, std::size_t& n_read) final;
+    UXS_EXPORT int write(const void* data, std::size_t sz, std::size_t& n_written) final;
+    UXS_EXPORT void* map(std::size_t& sz, bool wr) final;
+    UXS_EXPORT std::int64_t seek(std::int64_t off, seekdir dir) final;
     int flush() final { return 0; }
 
  private:
     byteseq* seq_;
     byteseq::chunk_t* chunk_ = nullptr;
-    size_t pos0_ = 0;
-    size_t pos_ = 0;
+    std::size_t pos0_ = 0;
+    std::size_t pos_ = 0;
 };
 
 }  // namespace uxs

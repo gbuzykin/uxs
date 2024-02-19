@@ -67,7 +67,7 @@ class reader {
     bool is_end_element_pending_ = false;
     inline_dynbuffer str_;
     inline_dynbuffer stash_;
-    inline_basic_dynbuffer<int8_t> state_stack_;
+    inline_basic_dynbuffer<std::int8_t> state_stack_;
     std::forward_list<std::string> name_cache_;
     std::map<std::string_view, std::string> attrs_;
 

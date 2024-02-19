@@ -66,8 +66,8 @@ static void destruct_moved_values(Ty* first, Ty* last, Dummy&&...) {
 }
 
 template<typename CharT, typename Alloc, bool store_values>
-/*static*/ auto flexarray_t<CharT, Alloc, store_values>::alloc(alloc_type& arr_al, size_t cap) -> flexarray_t* {
-    const size_t alloc_sz = get_alloc_sz(cap);
+/*static*/ auto flexarray_t<CharT, Alloc, store_values>::alloc(alloc_type& arr_al, std::size_t cap) -> flexarray_t* {
+    const std::size_t alloc_sz = get_alloc_sz(cap);
     flexarray_t* arr = arr_al.allocate(alloc_sz);
     arr->capacity = (alloc_sz * sizeof(flexarray_t) - offsetof(flexarray_t, x)) / sizeof(array_value_t);
     assert(arr->capacity >= cap && get_alloc_sz(arr->capacity) == alloc_sz);
@@ -75,15 +75,15 @@ template<typename CharT, typename Alloc, bool store_values>
 }
 
 template<typename CharT, typename Alloc, bool store_values>
-/*static*/ auto flexarray_t<CharT, Alloc, store_values>::grow(alloc_type& arr_al, flexarray_t* arr, size_t extra)
+/*static*/ auto flexarray_t<CharT, Alloc, store_values>::grow(alloc_type& arr_al, flexarray_t* arr, std::size_t extra)
     -> flexarray_t* {
-    size_t delta_sz = std::max(extra, arr->size >> 1);
-    const size_t max_sz = max_size(arr_al);
+    std::size_t delta_sz = std::max(extra, arr->size >> 1);
+    const std::size_t max_sz = max_size(arr_al);
     if (delta_sz > max_sz - arr->size) {
         if (extra > max_sz - arr->size) { throw std::length_error("too much to reserve"); }
         delta_sz = std::max(extra, (max_sz - arr->size) >> 1);
     }
-    flexarray_t* new_arr = alloc(arr_al, std::max<size_t>(arr->size + delta_sz, start_capacity));
+    flexarray_t* new_arr = alloc(arr_al, std::max<std::size_t>(arr->size + delta_sz, start_capacity));
     detail::move_values<alloc_type>(&(*arr)[0], &(*arr)[arr->size], &(*new_arr)[0]);
     new_arr->size = arr->size;
     detail::destruct_moved_values<alloc_type>(&(*arr)[0], &(*arr)[arr->size]);
@@ -111,7 +111,7 @@ void record_t<CharT, Alloc>::destroy(alloc_type& rec_al, list_links_type* node) 
 }
 
 template<typename CharT, typename Alloc>
-list_links_type* record_t<CharT, Alloc>::find(std::basic_string_view<CharT> name, size_t hash_code) const {
+list_links_type* record_t<CharT, Alloc>::find(std::basic_string_view<CharT> name, std::size_t hash_code) const {
     list_links_type* next_bucket = hashtbl[hash_code % bucket_count];
     while (next_bucket) {
         if (node_t::from_links(next_bucket)->hash_code == hash_code &&
@@ -124,9 +124,9 @@ list_links_type* record_t<CharT, Alloc>::find(std::basic_string_view<CharT> name
 }
 
 template<typename CharT, typename Alloc>
-size_t record_t<CharT, Alloc>::count(std::basic_string_view<CharT> name) const {
-    size_t count = 0;
-    const size_t hash_code = calc_hash_code(name);
+std::size_t record_t<CharT, Alloc>::count(std::basic_string_view<CharT> name) const {
+    std::size_t count = 0;
+    const std::size_t hash_code = calc_hash_code(name);
     list_links_type* next_bucket = hashtbl[hash_code % bucket_count];
     while (next_bucket) {
         if (node_t::from_links(next_bucket)->hash_code == hash_code &&
@@ -210,50 +210,50 @@ template<typename CharT, typename Alloc>
 }
 
 template<typename CharT, typename Alloc>
-/*static*/ size_t record_t<CharT, Alloc>::calc_hash_code(std::basic_string_view<CharT> name) {
-    // Implementation of Murmur hash for 64-bit size_t is taken from GNU libstdc++
-    const size_t seed = 0xc70f6907;
-    const size_t sz = name.size() * sizeof(CharT);
-    const uint8_t* data = reinterpret_cast<const uint8_t*>(name.data());
+/*static*/ std::size_t record_t<CharT, Alloc>::calc_hash_code(std::basic_string_view<CharT> name) {
+    // Implementation of Murmur hash for 64-bit std::size_t is taken from GNU libstdc++
+    const std::size_t seed = 0xc70f6907;
+    const std::size_t sz = name.size() * sizeof(CharT);
+    const std::uint8_t* data = reinterpret_cast<const std::uint8_t*>(name.data());
 #if UINTPTR_MAX == 0xffffffffffffffff
-    const size_t mul = 0xc6a4a7935bd1e995ull;
-    const uint8_t* end0 = data + (sz & ~7);
-    size_t hash = seed ^ (sz * mul);
-    auto shift_mix = [](size_t v) { return v ^ (v >> 47); };
-    for (const uint8_t* p = data; p != end0; p += 8) {
-        size_t data;
+    const std::size_t mul = 0xc6a4a7935bd1e995ull;
+    const std::uint8_t* end0 = data + (sz & ~7);
+    std::size_t hash = seed ^ (sz * mul);
+    auto shift_mix = [](std::size_t v) { return v ^ (v >> 47); };
+    for (const std::uint8_t* p = data; p != end0; p += 8) {
+        std::size_t data;
         std::memcpy(&data, p, 8);  // unaligned load
         hash ^= shift_mix(data * mul) * mul;
         hash *= mul;
     }
     if (sz & 7) {
-        size_t a = 0;
-        const uint8_t* end = data + sz;
+        std::size_t a = 0;
+        const std::uint8_t* end = data + sz;
         do { a = (a << 8) + *--end; } while (end != end0);
         hash ^= a;
         hash *= mul;
     }
     hash = shift_mix(shift_mix(hash) * mul);
 #else
-    size_t hash = seed;
-    for (uint8_t ch : uxs::as_span(data, sz)) { hash = (hash * 131) + ch; }
+    std::size_t hash = seed;
+    for (std::uint8_t ch : uxs::as_span(data, sz)) { hash = (hash * 131) + ch; }
 #endif
     return hash;
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::add_to_hash(list_links_type* node, size_t hash_code) {
+void record_t<CharT, Alloc>::add_to_hash(list_links_type* node, std::size_t hash_code) {
     list_links_type** slot = &hashtbl[hash_code % bucket_count];
     node_t::from_links(node)->next_bucket = *slot;
     *slot = node;
 }
 
 template<typename CharT, typename Alloc>
-/*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::insert(alloc_type& rec_al, record_t* rec, size_t hash_code,
-                                                                  list_links_type* node) {
+/*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::insert(alloc_type& rec_al, record_t* rec,
+                                                                  std::size_t hash_code, list_links_type* node) {
     assert(rec->size <= rec->bucket_count);
     if (rec->size == rec->bucket_count) {
-        const size_t sz = next_bucket_count(rec_al, rec->size);
+        const std::size_t sz = next_bucket_count(rec_al, rec->size);
         if (sz > rec->size) { rec = record_t::rehash(rec_al, rec, sz); }
     }
     node_traits::set_head(node, &rec->head);
@@ -279,9 +279,9 @@ list_links_type* record_t<CharT, Alloc>::erase(alloc_type& rec_al, list_links_ty
 }
 
 template<typename CharT, typename Alloc>
-size_t record_t<CharT, Alloc>::erase(alloc_type& rec_al, std::basic_string_view<CharT> name) {
-    size_t old_size = size;
-    const size_t hash_code = calc_hash_code(name);
+std::size_t record_t<CharT, Alloc>::erase(alloc_type& rec_al, std::basic_string_view<CharT> name) {
+    std::size_t old_size = size;
+    const std::size_t hash_code = calc_hash_code(name);
     list_links_type** p_next_bucket = &hashtbl[hash_code % bucket_count];
     while (*p_next_bucket) {
         if (node_t::from_links(*p_next_bucket)->hash_code == hash_code &&
@@ -299,21 +299,21 @@ size_t record_t<CharT, Alloc>::erase(alloc_type& rec_al, std::basic_string_view<
 }
 
 template<typename CharT, typename Alloc>
-/*static*/ size_t record_t<CharT, Alloc>::next_bucket_count(const alloc_type& rec_al, size_t sz) {
-    size_t delta_sz = std::max<size_t>(min_bucket_count_inc, sz >> 1);
-    const size_t max_size = (std::allocator_traits<alloc_type>::max_size(rec_al) * sizeof(record_t) -
-                             offsetof(record_t, hashtbl)) /
-                            sizeof(list_links_type*);
+/*static*/ std::size_t record_t<CharT, Alloc>::next_bucket_count(const alloc_type& rec_al, std::size_t sz) {
+    std::size_t delta_sz = std::max<std::size_t>(min_bucket_count_inc, sz >> 1);
+    const std::size_t max_size = (std::allocator_traits<alloc_type>::max_size(rec_al) * sizeof(record_t) -
+                                  offsetof(record_t, hashtbl)) /
+                                 sizeof(list_links_type*);
     if (delta_sz > max_size - sz) {
         if (sz == max_size) { return sz; }
-        delta_sz = std::max<size_t>(1, (max_size - sz) >> 1);
+        delta_sz = std::max<std::size_t>(1, (max_size - sz) >> 1);
     }
     return sz + delta_sz;
 }
 
 template<typename CharT, typename Alloc>
-/*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::alloc(alloc_type& rec_al, size_t bckt_cnt) {
-    const size_t alloc_sz = get_alloc_sz(bckt_cnt);
+/*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::alloc(alloc_type& rec_al, std::size_t bckt_cnt) {
+    const std::size_t alloc_sz = get_alloc_sz(bckt_cnt);
     record_t* rec = rec_al.allocate(alloc_sz);
     rec->bucket_count = (alloc_sz * sizeof(record_t) - offsetof(record_t, hashtbl)) / sizeof(list_links_type*);
     assert(rec->bucket_count >= bckt_cnt && get_alloc_sz(rec->bucket_count) == alloc_sz);
@@ -321,7 +321,8 @@ template<typename CharT, typename Alloc>
 }
 
 template<typename CharT, typename Alloc>
-/*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::rehash(alloc_type& rec_al, record_t* rec, size_t bckt_cnt) {
+/*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::rehash(alloc_type& rec_al, record_t* rec,
+                                                                  std::size_t bckt_cnt) {
     assert(rec->size);
     record_t* new_rec = alloc(rec_al, bckt_cnt);
     new_rec->head = rec->head;
@@ -344,7 +345,7 @@ template<typename CharT, typename Alloc>
 /*static*/ record_node_type<CharT, Alloc>* record_node_type<CharT, Alloc>::alloc_checked(
     alloc_type& node_al, std::basic_string_view<CharT> name) {
     if (name.size() > max_name_size(node_al)) { throw std::length_error("too much to reserve"); }
-    const size_t alloc_sz = get_alloc_sz(name.size());
+    const std::size_t alloc_sz = get_alloc_sz(name.size());
     record_node_type* node = node_al.allocate(alloc_sz);
     node->v.name_sz = name.size();
     std::copy_n(name.data(), name.size(), static_cast<CharT*>(node->v.name_chars));
@@ -399,7 +400,7 @@ void basic_value<CharT, Alloc>::assign(std::initializer_list<basic_value> init) 
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::insert(size_t pos, std::initializer_list<basic_value> init) {
+void basic_value<CharT, Alloc>::insert(std::size_t pos, std::initializer_list<basic_value> init) {
     if (type_ != dtype::array) {
         if (type_ != dtype::null) { throw database_error("not an array"); }
         value_.arr = alloc_array(init.size(), init.begin());
@@ -459,31 +460,31 @@ uxs::optional<bool> basic_value<CharT, Alloc>::get_bool() const {
 }
 
 template<typename CharT, typename Alloc>
-uxs::optional<int32_t> basic_value<CharT, Alloc>::get_int() const {
+uxs::optional<std::int32_t> basic_value<CharT, Alloc>::get_int() const {
     switch (type_) {
         case dtype::null: return uxs::nullopt();
         case dtype::boolean: return value_.b ? 1 : 0;
         case dtype::integer: return value_.i;
         case dtype::unsigned_integer:
-            return value_.u <= static_cast<uint32_t>(std::numeric_limits<int32_t>::max()) ?
-                       uxs::make_optional(static_cast<int32_t>(value_.u)) :
+            return value_.u <= static_cast<std::uint32_t>(std::numeric_limits<std::int32_t>::max()) ?
+                       uxs::make_optional(static_cast<std::int32_t>(value_.u)) :
                        uxs::nullopt();
         case dtype::long_integer:
-            return value_.i64 >= std::numeric_limits<int32_t>::min() &&
-                           value_.i64 <= std::numeric_limits<int32_t>::max() ?
-                       uxs::make_optional(static_cast<int32_t>(value_.i64)) :
+            return value_.i64 >= std::numeric_limits<std::int32_t>::min() &&
+                           value_.i64 <= std::numeric_limits<std::int32_t>::max() ?
+                       uxs::make_optional(static_cast<std::int32_t>(value_.i64)) :
                        uxs::nullopt();
         case dtype::unsigned_long_integer:
-            return value_.u64 <= static_cast<uint64_t>(std::numeric_limits<int32_t>::max()) ?
-                       uxs::make_optional(static_cast<int32_t>(value_.u64)) :
+            return value_.u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max()) ?
+                       uxs::make_optional(static_cast<std::int32_t>(value_.u64)) :
                        uxs::nullopt();
         case dtype::double_precision:
-            return value_.dbl >= std::numeric_limits<int32_t>::min() &&
-                           value_.dbl <= std::numeric_limits<int32_t>::max() ?
-                       uxs::make_optional(static_cast<int32_t>(value_.dbl)) :
+            return value_.dbl >= std::numeric_limits<std::int32_t>::min() &&
+                           value_.dbl <= std::numeric_limits<std::int32_t>::max() ?
+                       uxs::make_optional(static_cast<std::int32_t>(value_.dbl)) :
                        uxs::nullopt();
         case dtype::string: {
-            uxs::optional<int32_t> result(uxs::in_place());
+            uxs::optional<std::int32_t> result(uxs::in_place());
             return basic_stoval(str_view(), *result) ? result : uxs::nullopt();
         } break;
         case dtype::array: return uxs::nullopt();
@@ -493,27 +494,28 @@ uxs::optional<int32_t> basic_value<CharT, Alloc>::get_int() const {
 }
 
 template<typename CharT, typename Alloc>
-uxs::optional<uint32_t> basic_value<CharT, Alloc>::get_uint() const {
+uxs::optional<std::uint32_t> basic_value<CharT, Alloc>::get_uint() const {
     switch (type_) {
         case dtype::null: return uxs::nullopt();
         case dtype::boolean: return value_.b ? 1 : 0;
         case dtype::integer:
-            return value_.i >= 0 ? uxs::make_optional(static_cast<uint32_t>(value_.i)) : uxs::nullopt();
+            return value_.i >= 0 ? uxs::make_optional(static_cast<std::uint32_t>(value_.i)) : uxs::nullopt();
         case dtype::unsigned_integer: return value_.u;
         case dtype::long_integer:
-            return value_.i64 >= 0 && value_.i64 <= static_cast<int64_t>(std::numeric_limits<uint32_t>::max()) ?
-                       uxs::make_optional(static_cast<uint32_t>(value_.i64)) :
+            return value_.i64 >= 0 &&
+                           value_.i64 <= static_cast<std::int64_t>(std::numeric_limits<std::uint32_t>::max()) ?
+                       uxs::make_optional(static_cast<std::uint32_t>(value_.i64)) :
                        uxs::nullopt();
         case dtype::unsigned_long_integer:
-            return value_.u64 <= std::numeric_limits<uint32_t>::max() ?
-                       uxs::make_optional(static_cast<uint32_t>(value_.u64)) :
+            return value_.u64 <= std::numeric_limits<std::uint32_t>::max() ?
+                       uxs::make_optional(static_cast<std::uint32_t>(value_.u64)) :
                        uxs::nullopt();
         case dtype::double_precision:
-            return value_.dbl >= 0 && value_.dbl <= std::numeric_limits<uint32_t>::max() ?
-                       uxs::make_optional(static_cast<uint32_t>(value_.dbl)) :
+            return value_.dbl >= 0 && value_.dbl <= std::numeric_limits<std::uint32_t>::max() ?
+                       uxs::make_optional(static_cast<std::uint32_t>(value_.dbl)) :
                        uxs::nullopt();
         case dtype::string: {
-            uxs::optional<uint32_t> result(uxs::in_place());
+            uxs::optional<std::uint32_t> result(uxs::in_place());
             return basic_stoval(str_view(), *result) ? result : uxs::nullopt();
         } break;
         case dtype::array: return uxs::nullopt();
@@ -523,25 +525,25 @@ uxs::optional<uint32_t> basic_value<CharT, Alloc>::get_uint() const {
 }
 
 template<typename CharT, typename Alloc>
-uxs::optional<int64_t> basic_value<CharT, Alloc>::get_int64() const {
+uxs::optional<std::int64_t> basic_value<CharT, Alloc>::get_int64() const {
     switch (type_) {
         case dtype::null: return uxs::nullopt();
         case dtype::boolean: return value_.b ? 1 : 0;
         case dtype::integer: return value_.i;
-        case dtype::unsigned_integer: return static_cast<int64_t>(value_.u);
+        case dtype::unsigned_integer: return static_cast<std::int64_t>(value_.u);
         case dtype::long_integer: return value_.i64;
         case dtype::unsigned_long_integer:
-            return value_.u64 <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) ?
-                       uxs::make_optional(static_cast<int64_t>(value_.u64)) :
+            return value_.u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) ?
+                       uxs::make_optional(static_cast<std::int64_t>(value_.u64)) :
                        uxs::nullopt();
         case dtype::double_precision:
             // Note that double(2^63 - 1) will be rounded up to 2^63, so maximum is excluded
-            return value_.dbl >= static_cast<double>(std::numeric_limits<int64_t>::min()) &&
-                           value_.dbl < static_cast<double>(std::numeric_limits<int64_t>::max()) ?
-                       uxs::make_optional(static_cast<int64_t>(value_.dbl)) :
+            return value_.dbl >= static_cast<double>(std::numeric_limits<std::int64_t>::min()) &&
+                           value_.dbl < static_cast<double>(std::numeric_limits<std::int64_t>::max()) ?
+                       uxs::make_optional(static_cast<std::int64_t>(value_.dbl)) :
                        uxs::nullopt();
         case dtype::string: {
-            uxs::optional<int64_t> result(uxs::in_place());
+            uxs::optional<std::int64_t> result(uxs::in_place());
             return basic_stoval(str_view(), *result) ? result : uxs::nullopt();
         } break;
         case dtype::array: return uxs::nullopt();
@@ -551,23 +553,23 @@ uxs::optional<int64_t> basic_value<CharT, Alloc>::get_int64() const {
 }
 
 template<typename CharT, typename Alloc>
-uxs::optional<uint64_t> basic_value<CharT, Alloc>::get_uint64() const {
+uxs::optional<std::uint64_t> basic_value<CharT, Alloc>::get_uint64() const {
     switch (type_) {
         case dtype::null: return uxs::nullopt();
         case dtype::boolean: return value_.b ? 1 : 0;
         case dtype::integer:
-            return value_.i >= 0 ? uxs::make_optional(static_cast<uint64_t>(value_.i)) : uxs::nullopt();
+            return value_.i >= 0 ? uxs::make_optional(static_cast<std::uint64_t>(value_.i)) : uxs::nullopt();
         case dtype::unsigned_integer: return value_.u;
         case dtype::long_integer:
-            return value_.i64 >= 0 ? uxs::make_optional(static_cast<uint64_t>(value_.i64)) : uxs::nullopt();
+            return value_.i64 >= 0 ? uxs::make_optional(static_cast<std::uint64_t>(value_.i64)) : uxs::nullopt();
         case dtype::unsigned_long_integer: return value_.u64;
         case dtype::double_precision:
             // Note that double(2^64 - 1) will be rounded up to 2^64, so maximum is excluded
-            return value_.dbl >= 0 && value_.dbl < static_cast<double>(std::numeric_limits<uint64_t>::max()) ?
-                       uxs::make_optional(static_cast<uint64_t>(value_.dbl)) :
+            return value_.dbl >= 0 && value_.dbl < static_cast<double>(std::numeric_limits<std::uint64_t>::max()) ?
+                       uxs::make_optional(static_cast<std::uint64_t>(value_.dbl)) :
                        uxs::nullopt();
         case dtype::string: {
-            uxs::optional<uint64_t> result(uxs::in_place());
+            uxs::optional<std::uint64_t> result(uxs::in_place());
             return basic_stoval(str_view(), *result) ? result : uxs::nullopt();
         } break;
         case dtype::array: return uxs::nullopt();
@@ -670,15 +672,16 @@ template<typename CharT, typename Alloc>
 bool basic_value<CharT, Alloc>::is_int() const noexcept {
     switch (type_) {
         case dtype::integer: return true;
-        case dtype::unsigned_integer: return value_.u <= static_cast<uint32_t>(std::numeric_limits<int32_t>::max());
+        case dtype::unsigned_integer:
+            return value_.u <= static_cast<std::uint32_t>(std::numeric_limits<std::int32_t>::max());
         case dtype::long_integer:
-            return value_.i64 >= std::numeric_limits<int32_t>::min() &&
-                   value_.i64 <= std::numeric_limits<int32_t>::max();
+            return value_.i64 >= std::numeric_limits<std::int32_t>::min() &&
+                   value_.i64 <= std::numeric_limits<std::int32_t>::max();
         case dtype::unsigned_long_integer:
-            return value_.u64 <= static_cast<uint64_t>(std::numeric_limits<int32_t>::max());
+            return value_.u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max());
         case dtype::double_precision:
-            return value_.dbl >= std::numeric_limits<int32_t>::min() &&
-                   value_.dbl <= std::numeric_limits<int32_t>::max() && detail::is_integral(value_.dbl);
+            return value_.dbl >= std::numeric_limits<std::int32_t>::min() &&
+                   value_.dbl <= std::numeric_limits<std::int32_t>::max() && detail::is_integral(value_.dbl);
         default: break;
     }
     return false;
@@ -690,10 +693,11 @@ bool basic_value<CharT, Alloc>::is_uint() const noexcept {
         case dtype::integer: return value_.i >= 0;
         case dtype::unsigned_integer: return true;
         case dtype::long_integer:
-            return value_.i64 >= 0 && value_.i64 <= static_cast<int64_t>(std::numeric_limits<uint32_t>::max());
-        case dtype::unsigned_long_integer: return value_.u64 <= std::numeric_limits<uint32_t>::max();
+            return value_.i64 >= 0 &&
+                   value_.i64 <= static_cast<std::int64_t>(std::numeric_limits<std::uint32_t>::max());
+        case dtype::unsigned_long_integer: return value_.u64 <= std::numeric_limits<std::uint32_t>::max();
         case dtype::double_precision:
-            return value_.dbl >= 0 && value_.dbl <= std::numeric_limits<uint32_t>::max() &&
+            return value_.dbl >= 0 && value_.dbl <= std::numeric_limits<std::uint32_t>::max() &&
                    detail::is_integral(value_.dbl);
         default: break;
     }
@@ -707,11 +711,11 @@ bool basic_value<CharT, Alloc>::is_int64() const noexcept {
         case dtype::unsigned_integer:
         case dtype::long_integer: return true;
         case dtype::unsigned_long_integer:
-            return value_.u64 <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
+            return value_.u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
         case dtype::double_precision:
             // Note that double(2^63 - 1) will be rounded up to 2^63, so maximum is excluded
-            return value_.dbl >= static_cast<double>(std::numeric_limits<int64_t>::min()) &&
-                   value_.dbl < static_cast<double>(std::numeric_limits<int64_t>::max()) &&
+            return value_.dbl >= static_cast<double>(std::numeric_limits<std::int64_t>::min()) &&
+                   value_.dbl < static_cast<double>(std::numeric_limits<std::int64_t>::max()) &&
                    detail::is_integral(value_.dbl);
         default: break;
     }
@@ -727,7 +731,7 @@ bool basic_value<CharT, Alloc>::is_uint64() const noexcept {
         case dtype::unsigned_long_integer: return true;
         case dtype::double_precision:
             // Note that double(2^64 - 1) will be rounded up to 2^64, so maximum is excluded
-            return value_.dbl >= 0 && value_.dbl < static_cast<double>(std::numeric_limits<uint64_t>::max()) &&
+            return value_.dbl >= 0 && value_.dbl < static_cast<double>(std::numeric_limits<std::uint64_t>::max()) &&
                    detail::is_integral(value_.dbl);
         default: break;
     }
@@ -743,8 +747,8 @@ bool basic_value<CharT, Alloc>::is_integral() const noexcept {
         case dtype::unsigned_long_integer: return true;
         case dtype::double_precision:
             // Note that double(2^64 - 1) will be rounded up to 2^64, so maximum is excluded
-            return value_.dbl >= static_cast<double>(std::numeric_limits<int64_t>::min()) &&
-                   value_.dbl < static_cast<double>(std::numeric_limits<uint64_t>::max()) &&
+            return value_.dbl >= static_cast<double>(std::numeric_limits<std::int64_t>::min()) &&
+                   value_.dbl < static_cast<double>(std::numeric_limits<std::uint64_t>::max()) &&
                    detail::is_integral(value_.dbl);
         default: break;
     }
@@ -802,7 +806,7 @@ bool basic_value<CharT, Alloc>::empty() const noexcept {
 }
 
 template<typename CharT, typename Alloc>
-size_t basic_value<CharT, Alloc>::size() const noexcept {
+std::size_t basic_value<CharT, Alloc>::size() const noexcept {
     switch (type_) {
         case dtype::null: return 0;
         case dtype::array: return value_.arr ? value_.arr->size : 0;
@@ -828,7 +832,7 @@ basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::operator[](std::basic_stri
         value_.rec = record_t::create(rec_al);
         type_ = dtype::record;
     }
-    const size_t hash_code = record_t::calc_hash_code(name);
+    const std::size_t hash_code = record_t::calc_hash_code(name);
     detail::list_links_type* node = value_.rec->find(name, hash_code);
     if (node == &value_.rec->head) {
         node = value_.rec->new_node(rec_al, name, static_cast<const Alloc&>(*this));
@@ -849,7 +853,7 @@ void basic_value<CharT, Alloc>::clear() noexcept {
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::reserve(size_t sz) {
+void basic_value<CharT, Alloc>::reserve(std::size_t sz) {
     if (type_ != dtype::array || !value_.arr) {
         if (type_ != dtype::array && type_ != dtype::null) { throw database_error("not an array"); }
         if (sz) {
@@ -867,7 +871,7 @@ void basic_value<CharT, Alloc>::reserve(size_t sz) {
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::resize(size_t sz) {
+void basic_value<CharT, Alloc>::resize(std::size_t sz) {
     reserve(sz);
     if (!value_.arr) {
         return;
@@ -881,7 +885,7 @@ void basic_value<CharT, Alloc>::resize(size_t sz) {
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::erase(size_t pos) {
+void basic_value<CharT, Alloc>::erase(std::size_t pos) {
     if (type_ != dtype::array) { throw database_error("not an array"); }
     assert(value_.arr && pos < value_.arr->size);
     basic_value* v = &(*value_.arr)[pos];
@@ -901,7 +905,7 @@ typename basic_value<CharT, Alloc>::record_iterator basic_value<CharT, Alloc>::e
 }
 
 template<typename CharT, typename Alloc>
-size_t basic_value<CharT, Alloc>::erase(std::basic_string_view<char_type> name) {
+std::size_t basic_value<CharT, Alloc>::erase(std::basic_string_view<char_type> name) {
     if (type_ != dtype::record) { throw database_error("not a record"); }
     typename record_t::alloc_type rec_al(*this);
     return value_.rec->erase(rec_al, name);
@@ -1006,7 +1010,7 @@ void basic_value<CharT, Alloc>::reserve_back() {
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::reserve_string(size_t extra) {
+void basic_value<CharT, Alloc>::reserve_string(std::size_t extra) {
     typename char_flexarray_t::alloc_type arr_al(*this);
     if (type_ != dtype::string || !value_.str) {
         if (type_ != dtype::string && type_ != dtype::null) { throw database_error("not a string"); }
@@ -1019,7 +1023,7 @@ void basic_value<CharT, Alloc>::reserve_string(size_t extra) {
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::rotate_back(size_t pos) {
+void basic_value<CharT, Alloc>::rotate_back(std::size_t pos) {
     assert(pos != value_.arr->size - 1);
     basic_value* v = &(*value_.arr)[value_.arr->size];
     basic_value t(std::move(*(v - 1)));

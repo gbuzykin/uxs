@@ -15,7 +15,7 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC format_error : public std::runtime_error {
 
 namespace sfmt {
 
-enum class type_id : uint8_t {
+enum class type_id : std::uint8_t {
     boolean = 0,
     character,
     integer,
@@ -58,10 +58,10 @@ struct arg_store_type {
 UXS_FMT_DECLARE_ARG_TYPE_ID(bool, bool, type_id::boolean)
 UXS_FMT_DECLARE_ARG_TYPE_ID(char, typename StrTy::value_type, type_id::character)
 UXS_FMT_DECLARE_ARG_TYPE_ID(wchar_t, typename StrTy::value_type, type_id::character)
-UXS_FMT_DECLARE_ARG_TYPE_ID(int32_t, int32_t, type_id::integer)
-UXS_FMT_DECLARE_ARG_TYPE_ID(int64_t, int64_t, type_id::long_integer)
-UXS_FMT_DECLARE_ARG_TYPE_ID(uint32_t, uint32_t, type_id::unsigned_integer)
-UXS_FMT_DECLARE_ARG_TYPE_ID(uint64_t, uint64_t, type_id::unsigned_long_integer)
+UXS_FMT_DECLARE_ARG_TYPE_ID(std::int32_t, std::int32_t, type_id::integer)
+UXS_FMT_DECLARE_ARG_TYPE_ID(std::int64_t, std::int64_t, type_id::long_integer)
+UXS_FMT_DECLARE_ARG_TYPE_ID(std::uint32_t, std::uint32_t, type_id::unsigned_integer)
+UXS_FMT_DECLARE_ARG_TYPE_ID(std::uint64_t, std::uint64_t, type_id::unsigned_long_integer)
 UXS_FMT_DECLARE_ARG_TYPE_ID(float, float, type_id::single_precision)
 UXS_FMT_DECLARE_ARG_TYPE_ID(double, double, type_id::double_precision)
 UXS_FMT_DECLARE_ARG_TYPE_ID(long double, long double, type_id::long_double_precision)
@@ -101,17 +101,18 @@ using arg_size = uxs::size_of<arg_store_type_t<StrTy, Ty>>;
 template<typename StrTy, typename Ty>
 using arg_alignment = std::alignment_of<arg_store_type_t<StrTy, Ty>>;
 
-template<typename StrTy, size_t, typename...>
+template<typename StrTy, std::size_t, typename...>
 struct arg_store_size_evaluator;
-template<typename StrTy, size_t Size>
-struct arg_store_size_evaluator<StrTy, Size> : std::integral_constant<size_t, Size> {};
-template<typename StrTy, size_t Size, typename Ty, typename... Rest>
+template<typename StrTy, std::size_t Size>
+struct arg_store_size_evaluator<StrTy, Size> : std::integral_constant<std::size_t, Size> {};
+template<typename StrTy, std::size_t Size, typename Ty, typename... Rest>
 struct arg_store_size_evaluator<StrTy, Size, Ty, Rest...>
     : std::integral_constant<
-          size_t, arg_store_size_evaluator<StrTy,
-                                           uxs::align_up<arg_alignment<StrTy, Ty>::value>::template type<Size>::value +
-                                               arg_size<StrTy, Ty>::value,
-                                           Rest...>::value> {};
+          std::size_t,
+          arg_store_size_evaluator<StrTy,
+                                   uxs::align_up<arg_alignment<StrTy, Ty>::value>::template type<Size>::value +
+                                       arg_size<StrTy, Ty>::value,
+                                   Rest...>::value> {};
 
 template<typename StrTy, typename...>
 struct arg_store_alignment_evaluator;
@@ -134,16 +135,17 @@ template<typename StrTy, typename... Args>
 class arg_store {
  public:
     using char_type = typename StrTy::value_type;
-    static const size_t arg_count = sizeof...(Args);
+    static const std::size_t arg_count = sizeof...(Args);
     CONSTEXPR explicit arg_store(const Args&... args) noexcept {
         store_values(0, arg_count * sizeof(unsigned), args...);
     }
     CONSTEXPR const void* data() const noexcept { return data_; }
 
  private:
-    static const size_t storage_size = arg_store_size_evaluator<StrTy, arg_count * sizeof(unsigned), Args...>::value;
-    static const size_t storage_alignment = arg_store_alignment_evaluator<StrTy, unsigned, Args...>::value;
-    alignas(storage_alignment) uint8_t data_[storage_size];
+    static const std::size_t storage_size =
+        arg_store_size_evaluator<StrTy, arg_count * sizeof(unsigned), Args...>::value;
+    static const std::size_t storage_alignment = arg_store_alignment_evaluator<StrTy, unsigned, Args...>::value;
+    alignas(storage_alignment) std::uint8_t data_[storage_size];
 
     template<typename Ty>
     CONSTEXPR static void store_value(
@@ -187,10 +189,10 @@ class arg_store {
         ::new (data) Ty(s.data(), s.size());
     }
 
-    CONSTEXPR void store_values(size_t i, size_t offset) noexcept {}
+    CONSTEXPR void store_values(std::size_t i, std::size_t offset) noexcept {}
 
     template<typename Ty, typename... Ts>
-    CONSTEXPR void store_values(size_t i, size_t offset, const Ty& v, const Ts&... other) noexcept {
+    CONSTEXPR void store_values(std::size_t i, std::size_t offset, const Ty& v, const Ts&... other) noexcept {
         offset = uxs::align_up<arg_alignment<StrTy, Ty>::value>::value(offset);
         ::new (reinterpret_cast<unsigned*>(&data_) + i) unsigned(static_cast<unsigned>(offset << 8) |
                                                                  static_cast<unsigned>(arg_type_id<Ty>::value));
@@ -203,7 +205,7 @@ template<typename StrTy>
 class arg_store<StrTy> {
  public:
     using char_type = typename StrTy::value_type;
-    static const size_t arg_count = 0;
+    static const std::size_t arg_count = 0;
     CONSTEXPR const void* data() const noexcept { return nullptr; }
 };
 
@@ -214,18 +216,18 @@ class arg_list {
     CONSTEXPR arg_list(const arg_store<StrTy, Args...>& store) noexcept
         : data_(store.data()), size_(arg_store<StrTy, Args...>::arg_count) {}
 
-    CONSTEXPR size_t size() const noexcept { return size_; }
+    CONSTEXPR std::size_t size() const noexcept { return size_; }
     CONSTEXPR bool empty() const noexcept { return !size_; }
-    CONSTEXPR type_id type(size_t i) const noexcept {
+    CONSTEXPR type_id type(std::size_t i) const noexcept {
         return static_cast<type_id>(static_cast<const unsigned*>(data_)[i] & 0xff);
     }
-    CONSTEXPR const void* data(size_t i) const noexcept {
-        return static_cast<const uint8_t*>(data_) + (static_cast<const unsigned*>(data_)[i] >> 8);
+    CONSTEXPR const void* data(std::size_t i) const noexcept {
+        return static_cast<const std::uint8_t*>(data_) + (static_cast<const unsigned*>(data_)[i] >> 8);
     }
 
  private:
     const void* data_;
-    size_t size_;
+    std::size_t size_;
 };
 
 enum class parse_flags : unsigned {
@@ -289,7 +291,7 @@ struct meta_tbl_t {
         close_brace,
         other
     };
-    std::array<uint8_t, 128> tbl;
+    std::array<std::uint8_t, 128> tbl;
     CONSTEXPR meta_tbl_t() : tbl() {
         for (unsigned ch = 0; ch < tbl.size(); ++ch) { tbl[ch] = code_t::other; }
         tbl['<'] = code_t::left, tbl['^'] = code_t::internal, tbl['>'] = code_t::right;
@@ -532,7 +534,7 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
 enum class parse_format_error_code { success = 0, invalid_format, out_of_arg_list };
 
 template<typename CharT, typename AppendFn, typename AppendArgFn, typename GetUIntArgFn>
-CONSTEXPR parse_format_error_code parse_format(std::basic_string_view<CharT> fmt, const size_t arg_count,
+CONSTEXPR parse_format_error_code parse_format(std::basic_string_view<CharT> fmt, const std::size_t arg_count,
                                                const AppendFn& append_fn, const AppendArgFn& append_arg_fn,
                                                const GetUIntArgFn& get_uint_arg_fn) {
     unsigned n_arg_auto = 0;
@@ -863,50 +865,51 @@ OutputIt format_to(OutputIt out, const std::locale& loc, uxs::wformat_string<Arg
 
 // ---- vformat_to_n
 
-inline char* vformat_to_n(char* p, size_t n, std::string_view fmt, uxs::format_args args) {
+inline char* vformat_to_n(char* p, std::size_t n, std::string_view fmt, uxs::format_args args) {
     membuffer buf(p, p + n);
     return sfmt::vformat<membuffer>(buf, fmt, args).curr();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt vformat_to_n(OutputIt out, size_t n, std::string_view fmt, uxs::format_args args) {
+OutputIt vformat_to_n(OutputIt out, std::size_t n, std::string_view fmt, uxs::format_args args) {
     inline_dynbuffer buf;
     sfmt::vformat<membuffer>(buf, fmt, args);
     return std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out));
 }
 
-inline wchar_t* vformat_to_n(wchar_t* p, size_t n, std::wstring_view fmt, uxs::wformat_args args) {
+inline wchar_t* vformat_to_n(wchar_t* p, std::size_t n, std::wstring_view fmt, uxs::wformat_args args) {
     wmembuffer buf(p, p + n);
     return sfmt::vformat<wmembuffer>(buf, fmt, args).curr();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt vformat_to_n(OutputIt out, size_t n, std::wstring_view fmt, uxs::wformat_args args) {
+OutputIt vformat_to_n(OutputIt out, std::size_t n, std::wstring_view fmt, uxs::wformat_args args) {
     inline_wdynbuffer buf;
     sfmt::vformat<wmembuffer>(buf, fmt, args);
     return std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out));
 }
 
-inline char* vformat_to_n(char* p, size_t n, const std::locale& loc, std::string_view fmt, uxs::format_args args) {
+inline char* vformat_to_n(char* p, std::size_t n, const std::locale& loc, std::string_view fmt, uxs::format_args args) {
     membuffer buf(p, p + n);
     return sfmt::vformat<membuffer>(buf, fmt, args, &loc).curr();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt vformat_to_n(OutputIt out, size_t n, const std::locale& loc, std::string_view fmt, uxs::format_args args) {
+OutputIt vformat_to_n(OutputIt out, std::size_t n, const std::locale& loc, std::string_view fmt, uxs::format_args args) {
     inline_dynbuffer buf;
     sfmt::vformat<membuffer>(buf, fmt, args, &loc);
     return std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out));
 }
 
-inline wchar_t* vformat_to_n(wchar_t* p, size_t n, const std::locale& loc, std::wstring_view fmt,
+inline wchar_t* vformat_to_n(wchar_t* p, std::size_t n, const std::locale& loc, std::wstring_view fmt,
                              uxs::wformat_args args) {
     wmembuffer buf(p, p + n);
     return sfmt::vformat<wmembuffer>(buf, fmt, args, &loc).curr();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt vformat_to_n(OutputIt out, size_t n, const std::locale& loc, std::wstring_view fmt, uxs::wformat_args args) {
+OutputIt vformat_to_n(OutputIt out, std::size_t n, const std::locale& loc, std::wstring_view fmt,
+                      uxs::wformat_args args) {
     inline_wdynbuffer buf;
     sfmt::vformat<wmembuffer>(buf, fmt, args, &loc);
     return std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out));
@@ -916,26 +919,26 @@ OutputIt vformat_to_n(OutputIt out, size_t n, const std::locale& loc, std::wstri
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt format_to_n(OutputIt out, size_t n, uxs::format_string<Args...> fmt, const Args&... args) {
+OutputIt format_to_n(OutputIt out, std::size_t n, uxs::format_string<Args...> fmt, const Args&... args) {
     return vformat_to_n(std::move(out), n, fmt.get(), uxs::make_format_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt format_to_n(OutputIt out, size_t n, uxs::wformat_string<Args...> fmt, const Args&... args) {
+OutputIt format_to_n(OutputIt out, std::size_t n, uxs::wformat_string<Args...> fmt, const Args&... args) {
     return vformat_to_n(std::move(out), n, fmt.get(), uxs::make_wformat_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt format_to_n(OutputIt out, size_t n, const std::locale& loc, uxs::format_string<Args...> fmt,
+OutputIt format_to_n(OutputIt out, std::size_t n, const std::locale& loc, uxs::format_string<Args...> fmt,
                      const Args&... args) {
     return vformat_to_n(std::move(out), n, loc, fmt.get(), uxs::make_format_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt format_to_n(OutputIt out, size_t n, const std::locale& loc, uxs::wformat_string<Args...> fmt,
+OutputIt format_to_n(OutputIt out, std::size_t n, const std::locale& loc, uxs::wformat_string<Args...> fmt,
                      const Args&... args) {
     return vformat_to_n(std::move(out), n, loc, fmt.get(), uxs::make_wformat_args(args...));
 }
@@ -976,7 +979,7 @@ class basic_membuffer_for_iobuf final : public basic_membuffer<Ty> {
         : basic_membuffer<Ty>(out.first_avail(), out.last_avail()), out_(out) {}
     ~basic_membuffer_for_iobuf() override { out_.advance(this->curr() - out_.first_avail()); }
 
-    bool try_grow(size_t extra) override {
+    bool try_grow(std::size_t extra) override {
         out_.advance(this->curr() - out_.first_avail());
         if (!out_.reserve().good()) { return false; }
         this->set(out_.first_avail(), out_.last_avail());

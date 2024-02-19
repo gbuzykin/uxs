@@ -18,7 +18,8 @@ template<typename Alloc>
 }
 
 template<typename Alloc>
-/*static*/ typename pool<Alloc>::pool_desc_t* pool<Alloc>::find_pool(pool_desc_t* desc, uint32_t size_and_alignment) {
+/*static*/ typename pool<Alloc>::pool_desc_t* pool<Alloc>::find_pool(pool_desc_t* desc,
+                                                                     std::uint32_t size_and_alignment) {
     auto* desc0 = desc;
     do {
         if (desc->size_and_alignment == size_and_alignment) { return desc; }
@@ -38,7 +39,7 @@ template<typename Alloc>
 
 template<typename Alloc>
 /*static*/ typename pool<Alloc>::pool_desc_t* pool<Alloc>::allocate_dummy_pool(const alloc_type& al,
-                                                                               uint32_t partition_size) {
+                                                                               std::uint32_t partition_size) {
     auto* desc = allocate_new_pool(al);
     desc->next_pool = desc->root_pool = desc;
     desc->size_and_alignment = 0;

@@ -8,7 +8,7 @@ namespace lex_detail {
 #include "json_lex_analyzer.inl"
 }
 
-static uint8_t g_whitespaces[256] = {
+static std::uint8_t g_whitespaces[256] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -51,7 +51,7 @@ int json::reader::parse_token(std::string_view& lval) {
         while (true) {
             bool stack_limitation = false;
             const char* last = input_.last_avail();
-            if (state_stack_.avail() < static_cast<size_t>(last - first)) {
+            if (state_stack_.avail() < static_cast<std::size_t>(last - first)) {
                 last = first + state_stack_.avail();
                 stack_limitation = true;
             }
@@ -79,7 +79,7 @@ int json::reader::parse_token(std::string_view& lval) {
         } else {
             if (llen >= stash_.size()) {  // all characters in stash buffer are used
                 // concatenate full lexeme in stash
-                size_t len_rest = llen - stash_.size();
+                std::size_t len_rest = llen - stash_.size();
                 stash_.append(input_.first_avail(), input_.first_avail() + len_rest);
                 input_.advance(len_rest);
             } else {  // at least one character in stash is yet unused

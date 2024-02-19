@@ -4,10 +4,10 @@ using namespace uxs;
 
 UXS_IMPLEMENT_VARIANT_TYPE(std::string, nullptr, nullptr);
 UXS_IMPLEMENT_VARIANT_TYPE_WITH_STRING_CONVERTER(bool);
-UXS_IMPLEMENT_VARIANT_TYPE(int32_t, convert_from, convert_to);
-UXS_IMPLEMENT_VARIANT_TYPE(uint32_t, convert_from, convert_to);
-UXS_IMPLEMENT_VARIANT_TYPE(int64_t, convert_from, convert_to);
-UXS_IMPLEMENT_VARIANT_TYPE(uint64_t, convert_from, convert_to);
+UXS_IMPLEMENT_VARIANT_TYPE(std::int32_t, convert_from, convert_to);
+UXS_IMPLEMENT_VARIANT_TYPE(std::uint32_t, convert_from, convert_to);
+UXS_IMPLEMENT_VARIANT_TYPE(std::int64_t, convert_from, convert_to);
+UXS_IMPLEMENT_VARIANT_TYPE(std::uint64_t, convert_from, convert_to);
 UXS_IMPLEMENT_VARIANT_TYPE(float, convert_from, convert_to);
 UXS_IMPLEMENT_VARIANT_TYPE(double, convert_from, convert_to);
 
@@ -178,8 +178,8 @@ u8iobuf& operator<<(u8iobuf& os, const variant& v) {
 //---------------------------------------------------------------------------------
 // Basic type convertors
 
-bool variant_type_impl<int32_t>::convert_from(variant_id type, void* to, const void* from) {
-    auto& result = *static_cast<int32_t*>(to);
+bool variant_type_impl<std::int32_t>::convert_from(variant_id type, void* to, const void* from) {
+    auto& result = *static_cast<std::int32_t*>(to);
     switch (type) {
         case variant_id::string: {
             return uxs::stoval(*static_cast<const std::string*>(from), result) != 0;
@@ -192,8 +192,8 @@ bool variant_type_impl<int32_t>::convert_from(variant_id type, void* to, const v
     return true;
 }
 
-bool variant_type_impl<int32_t>::convert_to(variant_id type, void* to, const void* from) {
-    const auto& v = *static_cast<const int32_t*>(from);
+bool variant_type_impl<std::int32_t>::convert_to(variant_id type, void* to, const void* from) {
+    const auto& v = *static_cast<const std::int32_t*>(from);
     switch (type) {
         case variant_id::string: {
             *static_cast<std::string*>(to) = uxs::to_string(v);
@@ -206,8 +206,8 @@ bool variant_type_impl<int32_t>::convert_to(variant_id type, void* to, const voi
     return true;
 }
 
-bool variant_type_impl<uint32_t>::convert_from(variant_id type, void* to, const void* from) {
-    auto& result = *static_cast<uint32_t*>(to);
+bool variant_type_impl<std::uint32_t>::convert_from(variant_id type, void* to, const void* from) {
+    auto& result = *static_cast<std::uint32_t*>(to);
     switch (type) {
         case variant_id::string: {
             return uxs::stoval(*static_cast<const std::string*>(from), result) != 0;
@@ -216,17 +216,17 @@ bool variant_type_impl<uint32_t>::convert_from(variant_id type, void* to, const 
             result = *static_cast<const bool*>(from) ? 1 : 0;
         } break;
         case variant_id::integer: {
-            const auto& v = *static_cast<const int32_t*>(from);
+            const auto& v = *static_cast<const std::int32_t*>(from);
             if (v < 0) { return false; }
-            result = static_cast<uint32_t>(v);
+            result = static_cast<std::uint32_t>(v);
         } break;
         default: return false;
     }
     return true;
 }
 
-bool variant_type_impl<uint32_t>::convert_to(variant_id type, void* to, const void* from) {
-    const auto& v = *static_cast<const uint32_t*>(from);
+bool variant_type_impl<std::uint32_t>::convert_to(variant_id type, void* to, const void* from) {
+    const auto& v = *static_cast<const std::uint32_t*>(from);
     switch (type) {
         case variant_id::string: {
             *static_cast<std::string*>(to) = uxs::to_string(v);
@@ -235,16 +235,16 @@ bool variant_type_impl<uint32_t>::convert_to(variant_id type, void* to, const vo
             *static_cast<bool*>(to) = v != 0;
         } break;
         case variant_id::integer: {
-            if (v > static_cast<uint32_t>(std::numeric_limits<int32_t>::max())) { return false; }
-            *static_cast<int32_t*>(to) = static_cast<int32_t>(v);
+            if (v > static_cast<std::uint32_t>(std::numeric_limits<std::int32_t>::max())) { return false; }
+            *static_cast<std::int32_t*>(to) = static_cast<std::int32_t>(v);
         } break;
         default: return false;
     }
     return true;
 }
 
-bool variant_type_impl<int64_t>::convert_from(variant_id type, void* to, const void* from) {
-    auto& result = *static_cast<int64_t*>(to);
+bool variant_type_impl<std::int64_t>::convert_from(variant_id type, void* to, const void* from) {
+    auto& result = *static_cast<std::int64_t*>(to);
     switch (type) {
         case variant_id::string: {
             return uxs::stoval(*static_cast<const std::string*>(from), result) != 0;
@@ -253,18 +253,18 @@ bool variant_type_impl<int64_t>::convert_from(variant_id type, void* to, const v
             result = *static_cast<const bool*>(from) ? 1 : 0;
         } break;
         case variant_id::integer: {
-            result = *static_cast<const int32_t*>(from);
+            result = *static_cast<const std::int32_t*>(from);
         } break;
         case variant_id::unsigned_integer: {
-            result = static_cast<int64_t>(*static_cast<const uint32_t*>(from));
+            result = static_cast<std::int64_t>(*static_cast<const std::uint32_t*>(from));
         } break;
         default: return false;
     }
     return true;
 }
 
-bool variant_type_impl<int64_t>::convert_to(variant_id type, void* to, const void* from) {
-    const auto& v = *static_cast<const int64_t*>(from);
+bool variant_type_impl<std::int64_t>::convert_to(variant_id type, void* to, const void* from) {
+    const auto& v = *static_cast<const std::int64_t*>(from);
     switch (type) {
         case variant_id::string: {
             *static_cast<std::string*>(to) = uxs::to_string(v);
@@ -273,20 +273,22 @@ bool variant_type_impl<int64_t>::convert_to(variant_id type, void* to, const voi
             *static_cast<bool*>(to) = v != 0;
         } break;
         case variant_id::integer: {
-            if (v < std::numeric_limits<int32_t>::min() || v > std::numeric_limits<int32_t>::max()) { return false; }
-            *static_cast<int32_t*>(to) = static_cast<int32_t>(v);
+            if (v < std::numeric_limits<std::int32_t>::min() || v > std::numeric_limits<std::int32_t>::max()) {
+                return false;
+            }
+            *static_cast<std::int32_t*>(to) = static_cast<std::int32_t>(v);
         } break;
         case variant_id::unsigned_integer: {
-            if (v < 0 || v > static_cast<int64_t>(std::numeric_limits<uint32_t>::max())) { return false; }
-            *static_cast<uint32_t*>(to) = static_cast<uint32_t>(v);
+            if (v < 0 || v > static_cast<std::int64_t>(std::numeric_limits<std::uint32_t>::max())) { return false; }
+            *static_cast<std::uint32_t*>(to) = static_cast<std::uint32_t>(v);
         } break;
         default: return false;
     }
     return true;
 }
 
-bool variant_type_impl<uint64_t>::convert_from(variant_id type, void* to, const void* from) {
-    auto& result = *static_cast<uint64_t*>(to);
+bool variant_type_impl<std::uint64_t>::convert_from(variant_id type, void* to, const void* from) {
+    auto& result = *static_cast<std::uint64_t*>(to);
     switch (type) {
         case variant_id::string: {
             return uxs::stoval(*static_cast<const std::string*>(from), result) != 0;
@@ -295,25 +297,25 @@ bool variant_type_impl<uint64_t>::convert_from(variant_id type, void* to, const 
             result = *static_cast<const bool*>(from) ? 1 : 0;
         } break;
         case variant_id::integer: {
-            const auto& v = *static_cast<const int32_t*>(from);
+            const auto& v = *static_cast<const std::int32_t*>(from);
             if (v < 0) { return false; }
-            result = static_cast<uint64_t>(v);
+            result = static_cast<std::uint64_t>(v);
         } break;
         case variant_id::unsigned_integer: {
-            result = *static_cast<const uint32_t*>(from);
+            result = *static_cast<const std::uint32_t*>(from);
         } break;
         case variant_id::long_integer: {
-            const auto& v = *static_cast<const int64_t*>(from);
+            const auto& v = *static_cast<const std::int64_t*>(from);
             if (v < 0) { return false; }
-            result = static_cast<uint64_t>(v);
+            result = static_cast<std::uint64_t>(v);
         } break;
         default: return false;
     }
     return true;
 }
 
-bool variant_type_impl<uint64_t>::convert_to(variant_id type, void* to, const void* from) {
-    const auto& v = *static_cast<const uint64_t*>(from);
+bool variant_type_impl<std::uint64_t>::convert_to(variant_id type, void* to, const void* from) {
+    const auto& v = *static_cast<const std::uint64_t*>(from);
     switch (type) {
         case variant_id::string: {
             *static_cast<std::string*>(to) = uxs::to_string(v);
@@ -322,16 +324,16 @@ bool variant_type_impl<uint64_t>::convert_to(variant_id type, void* to, const vo
             *static_cast<bool*>(to) = v != 0;
         } break;
         case variant_id::integer: {
-            if (v > static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) { return false; }
-            *static_cast<int32_t*>(to) = static_cast<int32_t>(v);
+            if (v > static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max())) { return false; }
+            *static_cast<std::int32_t*>(to) = static_cast<std::int32_t>(v);
         } break;
         case variant_id::unsigned_integer: {
-            if (v > std::numeric_limits<uint32_t>::max()) { return false; }
-            *static_cast<uint32_t*>(to) = static_cast<uint32_t>(v);
+            if (v > std::numeric_limits<std::uint32_t>::max()) { return false; }
+            *static_cast<std::uint32_t*>(to) = static_cast<std::uint32_t>(v);
         } break;
         case variant_id::long_integer: {
-            if (v > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) { return false; }
-            *static_cast<int64_t*>(to) = static_cast<int64_t>(v);
+            if (v > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) { return false; }
+            *static_cast<std::int64_t*>(to) = static_cast<std::int64_t>(v);
         } break;
         default: return false;
     }
@@ -348,16 +350,16 @@ bool variant_type_impl<float>::convert_from(variant_id type, void* to, const voi
             result = *static_cast<const bool*>(from) ? 1.f : 0.f;
         } break;
         case variant_id::integer: {
-            result = static_cast<float>(*static_cast<const int32_t*>(from));
+            result = static_cast<float>(*static_cast<const std::int32_t*>(from));
         } break;
         case variant_id::unsigned_integer: {
-            result = static_cast<float>(*static_cast<const uint32_t*>(from));
+            result = static_cast<float>(*static_cast<const std::uint32_t*>(from));
         } break;
         case variant_id::long_integer: {
-            result = static_cast<float>(*static_cast<const int64_t*>(from));
+            result = static_cast<float>(*static_cast<const std::int64_t*>(from));
         } break;
         case variant_id::unsigned_long_integer: {
-            result = static_cast<float>(*static_cast<const uint64_t*>(from));
+            result = static_cast<float>(*static_cast<const std::uint64_t*>(from));
         } break;
         default: return false;
     }
@@ -375,29 +377,29 @@ bool variant_type_impl<float>::convert_to(variant_id type, void* to, const void*
         } break;
         case variant_id::integer: {
             // Note that float(2^31 - 1) will be rounded up to 2^31, so maximum is excluded
-            if (v < static_cast<float>(std::numeric_limits<int32_t>::min()) ||
-                v >= static_cast<float>(std::numeric_limits<int32_t>::max())) {
+            if (v < static_cast<float>(std::numeric_limits<std::int32_t>::min()) ||
+                v >= static_cast<float>(std::numeric_limits<std::int32_t>::max())) {
                 return false;
             }
-            *static_cast<int32_t*>(to) = static_cast<int32_t>(v);
+            *static_cast<std::int32_t*>(to) = static_cast<std::int32_t>(v);
         } break;
         case variant_id::unsigned_integer: {
             // Note that float(2^32 - 1) will be rounded up to 2^32, so maximum is excluded
-            if (v < 0 || v >= static_cast<float>(std::numeric_limits<uint32_t>::max())) { return false; }
-            *static_cast<uint32_t*>(to) = static_cast<uint32_t>(v);
+            if (v < 0 || v >= static_cast<float>(std::numeric_limits<std::uint32_t>::max())) { return false; }
+            *static_cast<std::uint32_t*>(to) = static_cast<std::uint32_t>(v);
         } break;
         case variant_id::long_integer: {
             // Note that float(2^63 - 1) will be rounded up to 2^63, so maximum is excluded
-            if (v < static_cast<float>(std::numeric_limits<int64_t>::min()) ||
-                v >= static_cast<float>(std::numeric_limits<int64_t>::max())) {
+            if (v < static_cast<float>(std::numeric_limits<std::int64_t>::min()) ||
+                v >= static_cast<float>(std::numeric_limits<std::int64_t>::max())) {
                 return false;
             }
-            *static_cast<int64_t*>(to) = static_cast<int64_t>(v);
+            *static_cast<std::int64_t*>(to) = static_cast<std::int64_t>(v);
         } break;
         case variant_id::unsigned_long_integer: {
             // Note that float(2^64 - 1) will be rounded up to 2^64, so maximum is excluded
-            if (v < 0 || v >= static_cast<float>(std::numeric_limits<uint64_t>::max())) { return false; }
-            *static_cast<uint64_t*>(to) = static_cast<uint64_t>(v);
+            if (v < 0 || v >= static_cast<float>(std::numeric_limits<std::uint64_t>::max())) { return false; }
+            *static_cast<std::uint64_t*>(to) = static_cast<std::uint64_t>(v);
         } break;
         default: return false;
     }
@@ -414,16 +416,16 @@ bool variant_type_impl<double>::convert_from(variant_id type, void* to, const vo
             result = *static_cast<const bool*>(from) ? 1. : 0.;
         } break;
         case variant_id::integer: {
-            result = *static_cast<const int32_t*>(from);
+            result = *static_cast<const std::int32_t*>(from);
         } break;
         case variant_id::unsigned_integer: {
-            result = *static_cast<const uint32_t*>(from);
+            result = *static_cast<const std::uint32_t*>(from);
         } break;
         case variant_id::long_integer: {
-            result = static_cast<double>(*static_cast<const int64_t*>(from));
+            result = static_cast<double>(*static_cast<const std::int64_t*>(from));
         } break;
         case variant_id::unsigned_long_integer: {
-            result = static_cast<double>(*static_cast<const uint64_t*>(from));
+            result = static_cast<double>(*static_cast<const std::uint64_t*>(from));
         } break;
         case variant_id::single_precision: {
             result = *static_cast<const float*>(from);
@@ -443,25 +445,27 @@ bool variant_type_impl<double>::convert_to(variant_id type, void* to, const void
             *static_cast<bool*>(to) = v != 0;
         } break;
         case variant_id::integer: {
-            if (v < std::numeric_limits<int32_t>::min() || v > std::numeric_limits<int32_t>::max()) { return false; }
-            *static_cast<int32_t*>(to) = static_cast<int32_t>(v);
+            if (v < std::numeric_limits<std::int32_t>::min() || v > std::numeric_limits<std::int32_t>::max()) {
+                return false;
+            }
+            *static_cast<std::int32_t*>(to) = static_cast<std::int32_t>(v);
         } break;
         case variant_id::unsigned_integer: {
-            if (v < 0 || v > std::numeric_limits<uint32_t>::max()) { return false; }
-            *static_cast<uint32_t*>(to) = static_cast<uint32_t>(v);
+            if (v < 0 || v > std::numeric_limits<std::uint32_t>::max()) { return false; }
+            *static_cast<std::uint32_t*>(to) = static_cast<std::uint32_t>(v);
         } break;
         case variant_id::long_integer: {
             // Note that double(2^63 - 1) will be rounded up to 2^63, so maximum is excluded
-            if (v < static_cast<double>(std::numeric_limits<int64_t>::min()) ||
-                v >= static_cast<double>(std::numeric_limits<int64_t>::max())) {
+            if (v < static_cast<double>(std::numeric_limits<std::int64_t>::min()) ||
+                v >= static_cast<double>(std::numeric_limits<std::int64_t>::max())) {
                 return false;
             }
-            *static_cast<int64_t*>(to) = static_cast<int64_t>(v);
+            *static_cast<std::int64_t*>(to) = static_cast<std::int64_t>(v);
         } break;
         case variant_id::unsigned_long_integer: {
             // Note that double(2^64 - 1) will be rounded up to 2^64, so maximum is excluded
-            if (v < 0 || v >= static_cast<double>(std::numeric_limits<uint64_t>::max())) { return false; }
-            *static_cast<uint64_t*>(to) = static_cast<uint64_t>(v);
+            if (v < 0 || v >= static_cast<double>(std::numeric_limits<std::uint64_t>::max())) { return false; }
+            *static_cast<std::uint64_t*>(to) = static_cast<std::uint64_t>(v);
         } break;
         case variant_id::single_precision: {
             *static_cast<float*>(to) = static_cast<float>(v);

@@ -63,18 +63,18 @@ struct lock {
 };
 
 namespace detail {
-template<typename Ty, size_t n, typename Func1, typename Func2>
+template<typename Ty, std::size_t n, typename Func1, typename Func2>
 auto get_n(Ty&& v) -> decltype(Func1{}(std::get<n>(Func2{}(std::forward<Ty>(v))))) {
     return Func1{}(std::get<n>(Func2{}(std::forward<Ty>(v))));
 }
-template<typename Ty, size_t n, typename Func1, typename Func2, typename... Dummy>
+template<typename Ty, std::size_t n, typename Func1, typename Func2, typename... Dummy>
 auto get_n(Ty&& v, Dummy&&...) -> decltype(Func1{}(Func2{}(std::forward<Ty>(v)))) {
     static_assert(n == 0, "template parameter `n` must be 0");
     return Func1{}(Func2{}(std::forward<Ty>(v)));
 }
 }  // namespace detail
 
-template<size_t n, typename Func1 = nofunc, typename Func2 = nofunc>
+template<std::size_t n, typename Func1 = nofunc, typename Func2 = nofunc>
 struct get_n {
     template<typename Ty>
     auto operator()(Ty&& v) const -> decltype(detail::get_n<Ty, n, Func1, Func2>(std::forward<Ty>(v))) {
@@ -100,7 +100,7 @@ struct key {
     }
 };
 
-template<size_t n, typename Func1 = nofunc>
+template<std::size_t n, typename Func1 = nofunc>
 using deref_get_n = get_n<n, Func1, deref>;
 
 #if __cplusplus < 201402L

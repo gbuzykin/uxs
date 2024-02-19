@@ -22,8 +22,8 @@ enum char_bits {
     is_alnum = 1 << 5,
 };
 struct char_tbl_t {
-    std::array<uint8_t, 256> digs{};
-    std::array<uint8_t, 256> flags{};
+    std::array<std::uint8_t, 256> digs{};
+    std::array<std::uint8_t, 256> flags{};
     CONSTEXPR char_tbl_t() {
         for (unsigned ch = 0; ch < 256; ++ch) {
             if (ch >= '0' && ch <= '9') {
@@ -47,65 +47,65 @@ static constexpr char_tbl_t g_char_tbl{};
 
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 CONSTEXPR std::enable_if_t<sizeof(CharT) != 1, bool> is_digit(CharT ch) {
-    return (ch & 0xff) == ch && detail::g_char_tbl.digs[static_cast<uint8_t>(ch)] < 10;
+    return (ch & 0xff) == ch && detail::g_char_tbl.digs[static_cast<std::uint8_t>(ch)] < 10;
 }
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 CONSTEXPR std::enable_if_t<sizeof(CharT) == 1, bool> is_digit(CharT ch) {
-    return detail::g_char_tbl.digs[static_cast<uint8_t>(ch)] < 10;
+    return detail::g_char_tbl.digs[static_cast<std::uint8_t>(ch)] < 10;
 }
 
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 CONSTEXPR std::enable_if_t<sizeof(CharT) != 1, bool> is_xdigit(CharT ch) {
-    return (ch & 0xff) == ch && detail::g_char_tbl.digs[static_cast<uint8_t>(ch)] < 16;
+    return (ch & 0xff) == ch && detail::g_char_tbl.digs[static_cast<std::uint8_t>(ch)] < 16;
 }
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 CONSTEXPR std::enable_if_t<sizeof(CharT) == 1, bool> is_xdigit(CharT ch) {
-    return detail::g_char_tbl.digs[static_cast<uint8_t>(ch)] < 16;
+    return detail::g_char_tbl.digs[static_cast<std::uint8_t>(ch)] < 16;
 }
 
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 CONSTEXPR std::enable_if_t<sizeof(CharT) != 1, bool> is_space(CharT ch) {
-    return (ch & 0xff) == ch && (detail::g_char_tbl.flags[static_cast<uint8_t>(ch)] & detail::char_bits::is_space);
+    return (ch & 0xff) == ch && (detail::g_char_tbl.flags[static_cast<std::uint8_t>(ch)] & detail::char_bits::is_space);
 }
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 CONSTEXPR std::enable_if_t<sizeof(CharT) == 1, bool> is_space(CharT ch) {
-    return (detail::g_char_tbl.flags[static_cast<uint8_t>(ch)] & detail::char_bits::is_space) != 0;
+    return (detail::g_char_tbl.flags[static_cast<std::uint8_t>(ch)] & detail::char_bits::is_space) != 0;
 }
 
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 CONSTEXPR std::enable_if_t<sizeof(CharT) != 1, bool> is_lower(CharT ch) {
-    return (ch & 0xff) == ch && (detail::g_char_tbl.flags[static_cast<uint8_t>(ch)] & detail::char_bits::is_lower);
+    return (ch & 0xff) == ch && (detail::g_char_tbl.flags[static_cast<std::uint8_t>(ch)] & detail::char_bits::is_lower);
 }
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 CONSTEXPR std::enable_if_t<sizeof(CharT) == 1, bool> is_lower(CharT ch) {
-    return (detail::g_char_tbl.flags[static_cast<uint8_t>(ch)] & detail::char_bits::is_lower) != 0;
+    return (detail::g_char_tbl.flags[static_cast<std::uint8_t>(ch)] & detail::char_bits::is_lower) != 0;
 }
 
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 CONSTEXPR std::enable_if_t<sizeof(CharT) != 1, bool> is_upper(CharT ch) {
-    return (ch & 0xff) == ch && (detail::g_char_tbl.flags[static_cast<uint8_t>(ch)] & detail::char_bits::is_upper);
+    return (ch & 0xff) == ch && (detail::g_char_tbl.flags[static_cast<std::uint8_t>(ch)] & detail::char_bits::is_upper);
 }
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 CONSTEXPR std::enable_if_t<sizeof(CharT) == 1, bool> is_upper(CharT ch) {
-    return (detail::g_char_tbl.flags[static_cast<uint8_t>(ch)] & detail::char_bits::is_upper) != 0;
+    return (detail::g_char_tbl.flags[static_cast<std::uint8_t>(ch)] & detail::char_bits::is_upper) != 0;
 }
 
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 CONSTEXPR std::enable_if_t<sizeof(CharT) != 1, bool> is_alpha(CharT ch) {
-    return (ch & 0xff) == ch && (detail::g_char_tbl.flags[static_cast<uint8_t>(ch)] & detail::char_bits::is_alpha);
+    return (ch & 0xff) == ch && (detail::g_char_tbl.flags[static_cast<std::uint8_t>(ch)] & detail::char_bits::is_alpha);
 }
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 CONSTEXPR std::enable_if_t<sizeof(CharT) == 1, bool> is_alpha(CharT ch) {
-    return (detail::g_char_tbl.flags[static_cast<uint8_t>(ch)] & detail::char_bits::is_alpha) != 0;
+    return (detail::g_char_tbl.flags[static_cast<std::uint8_t>(ch)] & detail::char_bits::is_alpha) != 0;
 }
 
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 CONSTEXPR std::enable_if_t<sizeof(CharT) != 1, bool> is_alnum(CharT ch) {
-    return (ch & 0xff) == ch && (detail::g_char_tbl.flags[static_cast<uint8_t>(ch)] & detail::char_bits::is_alnum);
+    return (ch & 0xff) == ch && (detail::g_char_tbl.flags[static_cast<std::uint8_t>(ch)] & detail::char_bits::is_alnum);
 }
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 CONSTEXPR std::enable_if_t<sizeof(CharT) == 1, bool> is_alnum(CharT ch) {
-    return (detail::g_char_tbl.flags[static_cast<uint8_t>(ch)] & detail::char_bits::is_alnum) != 0;
+    return (detail::g_char_tbl.flags[static_cast<std::uint8_t>(ch)] & detail::char_bits::is_alnum) != 0;
 }
 
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
@@ -120,11 +120,11 @@ CONSTEXPR CharT to_upper(CharT ch) {
 
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 CONSTEXPR std::enable_if_t<sizeof(CharT) != 1, unsigned> dig_v(CharT ch) {
-    return (ch & 0xff) == ch ? detail::g_char_tbl.digs[static_cast<uint8_t>(ch)] : 255;
+    return (ch & 0xff) == ch ? detail::g_char_tbl.digs[static_cast<std::uint8_t>(ch)] : 255;
 }
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 CONSTEXPR std::enable_if_t<sizeof(CharT) == 1, unsigned> dig_v(CharT ch) {
-    return detail::g_char_tbl.digs[static_cast<uint8_t>(ch)];
+    return detail::g_char_tbl.digs[static_cast<std::uint8_t>(ch)];
 }
 
 }  // namespace uxs

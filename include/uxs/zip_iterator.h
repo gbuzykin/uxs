@@ -66,7 +66,7 @@ class zip_iterator
         return distance_to_impl(it, std::index_sequence_for<Iter...>{});
     }
 
-    template<size_t Index>
+    template<std::size_t Index>
     typename std::tuple_element<Index, std::tuple<Iter...>>::type base() const {
         return std::get<Index>(curr_);
     }
@@ -74,40 +74,40 @@ class zip_iterator
  private:
     std::tuple<Iter...> curr_;
 
-    template<size_t... Indices>
+    template<std::size_t... Indices>
     void increment_impl(std::index_sequence<Indices...>) noexcept(
         std::conjunction<std::bool_constant<noexcept(++std::get<Indices>(curr_))>...>::value) {
         detail::dummy_variadic(++std::get<Indices>(curr_)...);
     }
 
-    template<size_t... Indices>
+    template<std::size_t... Indices>
     void decrement_impl(std::index_sequence<Indices...>) noexcept(
         std::conjunction<std::bool_constant<noexcept(--std::get<Indices>(curr_))>...>::value) {
         detail::dummy_variadic(--std::get<Indices>(curr_)...);
     }
 
-    template<size_t... Indices>
+    template<std::size_t... Indices>
     void advance_impl(difference_type j, std::index_sequence<Indices...>) noexcept(
         std::conjunction<std::bool_constant<noexcept(std::get<Indices>(curr_) += j)>...>::value) {
         detail::dummy_variadic(std::get<Indices>(curr_) += j...);
     }
 
-    template<size_t... Indices>
+    template<std::size_t... Indices>
     reference dereference_impl(std::index_sequence<Indices...>) const noexcept {
         return std::forward_as_tuple(*std::get<Indices>(curr_)...);
     }
 
-    template<size_t... Indices>
+    template<std::size_t... Indices>
     bool is_equal_to_impl(const zip_iterator& it, std::index_sequence<Indices...>) const noexcept {
         return detail::or_variadic(std::get<Indices>(curr_) == std::get<Indices>(it.curr_)...);
     }
 
-    template<size_t... Indices>
+    template<std::size_t... Indices>
     bool is_less_than_impl(const zip_iterator& it, std::index_sequence<Indices...>) const noexcept {
         return detail::and_variadic(std::get<Indices>(curr_) < std::get<Indices>(it.curr_)...);
     }
 
-    template<size_t... Indices>
+    template<std::size_t... Indices>
     difference_type distance_to_impl(const zip_iterator& it, std::index_sequence<Indices...>) const noexcept {
         return std::min({std::distance(std::get<Indices>(curr_), std::get<Indices>(it.curr_))...});
     }

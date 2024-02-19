@@ -91,7 +91,7 @@ template<typename CharT>
         return cmd->opt_map_.end();
     };
 
-    auto parse_value = [cmd, &find_option_by_key, &argc, &argv](const basic_value<CharT>& val, size_t n_prefix) {
+    auto parse_value = [cmd, &find_option_by_key, &argc, &argv](const basic_value<CharT>& val, std::size_t n_prefix) {
         const int argc0 = argc;
         if (argc > 0) {
             if (!val.is_multiple() && !val.is_optional()) {
@@ -113,12 +113,12 @@ template<typename CharT>
     std::unordered_set<const basic_option_node<CharT>*> specified, optional;
 
     auto val_it = cmd->values_.begin();
-    size_t count_multiple = 0;
+    std::size_t count_multiple = 0;
     while (argc > 0) {
         std::basic_string_view<CharT> arg(*argv);
         auto opt_it = find_option_by_key(arg);
         if (opt_it != cmd->opt_map_.end()) {
-            size_t n_prefix = opt_it->first.size();
+            std::size_t n_prefix = opt_it->first.size();
             if (arg.size() == n_prefix) { n_prefix = 0, --argc, ++argv; }
             const auto& opt = *opt_it->second;
             for (const auto& val : opt.get_values()) {
@@ -261,7 +261,7 @@ std::basic_string<CharT> basic_option_node<CharT>::make_string(bool brief) const
 }
 
 template<typename CharT>
-void print_text_with_margin(uxs::basic_iobuf<CharT>& out, std::basic_string_view<CharT> text, size_t left_margin) {
+void print_text_with_margin(uxs::basic_iobuf<CharT>& out, std::basic_string_view<CharT> text, std::size_t left_margin) {
     auto it = text.begin();
     while (it != text.end()) {
         auto end_it = std::find(it, text.end(), '\n');
@@ -290,8 +290,8 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
         if (colored) { osb.write(color_normal); }
         if (start_with_nl) { osb.put('\n').fill_n(tab_size, ' '); }
 
-        const size_t left_margin = start_with_nl ? tab_size : label_usage.size();
-        size_t width = left_margin + name_.size();
+        const std::size_t left_margin = start_with_nl ? tab_size : label_usage.size();
+        std::size_t width = left_margin + name_.size();
         std::vector<std::basic_string<CharT>> cmd_names;
         cmd_names.reserve(4);
         for (const auto* p = this->get_parent(); p; p = p->get_parent()) {
@@ -350,11 +350,11 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
         osb.write(label_parameters);
         if (colored) { osb.write(color_normal); }
 
-        const size_t width = std::min<size_t>(max_margin,
-                                              std::accumulate(values_.begin(), values_.end(), static_cast<size_t>(0),
-                                                              [](size_t w, decltype(*values_.cbegin()) val) {
-                                                                  return std::max(w, val->get_label().size());
-                                                              }));
+        const std::size_t width = std::min<std::size_t>(
+            max_margin, std::accumulate(values_.begin(), values_.end(), static_cast<std::size_t>(0),
+                                        [](std::size_t w, decltype(*values_.cbegin()) val) {
+                                            return std::max(w, val->get_label().size());
+                                        }));
         for (const auto& val : values_) {
             if (val->get_doc().empty()) { continue; }
             const bool start_from_new_line = val->get_label().size() > max_margin;
@@ -389,9 +389,10 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
         osb.write(label_options);
         if (colored) { osb.write(color_normal); }
 
-        const size_t width = std::min<size_t>(
-            max_margin, std::accumulate(opts_str.begin(), opts_str.end(), static_cast<size_t>(0),
-                                        [](size_t w, decltype(*opts_str.cbegin()) s) { return std::max(w, s.size()); }));
+        const std::size_t width = std::min<std::size_t>(
+            max_margin,
+            std::accumulate(opts_str.begin(), opts_str.end(), static_cast<std::size_t>(0),
+                            [](std::size_t w, decltype(*opts_str.cbegin()) s) { return std::max(w, s.size()); }));
         auto opts_str_it = opts_str.begin();
         opts_->traverse_options([&osb, &opts_str_it, width, colored](const basic_option_node<CharT>& node) {
             if (node.get_doc().empty()) { return true; }
@@ -426,9 +427,9 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
         osb.write(label_subcommands);
         if (colored) { osb.write(color_normal); }
 
-        const size_t width = std::min<size_t>(
-            max_margin, std::accumulate(subcommands_.begin(), subcommands_.end(), static_cast<size_t>(0),
-                                        [](size_t w, decltype(*subcommands_.cbegin()) item) {
+        const std::size_t width = std::min<std::size_t>(
+            max_margin, std::accumulate(subcommands_.begin(), subcommands_.end(), static_cast<std::size_t>(0),
+                                        [](std::size_t w, decltype(*subcommands_.cbegin()) item) {
                                             return std::max(w, item.first.size());
                                         }));
         for (const auto& subcmd : subcommands_) {

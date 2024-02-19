@@ -52,21 +52,21 @@ bool sysfile::open(const wchar_t* fname, iomode mode) { return open(from_wide_to
 
 void sysfile::close() { ::close(detach()); }
 
-int sysfile::read(void* data, size_t sz, size_t& n_read) {
+int sysfile::read(void* data, std::size_t sz, std::size_t& n_read) {
     ssize_t result = ::read(fd_, data, sz);
     if (result < 0) { return -1; }
-    n_read = static_cast<size_t>(result);
+    n_read = static_cast<std::size_t>(result);
     return 0;
 }
 
-int sysfile::write(const void* data, size_t sz, size_t& n_written) {
+int sysfile::write(const void* data, std::size_t sz, std::size_t& n_written) {
     ssize_t result = ::write(fd_, data, sz);
     if (result < 0) { return -1; }
-    n_written = static_cast<size_t>(result);
+    n_written = static_cast<std::size_t>(result);
     return 0;
 }
 
-int64_t sysfile::seek(int64_t off, seekdir dir) {
+std::int64_t sysfile::seek(std::int64_t off, seekdir dir) {
     int whence = SEEK_SET;
     switch (dir) {
         case seekdir::curr: whence = SEEK_CUR; break;
@@ -77,11 +77,11 @@ int64_t sysfile::seek(int64_t off, seekdir dir) {
     return result < 0 ? -1 : result;
 }
 
-int sysfile::ctrlesc_color(uxs::span<const uint8_t> v) {
+int sysfile::ctrlesc_color(uxs::span<const std::uint8_t> v) {
     inline_dynbuffer buf;
     buf += "\033[";
     uxs::join_basic_strings(buf, v, ';',
-                            [](membuffer& s, uint8_t x) -> membuffer& { return uxs::to_basic_string(s, x); });
+                            [](membuffer& s, std::uint8_t x) -> membuffer& { return uxs::to_basic_string(s, x); });
     buf += 'm';
     return ::write(fd_, buf.data(), buf.size()) < 0 ? -1 : 0;
 }

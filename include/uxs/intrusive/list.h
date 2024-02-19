@@ -200,7 +200,7 @@ class list_enumerator {
     template<typename, typename, typename>
     friend class list;
 
-    size_t size_ = 0;
+    std::size_t size_ = 0;
     mutable list_links_t head_;
 };
 

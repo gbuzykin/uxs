@@ -84,14 +84,14 @@ class variant {
  private:
     template<typename... Ts>
     struct alignas(alignment_of<Ts...>::value) aligned_storage_t {
-        uint8_t x[size_of<Ts...>::value];
+        std::uint8_t x[size_of<Ts...>::value];
     };
-    using storage_t = aligned_storage_t<int64_t, double, void*, std::string>;
+    using storage_t = aligned_storage_t<std::int64_t, double, void*, std::string>;
 
  public:
     enum : unsigned { max_type_id = 256 };
-    enum : size_t { storage_size = sizeof(storage_t) };
-    enum : size_t { storage_alignment = std::alignment_of<storage_t>::value };
+    enum : std::size_t { storage_size = sizeof(storage_t) };
+    enum : std::size_t { storage_alignment = std::alignment_of<storage_t>::value };
 
     variant() noexcept {}
     explicit variant(variant_id type) : vtable_(get_vtable(type)) {
@@ -430,10 +430,10 @@ inline variant& variant::operator=(const char* cstr) { return operator=(std::str
 inline bool variant::is_equal_to(const char* cstr) const { return is_equal_to<const char*, std::string>(cstr); }
 
 UXS_DECLARE_VARIANT_TYPE(bool, variant_id::boolean);
-UXS_DECLARE_VARIANT_TYPE(int32_t, variant_id::integer);
-UXS_DECLARE_VARIANT_TYPE(uint32_t, variant_id::unsigned_integer);
-UXS_DECLARE_VARIANT_TYPE(int64_t, variant_id::long_integer);
-UXS_DECLARE_VARIANT_TYPE(uint64_t, variant_id::unsigned_long_integer);
+UXS_DECLARE_VARIANT_TYPE(std::int32_t, variant_id::integer);
+UXS_DECLARE_VARIANT_TYPE(std::uint32_t, variant_id::unsigned_integer);
+UXS_DECLARE_VARIANT_TYPE(std::int64_t, variant_id::long_integer);
+UXS_DECLARE_VARIANT_TYPE(std::uint64_t, variant_id::unsigned_long_integer);
 UXS_DECLARE_VARIANT_TYPE(float, variant_id::single_precision);
 UXS_DECLARE_VARIANT_TYPE(double, variant_id::double_precision);
 

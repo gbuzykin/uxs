@@ -31,9 +31,9 @@ template<typename Ty1, typename Ty2, typename... Rest>
 struct sum<Ty1, Ty2, Rest...>
     : std::integral_constant<typename Ty1::value_type, Ty1::value + sum<Ty2, Rest...>::value> {};
 
-template<size_t I, typename...>
+template<std::size_t I, typename...>
 struct type_pack_element;
-template<size_t I, typename Ty, typename... Rest>
+template<std::size_t I, typename Ty, typename... Rest>
 struct type_pack_element<I, Ty, Rest...> : type_pack_element<I - 1, Rest...> {};
 template<typename Ty, typename... Rest>
 struct type_pack_element<0, Ty, Rest...> {
