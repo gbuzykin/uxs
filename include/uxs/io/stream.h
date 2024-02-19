@@ -14,11 +14,18 @@ std::enable_if_t<std::is_arithmetic<Ty>::value, u8ibuf&> operator>>(u8ibuf& is, 
     return is;
 }
 
+inline u8ibuf& operator>>(u8ibuf& is, bool& b) {
+    std::uint8_t v = 0;
+    is.read(uxs::as_span(&v, 1));
+    if (is) { b = (v != 0); }
+    return is;
+}
+
 template<typename CharT>
 u8ibuf& operator>>(u8ibuf& is, std::basic_string<CharT>& s) {
-    decltype(s.size()) sz = 0;
+    std::uint64_t sz = 0;
     is >> sz;
-    s.resize(sz);
+    s.resize(static_cast<std::size_t>(sz));
     is.read_with_endian(uxs::as_span(reinterpret_cast<std::uint8_t*>(&s[0]), s.size() * sizeof(CharT)), sizeof(CharT));
     return is;
 }
@@ -28,16 +35,21 @@ std::enable_if_t<std::is_arithmetic<Ty>::value, u8iobuf&> operator<<(u8iobuf& os
     return os.write_with_endian(uxs::as_span(reinterpret_cast<const std::uint8_t*>(&v), sizeof(Ty)), sizeof(Ty));
 }
 
+inline u8iobuf& operator<<(u8iobuf& os, bool b) {
+    std::uint8_t v = (b ? 1 : 0);
+    return os.write(uxs::as_span(&v, 1));
+}
+
 template<typename CharT>
 u8iobuf& operator<<(u8iobuf& os, const std::basic_string<CharT>& s) {
-    os << s.size();
+    os << static_cast<std::uint64_t>(s.size());
     return os.write_with_endian(uxs::as_span(reinterpret_cast<const std::uint8_t*>(s.data()), s.size() * sizeof(CharT)),
                                 sizeof(CharT));
 }
 
 template<typename CharT>
 u8iobuf& operator<<(u8iobuf& os, std::basic_string_view<CharT> s) {
-    os << s.size();
+    os << static_cast<std::uint64_t>(s.size());
     return os.write_with_endian(uxs::as_span(reinterpret_cast<const std::uint8_t*>(s.data()), s.size() * sizeof(CharT)),
                                 sizeof(CharT));
 }
