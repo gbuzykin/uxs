@@ -147,23 +147,23 @@ void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_ele
                 output_.write(v.value_.b ? std::string_view("true", 4) : std::string_view("false", 5));
             } break;
             case dtype::integer: {
-                membuffer_for_iobuf buf(output_);
+                basic_membuffer_for_iobuf<char> buf(output_);
                 to_basic_string(buf, v.value_.i);
             } break;
             case dtype::unsigned_integer: {
-                membuffer_for_iobuf buf(output_);
+                basic_membuffer_for_iobuf<char> buf(output_);
                 to_basic_string(buf, v.value_.u);
             } break;
             case dtype::long_integer: {
-                membuffer_for_iobuf buf(output_);
+                basic_membuffer_for_iobuf<char> buf(output_);
                 to_basic_string(buf, v.value_.i64);
             } break;
             case dtype::unsigned_long_integer: {
-                membuffer_for_iobuf buf(output_);
+                basic_membuffer_for_iobuf<char> buf(output_);
                 to_basic_string(buf, v.value_.u64);
             } break;
             case dtype::double_precision: {
-                membuffer_for_iobuf buf(output_);
+                basic_membuffer_for_iobuf<char> buf(output_);
                 to_basic_string(buf, v.value_.dbl, fmt_opts{fmt_flags::json_compat});
             } break;
             case dtype::string: {

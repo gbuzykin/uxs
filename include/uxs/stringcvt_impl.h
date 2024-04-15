@@ -342,29 +342,28 @@ void fmt_character(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt) {
 template<typename StrTy, typename Func, typename... Args>
 void adjust_numeric(StrTy& s, Func fn, unsigned len, const unsigned n_prefix, const fmt_opts& fmt, Args&&... args) {
     unsigned left = fmt.width - len, right = left;
-    int fill = fmt.fill;
-    if (!(fmt.flags & fmt_flags::leading_zeroes)) {
-        switch (fmt.flags & fmt_flags::adjust_field) {
-            case fmt_flags::left: left = 0; break;
-            case fmt_flags::internal: left >>= 1, right -= left; break;
-            case fmt_flags::right:
-            default: right = 0; break;
-        }
+    if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::left) {
+        left = 0;
+    } else if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::internal) {
+        left >>= 1, right -= left;
+    } else if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::right || !(fmt.flags & fmt_flags::leading_zeroes)) {
+        right = 0;
     } else {
-        fill = '0';
+        s.append(left, '0');
+        fn(s, len, std::forward<Args>(args)...);
+        if (n_prefix != 0) {
+            using CharT = typename StrTy::value_type;
+            CharT *p = &s.back() - fmt.width, *p_end = p + n_prefix, *p_src = &s.back() - len;
+            do {
+                *++p = *++p_src;
+                *p_src = '0';
+            } while (p != p_end);
+        }
+        return;
     }
-    s.append(left, fill);
+    s.append(left, fmt.fill);
     fn(s, len, std::forward<Args>(args)...);
-    if (!(fmt.flags & fmt_flags::leading_zeroes)) {
-        s.append(right, fmt.fill);
-    } else if (n_prefix != 0) {
-        using CharT = typename StrTy::value_type;
-        CharT *p = &s.back() - fmt.width, *p_end = p + n_prefix, *p_src = &s.back() - len;
-        do {
-            *++p = *++p_src;
-            *p_src = '0';
-        } while (p != p_end);
-    }
+    s.append(right, fmt.fill);
 }
 
 template<typename CharT>
@@ -391,15 +390,15 @@ struct print_functor {
     PrintFn print_fn;
     template<typename... Args>
     SCVT_FORCE_INLINE void operator()(basic_membuffer<CharT>& s, unsigned len, Args&&... args) {
-        if (s.avail() >= len || s.try_grow(len)) {
+        if (s.avail() >= len) {
             print_fn(s.curr() + len, val, std::forward<Args>(args)...);
             if (sign) { *s.curr() = sign; }
             s.advance(len);
-        } else if (s.avail()) {
+        } else {
             CharT buf[256];
             print_fn(&buf[0] + len, val, std::forward<Args>(args)...);
             if (sign) { buf[0] = sign; }
-            s.append_by_chunks(buf, buf + len);
+            s.append(buf, buf + len);
         }
     }
 };
@@ -444,12 +443,12 @@ void fmt_gen_bin_with_grouping(CharT* p, Ty val, const fmt_opts& fmt, const grou
 template<typename CharT, typename Ty, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
 void fmt_bin(basic_membuffer<CharT>& s, Ty val, bool is_signed, const fmt_opts& fmt) {
     char sign = '\0';
-    if (is_signed) {
-        if (val & (static_cast<Ty>(1) << (8 * sizeof(Ty) - 1))) {
-            sign = '-', val = ~val + 1;  // negative value
-        } else if ((fmt.flags & fmt_flags::sign_field) != fmt_flags::sign_neg) {
-            sign = (fmt.flags & fmt_flags::sign_field) == fmt_flags::sign_pos ? '+' : ' ';
-        }
+    if (is_signed && (val & (static_cast<Ty>(1) << (8 * sizeof(Ty) - 1)))) {
+        sign = '-', val = ~val + 1;  // negative value
+    } else if ((fmt.flags & fmt_flags::sign_field) == fmt_flags::sign_pos) {
+        sign = '+';
+    } else if ((fmt.flags & fmt_flags::sign_field) == fmt_flags::sign_align) {
+        sign = ' ';
     }
     const unsigned n_prefix = (sign ? 1 : 0) + (!!(fmt.flags & fmt_flags::alternate) ? 2 : 0);
     if (fmt.loc) {
@@ -496,12 +495,12 @@ void fmt_gen_oct_with_grouping(CharT* p, Ty val, const fmt_opts& fmt, const grou
 template<typename CharT, typename Ty, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
 void fmt_oct(basic_membuffer<CharT>& s, Ty val, bool is_signed, const fmt_opts& fmt) {
     char sign = '\0';
-    if (is_signed) {
-        if (val & (static_cast<Ty>(1) << (8 * sizeof(Ty) - 1))) {
-            sign = '-', val = ~val + 1;  // negative value
-        } else if ((fmt.flags & fmt_flags::sign_field) != fmt_flags::sign_neg) {
-            sign = (fmt.flags & fmt_flags::sign_field) == fmt_flags::sign_pos ? '+' : ' ';
-        }
+    if (is_signed && (val & (static_cast<Ty>(1) << (8 * sizeof(Ty) - 1)))) {
+        sign = '-', val = ~val + 1;  // negative value
+    } else if ((fmt.flags & fmt_flags::sign_field) == fmt_flags::sign_pos) {
+        sign = '+';
+    } else if ((fmt.flags & fmt_flags::sign_field) == fmt_flags::sign_align) {
+        sign = ' ';
     }
     const unsigned n_prefix = sign ? 1 : 0;
     if (fmt.loc) {
@@ -559,12 +558,12 @@ void fmt_gen_hex_with_grouping(CharT* p, Ty val, const fmt_opts& fmt, const grou
 template<typename CharT, typename Ty, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
 void fmt_hex(basic_membuffer<CharT>& s, Ty val, bool is_signed, const fmt_opts& fmt) {
     char sign = '\0';
-    if (is_signed) {
-        if (val & (static_cast<Ty>(1) << (8 * sizeof(Ty) - 1))) {
-            sign = '-', val = ~val + 1;  // negative value
-        } else if ((fmt.flags & fmt_flags::sign_field) != fmt_flags::sign_neg) {
-            sign = (fmt.flags & fmt_flags::sign_field) == fmt_flags::sign_pos ? '+' : ' ';
-        }
+    if (is_signed && (val & (static_cast<Ty>(1) << (8 * sizeof(Ty) - 1)))) {
+        sign = '-', val = ~val + 1;  // negative value
+    } else if ((fmt.flags & fmt_flags::sign_field) == fmt_flags::sign_pos) {
+        sign = '+';
+    } else if ((fmt.flags & fmt_flags::sign_field) == fmt_flags::sign_align) {
+        sign = ' ';
     }
     const unsigned n_prefix = (sign ? 1 : 0) + (!!(fmt.flags & fmt_flags::alternate) ? 2 : 0);
     if (fmt.loc) {
@@ -641,12 +640,12 @@ void fmt_gen_dec_with_grouping(CharT* p, Ty val, const grouping_t<CharT>& groupi
 template<typename CharT, typename Ty, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
 void fmt_dec(basic_membuffer<CharT>& s, Ty val, const bool is_signed, const fmt_opts& fmt) {
     char sign = '\0';
-    if (is_signed) {
-        if (val & (static_cast<Ty>(1) << (8 * sizeof(Ty) - 1))) {
-            sign = '-', val = ~val + 1;  // negative value
-        } else if ((fmt.flags & fmt_flags::sign_field) != fmt_flags::sign_neg) {
-            sign = (fmt.flags & fmt_flags::sign_field) == fmt_flags::sign_pos ? '+' : ' ';
-        }
+    if (is_signed && (val & (static_cast<Ty>(1) << (8 * sizeof(Ty) - 1)))) {
+        sign = '-', val = ~val + 1;  // negative value
+    } else if ((fmt.flags & fmt_flags::sign_field) == fmt_flags::sign_pos) {
+        sign = '+';
+    } else if ((fmt.flags & fmt_flags::sign_field) == fmt_flags::sign_align) {
+        sign = ' ';
     }
     const unsigned n_prefix = sign ? 1 : 0;
     if (fmt.loc) {
@@ -887,16 +886,16 @@ struct print_float_functor {
     bool uppercase;
     template<typename... Args>
     SCVT_FORCE_INLINE void operator()(basic_membuffer<CharT>& s, unsigned len, Args&&... args) {
-        if (s.avail() >= len || s.try_grow(len)) {
+        if (s.avail() >= len) {
             fp.template generate<CharT>(s.curr() + len, uppercase, std::forward<Args>(args)...);
             if (sign) { *s.curr() = sign; }
             s.advance(len);
-        } else if (s.avail()) {
+        } else {
             inline_basic_dynbuffer<CharT> buf;
-            if (buf.avail() < len) { buf.try_grow(len); }
+            buf.reserve(len);
             fp.template generate<CharT>(buf.data() + len, uppercase, std::forward<Args>(args)...);
             if (sign) { *buf.data() = sign; }
-            s.append_by_chunks(buf.data(), buf.data() + len);
+            s.append(buf.data(), buf.data() + len);
         }
     }
 };
@@ -907,8 +906,10 @@ void fmt_float_common(basic_membuffer<CharT>& s, std::uint64_t u64, const fmt_op
     char sign = '\0';
     if (u64 & (static_cast<std::uint64_t>(1 + exp_max) << bpm)) {
         sign = '-';  // negative value
-    } else if ((fmt.flags & fmt_flags::sign_field) != fmt_flags::sign_neg) {
-        sign = (fmt.flags & fmt_flags::sign_field) == fmt_flags::sign_pos ? '+' : ' ';
+    } else if ((fmt.flags & fmt_flags::sign_field) == fmt_flags::sign_pos) {
+        sign = '+';
+    } else if ((fmt.flags & fmt_flags::sign_field) == fmt_flags::sign_align) {
+        sign = ' ';
     }
 
     // Binary exponent and mantissa
@@ -923,7 +924,7 @@ void fmt_float_common(basic_membuffer<CharT>& s, std::uint64_t u64, const fmt_op
             if (sign) { s.push_back(sign); }
             s.append(sval.begin(), sval.end());
         };
-        return fmt.width > len ? append_adjusted(s, fn, len, fmt) : fn(s);
+        return fmt.width > len ? append_adjusted(s, fn, len, fmt, true) : fn(s);
     }
 
     if ((fmt.flags & fmt_flags::base_field) == fmt_flags::hex) {

@@ -15,7 +15,7 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC format_error : public std::runtime_error {
 
 namespace sfmt {
 
-enum class type_id : std::uint8_t {
+enum class type_index : std::uint8_t {
     boolean = 0,
     character,
     integer,
@@ -32,8 +32,8 @@ enum class type_id : std::uint8_t {
 };
 
 template<typename StrTy>
-struct arg_custom_value {
-    CONSTEXPR arg_custom_value(const void* v, void (*fn)(StrTy&, const void*, fmt_opts&)) noexcept
+struct custom_arg_handle {
+    CONSTEXPR custom_arg_handle(const void* v, void (*fn)(StrTy&, const void*, fmt_opts&)) noexcept
         : val(v), print_fn(fn) {}
     const void* val;                                   // value pointer
     void (*print_fn)(StrTy&, const void*, fmt_opts&);  // printing function pointer
@@ -41,43 +41,45 @@ struct arg_custom_value {
 
 namespace detail {
 template<typename Ty>
-struct arg_type_id : std::integral_constant<type_id, type_id::custom> {};
+struct arg_type_index : std::integral_constant<type_index, type_index::custom> {};
 
 template<typename StrTy, typename Ty>
 struct arg_store_type {
-    using type = arg_custom_value<StrTy>;
+    using type = custom_arg_handle<StrTy>;
 };
 
-#define UXS_FMT_DECLARE_ARG_TYPE_ID(ty, store_ty, id) \
+#define UXS_FMT_DECLARE_ARG_TYPE_INDEX(ty, store_ty, index) \
     template<> \
-    struct arg_type_id<ty> : std::integral_constant<type_id, id> {}; \
+    struct arg_type_index<ty> : std::integral_constant<type_index, index> {}; \
     template<typename StrTy> \
     struct arg_store_type<StrTy, ty> { \
         using type = store_ty; \
     };
-UXS_FMT_DECLARE_ARG_TYPE_ID(bool, bool, type_id::boolean)
-UXS_FMT_DECLARE_ARG_TYPE_ID(char, typename StrTy::value_type, type_id::character)
-UXS_FMT_DECLARE_ARG_TYPE_ID(wchar_t, typename StrTy::value_type, type_id::character)
-UXS_FMT_DECLARE_ARG_TYPE_ID(std::int32_t, std::int32_t, type_id::integer)
-UXS_FMT_DECLARE_ARG_TYPE_ID(std::int64_t, std::int64_t, type_id::long_integer)
-UXS_FMT_DECLARE_ARG_TYPE_ID(std::uint32_t, std::uint32_t, type_id::unsigned_integer)
-UXS_FMT_DECLARE_ARG_TYPE_ID(std::uint64_t, std::uint64_t, type_id::unsigned_long_integer)
-UXS_FMT_DECLARE_ARG_TYPE_ID(float, float, type_id::single_precision)
-UXS_FMT_DECLARE_ARG_TYPE_ID(double, double, type_id::double_precision)
-UXS_FMT_DECLARE_ARG_TYPE_ID(long double, long double, type_id::long_double_precision)
-#undef UXS_FMT_DECLARE_ARG_TYPE_ID
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(bool, bool, type_index::boolean)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(char, typename StrTy::value_type, type_index::character)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(wchar_t, typename StrTy::value_type, type_index::character)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::int32_t, std::int32_t, type_index::integer)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::int64_t, std::int64_t, type_index::long_integer)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::uint32_t, std::uint32_t, type_index::unsigned_integer)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::uint64_t, std::uint64_t, type_index::unsigned_long_integer)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(float, float, type_index::single_precision)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(double, double, type_index::double_precision)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(long double, long double, type_index::long_double_precision)
+#undef UXS_FMT_DECLARE_ARG_TYPE_INDEX
 
 template<typename Ty>
-struct arg_type_id<Ty*>
-    : std::integral_constant<type_id, is_character<Ty>::value ? type_id::z_string : type_id::pointer> {};
+struct arg_type_index<Ty*>
+    : std::integral_constant<type_index, is_character<Ty>::value ? type_index::z_string : type_index::pointer> {};
 template<typename CharT, typename Traits>
-struct arg_type_id<std::basic_string_view<CharT, Traits>> : std::integral_constant<type_id, type_id::string> {};
+struct arg_type_index<std::basic_string_view<CharT, Traits>> : std::integral_constant<type_index, type_index::string> {
+};
 template<typename CharT, typename Traits, typename Alloc>
-struct arg_type_id<std::basic_string<CharT, Traits, Alloc>> : std::integral_constant<type_id, type_id::string> {};
+struct arg_type_index<std::basic_string<CharT, Traits, Alloc>>
+    : std::integral_constant<type_index, type_index::string> {};
 
 template<typename StrTy, typename Ty>
 struct arg_store_type<StrTy, Ty*> {
-    using type = void*;
+    using type = Ty*;
 };
 template<typename StrTy, typename CharT, typename Traits>
 struct arg_store_type<StrTy, std::basic_string_view<CharT, Traits>> {
@@ -90,7 +92,7 @@ struct arg_store_type<StrTy, std::basic_string<CharT, Traits, Alloc>> {
 }  // namespace detail
 
 template<typename Ty>
-using arg_type_id = detail::arg_type_id<scvt::reduce_type_t<Ty>>;
+using arg_type_index = detail::arg_type_index<scvt::reduce_type_t<Ty>>;
 
 template<typename StrTy, typename Ty>
 using arg_store_type_t = typename detail::arg_store_type<StrTy, scvt::reduce_type_t<Ty>>::type;
@@ -127,7 +129,7 @@ struct arg_store_alignment_evaluator<StrTy, Ty1, Ty2, Rest...>
 template<typename StrTy, typename Ty>
 struct arg_fmt_func_t {
     static void func(StrTy& s, const void* val, fmt_opts& fmt) {
-        uxs::to_basic_string(s, *static_cast<const Ty*>(val), fmt);
+        to_basic_string(s, *static_cast<const Ty*>(val), fmt);
     }
 };
 
@@ -136,6 +138,9 @@ class arg_store {
  public:
     using char_type = typename StrTy::value_type;
     static const std::size_t arg_count = sizeof...(Args);
+
+    arg_store& operator=(const arg_store&) = delete;
+
     CONSTEXPR explicit arg_store(const Args&... args) noexcept {
         store_values(0, arg_count * sizeof(unsigned), args...);
     }
@@ -149,17 +154,17 @@ class arg_store {
 
     template<typename Ty>
     CONSTEXPR static void store_value(
-        const Ty& v, std::enable_if_t<(arg_type_id<Ty>::value < type_id::pointer), void*> data) noexcept {
-        static_assert(arg_type_id<Ty>::value != type_id::character || sizeof(Ty) <= sizeof(char_type),
+        const Ty& v, std::enable_if_t<(arg_type_index<Ty>::value < type_index::pointer), void*> data) noexcept {
+        static_assert(arg_type_index<Ty>::value != type_index::character || sizeof(Ty) <= sizeof(char_type),
                       "inconsistent character argument type");
         ::new (data) arg_store_type_t<StrTy, Ty>(v);
     }
 
     template<typename Ty>
     CONSTEXPR static void store_value(
-        const Ty& v, std::enable_if_t<(arg_type_id<Ty>::value == type_id::custom), void*> data) noexcept {
+        const Ty& v, std::enable_if_t<(arg_type_index<Ty>::value == type_index::custom), void*> data) noexcept {
         static_assert(has_formatter<scvt::reduce_type_t<Ty>, StrTy>::value, "value of this type cannot be formatted");
-        ::new (data) arg_custom_value<StrTy>(&v, &arg_fmt_func_t<StrTy, scvt::reduce_type_t<Ty>>::func);
+        ::new (data) custom_arg_handle<StrTy>(&v, &arg_fmt_func_t<StrTy, scvt::reduce_type_t<Ty>>::func);
     }
 
     template<typename Ty>
@@ -195,7 +200,7 @@ class arg_store {
     CONSTEXPR void store_values(std::size_t i, std::size_t offset, const Ty& v, const Ts&... other) noexcept {
         offset = uxs::align_up<arg_alignment<StrTy, Ty>::value>::value(offset);
         ::new (reinterpret_cast<unsigned*>(&data_) + i) unsigned(static_cast<unsigned>(offset << 8) |
-                                                                 static_cast<unsigned>(arg_type_id<Ty>::value));
+                                                                 static_cast<unsigned>(arg_type_index<Ty>::value));
         store_value(v, &data_[offset]);
         store_values(i + 1, offset + arg_size<StrTy, Ty>::value, other...);
     }
@@ -206,6 +211,8 @@ class arg_store<StrTy> {
  public:
     using char_type = typename StrTy::value_type;
     static const std::size_t arg_count = 0;
+    arg_store& operator=(const arg_store&) = delete;
+    CONSTEXPR arg_store() noexcept = default;
     CONSTEXPR const void* data() const noexcept { return nullptr; }
 };
 
@@ -218,8 +225,11 @@ class arg_list {
 
     CONSTEXPR std::size_t size() const noexcept { return size_; }
     CONSTEXPR bool empty() const noexcept { return !size_; }
-    CONSTEXPR type_id type(std::size_t i) const noexcept {
-        return static_cast<type_id>(static_cast<const unsigned*>(data_)[i] & 0xff);
+    CONSTEXPR type_index index(std::size_t i) const noexcept {
+        return static_cast<type_index>(static_cast<const unsigned*>(data_)[i] & 0xff);
+    }
+    CONSTEXPR uxs::span<const unsigned> metadata() const noexcept {
+        return uxs::as_span(static_cast<const unsigned*>(data_), size_);
     }
     CONSTEXPR const void* data(std::size_t i) const noexcept {
         return static_cast<const std::uint8_t*>(data_) + (static_cast<const unsigned*>(data_)[i] >> 8);
@@ -242,9 +252,6 @@ enum class parse_flags : unsigned {
     dynamic_width = 0x200,
     dynamic_prec = 0x400,
     use_locale = 0x800,
-    arg_num_specified = 0x1000,
-    width_arg_num_specified = 0x2000,
-    prec_arg_num_specified = 0x4000,
 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(parse_flags, unsigned);
 
@@ -258,53 +265,54 @@ struct arg_specs {
 
 struct meta_tbl_t {
     enum code_t {
-        left = 0,
+        other = 0,
+        left,
         internal,
         right,
-        open_brace,
-        dot,
-        digit19,
+        minus,
         plus,
         space,
-        minus,
         sharp,
         zero,
         locale,
+        open_brace,
+        digit19,
+        dot,
+        close_brace,
         decimal,
-        binary,
         binary_cap,
+        binary,
         octal,
-        hex,
         hex_cap,
-        fixed,
+        hex,
         fixed_cap,
-        scientific,
+        fixed,
         scientific_cap,
-        general,
+        scientific,
         general_cap,
-        hex_real,
+        general,
         hex_real_cap,
-        pointer,
+        hex_real,
         pointer_cap,
+        pointer,
         character,
         string,
-        close_brace,
-        other
     };
     std::array<std::uint8_t, 128> tbl;
     CONSTEXPR meta_tbl_t() : tbl() {
         for (unsigned ch = 0; ch < tbl.size(); ++ch) { tbl[ch] = code_t::other; }
         tbl['<'] = code_t::left, tbl['^'] = code_t::internal, tbl['>'] = code_t::right;
+        tbl['-'] = code_t::minus, tbl['+'] = code_t::plus, tbl[' '] = code_t::space;
+        tbl['#'] = code_t::sharp, tbl['0'] = code_t::zero, tbl['L'] = code_t::locale;
         tbl['{'] = code_t::open_brace, tbl['}'] = code_t::close_brace, tbl['.'] = code_t::dot;
         for (unsigned ch = '1'; ch <= '9'; ++ch) { tbl[ch] = code_t::digit19; }
-        tbl['+'] = code_t::plus, tbl[' '] = code_t::space, tbl['-'] = code_t::minus;
-        tbl['#'] = code_t::sharp, tbl['0'] = code_t::zero, tbl['L'] = code_t::locale;
-        tbl['d'] = code_t::decimal, tbl['b'] = code_t::binary, tbl['o'] = code_t::octal, tbl['x'] = code_t::hex;
-        tbl['B'] = code_t::binary_cap, tbl['X'] = code_t::hex_cap;
-        tbl['f'] = code_t::fixed, tbl['e'] = code_t::scientific, tbl['g'] = code_t::general;
-        tbl['F'] = code_t::fixed_cap, tbl['E'] = code_t::scientific_cap, tbl['G'] = code_t::general_cap;
-        tbl['a'] = code_t::hex_real, tbl['A'] = code_t::hex_real_cap;
-        tbl['p'] = code_t::pointer, tbl['P'] = code_t::pointer_cap;
+        tbl['d'] = code_t::decimal, tbl['B'] = code_t::binary_cap, tbl['b'] = code_t::binary;
+        tbl['o'] = code_t::octal, tbl['X'] = code_t::hex_cap, tbl['x'] = code_t::hex;
+        tbl['F'] = code_t::fixed_cap, tbl['f'] = code_t::fixed;
+        tbl['E'] = code_t::scientific_cap, tbl['e'] = code_t::scientific;
+        tbl['G'] = code_t::general_cap, tbl['g'] = code_t::general;
+        tbl['A'] = code_t::hex_real_cap, tbl['a'] = code_t::hex_real;
+        tbl['P'] = code_t::pointer_cap, tbl['p'] = code_t::pointer;
         tbl['c'] = code_t::character, tbl['s'] = code_t::string;
     }
 };
@@ -316,37 +324,58 @@ static constexpr meta_tbl_t g_meta_tbl{};
 #endif  // __cplusplus < 201703L
 
 template<typename CharT, typename Ty>
-CONSTEXPR const CharT* accum_num(const CharT* p, const CharT* last, Ty& num) noexcept {
+CONSTEXPR const CharT* parse_num(const CharT* p, const CharT* last, Ty& num) noexcept {
     for (unsigned dig = 0; p != last && (dig = dig_v(*p)) < 10; ++p) { num = 10 * num + dig; }
     return p;
 }
 
 template<typename CharT>
-CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_specs& specs) noexcept {
-    assert(p != last && *p != '}');
+CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, uxs::span<const unsigned> args_metadata,
+                                      arg_specs& specs, unsigned& n_arg_auto) {
+    assert(p != last);
 
+    auto out_of_arg_list_error = []() { throw format_error("out of argument list"); };
+    auto arg_is_not_an_integer_error = []() { throw format_error("argument is not an integer"); };
+
+    // obtain argument number
     unsigned dig = 0;
     if ((dig = dig_v(*p)) < 10) {
-        specs.flags |= parse_flags::arg_num_specified;
         specs.n_arg = dig;
-        p = accum_num(++p, last, specs.n_arg);
+        p = parse_num(++p, last, specs.n_arg);
         if (p == last) { return nullptr; }
-        if (*p == '}') { return p; }
+    } else {
+        specs.n_arg = n_arg_auto++;
     }
+    if (specs.n_arg >= args_metadata.size()) { out_of_arg_list_error(); }
+
+    if (*p == '}') { return p; }
     if (*p != ':' || ++p == last) { return nullptr; }
 
+    enum class state_t { adjustment = 0, sign, alternate, leading_zeroes, width, precision, locale, type, finish };
+
+    state_t state = state_t::adjustment;
+
     if (p + 1 != last) {
-        switch (*(p + 1)) {  // adjustment with fill character
-            case '<': specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::left, p += 2; break;
-            case '^': specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::internal, p += 2; break;
-            case '>': specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::right, p += 2; break;
-            default: break;
+        auto ch = static_cast<typename std::make_unsigned<CharT>::type>(*(p + 1));
+        if (ch < g_meta_tbl.tbl.size()) {
+            switch (g_meta_tbl.tbl[ch]) {  // adjustment with fill character
+                case meta_tbl_t::left: {
+                    specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::left;
+                    p += 2, state = state_t::sign;
+                } break;
+                case meta_tbl_t::internal: {
+                    specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::internal;
+                    p += 2, state = state_t::sign;
+                } break;
+                case meta_tbl_t::right: {
+                    specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::right;
+                    p += 2, state = state_t::sign;
+                } break;
+                default: break;
+            }
         }
     }
 
-    enum class state_t { start = 0, sign, alternate, leading_zeroes, width, precision, locale, type, finish };
-
-    state_t state = state_t::start;
     while (p != last) {
         auto ch = static_cast<typename std::make_unsigned<CharT>::type>(*p++);
         if (ch >= g_meta_tbl.tbl.size()) { return nullptr; }
@@ -366,11 +395,12 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
             case meta_tbl_t::right: UXS_FMT_SPECIFIER_CASE(state_t::sign, { specs.fmt.flags |= fmt_flags::right; });
 
             // sign specifiers
+            case meta_tbl_t::minus:
+                UXS_FMT_SPECIFIER_CASE(state_t::alternate, { specs.fmt.flags |= fmt_flags::sign_neg; });
             case meta_tbl_t::plus:
                 UXS_FMT_SPECIFIER_CASE(state_t::alternate, { specs.fmt.flags |= fmt_flags::sign_pos; });
             case meta_tbl_t::space:
                 UXS_FMT_SPECIFIER_CASE(state_t::alternate, { specs.fmt.flags |= fmt_flags::sign_align; });
-            case meta_tbl_t::minus: UXS_FMT_SPECIFIER_CASE(state_t::alternate, {});
 
             // alternate
             case meta_tbl_t::sharp:
@@ -378,30 +408,38 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
 
             // leading zeroes
             case meta_tbl_t::zero:
-                UXS_FMT_SPECIFIER_CASE(state_t::width, {
-                    if (!(specs.fmt.flags & fmt_flags::adjust_field)) { specs.fmt.flags |= fmt_flags::leading_zeroes; }
-                });
+                UXS_FMT_SPECIFIER_CASE(state_t::width, { specs.fmt.flags |= fmt_flags::leading_zeroes; });
+
+            // locale
+            case meta_tbl_t::locale: UXS_FMT_SPECIFIER_CASE(state_t::type, { specs.flags |= parse_flags::use_locale; });
 
             // width
             case meta_tbl_t::open_brace:
                 UXS_FMT_SPECIFIER_CASE(state_t::precision, {
                     if (p == last) { return nullptr; }
                     specs.flags |= parse_flags::dynamic_width;
+                    // obtain argument number for width
                     if (*p == '}') {
                         ++p;
-                        break;
+                        specs.n_width_arg = n_arg_auto++;
                     } else if ((dig = dig_v(*p)) < 10) {
-                        specs.flags |= parse_flags::width_arg_num_specified;
                         specs.n_width_arg = dig;
-                        p = accum_num(++p, last, specs.n_width_arg);
-                        if (p != last && *p++ == '}') { break; }
+                        p = parse_num(++p, last, specs.n_width_arg);
+                        if (p == last || *p++ != '}') { return nullptr; }
+                    } else {
+                        return nullptr;
                     }
-                    return nullptr;
+                    if (specs.n_width_arg >= args_metadata.size()) { out_of_arg_list_error(); }
+                    const type_index index = static_cast<type_index>(args_metadata[specs.n_width_arg] & 0xff);
+                    if (index < type_index::integer || index > type_index::unsigned_long_integer) {
+                        arg_is_not_an_integer_error();
+                    }
+                    break;
                 });
             case meta_tbl_t::digit19:
                 UXS_FMT_SPECIFIER_CASE(state_t::precision, {
                     specs.fmt.width = static_cast<unsigned>(*(p - 1) - '0');
-                    p = accum_num(p, last, specs.fmt.width);
+                    p = parse_num(p, last, specs.fmt.width);
                 });
 
             // precision
@@ -411,39 +449,43 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
                     specs.flags |= parse_flags::prec_specified;
                     if ((dig = dig_v(*p)) < 10) {
                         specs.fmt.prec = dig;
-                        p = accum_num(++p, last, specs.fmt.prec);
-                        break;
+                        p = parse_num(++p, last, specs.fmt.prec);
                     } else if (*p == '{' && ++p != last) {
                         specs.flags |= parse_flags::dynamic_prec;
+                        // obtain argument number for precision
                         if (*p == '}') {
                             ++p;
-                            break;
+                            specs.n_prec_arg = n_arg_auto++;
                         } else if ((dig = dig_v(*p)) < 10) {
-                            specs.flags |= parse_flags::prec_arg_num_specified;
                             specs.n_prec_arg = dig;
-                            p = accum_num(++p, last, specs.n_prec_arg);
-                            if (p != last && *p++ == '}') { break; }
+                            p = parse_num(++p, last, specs.n_prec_arg);
+                            if (p == last || *p++ != '}') { return nullptr; }
+                        } else {
+                            return nullptr;
                         }
+                        if (specs.n_prec_arg >= args_metadata.size()) { out_of_arg_list_error(); }
+                        const type_index index = static_cast<type_index>(args_metadata[specs.n_prec_arg] & 0xff);
+                        if (index < type_index::integer || index > type_index::unsigned_long_integer) {
+                            arg_is_not_an_integer_error();
+                        }
+                    } else {
+                        return nullptr;
                     }
-                    return nullptr;
+                    break;
                 });
 
-            // locale
-            case meta_tbl_t::locale: UXS_FMT_SPECIFIER_CASE(state_t::type, { specs.flags |= parse_flags::use_locale; });
+            // end of format specifier
+            case meta_tbl_t::close_brace: return p - 1;
 
             // types
             case meta_tbl_t::decimal:
                 UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= parse_flags::spec_integer; });
 
+            case meta_tbl_t::binary_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
             case meta_tbl_t::binary:
                 UXS_FMT_SPECIFIER_CASE(state_t::finish, {
                     specs.flags |= parse_flags::spec_integer;
                     specs.fmt.flags |= fmt_flags::bin;
-                });
-            case meta_tbl_t::binary_cap:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
-                    specs.flags |= parse_flags::spec_integer;
-                    specs.fmt.flags |= fmt_flags::bin | fmt_flags::uppercase;
                 });
 
             case meta_tbl_t::octal:
@@ -452,135 +494,149 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, arg_spe
                     specs.fmt.flags |= fmt_flags::oct;
                 });
 
+            case meta_tbl_t::hex_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
             case meta_tbl_t::hex:
                 UXS_FMT_SPECIFIER_CASE(state_t::finish, {
                     specs.flags |= parse_flags::spec_integer;
                     specs.fmt.flags |= fmt_flags::hex;
                 });
-            case meta_tbl_t::hex_cap:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
-                    specs.flags |= parse_flags::spec_integer;
-                    specs.fmt.flags |= fmt_flags::hex | fmt_flags::uppercase;
-                });
 
+            case meta_tbl_t::fixed_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
             case meta_tbl_t::fixed:
                 UXS_FMT_SPECIFIER_CASE(state_t::finish, {
                     specs.flags |= parse_flags::spec_real;
                     specs.fmt.flags |= fmt_flags::fixed;
                 });
-            case meta_tbl_t::fixed_cap:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
-                    specs.flags |= parse_flags::spec_real;
-                    specs.fmt.flags |= fmt_flags::fixed | fmt_flags::uppercase;
-                });
 
+            case meta_tbl_t::scientific_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
             case meta_tbl_t::scientific:
                 UXS_FMT_SPECIFIER_CASE(state_t::finish, {
                     specs.flags |= parse_flags::spec_real;
                     specs.fmt.flags |= fmt_flags::scientific;
                 });
-            case meta_tbl_t::scientific_cap:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
-                    specs.flags |= parse_flags::spec_real;
-                    specs.fmt.flags |= fmt_flags::scientific | fmt_flags::uppercase;
-                });
 
+            case meta_tbl_t::general_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
             case meta_tbl_t::general:
                 UXS_FMT_SPECIFIER_CASE(state_t::finish, {
                     specs.flags |= parse_flags::spec_real;
                     specs.fmt.flags |= fmt_flags::general;
                 });
-            case meta_tbl_t::general_cap:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
-                    specs.flags |= parse_flags::spec_real;
-                    specs.fmt.flags |= fmt_flags::general | fmt_flags::uppercase;
-                });
 
+            case meta_tbl_t::hex_real_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
             case meta_tbl_t::hex_real:
                 UXS_FMT_SPECIFIER_CASE(state_t::finish, {
                     specs.flags |= parse_flags::spec_real;
                     specs.fmt.flags |= fmt_flags::hex;
                 });
-            case meta_tbl_t::hex_real_cap:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
-                    specs.flags |= parse_flags::spec_real;
-                    specs.fmt.flags |= fmt_flags::hex | fmt_flags::uppercase;
-                });
 
+            case meta_tbl_t::pointer_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
             case meta_tbl_t::pointer:
                 UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= parse_flags::spec_pointer; });
-            case meta_tbl_t::pointer_cap:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
-                    specs.flags |= parse_flags::spec_pointer;
-                    specs.fmt.flags |= fmt_flags::uppercase;
-                });
+
             case meta_tbl_t::character:
                 UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= parse_flags::spec_character; });
+
             case meta_tbl_t::string:
                 UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= parse_flags::spec_string; });
 #undef UXS_FMT_SPECIFIER_CASE
 
-            // end of format specifier
-            case meta_tbl_t::close_brace: return p - 1;
             case meta_tbl_t::other: return nullptr;
-
-            default: UNREACHABLE_CODE;
         }
     }
 
     return nullptr;
 }
 
-enum class parse_format_error_code { success = 0, invalid_format, out_of_arg_list };
+template<typename CharT, typename AppendTextFn, typename AppendArgFn>
+CONSTEXPR void parse_format(std::basic_string_view<CharT> fmt, uxs::span<const unsigned> args_metadata,
+                            const AppendTextFn& append_text_fn, const AppendArgFn& append_arg_fn) {
+    auto invalid_specifier_syntax_error = []() { throw format_error("invalid specifier syntax"); };
+    auto unexpected_prec_error = []() { throw format_error("unexpected precision specifier"); };
+    auto unexpected_sign_error = []() { throw format_error("unexpected sign specifier"); };
+    auto unexpected_leading_zeroes_error = []() { throw format_error("unexpected leading zeroes specifier"); };
+    auto type_error = []() { throw format_error("invalid argument type specifier"); };
 
-template<typename CharT, typename AppendFn, typename AppendArgFn, typename GetUIntArgFn>
-CONSTEXPR parse_format_error_code parse_format(std::basic_string_view<CharT> fmt, const std::size_t arg_count,
-                                               const AppendFn& append_fn, const AppendArgFn& append_arg_fn,
-                                               const GetUIntArgFn& get_uint_arg_fn) {
     unsigned n_arg_auto = 0;
     const CharT *first0 = fmt.data(), *first = first0, *last = first0 + fmt.size();
     while (first != last) {
         if (*first == '{' || *first == '}') {
-            append_fn(first0, first);
+            append_text_fn(first0, first);
             first0 = ++first;
-            if (first == last) { return parse_format_error_code::invalid_format; }
+            if (first == last) { invalid_specifier_syntax_error(); }
             if (*(first - 1) == '{' && *first != '{') {
                 arg_specs specs;
-                if (*first == '}') {  // most usual `{}` specifier
-                    specs.n_arg = n_arg_auto++;
-                    if (specs.n_arg >= arg_count) { return parse_format_error_code::out_of_arg_list; }
-                } else if ((first = parse_arg_spec(first, last, specs))) {
-                    // obtain argument number
-                    if (!(specs.flags & parse_flags::arg_num_specified)) { specs.n_arg = n_arg_auto++; }
-                    if (specs.n_arg >= arg_count) { return parse_format_error_code::out_of_arg_list; }
-                    if (!!(specs.flags & parse_flags::dynamic_width)) {
-                        // obtain argument number for width
-                        if (!(specs.flags & parse_flags::width_arg_num_specified)) { specs.n_width_arg = n_arg_auto++; }
-                        if (specs.n_width_arg >= arg_count) { return parse_format_error_code::out_of_arg_list; }
-                        specs.fmt.width = get_uint_arg_fn(specs.n_width_arg);
-                    }
-                    if (!!(specs.flags & parse_flags::dynamic_prec)) {
-                        // obtain argument number for precision
-                        if (!(specs.flags & parse_flags::prec_arg_num_specified)) { specs.n_prec_arg = n_arg_auto++; }
-                        if (specs.n_prec_arg >= arg_count) { return parse_format_error_code::out_of_arg_list; }
-                        specs.fmt.prec = get_uint_arg_fn(specs.n_prec_arg);
-                    }
-                } else {
-                    return parse_format_error_code::invalid_format;
+                first = parse_arg_spec(first, last, args_metadata, specs, n_arg_auto);
+                if (!first) { invalid_specifier_syntax_error(); }
+
+                const type_index index = static_cast<type_index>(args_metadata[specs.n_arg] & 0xff);
+                switch (specs.flags & parse_flags::spec_mask) {
+                    case parse_flags::none: {
+                        if (!!(specs.flags & parse_flags::prec_specified) &&
+                            (index < type_index::single_precision || index > type_index::long_double_precision) &&
+                            index != type_index::z_string && index != type_index::string) {
+                            unexpected_prec_error();
+                        }
+                        if (!!(specs.fmt.flags & fmt_flags::sign_field) &&
+                            (index < type_index::integer || index > type_index::long_double_precision)) {
+                            unexpected_sign_error();
+                        }
+                        if (!!(specs.fmt.flags & fmt_flags::leading_zeroes) &&
+                            (index < type_index::integer || index > type_index::pointer)) {
+                            unexpected_leading_zeroes_error();
+                        }
+                    } break;
+
+                    case parse_flags::spec_integer: {
+                        if (!!(specs.flags & parse_flags::prec_specified)) { unexpected_prec_error(); }
+                        if (index > type_index::unsigned_long_integer) { type_error(); }
+                    } break;
+
+                    case parse_flags::spec_real: {
+                        if (index < type_index::single_precision || index > type_index::long_double_precision) {
+                            type_error();
+                        }
+                    } break;
+
+                    case parse_flags::spec_character: {
+                        if (!!(specs.flags & parse_flags::prec_specified)) { unexpected_prec_error(); }
+                        if (!!(specs.fmt.flags & fmt_flags::sign_field)) { unexpected_sign_error(); }
+                        if (!!(specs.fmt.flags & fmt_flags::leading_zeroes)) { unexpected_leading_zeroes_error(); }
+                        if (index < type_index::character || index > type_index::unsigned_long_integer) {
+                            type_error();
+                        }
+                    } break;
+
+                    case parse_flags::spec_pointer: {
+                        if (!!(specs.flags & parse_flags::prec_specified)) { unexpected_prec_error(); }
+                        if (!!(specs.fmt.flags & fmt_flags::sign_field)) { unexpected_sign_error(); }
+                        if (index != type_index::pointer) { type_error(); }
+                    } break;
+
+                    case parse_flags::spec_string: {
+                        if (!!(specs.flags & parse_flags::prec_specified) && index == type_index::boolean) {
+                            unexpected_prec_error();
+                        }
+                        if (!!(specs.fmt.flags & fmt_flags::sign_field)) { unexpected_sign_error(); }
+                        if (!!(specs.fmt.flags & fmt_flags::leading_zeroes)) { unexpected_leading_zeroes_error(); }
+                        if (index != type_index::boolean && index != type_index::z_string &&
+                            index != type_index::string) {
+                            type_error();
+                        }
+                    } break;
+
+                    default: UNREACHABLE_CODE;
                 }
-                append_arg_fn(specs.n_arg, specs);
+
+                append_arg_fn(specs);
                 first0 = first + 1;
             } else if (*(first - 1) != *first) {
-                return parse_format_error_code::invalid_format;
+                invalid_specifier_syntax_error();
             }
         }
         ++first;
     }
-    append_fn(first0, last);
-    return parse_format_error_code::success;
+    append_text_fn(first0, last);
 }
-
-inline void report_format_error(const char*) {}
 
 template<typename StrTy>
 UXS_EXPORT StrTy& vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt, arg_list<StrTy> args,
@@ -590,17 +646,12 @@ UXS_EXPORT StrTy& vformat(StrTy& s, std::basic_string_view<typename StrTy::value
 
 template<typename StrTy>
 using basic_format_args = sfmt::arg_list<StrTy>;
-using format_args = uxs::basic_format_args<membuffer>;
-using wformat_args = uxs::basic_format_args<wmembuffer>;
+using format_args = basic_format_args<membuffer>;
+using wformat_args = basic_format_args<wmembuffer>;
 
-template<typename StrTy, typename... Args>
-NODISCARD CONSTEXPR sfmt::arg_store<StrTy, Args...> make_basic_format_args(const Args&... args) noexcept {
+template<typename StrTy = membuffer, typename... Args>
+NODISCARD CONSTEXPR sfmt::arg_store<StrTy, Args...> make_format_args(const Args&... args) noexcept {
     return sfmt::arg_store<StrTy, Args...>{args...};
-}
-
-template<typename... Args>
-NODISCARD CONSTEXPR sfmt::arg_store<membuffer, Args...> make_format_args(const Args&... args) noexcept {
-    return sfmt::arg_store<membuffer, Args...>{args...};
 }
 
 template<typename... Args>
@@ -608,103 +659,22 @@ NODISCARD CONSTEXPR sfmt::arg_store<wmembuffer, Args...> make_wformat_args(const
     return sfmt::arg_store<wmembuffer, Args...>{args...};
 }
 
-template<typename CharT>
-struct basic_runtime_string {
-    std::basic_string_view<CharT> s;
-};
-
-template<typename Str, typename = std::enable_if_t<
-                           std::is_convertible<const Str&, std::basic_string_view<typename Str::value_type>>::value>>
-NODISCARD CONSTEXPR basic_runtime_string<typename Str::value_type> make_runtime_string(const Str& s) noexcept {
-    return basic_runtime_string<typename Str::value_type>{s};
-}
-
-template<typename CharT>
-NODISCARD CONSTEXPR basic_runtime_string<CharT> make_runtime_string(const CharT* s) noexcept {
-    return basic_runtime_string<CharT>{s};
-}
-
 template<typename CharT, typename... Args>
 class basic_format_string {
  public:
     template<typename Ty,
              typename = std::enable_if_t<std::is_convertible<const Ty&, std::basic_string_view<CharT>>::value>>
-    CONSTEVAL basic_format_string(const Ty& fmt) noexcept : checked(fmt) {
+    CONSTEVAL basic_format_string(const Ty& fmt) noexcept : fmt_(fmt) {
 #if defined(HAS_CONSTEVAL)
-        const std::array<sfmt::type_id, sizeof...(Args)> arg_type_ids = {sfmt::arg_type_id<Args>::value...};
-        const auto error_code = sfmt::parse_format<CharT>(
-            checked, sizeof...(Args), [](const CharT*, const CharT*) constexpr {},
-            [&arg_type_ids](unsigned n_arg, sfmt::arg_specs& specs) constexpr {
-                const sfmt::type_id id = arg_type_ids[n_arg];
-                const sfmt::parse_flags flag = specs.flags & sfmt::parse_flags::spec_mask;
-                auto unexpected_prec = []() { sfmt::report_format_error("unexpected precision specified"); };
-                auto signed_needed = []() { sfmt::report_format_error("argument format requires signed argument"); };
-                auto numeric_needed = []() { sfmt::report_format_error("argument format requires numeric argument"); };
-                if (flag == sfmt::parse_flags::none) {
-                    if (!!(specs.flags & sfmt::parse_flags::prec_specified) &&
-                        (id < sfmt::type_id::single_precision || id > sfmt::type_id::long_double_precision) &&
-                        id != sfmt::type_id::z_string && id != sfmt::type_id::string) {
-                        unexpected_prec();
-                    }
-                    if (!!(specs.fmt.flags & fmt_flags::sign_field) &&
-                        (id < sfmt::type_id::integer || id > sfmt::type_id::long_integer) &&
-                        (id < sfmt::type_id::single_precision || id > sfmt::type_id::long_double_precision)) {
-                        signed_needed();
-                    }
-                    if (!!(specs.fmt.flags & fmt_flags::leading_zeroes) &&
-                        (id < sfmt::type_id::integer || id > sfmt::type_id::pointer)) {
-                        numeric_needed();
-                    }
-                    return;
-                } else if (flag == sfmt::parse_flags::spec_integer) {
-                    if (!!(specs.flags & sfmt::parse_flags::prec_specified)) { unexpected_prec(); }
-                    if (id <= sfmt::type_id::unsigned_long_integer) {
-                        if (!!(specs.fmt.flags & fmt_flags::sign_field) &&
-                            (id < sfmt::type_id::character || id > sfmt::type_id::long_integer)) {
-                            signed_needed();
-                        }
-                        return;
-                    }
-                } else if (flag == sfmt::parse_flags::spec_real) {
-                    if (id >= sfmt::type_id::single_precision && id <= sfmt::type_id::long_double_precision) { return; }
-                } else if (flag == sfmt::parse_flags::spec_character) {
-                    if (!!(specs.flags & sfmt::parse_flags::prec_specified)) { unexpected_prec(); }
-                    if (!!(specs.fmt.flags & fmt_flags::sign_field)) { signed_needed(); }
-                    if (!!(specs.fmt.flags & fmt_flags::leading_zeroes)) { numeric_needed(); }
-                    if (id >= sfmt::type_id::character && id <= sfmt::type_id::unsigned_long_integer) { return; }
-                } else if (flag == sfmt::parse_flags::spec_pointer) {
-                    if (!!(specs.flags & sfmt::parse_flags::prec_specified)) { unexpected_prec(); }
-                    if (!!(specs.fmt.flags & fmt_flags::sign_field)) { signed_needed(); }
-                    if (id == sfmt::type_id::pointer) { return; }
-                } else if (flag == sfmt::parse_flags::spec_string) {
-                    if (!!(specs.fmt.flags & fmt_flags::sign_field)) { signed_needed(); }
-                    if (!!(specs.fmt.flags & fmt_flags::leading_zeroes)) { numeric_needed(); }
-                    if (id == sfmt::type_id::boolean || id == sfmt::type_id::z_string || id == sfmt::type_id::string) {
-                        return;
-                    }
-                }
-                sfmt::report_format_error("invalid argument format specifier");
-            },
-            [&arg_type_ids](unsigned n_arg) constexpr->unsigned {
-                if (arg_type_ids[n_arg] < sfmt::type_id::integer ||
-                    arg_type_ids[n_arg] > sfmt::type_id::unsigned_long_integer) {
-                    sfmt::report_format_error("argument is not an integer");
-                }
-                return 0;
-            });
-        if (error_code == sfmt::parse_format_error_code::success) {
-        } else if (error_code == sfmt::parse_format_error_code::out_of_arg_list) {
-            sfmt::report_format_error("out of argument list");
-        } else {
-            sfmt::report_format_error("invalid specifier syntax");
-        }
+        constexpr std::array<unsigned, sizeof...(Args)> args_metadata = {
+            static_cast<unsigned>(sfmt::arg_type_index<Args>::value)...};
+        sfmt::parse_format<CharT>(fmt_, args_metadata, [](auto&&...) constexpr {}, [](auto&&...) constexpr {});
 #endif  // defined(HAS_CONSTEVAL)
     }
-    CONSTEXPR basic_format_string(basic_runtime_string<CharT> fmt) noexcept : checked(fmt.s) {}
-    CONSTEXPR std::basic_string_view<CharT> get() const noexcept { return checked; }
+    CONSTEXPR std::basic_string_view<CharT> get() const noexcept { return fmt_; }
 
  private:
-    std::basic_string_view<CharT> checked;
+    std::basic_string_view<CharT> fmt_;
 };
 
 template<typename... Args>
@@ -715,125 +685,124 @@ using wformat_string = basic_format_string<wchar_t, type_identity_t<Args>...>;
 // ---- basic_vformat
 
 template<typename StrTy>
-StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
-                     uxs::basic_format_args<StrTy> args) {
+StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt, basic_format_args<StrTy> args) {
     return sfmt::vformat(s, fmt, args);
 }
 
 template<typename StrTy>
 StrTy& basic_vformat(StrTy& s, const std::locale& loc, std::basic_string_view<typename StrTy::value_type> fmt,
-                     uxs::basic_format_args<StrTy> args) {
+                     basic_format_args<StrTy> args) {
     return sfmt::vformat(s, fmt, args, &loc);
 }
 
 // ---- basic_format
 
 template<typename StrTy, typename... Args>
-StrTy& basic_format(StrTy& s, uxs::basic_format_string<typename StrTy::value_type, Args...> fmt, const Args&... args) {
-    return sfmt::vformat(s, fmt.get(), uxs::make_basic_format_args<StrTy>(args...));
+StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type, Args...> fmt, const Args&... args) {
+    return basic_vformat(s, fmt.get(), make_format_args<StrTy>(args...));
 }
 
 template<typename StrTy, typename... Args>
-StrTy& basic_format(StrTy& s, const std::locale& loc, uxs::basic_format_string<typename StrTy::value_type, Args...> fmt,
+StrTy& basic_format(StrTy& s, const std::locale& loc, basic_format_string<typename StrTy::value_type, Args...> fmt,
                     const Args&... args) {
-    return sfmt::vformat(s, fmt.get(), uxs::make_basic_format_args<StrTy>(args...), &loc);
+    return basic_vformat(s, loc, fmt.get(), make_format_args<StrTy>(args...));
 }
 
 // ---- vformat
 
-NODISCARD inline std::string vformat(std::string_view fmt, uxs::format_args args) {
+NODISCARD inline std::string vformat(std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    sfmt::vformat<membuffer>(buf, fmt, args);
+    basic_vformat<membuffer>(buf, fmt, args);
     return std::string(buf.data(), buf.size());
 }
 
-NODISCARD inline std::wstring vformat(std::wstring_view fmt, uxs::wformat_args args) {
+NODISCARD inline std::wstring vformat(std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    sfmt::vformat<wmembuffer>(buf, fmt, args);
+    basic_vformat<wmembuffer>(buf, fmt, args);
     return std::wstring(buf.data(), buf.size());
 }
 
-NODISCARD inline std::string vformat(const std::locale& loc, std::string_view fmt, uxs::format_args args) {
+NODISCARD inline std::string vformat(const std::locale& loc, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    sfmt::vformat<membuffer>(buf, fmt, args, &loc);
+    basic_vformat<membuffer>(buf, loc, fmt, args);
     return std::string(buf.data(), buf.size());
 }
 
-NODISCARD inline std::wstring vformat(const std::locale& loc, std::wstring_view fmt, uxs::wformat_args args) {
+NODISCARD inline std::wstring vformat(const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    sfmt::vformat<wmembuffer>(buf, fmt, args, &loc);
+    basic_vformat<wmembuffer>(buf, loc, fmt, args);
     return std::wstring(buf.data(), buf.size());
 }
 
 // ---- format
 
 template<typename... Args>
-NODISCARD std::string format(uxs::format_string<Args...> fmt, const Args&... args) {
-    return vformat(fmt.get(), uxs::make_format_args(args...));
+NODISCARD std::string format(format_string<Args...> fmt, const Args&... args) {
+    return vformat(fmt.get(), make_format_args(args...));
 }
 
 template<typename... Args>
-NODISCARD std::wstring format(uxs::wformat_string<Args...> fmt, const Args&... args) {
-    return vformat(fmt.get(), uxs::make_wformat_args(args...));
+NODISCARD std::wstring format(wformat_string<Args...> fmt, const Args&... args) {
+    return vformat(fmt.get(), make_wformat_args(args...));
 }
 
 template<typename... Args>
-NODISCARD std::string format(const std::locale& loc, uxs::format_string<Args...> fmt, const Args&... args) {
-    return vformat(loc, fmt.get(), uxs::make_format_args(args...));
+NODISCARD std::string format(const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
+    return vformat(loc, fmt.get(), make_format_args(args...));
 }
 
 template<typename... Args>
-NODISCARD std::wstring format(const std::locale& loc, uxs::wformat_string<Args...> fmt, const Args&... args) {
-    return vformat(loc, fmt.get(), uxs::make_wformat_args(args...));
+NODISCARD std::wstring format(const std::locale& loc, wformat_string<Args...> fmt, const Args&... args) {
+    return vformat(loc, fmt.get(), make_wformat_args(args...));
 }
 
 // ---- vformat_to
 
-inline char* vformat_to(char* p, std::string_view fmt, uxs::format_args args) {
+inline char* vformat_to(char* p, std::string_view fmt, format_args args) {
     membuffer buf(p);
-    return sfmt::vformat<membuffer>(buf, fmt, args).curr();
+    return basic_vformat<membuffer>(buf, fmt, args).curr();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt vformat_to(OutputIt out, std::string_view fmt, uxs::format_args args) {
+OutputIt vformat_to(OutputIt out, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    sfmt::vformat<membuffer>(buf, fmt, args);
+    basic_vformat<membuffer>(buf, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
-inline wchar_t* vformat_to(wchar_t* p, std::wstring_view fmt, uxs::wformat_args args) {
+inline wchar_t* vformat_to(wchar_t* p, std::wstring_view fmt, wformat_args args) {
     wmembuffer buf(p);
-    return sfmt::vformat<wmembuffer>(buf, fmt, args).curr();
+    return basic_vformat<wmembuffer>(buf, fmt, args).curr();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt vformat_to(OutputIt out, std::wstring_view fmt, uxs::wformat_args args) {
+OutputIt vformat_to(OutputIt out, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    sfmt::vformat<wmembuffer>(buf, fmt, args);
+    basic_vformat<wmembuffer>(buf, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
-inline char* vformat_to(char* p, const std::locale& loc, std::string_view fmt, uxs::format_args args) {
+inline char* vformat_to(char* p, const std::locale& loc, std::string_view fmt, format_args args) {
     membuffer buf(p);
-    return sfmt::vformat<membuffer>(buf, fmt, args, &loc).curr();
+    return basic_vformat<membuffer>(buf, loc, fmt, args).curr();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt vformat_to(OutputIt out, const std::locale& loc, std::string_view fmt, uxs::format_args args) {
+OutputIt vformat_to(OutputIt out, const std::locale& loc, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    sfmt::vformat<membuffer>(buf, fmt, args, &loc);
+    basic_vformat<membuffer>(buf, loc, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
-inline wchar_t* vformat_to(wchar_t* p, const std::locale& loc, std::wstring_view fmt, uxs::wformat_args args) {
+inline wchar_t* vformat_to(wchar_t* p, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     wmembuffer buf(p);
-    return sfmt::vformat<wmembuffer>(buf, fmt, args, &loc).curr();
+    return basic_vformat<wmembuffer>(buf, loc, fmt, args).curr();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt vformat_to(OutputIt out, const std::locale& loc, std::wstring_view fmt, uxs::wformat_args args) {
+OutputIt vformat_to(OutputIt out, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    sfmt::vformat<wmembuffer>(buf, fmt, args, &loc);
+    basic_vformat<wmembuffer>(buf, loc, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
@@ -841,106 +810,133 @@ OutputIt vformat_to(OutputIt out, const std::locale& loc, std::wstring_view fmt,
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt format_to(OutputIt out, uxs::format_string<Args...> fmt, const Args&... args) {
-    return vformat_to(std::move(out), fmt.get(), uxs::make_format_args(args...));
+OutputIt format_to(OutputIt out, format_string<Args...> fmt, const Args&... args) {
+    return vformat_to(std::move(out), fmt.get(), make_format_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt format_to(OutputIt out, uxs::wformat_string<Args...> fmt, const Args&... args) {
-    return vformat_to(std::move(out), fmt.get(), uxs::make_wformat_args(args...));
+OutputIt format_to(OutputIt out, wformat_string<Args...> fmt, const Args&... args) {
+    return vformat_to(std::move(out), fmt.get(), make_wformat_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt format_to(OutputIt out, const std::locale& loc, uxs::format_string<Args...> fmt, const Args&... args) {
-    return vformat_to(std::move(out), loc, fmt.get(), uxs::make_format_args(args...));
+OutputIt format_to(OutputIt out, const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
+    return vformat_to(std::move(out), loc, fmt.get(), make_format_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt format_to(OutputIt out, const std::locale& loc, uxs::wformat_string<Args...> fmt, const Args&... args) {
-    return vformat_to(std::move(out), loc, fmt.get(), uxs::make_wformat_args(args...));
+OutputIt format_to(OutputIt out, const std::locale& loc, wformat_string<Args...> fmt, const Args&... args) {
+    return vformat_to(std::move(out), loc, fmt.get(), make_wformat_args(args...));
 }
 
 // ---- vformat_to_n
 
-inline char* vformat_to_n(char* p, std::size_t n, std::string_view fmt, uxs::format_args args) {
-    membuffer buf(p, p + n);
-    return sfmt::vformat<membuffer>(buf, fmt, args).curr();
+template<typename OutputIt>
+struct format_to_n_result {
+#if __cplusplus < 201703L
+    format_to_n_result(OutputIt o, std::size_t s) : out(o), size(s) {}
+#endif  // __cplusplus < 201703L
+    OutputIt out;
+    std::size_t size;
+};
+
+template<typename Ty>
+class basic_membuffer_with_size_counter final : public basic_membuffer<Ty> {
+ public:
+    basic_membuffer_with_size_counter(Ty* first, Ty* last) noexcept
+        : basic_membuffer<Ty>(first, last), size_(static_cast<std::size_t>(last - first)) {}
+    std::size_t size() const { return this->avail() ? size_ - this->avail() : size_; }
+
+ private:
+    std::size_t size_ = 0;
+
+    std::size_t try_grow(std::size_t extra) override {
+        size_ += extra;
+        return 0;
+    }
+};
+
+inline format_to_n_result<char*> vformat_to_n(char* p, std::size_t n, std::string_view fmt, format_args args) {
+    basic_membuffer_with_size_counter<char> buf(p, p + n);
+    return {basic_vformat<membuffer>(buf, fmt, args).curr(), buf.size()};
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt vformat_to_n(OutputIt out, std::size_t n, std::string_view fmt, uxs::format_args args) {
+format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    sfmt::vformat<membuffer>(buf, fmt, args);
-    return std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out));
+    basic_vformat<membuffer>(buf, fmt, args);
+    return {std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out)), buf.size()};
 }
 
-inline wchar_t* vformat_to_n(wchar_t* p, std::size_t n, std::wstring_view fmt, uxs::wformat_args args) {
-    wmembuffer buf(p, p + n);
-    return sfmt::vformat<wmembuffer>(buf, fmt, args).curr();
+inline format_to_n_result<wchar_t*> vformat_to_n(wchar_t* p, std::size_t n, std::wstring_view fmt, wformat_args args) {
+    basic_membuffer_with_size_counter<wchar_t> buf(p, p + n);
+    return {basic_vformat<wmembuffer>(buf, fmt, args).curr(), buf.size()};
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt vformat_to_n(OutputIt out, std::size_t n, std::wstring_view fmt, uxs::wformat_args args) {
+format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    sfmt::vformat<wmembuffer>(buf, fmt, args);
-    return std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out));
+    basic_vformat<wmembuffer>(buf, fmt, args);
+    return {std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out)), buf.size()};
 }
 
-inline char* vformat_to_n(char* p, std::size_t n, const std::locale& loc, std::string_view fmt, uxs::format_args args) {
-    membuffer buf(p, p + n);
-    return sfmt::vformat<membuffer>(buf, fmt, args, &loc).curr();
+inline format_to_n_result<char*> vformat_to_n(char* p, std::size_t n, const std::locale& loc, std::string_view fmt,
+                                              format_args args) {
+    basic_membuffer_with_size_counter<char> buf(p, p + n);
+    return {basic_vformat<membuffer>(buf, loc, fmt, args).curr(), buf.size()};
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt vformat_to_n(OutputIt out, std::size_t n, const std::locale& loc, std::string_view fmt, uxs::format_args args) {
+format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, const std::locale& loc, std::string_view fmt,
+                                          format_args args) {
     inline_dynbuffer buf;
-    sfmt::vformat<membuffer>(buf, fmt, args, &loc);
-    return std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out));
+    basic_vformat<membuffer>(buf, loc, fmt, args);
+    return {std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out)), buf.size()};
 }
 
-inline wchar_t* vformat_to_n(wchar_t* p, std::size_t n, const std::locale& loc, std::wstring_view fmt,
-                             uxs::wformat_args args) {
-    wmembuffer buf(p, p + n);
-    return sfmt::vformat<wmembuffer>(buf, fmt, args, &loc).curr();
+inline format_to_n_result<wchar_t*> vformat_to_n(wchar_t* p, std::size_t n, const std::locale& loc,
+                                                 std::wstring_view fmt, wformat_args args) {
+    basic_membuffer_with_size_counter<wchar_t> buf(p, p + n);
+    return {basic_vformat<wmembuffer>(buf, loc, fmt, args).curr(), buf.size()};
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt vformat_to_n(OutputIt out, std::size_t n, const std::locale& loc, std::wstring_view fmt,
-                      uxs::wformat_args args) {
+format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, const std::locale& loc, std::wstring_view fmt,
+                                          wformat_args args) {
     inline_wdynbuffer buf;
-    sfmt::vformat<wmembuffer>(buf, fmt, args, &loc);
-    return std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out));
+    basic_vformat<wmembuffer>(buf, loc, fmt, args);
+    return {std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out)), buf.size()};
 }
 
 // ---- format_to_n
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt format_to_n(OutputIt out, std::size_t n, uxs::format_string<Args...> fmt, const Args&... args) {
-    return vformat_to_n(std::move(out), n, fmt.get(), uxs::make_format_args(args...));
+format_to_n_result<OutputIt> format_to_n(OutputIt out, std::size_t n, format_string<Args...> fmt, const Args&... args) {
+    return vformat_to_n(std::move(out), n, fmt.get(), make_format_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt format_to_n(OutputIt out, std::size_t n, uxs::wformat_string<Args...> fmt, const Args&... args) {
-    return vformat_to_n(std::move(out), n, fmt.get(), uxs::make_wformat_args(args...));
+format_to_n_result<OutputIt> format_to_n(OutputIt out, std::size_t n, wformat_string<Args...> fmt, const Args&... args) {
+    return vformat_to_n(std::move(out), n, fmt.get(), make_wformat_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
-OutputIt format_to_n(OutputIt out, std::size_t n, const std::locale& loc, uxs::format_string<Args...> fmt,
-                     const Args&... args) {
-    return vformat_to_n(std::move(out), n, loc, fmt.get(), uxs::make_format_args(args...));
+format_to_n_result<OutputIt> format_to_n(OutputIt out, std::size_t n, const std::locale& loc,
+                                         format_string<Args...> fmt, const Args&... args) {
+    return vformat_to_n(std::move(out), n, loc, fmt.get(), make_format_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
          typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt format_to_n(OutputIt out, std::size_t n, const std::locale& loc, uxs::wformat_string<Args...> fmt,
-                     const Args&... args) {
-    return vformat_to_n(std::move(out), n, loc, fmt.get(), uxs::make_wformat_args(args...));
+format_to_n_result<OutputIt> format_to_n(OutputIt out, std::size_t n, const std::locale& loc,
+                                         wformat_string<Args...> fmt, const Args&... args) {
+    return vformat_to_n(std::move(out), n, loc, fmt.get(), make_wformat_args(args...));
 }
 
 // ---- vprint
@@ -979,106 +975,103 @@ class basic_membuffer_for_iobuf final : public basic_membuffer<Ty> {
         : basic_membuffer<Ty>(out.first_avail(), out.last_avail()), out_(out) {}
     ~basic_membuffer_for_iobuf() override { out_.advance(this->curr() - out_.first_avail()); }
 
-    bool try_grow(std::size_t extra) override {
+ private:
+    basic_iobuf<Ty>& out_;
+
+    std::size_t try_grow(std::size_t extra) override {
         out_.advance(this->curr() - out_.first_avail());
         if (!out_.reserve().good()) { return false; }
         this->set(out_.first_avail(), out_.last_avail());
-        return this->avail() >= extra;
+        return this->avail();
     }
-
- private:
-    basic_iobuf<Ty>& out_;
 };
 
-using membuffer_for_iobuf = basic_membuffer_for_iobuf<char>;
-using wmembuffer_for_iobuf = basic_membuffer_for_iobuf<wchar_t>;
-
-inline iobuf& vprint(iobuf& out, std::string_view fmt, uxs::format_args args) {
-    membuffer_for_iobuf buf(out);
-    sfmt::vformat<membuffer>(buf, fmt, args);
+inline iobuf& vprint(iobuf& out, std::string_view fmt, format_args args) {
+    basic_membuffer_for_iobuf<char> buf(out);
+    basic_vformat<membuffer>(buf, fmt, args);
     return out;
 }
 
-inline wiobuf& vprint(wiobuf& out, std::wstring_view fmt, uxs::wformat_args args) {
-    wmembuffer_for_iobuf buf(out);
-    sfmt::vformat<wmembuffer>(buf, fmt, args);
+inline wiobuf& vprint(wiobuf& out, std::wstring_view fmt, wformat_args args) {
+    basic_membuffer_for_iobuf<wchar_t> buf(out);
+    basic_vformat<wmembuffer>(buf, fmt, args);
     return out;
 }
 
-inline iobuf& vprint(iobuf& out, const std::locale& loc, std::string_view fmt, uxs::format_args args) {
-    membuffer_for_iobuf buf(out);
-    sfmt::vformat<membuffer>(buf, fmt, args, &loc);
+inline iobuf& vprint(iobuf& out, const std::locale& loc, std::string_view fmt, format_args args) {
+    basic_membuffer_for_iobuf<char> buf(out);
+    basic_vformat<membuffer>(buf, loc, fmt, args);
     return out;
 }
 
-inline wiobuf& vprint(wiobuf& out, const std::locale& loc, std::wstring_view fmt, uxs::wformat_args args) {
-    wmembuffer_for_iobuf buf(out);
-    sfmt::vformat<wmembuffer>(buf, fmt, args, &loc);
+inline wiobuf& vprint(wiobuf& out, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
+    basic_membuffer_for_iobuf<wchar_t> buf(out);
+    basic_vformat<wmembuffer>(buf, loc, fmt, args);
     return out;
 }
 
 // ---- print
 
 template<typename... Args>
-iobuf& print(iobuf& out, uxs::format_string<Args...> fmt, const Args&... args) {
-    return vprint(out, fmt.get(), uxs::make_format_args(args...));
+iobuf& print(iobuf& out, format_string<Args...> fmt, const Args&... args) {
+    return vprint(out, fmt.get(), make_format_args(args...));
 }
 
 template<typename... Args>
-wiobuf& print(wiobuf& out, uxs::wformat_string<Args...> fmt, const Args&... args) {
-    return vprint(out, fmt.get(), uxs::make_wformat_args(args...));
+wiobuf& print(wiobuf& out, wformat_string<Args...> fmt, const Args&... args) {
+    return vprint(out, fmt.get(), make_wformat_args(args...));
 }
 
 template<typename... Args>
-iobuf& print(uxs::format_string<Args...> fmt, const Args&... args) {
-    return vprint(stdbuf::out, fmt.get(), uxs::make_format_args(args...));
+iobuf& print(format_string<Args...> fmt, const Args&... args) {
+    return vprint(stdbuf::out, fmt.get(), make_format_args(args...));
 }
 
 template<typename... Args>
-iobuf& print(iobuf& out, const std::locale& loc, uxs::format_string<Args...> fmt, const Args&... args) {
-    return vprint(out, loc, fmt.get(), uxs::make_format_args(args...));
+iobuf& print(iobuf& out, const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
+    return vprint(out, loc, fmt.get(), make_format_args(args...));
 }
 
 template<typename... Args>
-wiobuf& print(wiobuf& out, const std::locale& loc, uxs::wformat_string<Args...> fmt, const Args&... args) {
-    return vprint(out, loc, fmt.get(), uxs::make_wformat_args(args...));
+wiobuf& print(wiobuf& out, const std::locale& loc, wformat_string<Args...> fmt, const Args&... args) {
+    return vprint(out, loc, fmt.get(), make_wformat_args(args...));
 }
 
 template<typename... Args>
-iobuf& print(const std::locale& loc, uxs::format_string<Args...> fmt, const Args&... args) {
-    return vprint(stdbuf::out, loc, fmt.get(), uxs::make_format_args(args...));
+iobuf& print(const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
+    return vprint(stdbuf::out, loc, fmt.get(), make_format_args(args...));
 }
 
 // ---- println
 
 template<typename... Args>
-iobuf& println(iobuf& out, uxs::format_string<Args...> fmt, const Args&... args) {
-    return vprint(out, fmt.get(), uxs::make_format_args(args...)).endl();
+iobuf& println(iobuf& out, format_string<Args...> fmt, const Args&... args) {
+    return vprint(out, fmt.get(), make_format_args(args...)).endl();
 }
 
 template<typename... Args>
-wiobuf& println(wiobuf& out, uxs::wformat_string<Args...> fmt, const Args&... args) {
-    return vprint(out, fmt.get(), uxs::make_wformat_args(args...)).endl();
+wiobuf& println(wiobuf& out, wformat_string<Args...> fmt, const Args&... args) {
+    return vprint(out, fmt.get(), make_wformat_args(args...)).endl();
 }
 
 template<typename... Args>
-iobuf& println(uxs::format_string<Args...> fmt, const Args&... args) {
-    return vprint(stdbuf::out, fmt.get(), uxs::make_format_args(args...)).endl();
+iobuf& println(format_string<Args...> fmt, const Args&... args) {
+    return vprint(stdbuf::out, fmt.get(), make_format_args(args...)).endl();
 }
 
 template<typename... Args>
-iobuf& println(iobuf& out, const std::locale& loc, uxs::format_string<Args...> fmt, const Args&... args) {
-    return vprint(out, loc, fmt.get(), uxs::make_format_args(args...)).endl();
+iobuf& println(iobuf& out, const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
+    return vprint(out, loc, fmt.get(), make_format_args(args...)).endl();
 }
 
 template<typename... Args>
-wiobuf& println(wiobuf& out, const std::locale& loc, uxs::wformat_string<Args...> fmt, const Args&... args) {
-    return vprint(out, loc, fmt.get(), uxs::make_wformat_args(args...)).endl();
+wiobuf& println(wiobuf& out, const std::locale& loc, wformat_string<Args...> fmt, const Args&... args) {
+    return vprint(out, loc, fmt.get(), make_wformat_args(args...)).endl();
 }
 
 template<typename... Args>
-iobuf& println(const std::locale& loc, uxs::format_string<Args...> fmt, const Args&... args) {
-    return vprint(stdbuf::out, loc, fmt.get(), uxs::make_format_args(args...)).endl();
+iobuf& println(const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
+    return vprint(stdbuf::out, loc, fmt.get(), make_format_args(args...)).endl();
 }
 
 }  // namespace uxs

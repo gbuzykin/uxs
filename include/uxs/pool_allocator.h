@@ -23,8 +23,8 @@ class pool {
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<pool_desc_t>;
 
     template<typename Ty>
-    using pool_specializer_t = pool_specializer<pool, size_of<pool_part_hdr_t, Ty>::value,  //
-                                                alignment_of<pool_part_hdr_t, Ty>::value>;
+    using pool_specializer_t = pool_specializer<pool, uxs::size_of<pool_part_hdr_t, Ty>::value,  //
+                                                uxs::alignment_of<pool_part_hdr_t, Ty>::value>;
 
     struct pool_desc_t : alloc_type {
         dllist_node_t free;
