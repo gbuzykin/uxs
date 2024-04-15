@@ -63,9 +63,9 @@ enum class fmt_flags : unsigned {
     uppercase = 0x80,
     alternate = 0x100,
     json_compat = 0x200,
-    sign_neg = none,
-    sign_pos = 0x400,
-    sign_align = 0x800,
+    sign_neg = 0x400,
+    sign_pos = 0x800,
+    sign_align = 0xc00,
     sign_field = 0xc00,
 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(fmt_flags, unsigned);
@@ -115,56 +115,35 @@ class basic_membuffer {
     }
 
     template<typename InputIt, typename = std::enable_if_t<is_random_access_iterator<InputIt>::value>>
-    basic_membuffer& append_by_chunks(InputIt first, InputIt last) {
+    basic_membuffer& append(InputIt first, InputIt last) {
         assert(first <= last);
         std::size_t count = static_cast<std::size_t>(last - first), n_avail = avail();
         while (count > n_avail) {
             curr_ = std::copy_n(first, n_avail, curr_);
-            if (!try_grow()) { return *this; }
             first += n_avail, count -= n_avail;
-            n_avail = avail();
+            if (!(n_avail = try_grow(count))) { return *this; }
         }
         curr_ = std::copy(first, last, curr_);
         return *this;
     }
 
-    basic_membuffer& append_by_chunks(std::size_t count, Ty val) {
+    basic_membuffer& append(std::size_t count, Ty val) {
         std::size_t n_avail = avail();
         while (count > n_avail) {
             curr_ = std::fill_n(curr_, n_avail, val);
-            if (!try_grow()) { return *this; }
             count -= n_avail;
-            n_avail = avail();
+            if (!(n_avail = try_grow(count))) { return *this; }
         }
         curr_ = std::fill_n(curr_, count, val);
         return *this;
     }
 
-    template<typename InputIt, typename = std::enable_if_t<is_random_access_iterator<InputIt>::value>>
-    basic_membuffer& append(InputIt first, InputIt last) {
-        assert(first <= last);
-        const std::size_t count = static_cast<std::size_t>(last - first);
-        if (avail() >= count || try_grow(count)) {
-            curr_ = std::copy(first, last, curr_);
-            return *this;
-        }
-        return append_by_chunks(first, last);
-    }
-
-    basic_membuffer& append(std::size_t count, Ty val) {
-        if (avail() >= count || try_grow(count)) {
-            curr_ = std::fill_n(curr_, count, val);
-            return *this;
-        }
-        return append_by_chunks(count, val);
-    }
-
     template<typename... Args>
     void emplace_back(Args&&... args) {
-        if (curr_ != last_ || try_grow()) { new (curr_++) Ty(std::forward<Args>(args)...); }
+        if (curr_ != last_ || try_grow(1)) { new (curr_++) Ty(std::forward<Args>(args)...); }
     }
     void push_back(Ty val) {
-        if (curr_ != last_ || try_grow()) { *curr_++ = val; }
+        if (curr_ != last_ || try_grow(1)) { *curr_++ = val; }
     }
     void pop_back() { --curr_; }
 
@@ -178,11 +157,10 @@ class basic_membuffer {
         return *this;
     }
 
-    virtual bool try_grow(std::size_t extra = 1) { return false; }
-
  protected:
     void set(Ty* curr) noexcept { curr_ = curr; }
     void set(Ty* curr, Ty* last) noexcept { curr_ = curr, last_ = last; }
+    virtual std::size_t try_grow(std::size_t extra) { return 0; }
 
  private:
     Ty* curr_;
@@ -211,11 +189,15 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
     Ty* data() noexcept { return first_; }
     void clear() noexcept { this->set(first_); }
 
-    void reserve(std::size_t extra = 1) {
+    void reserve(std::size_t extra) {
         if (extra > this->avail()) { try_grow(extra); }
     }
 
-    bool try_grow(std::size_t extra) override {
+ protected:
+    basic_dynbuffer(Ty* first, Ty* last) noexcept
+        : basic_membuffer<Ty>(first, last), first_(first), is_allocated_(false) {}
+
+    std::size_t try_grow(std::size_t extra) override {
         std::size_t sz = size(), cap = capacity(), delta_sz = std::max(extra, sz >> 1);
         const std::size_t max_avail = std::allocator_traits<alloc_type>::max_size(*this) - sz;
         if (delta_sz > max_avail) {
@@ -227,12 +209,8 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
         this->set(std::copy(first_, this->curr(), first), first + sz);
         if (is_allocated_) { this->deallocate(first_, cap); }
         first_ = first, is_allocated_ = true;
-        return true;
+        return this->avail();
     }
-
- protected:
-    basic_dynbuffer(Ty* first, Ty* last) noexcept
-        : basic_membuffer<Ty>(first, last), first_(first), is_allocated_(false) {}
 
  private:
     Ty* first_;
@@ -262,17 +240,16 @@ using inline_wdynbuffer = inline_basic_dynbuffer<wchar_t>;
 // --------------------------
 
 template<typename StrTy, typename Func>
-void append_adjusted(StrTy& s, Func fn, unsigned len, const fmt_opts& fmt) {
+void append_adjusted(StrTy& s, Func fn, unsigned len, const fmt_opts& fmt, bool prefer_right = false) {
     unsigned left = fmt.width - len, right = left;
-    if (!(fmt.flags & fmt_flags::leading_zeroes)) {
-        switch (fmt.flags & fmt_flags::adjust_field) {
-            case fmt_flags::right: right = 0; break;
-            case fmt_flags::internal: left >>= 1, right -= left; break;
-            case fmt_flags::left:
-            default: left = 0; break;
-        }
-    } else {
+    if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::left) {
+        left = 0;
+    } else if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::internal) {
+        left >>= 1, right -= left;
+    } else if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::right || prefer_right) {
         right = 0;
+    } else {
+        left = 0;
     }
     s.append(left, fmt.fill);
     fn(s);
