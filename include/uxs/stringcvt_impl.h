@@ -149,7 +149,7 @@ Ty to_boolean(const CharT* p, const CharT* end, const CharT*& last) noexcept {
 }
 
 template<typename Ty, typename CharT>
-Ty to_integral_common(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) noexcept {
+Ty to_integer_common(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) noexcept {
     bool neg = false;
     last = p;
     if (p == end) {
@@ -661,10 +661,10 @@ void fmt_dec(basic_membuffer<CharT>& s, Ty val, bool is_signed, const fmt_opts& 
     return fmt.width > len ? adjust_numeric(s, fn, len, n_prefix, fmt) : fn(s, len);
 }
 
-// ---- integral
+// ---- integer
 
 template<typename CharT, typename Ty>
-void fmt_integral_common(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt) {
+void fmt_integer_common(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt) {
     using UTy = typename std::make_unsigned<Ty>::type;
     const bool is_signed = std::is_signed<Ty>::value;
     switch (fmt.flags & fmt_flags::base_field) {

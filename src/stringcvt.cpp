@@ -966,32 +966,32 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, fmt_flag
     n_zeroes_ = n_digs;
 }
 
-template UXS_EXPORT std::uint32_t to_integral_common(const char*, const char*, const char*&, std::uint32_t) noexcept;
-template UXS_EXPORT std::uint64_t to_integral_common(const char*, const char*, const char*&, std::uint64_t) noexcept;
+template UXS_EXPORT std::uint32_t to_integer_common(const char*, const char*, const char*&, std::uint32_t) noexcept;
+template UXS_EXPORT std::uint64_t to_integer_common(const char*, const char*, const char*&, std::uint64_t) noexcept;
 template UXS_EXPORT std::uint64_t to_float_common(const char*, const char*, const char*& last, const unsigned,
                                                   const int) noexcept;
 template UXS_EXPORT bool to_boolean(const char*, const char*, const char*& last) noexcept;
 
-template UXS_EXPORT std::uint32_t to_integral_common(const wchar_t*, const wchar_t*, const wchar_t*&,
-                                                     std::uint32_t) noexcept;
-template UXS_EXPORT std::uint64_t to_integral_common(const wchar_t*, const wchar_t*, const wchar_t*&,
-                                                     std::uint64_t) noexcept;
+template UXS_EXPORT std::uint32_t to_integer_common(const wchar_t*, const wchar_t*, const wchar_t*&,
+                                                    std::uint32_t) noexcept;
+template UXS_EXPORT std::uint64_t to_integer_common(const wchar_t*, const wchar_t*, const wchar_t*&,
+                                                    std::uint64_t) noexcept;
 template UXS_EXPORT std::uint64_t to_float_common(const wchar_t*, const wchar_t*, const wchar_t*& last, const unsigned,
                                                   const int) noexcept;
 template UXS_EXPORT bool to_boolean(const wchar_t*, const wchar_t*, const wchar_t*& last) noexcept;
 
-template UXS_EXPORT void fmt_integral_common(membuffer&, std::int32_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integral_common(membuffer&, std::int64_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integral_common(membuffer&, std::uint32_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integral_common(membuffer&, std::uint64_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integer_common(membuffer&, std::int32_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integer_common(membuffer&, std::int64_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint32_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint64_t, const fmt_opts&);
 template UXS_EXPORT void fmt_character(membuffer&, char, const fmt_opts&);
 template UXS_EXPORT void fmt_float_common(membuffer&, std::uint64_t, const fmt_opts&, const unsigned, const int);
 template UXS_EXPORT void fmt_boolean(membuffer&, bool, const fmt_opts&);
 
-template UXS_EXPORT void fmt_integral_common(wmembuffer&, std::int32_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integral_common(wmembuffer&, std::int64_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integral_common(wmembuffer&, std::uint32_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integral_common(wmembuffer&, std::uint64_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::int32_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::int64_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint32_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint64_t, const fmt_opts&);
 template UXS_EXPORT void fmt_character(wmembuffer&, wchar_t, const fmt_opts&);
 template UXS_EXPORT void fmt_float_common(wmembuffer&, std::uint64_t, const fmt_opts&, const unsigned, const int);
 template UXS_EXPORT void fmt_boolean(wmembuffer&, bool, const fmt_opts&);
