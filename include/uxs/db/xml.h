@@ -95,7 +95,7 @@ class reader {
         false_value,
         integer_number,
         negative_integer_number,
-        real_number,
+        floating_point_number,
         ws_with_nl,
         other
     };

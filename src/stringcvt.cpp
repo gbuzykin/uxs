@@ -6,6 +6,11 @@ namespace detail {
 const char_tbl_t g_char_tbl;
 }
 #endif  // __cplusplus < 201703L
+
+format_error::format_error(const char* message) : std::runtime_error(message) {}
+format_error::format_error(const std::string& message) : std::runtime_error(message) {}
+const char* format_error::what() const noexcept { return std::runtime_error::what(); }
+
 namespace scvt {
 
 const fmt_opts g_default_opts;
@@ -980,18 +985,14 @@ template UXS_EXPORT std::uint64_t to_float_common(const wchar_t*, const wchar_t*
                                                   const int) noexcept;
 template UXS_EXPORT bool to_boolean(const wchar_t*, const wchar_t*, const wchar_t*& last) noexcept;
 
-template UXS_EXPORT void fmt_integer_common(membuffer&, std::int32_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integer_common(membuffer&, std::int64_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint32_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint64_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint32_t, bool, const fmt_opts&);
+template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint64_t, bool, const fmt_opts&);
 template UXS_EXPORT void fmt_character(membuffer&, char, const fmt_opts&);
 template UXS_EXPORT void fmt_float_common(membuffer&, std::uint64_t, const fmt_opts&, const unsigned, const int);
 template UXS_EXPORT void fmt_boolean(membuffer&, bool, const fmt_opts&);
 
-template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::int32_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::int64_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint32_t, const fmt_opts&);
-template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint64_t, const fmt_opts&);
+template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint32_t, bool, const fmt_opts&);
+template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint64_t, bool, const fmt_opts&);
 template UXS_EXPORT void fmt_character(wmembuffer&, wchar_t, const fmt_opts&);
 template UXS_EXPORT void fmt_float_common(wmembuffer&, std::uint64_t, const fmt_opts&, const unsigned, const int);
 template UXS_EXPORT void fmt_boolean(wmembuffer&, bool, const fmt_opts&);

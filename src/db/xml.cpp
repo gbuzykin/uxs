@@ -294,7 +294,7 @@ xml::reader::lex_token_t xml::reader::parse_token(std::string_view& lval) {
         case lex_detail::pat_false: return string_class::false_value;
         case lex_detail::pat_decimal: return string_class::integer_number;
         case lex_detail::pat_neg_decimal: return string_class::negative_integer_number;
-        case lex_detail::pat_real: return string_class::real_number;
+        case lex_detail::pat_real: return string_class::floating_point_number;
         case lex_detail::pat_ws_with_nl: return string_class::ws_with_nl;
         case lex_detail::pat_other_value: return string_class::other;
         default: UNREACHABLE_CODE;

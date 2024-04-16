@@ -5,14 +5,6 @@
 #include "stringcvt.h"
 
 namespace uxs {
-
-class UXS_EXPORT_ALL_STUFF_FOR_GNUC format_error : public std::runtime_error {
- public:
-    UXS_EXPORT explicit format_error(const char* message);
-    UXS_EXPORT explicit format_error(const std::string& message);
-    UXS_EXPORT const char* what() const noexcept override;
-};
-
 namespace sfmt {
 
 enum class type_index : std::uint8_t {
@@ -31,6 +23,42 @@ enum class type_index : std::uint8_t {
     custom
 };
 
+// --------------------------
+
+namespace detail {
+template<typename Ty, typename = void>
+struct reduce_type {
+    using type = std::remove_cv_t<Ty>;
+};
+template<typename Ty>
+struct reduce_type<Ty, std::enable_if_t<std::is_integral<Ty>::value && std::is_unsigned<Ty>::value &&
+                                        !is_boolean<Ty>::value && !is_character<Ty>::value>> {
+    using type = std::conditional_t<(sizeof(Ty) <= sizeof(std::uint32_t)), std::uint32_t, std::uint64_t>;
+};
+template<typename Ty>
+struct reduce_type<Ty, std::enable_if_t<std::is_integral<Ty>::value && std::is_signed<Ty>::value &&
+                                        !is_boolean<Ty>::value && !is_character<Ty>::value>> {
+    using type = std::conditional_t<(sizeof(Ty) <= sizeof(std::int32_t)), std::int32_t, std::int64_t>;
+};
+template<typename Ty>
+struct reduce_type<Ty, std::enable_if_t<std::is_array<Ty>::value>> {
+    using type = typename std::add_pointer<std::remove_cv_t<typename std::remove_extent<Ty>::type>>::type;
+};
+template<typename Ty>
+struct reduce_type<Ty*> {
+    using type = typename std::add_pointer<std::remove_cv_t<Ty>>::type;
+};
+template<>
+struct reduce_type<std::nullptr_t> {
+    using type = void*;
+};
+}  // namespace detail
+
+template<typename Ty>
+using reduce_type_t = typename detail::reduce_type<Ty>::type;
+
+// --------------------------
+
 template<typename StrTy>
 struct custom_arg_handle {
     CONSTEXPR custom_arg_handle(const void* v, void (*fn)(StrTy&, const void*, fmt_opts&)) noexcept
@@ -38,6 +66,8 @@ struct custom_arg_handle {
     const void* val;                                   // value pointer
     void (*print_fn)(StrTy&, const void*, fmt_opts&);  // printing function pointer
 };
+
+// --------------------------
 
 namespace detail {
 template<typename Ty>
@@ -92,10 +122,10 @@ struct arg_store_type<StrTy, std::basic_string<CharT, Traits, Alloc>> {
 }  // namespace detail
 
 template<typename Ty>
-using arg_type_index = detail::arg_type_index<scvt::reduce_type_t<Ty>>;
+using arg_type_index = detail::arg_type_index<reduce_type_t<Ty>>;
 
 template<typename StrTy, typename Ty>
-using arg_store_type_t = typename detail::arg_store_type<StrTy, scvt::reduce_type_t<Ty>>::type;
+using arg_store_type_t = typename detail::arg_store_type<StrTy, reduce_type_t<Ty>>::type;
 
 template<typename StrTy, typename Ty>
 using arg_size = uxs::size_of<arg_store_type_t<StrTy, Ty>>;
@@ -163,8 +193,8 @@ class arg_store {
     template<typename Ty>
     CONSTEXPR static void store_value(
         const Ty& v, std::enable_if_t<(arg_type_index<Ty>::value == type_index::custom), void*> data) noexcept {
-        static_assert(has_formatter<scvt::reduce_type_t<Ty>, StrTy>::value, "value of this type cannot be formatted");
-        ::new (data) custom_arg_handle<StrTy>(&v, &arg_fmt_func_t<StrTy, scvt::reduce_type_t<Ty>>::func);
+        static_assert(has_formatter<reduce_type_t<Ty>, StrTy>::value, "value of this type cannot be formatted");
+        ::new (data) custom_arg_handle<StrTy>(&v, &arg_fmt_func_t<StrTy, reduce_type_t<Ty>>::func);
     }
 
     template<typename Ty>
@@ -240,18 +270,13 @@ class arg_list {
     std::size_t size_;
 };
 
+// --------------------------
+
 enum class parse_flags : unsigned {
     none = 0,
-    spec_integer = 1,
-    spec_real = 2,
-    spec_character = 3,
-    spec_pointer = 4,
-    spec_string = 5,
-    spec_mask = 0xff,
     prec_specified = 0x100,
     dynamic_width = 0x200,
     dynamic_prec = 0x400,
-    use_locale = 0x800,
 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(parse_flags, unsigned);
 
@@ -411,7 +436,7 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, uxs::sp
                 UXS_FMT_SPECIFIER_CASE(state_t::width, { specs.fmt.flags |= fmt_flags::leading_zeroes; });
 
             // locale
-            case meta_tbl_t::locale: UXS_FMT_SPECIFIER_CASE(state_t::type, { specs.flags |= parse_flags::use_locale; });
+            case meta_tbl_t::locale: UXS_FMT_SPECIFIER_CASE(state_t::type, { specs.fmt.flags |= fmt_flags::localize; });
 
             // width
             case meta_tbl_t::open_brace:
@@ -478,66 +503,39 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, uxs::sp
             case meta_tbl_t::close_brace: return p - 1;
 
             // types
-            case meta_tbl_t::decimal:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= parse_flags::spec_integer; });
+            case meta_tbl_t::decimal: UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::dec; });
 
             case meta_tbl_t::binary_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
-            case meta_tbl_t::binary:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
-                    specs.flags |= parse_flags::spec_integer;
-                    specs.fmt.flags |= fmt_flags::bin;
-                });
+            case meta_tbl_t::binary: UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::bin; });
 
-            case meta_tbl_t::octal:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
-                    specs.flags |= parse_flags::spec_integer;
-                    specs.fmt.flags |= fmt_flags::oct;
-                });
+            case meta_tbl_t::octal: UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::oct; });
 
             case meta_tbl_t::hex_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
-            case meta_tbl_t::hex:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
-                    specs.flags |= parse_flags::spec_integer;
-                    specs.fmt.flags |= fmt_flags::hex;
-                });
+            case meta_tbl_t::hex: UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::hex; });
 
             case meta_tbl_t::fixed_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
-            case meta_tbl_t::fixed:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
-                    specs.flags |= parse_flags::spec_real;
-                    specs.fmt.flags |= fmt_flags::fixed;
-                });
+            case meta_tbl_t::fixed: UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::fixed; });
 
             case meta_tbl_t::scientific_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
             case meta_tbl_t::scientific:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
-                    specs.flags |= parse_flags::spec_real;
-                    specs.fmt.flags |= fmt_flags::scientific;
-                });
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::scientific; });
 
             case meta_tbl_t::general_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
             case meta_tbl_t::general:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
-                    specs.flags |= parse_flags::spec_real;
-                    specs.fmt.flags |= fmt_flags::general;
-                });
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::general; });
 
             case meta_tbl_t::hex_real_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
             case meta_tbl_t::hex_real:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, {
-                    specs.flags |= parse_flags::spec_real;
-                    specs.fmt.flags |= fmt_flags::hex;
-                });
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::scientific_hex; });
 
             case meta_tbl_t::pointer_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
             case meta_tbl_t::pointer:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= parse_flags::spec_pointer; });
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::pointer; });
 
             case meta_tbl_t::character:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= parse_flags::spec_character; });
+                UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::character; });
 
-            case meta_tbl_t::string:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= parse_flags::spec_string; });
+            case meta_tbl_t::string: UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::string; });
 #undef UXS_FMT_SPECIFIER_CASE
 
             case meta_tbl_t::other: return nullptr;
@@ -569,8 +567,8 @@ CONSTEXPR void parse_format(std::basic_string_view<CharT> fmt, uxs::span<const u
                 if (!first) { invalid_specifier_syntax_error(); }
 
                 const type_index index = static_cast<type_index>(args_metadata[specs.n_arg] & 0xff);
-                switch (specs.flags & parse_flags::spec_mask) {
-                    case parse_flags::none: {
+                switch (specs.fmt.flags & (fmt_flags::base_field | fmt_flags::float_field | fmt_flags::type_field)) {
+                    case fmt_flags::none: {
                         if (!!(specs.flags & parse_flags::prec_specified) &&
                             (index < type_index::single_precision || index > type_index::long_double_precision) &&
                             index != type_index::z_string && index != type_index::string) {
@@ -586,18 +584,24 @@ CONSTEXPR void parse_format(std::basic_string_view<CharT> fmt, uxs::span<const u
                         }
                     } break;
 
-                    case parse_flags::spec_integer: {
+                    case fmt_flags::dec:
+                    case fmt_flags::bin:
+                    case fmt_flags::oct:
+                    case fmt_flags::hex: {
                         if (!!(specs.flags & parse_flags::prec_specified)) { unexpected_prec_error(); }
                         if (index > type_index::unsigned_long_integer) { type_error(); }
                     } break;
 
-                    case parse_flags::spec_real: {
+                    case fmt_flags::fixed:
+                    case fmt_flags::scientific:
+                    case fmt_flags::general:
+                    case fmt_flags::scientific_hex: {
                         if (index < type_index::single_precision || index > type_index::long_double_precision) {
                             type_error();
                         }
                     } break;
 
-                    case parse_flags::spec_character: {
+                    case fmt_flags::character: {
                         if (!!(specs.flags & parse_flags::prec_specified)) { unexpected_prec_error(); }
                         if (!!(specs.fmt.flags & fmt_flags::sign_field)) { unexpected_sign_error(); }
                         if (!!(specs.fmt.flags & fmt_flags::leading_zeroes)) { unexpected_leading_zeroes_error(); }
@@ -606,13 +610,13 @@ CONSTEXPR void parse_format(std::basic_string_view<CharT> fmt, uxs::span<const u
                         }
                     } break;
 
-                    case parse_flags::spec_pointer: {
+                    case fmt_flags::pointer: {
                         if (!!(specs.flags & parse_flags::prec_specified)) { unexpected_prec_error(); }
                         if (!!(specs.fmt.flags & fmt_flags::sign_field)) { unexpected_sign_error(); }
                         if (index != type_index::pointer) { type_error(); }
                     } break;
 
-                    case parse_flags::spec_string: {
+                    case fmt_flags::string: {
                         if (!!(specs.flags & parse_flags::prec_specified) && index == type_index::boolean) {
                             unexpected_prec_error();
                         }
@@ -624,7 +628,7 @@ CONSTEXPR void parse_format(std::basic_string_view<CharT> fmt, uxs::span<const u
                         }
                     } break;
 
-                    default: UNREACHABLE_CODE;
+                    default: break;
                 }
 
                 append_arg_fn(specs);
