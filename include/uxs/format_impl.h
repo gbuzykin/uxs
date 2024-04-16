@@ -151,39 +151,11 @@ StrTy& vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
             if (!!(specs.flags & parse_flags::dynamic_prec)) {
                 specs.fmt.prec = get_arg_integer_value(args.index(specs.n_prec_arg), args.data(specs.n_prec_arg));
             }
-            if (!!(specs.flags & parse_flags::use_locale)) {
+            if (!!(specs.fmt.flags & fmt_flags::localize)) {
                 static const std::locale default_locale{};
                 specs.fmt.loc = p_loc ? p_loc : &default_locale;
             }
-            const type_index index = args.index(specs.n_arg);
-            const parse_flags specified_type = specs.flags & parse_flags::spec_mask;
-            if (specified_type == parse_flags::spec_integer && index == type_index::character) {
-                to_basic_string(s, static_cast<int>(get_arg_value<char_type>(args.data(specs.n_arg))), specs.fmt);
-            } else if (specified_type == parse_flags::spec_integer && index == type_index::boolean) {
-                to_basic_string(s, static_cast<int>(get_arg_value<bool>(args.data(specs.n_arg))), specs.fmt);
-            } else if (specified_type == parse_flags::spec_character && index >= type_index::integer &&
-                       index <= type_index::unsigned_long_integer) {
-                std::int64_t code = 0;
-                switch (index) {
-#define UXS_FMT_ARG_INTEGER_VALUE_CASE(ty, index) \
-    case index: { \
-        code = get_arg_value<ty>(args.data(specs.n_arg)); \
-    } break;
-                    UXS_FMT_ARG_INTEGER_VALUE_CASE(signed, type_index::integer)
-                    UXS_FMT_ARG_INTEGER_VALUE_CASE(signed long long, type_index::long_integer)
-                    UXS_FMT_ARG_INTEGER_VALUE_CASE(unsigned, type_index::unsigned_integer)
-                    UXS_FMT_ARG_INTEGER_VALUE_CASE(unsigned long long, type_index::unsigned_long_integer)
-#undef UXS_FMT_ARG_INTEGER_VALUE_CASE
-                    default: UNREACHABLE_CODE;
-                }
-                const std::int64_t char_mask = (1ull << (8 * sizeof(char_type))) - 1;
-                if ((code & char_mask) != code && (~code & char_mask) != code) {
-                    throw format_error("integral cannot be represented as a character");
-                }
-                to_basic_string(s, static_cast<char_type>(code), specs.fmt);
-            } else {
-                format_arg_value(s, index, args.data(specs.n_arg), specs.fmt);
-            }
+            format_arg_value(s, args.index(specs.n_arg), args.data(specs.n_arg), specs.fmt);
         });
     return s;
 }

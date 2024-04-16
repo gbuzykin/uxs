@@ -44,7 +44,7 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
                 // too big integer - treat as double
                 return {from_string<double>(lval), al};
             } break;
-            case token_t::real_number: return {from_string<double>(lval), al};
+            case token_t::floating_point_number: return {from_string<double>(lval), al};
             case token_t::string: return {uxs::detail::utf8_string_converter<CharT>::from(lval), al};
             default: UNREACHABLE_CODE;
         }

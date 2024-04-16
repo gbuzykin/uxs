@@ -20,7 +20,7 @@ enum class token_t : int {
     false_value,
     integer_number,
     negative_integer_number,
-    real_number,
+    floating_point_number,
     string
 };
 

@@ -143,7 +143,7 @@ int json::reader::parse_token(std::string_view& lval) {
             } break;
             case lex_detail::pat_real: {
                 lval = std::string_view(lexeme, llen);
-                return static_cast<int>(token_t::real_number);
+                return static_cast<int>(token_t::floating_point_number);
             } break;
 
             case lex_detail::pat_comment: {  // skip till end of line or stream
