@@ -397,7 +397,7 @@ inline int exp10to2(int exp) {
     return static_cast<int>(hi32(ln10_ln2 * exp));
 }
 
-static std::uint64_t fp10_to_fp2_slow(fp10_t& fp10, const unsigned bpm, const int exp_max) noexcept {
+static std::uint64_t fp10_to_fp2_slow(fp10_t& fp10, unsigned bpm, int exp_max) noexcept {
     unsigned sz_num = fp10.bits_used;
     std::uint64_t* m10 = &fp10.bits[max_fp10_mantissa_size - sz_num];
 
@@ -497,7 +497,7 @@ static std::uint64_t fp10_to_fp2_slow(fp10_t& fp10, const unsigned bpm, const in
     return (static_cast<std::uint64_t>(exp2) << bpm) | (m & ((1ull << bpm) - 1));  // normalized
 }
 
-std::uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) noexcept {
+std::uint64_t fp10_to_fp2(fp10_t& fp10, unsigned bpm, int exp_max) noexcept {
     unsigned sz_num = fp10.bits_used;
     std::uint64_t m = fp10.bits[max_fp10_mantissa_size - sz_num];
 
@@ -562,7 +562,7 @@ std::uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) n
 
 // --------------------------
 
-fp_hex_fmt_t::fp_hex_fmt_t(const fp_m64_t& fp2, const fmt_opts& fmt, const unsigned bpm, const int exp_bias) noexcept
+fp_hex_fmt_t::fp_hex_fmt_t(const fp_m64_t& fp2, const fmt_opts& fmt, unsigned bpm, int exp_bias) noexcept
     : significand_(fp2.m), exp_(fp2.exp), prec_(fmt.prec), n_zeroes_(0),
       alternate_(!!(fmt.flags & fmt_flags::alternate)) {
     if (significand_ == 0 && exp_ == 0) {  // real zero
@@ -620,7 +620,7 @@ SCVT_FORCE_INLINE int remove_trailing_zeros(std::uint64_t& n, int max_remove) {
     return max_remove - s;
 }
 
-fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, const int exp_bias) noexcept
+fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, int exp_bias) noexcept
     : significand_(0), prec_(fmt.prec), n_zeroes_(0), alternate_(!!(fmt.flags & fmt_flags::alternate)) {
     const int default_prec = 6;
     const fmt_flags fp_fmt = fmt.flags & fmt_flags::float_field;
@@ -726,7 +726,7 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, cons
     if (!!(fmt.flags & fmt_flags::json_compat) && prec_ == 0) { significand_ *= 10u, prec_ = 1; }
 }
 
-void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) noexcept {
+void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, fmt_flags fp_fmt) noexcept {
     assert(n_digs < digs_per_64);
     ++n_digs;  // one additional digit for rounding
 
@@ -782,7 +782,7 @@ finish:
     }
 }
 
-void fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) noexcept {
+void fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, fmt_flags fp_fmt) noexcept {
     // `max_pow10_size` uint64-s are enough to hold all (normalized!) 10^n, n <= 324 + digs_per_64
     std::uint64_t num[max_pow10_size + 1];  // +1 to multiply by uint64
     unsigned sz_num = 1;
@@ -848,7 +848,7 @@ void fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, co
     }
 }
 
-void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) noexcept {
+void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, fmt_flags fp_fmt) noexcept {
     assert(n_digs >= digs_per_64);
     ++n_digs;  // one additional digit for rounding
 

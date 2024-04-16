@@ -239,11 +239,10 @@ parse_exponent:
     return p0;
 }
 
-UXS_EXPORT std::uint64_t fp10_to_fp2(fp10_t& fp10, const unsigned bpm, const int exp_max) noexcept;
+UXS_EXPORT std::uint64_t fp10_to_fp2(fp10_t& fp10, unsigned bpm, int exp_max) noexcept;
 
 template<typename CharT>
-std::uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, const unsigned bpm,
-                              const int exp_max) noexcept {
+std::uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, unsigned bpm, int exp_max) noexcept {
     std::uint64_t fp2 = 0;
     last = p;
 
@@ -340,7 +339,7 @@ void fmt_character(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt) {
 }
 
 template<typename StrTy, typename Func, typename... Args>
-void adjust_numeric(StrTy& s, Func fn, unsigned len, const unsigned n_prefix, const fmt_opts& fmt, Args&&... args) {
+void adjust_numeric(StrTy& s, Func fn, unsigned len, unsigned n_prefix, const fmt_opts& fmt, Args&&... args) {
     unsigned left = fmt.width - len, right = left;
     if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::left) {
         left = 0;
@@ -638,7 +637,7 @@ void fmt_gen_dec_with_grouping(CharT* p, Ty val, const grouping_t<CharT>& groupi
 }
 
 template<typename CharT, typename Ty, typename = std::enable_if_t<std::is_unsigned<Ty>::value>>
-void fmt_dec(basic_membuffer<CharT>& s, Ty val, const bool is_signed, const fmt_opts& fmt) {
+void fmt_dec(basic_membuffer<CharT>& s, Ty val, bool is_signed, const fmt_opts& fmt) {
     char sign = '\0';
     if (is_signed && (val & (static_cast<Ty>(1) << (8 * sizeof(Ty) - 1)))) {
         sign = '-', val = ~val + 1;  // negative value
@@ -684,14 +683,14 @@ SCVT_CONSTEXPR_DATA int digs_per_64 = 18;  // size of 64-bit digit pack
 
 class fp_hex_fmt_t {
  public:
-    UXS_EXPORT fp_hex_fmt_t(const fp_m64_t& fp2, const fmt_opts& fmt, const unsigned bpm, const int exp_bias) noexcept;
+    UXS_EXPORT fp_hex_fmt_t(const fp_m64_t& fp2, const fmt_opts& fmt, unsigned bpm, int exp_bias) noexcept;
 
     unsigned get_len() const noexcept {
         return 3 + (prec_ > 0 || alternate_ ? prec_ + 1 : 0) + fmt_dec_unsigned_len<std::uint32_t>(std::abs(exp_));
     }
 
     template<typename CharT>
-    UXS_EXPORT void generate(CharT* p, const bool uppercase, const CharT dec_point) const noexcept;
+    UXS_EXPORT void generate(CharT* p, bool uppercase, CharT dec_point) const noexcept;
 
  private:
     std::uint64_t significand_;
@@ -702,7 +701,7 @@ class fp_hex_fmt_t {
 };
 
 template<typename CharT>
-void fp_hex_fmt_t::generate(CharT* p, const bool uppercase, const CharT dec_point) const noexcept {
+void fp_hex_fmt_t::generate(CharT* p, bool uppercase, CharT dec_point) const noexcept {
     const char* digs = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
     // generate exponent
     int exp2 = exp_;
@@ -728,7 +727,7 @@ void fp_hex_fmt_t::generate(CharT* p, const bool uppercase, const CharT dec_poin
 
 class fp_dec_fmt_t {
  public:
-    UXS_EXPORT fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, const int exp_bias) noexcept;
+    UXS_EXPORT fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, int exp_bias) noexcept;
 
     unsigned get_len() const noexcept {
         return (fixed_ ? 1 + std::max(exp_, 0) : (exp_ <= -100 || exp_ >= 100 ? 6 : 5)) +
@@ -742,8 +741,7 @@ class fp_dec_fmt_t {
     }
 
     template<typename CharT>
-    void generate(CharT* p, const bool uppercase, const CharT dec_point,
-                  const grouping_t<CharT>* grouping) const noexcept {
+    void generate(CharT* p, bool uppercase, CharT dec_point, const grouping_t<CharT>* grouping) const noexcept {
         if (!fixed_) {
             generate_scientific(p, uppercase, dec_point);
         } else {
@@ -752,10 +750,10 @@ class fp_dec_fmt_t {
     }
 
     template<typename CharT>
-    void generate_scientific(CharT* p, bool uppercase, const CharT dec_point) const noexcept;
+    void generate_scientific(CharT* p, bool uppercase, CharT dec_point) const noexcept;
 
     template<typename CharT>
-    void generate_fixed(CharT* p, const CharT dec_point, const grouping_t<CharT>* grouping) const noexcept;
+    void generate_fixed(CharT* p, CharT dec_point, const grouping_t<CharT>* grouping) const noexcept;
 
  private:
     std::uint64_t significand_;
@@ -766,13 +764,13 @@ class fp_dec_fmt_t {
     bool alternate_;
     char digs_buf_[max_double_digits + digs_per_64 - 1];
 
-    UXS_EXPORT void format_short_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) noexcept;
-    UXS_EXPORT void format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) noexcept;
-    UXS_EXPORT void format_long_decimal(const fp_m64_t& fp2, int n_digs, const fmt_flags fp_fmt) noexcept;
+    UXS_EXPORT void format_short_decimal(const fp_m64_t& fp2, int n_digs, fmt_flags fp_fmt) noexcept;
+    UXS_EXPORT void format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, fmt_flags fp_fmt) noexcept;
+    UXS_EXPORT void format_long_decimal(const fp_m64_t& fp2, int n_digs, fmt_flags fp_fmt) noexcept;
 };
 
 template<typename CharT>
-void fp_dec_fmt_t::generate_scientific(CharT* p, const bool uppercase, const CharT dec_point) const noexcept {
+void fp_dec_fmt_t::generate_scientific(CharT* p, bool uppercase, CharT dec_point) const noexcept {
     // generate exponent
     int exp10 = exp_;
     char exp_sign = '+';
@@ -804,7 +802,7 @@ void fp_dec_fmt_t::generate_scientific(CharT* p, const bool uppercase, const Cha
 }
 
 template<typename CharT>
-void fp_dec_fmt_t::generate_fixed(CharT* p, const CharT dec_point, const grouping_t<CharT>* grouping) const noexcept {
+void fp_dec_fmt_t::generate_fixed(CharT* p, CharT dec_point, const grouping_t<CharT>* grouping) const noexcept {
     std::uint64_t m = significand_;
     int k = 1 + exp_, n_zeroes = n_zeroes_;
     if (prec_ > 0) {             // has fractional part
@@ -901,8 +899,7 @@ struct print_float_functor {
 };
 
 template<typename CharT>
-void fmt_float_common(basic_membuffer<CharT>& s, std::uint64_t u64, const fmt_opts& fmt, const unsigned bpm,
-                      const int exp_max) {
+void fmt_float_common(basic_membuffer<CharT>& s, std::uint64_t u64, const fmt_opts& fmt, unsigned bpm, int exp_max) {
     char sign = '\0';
     if (u64 & (static_cast<std::uint64_t>(1 + exp_max) << bpm)) {
         sign = '-';  // negative value
