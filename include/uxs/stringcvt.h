@@ -346,8 +346,8 @@ template<typename Ty, typename CharT>
 UXS_EXPORT Ty to_integral_common(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) noexcept;
 
 template<typename CharT>
-UXS_EXPORT std::uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, const unsigned bpm,
-                                         const int exp_max) noexcept;
+UXS_EXPORT std::uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, unsigned bpm,
+                                         int exp_max) noexcept;
 
 template<typename Ty, typename CharT>
 Ty to_integer(const CharT* p, const CharT* end, const CharT*& last) noexcept {
@@ -374,8 +374,8 @@ template<typename CharT, typename Ty>
 UXS_EXPORT void fmt_integral_common(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt);
 
 template<typename CharT>
-UXS_EXPORT void fmt_float_common(basic_membuffer<CharT>& s, std::uint64_t u64, const fmt_opts& fmt, const unsigned bpm,
-                                 const int exp_max);
+UXS_EXPORT void fmt_float_common(basic_membuffer<CharT>& s, std::uint64_t u64, const fmt_opts& fmt, unsigned bpm,
+                                 int exp_max);
 
 template<typename CharT, typename Ty>
 void fmt_integer(basic_membuffer<CharT>& s, Ty val, const fmt_opts& fmt) {
