@@ -6,27 +6,33 @@
 
 namespace uxs {
 
+template<typename StrTy>
+class basic_format_context;
+
+using format_context = basic_format_context<membuffer>;
+using wformat_context = basic_format_context<wmembuffer>;
+
 namespace detail {
-template<typename Ty, typename StrTy>
+template<typename Ty, typename FmtCtx>
 struct has_formatter {
     template<typename U>
-    static auto test(U& s, const Ty& v)
-        -> always_true<decltype(formatter<Ty, typename U::value_type>{}.format(s, v, std::declval<fmt_opts&>()))>;
+    static auto test(U& ctx, const Ty& v)
+        -> always_true<decltype(formatter<Ty, typename U::char_type>().format(ctx, v, std::declval<fmt_opts&>()))>;
     template<typename U>
     static auto test(...) -> std::false_type;
-    using type = decltype(test<StrTy>(std::declval<StrTy&>(), std::declval<const Ty&>()));
+    using type = decltype(test<FmtCtx>(std::declval<FmtCtx&>(), std::declval<const Ty&>()));
 };
 }  // namespace detail
 
-template<typename Ty, typename StrTy = membuffer>
-struct formattable : detail::has_formatter<Ty, StrTy>::type {};
+template<typename Ty, typename FmtCtx = format_context>
+struct formattable : detail::has_formatter<Ty, FmtCtx>::type {};
 
 #define UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(ty, func) \
     template<typename CharT> \
     struct formatter<ty, CharT> { \
-        template<typename StrTy> \
-        void format(StrTy& s, ty val, fmt_opts& fmt) const { \
-            func(s, val, fmt); \
+        template<typename FmtCtx> \
+        void format(FmtCtx& ctx, ty val, fmt_opts& fmt) const { \
+            func(ctx.out(), val, fmt, ctx.locale()); \
         } \
     };
 UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(bool, scvt::fmt_boolean)
@@ -44,10 +50,10 @@ UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(long double, scvt::fmt_float)
 
 template<typename CharT>
 struct formatter<const void*, CharT> {
-    template<typename StrTy>
-    void format(StrTy& s, const void* val, fmt_opts& fmt) const {
+    template<typename FmtCtx>
+    void format(FmtCtx& ctx, const void* val, fmt_opts& fmt) const {
         fmt.flags |= fmt_flags::hex | fmt_flags::alternate;
-        scvt::fmt_integer(s, reinterpret_cast<std::uintptr_t>(val), fmt);
+        scvt::fmt_integer(ctx.out(), reinterpret_cast<std::uintptr_t>(val), fmt, ctx.locale());
     }
 };
 
@@ -143,12 +149,24 @@ UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::basic_string_view<CharT>, type_index::string
 
 // --------------------------
 
-template<typename StrTy>
-struct custom_arg_handle {
-    CONSTEXPR custom_arg_handle(const void* v, void (*fn)(StrTy&, const void*, fmt_opts&)) noexcept
-        : val(v), print_fn(fn) {}
-    const void* val;                                   // value pointer
-    void (*print_fn)(StrTy&, const void*, fmt_opts&);  // printing function pointer
+template<typename FmtCtx>
+class custom_arg_handle {
+ public:
+    using format_func_type = void (*)(FmtCtx&, const void*, fmt_opts&);
+
+    template<typename Ty>
+    CONSTEXPR custom_arg_handle(const Ty& v) noexcept : val_(&v), print_fn_(func<Ty>) {}
+
+    void format(FmtCtx& ctx, fmt_opts& fmt) const { print_fn_(ctx, val_, fmt); }
+
+ private:
+    const void* val_;            // value pointer
+    format_func_type print_fn_;  // printing function pointer
+
+    template<typename Ty>
+    static void func(FmtCtx& ctx, const void* val, fmt_opts& fmt) {
+        ctx.format_arg(*static_cast<const Ty*>(val), fmt);
+    }
 };
 
 // --------------------------
@@ -159,50 +177,43 @@ template<typename Ty, typename CharT>
 struct arg_type_index<Ty, CharT, std::void_t<typename detail::arg_type_index<reduce_type_t<Ty, CharT>, CharT>::type>>
     : std::integral_constant<type_index, detail::arg_type_index<reduce_type_t<Ty, CharT>, CharT>::value> {};
 
-template<typename StrTy, typename Ty>
-using arg_store_type = std::conditional<(arg_type_index<Ty, typename StrTy::value_type>::value) < type_index::custom,
-                                        reduce_type_t<Ty, typename StrTy::value_type>, custom_arg_handle<StrTy>>;
+template<typename FmtCtx, typename Ty>
+using arg_store_type = std::conditional<(arg_type_index<Ty, typename FmtCtx::char_type>::value) < type_index::custom,
+                                        reduce_type_t<Ty, typename FmtCtx::char_type>, custom_arg_handle<FmtCtx>>;
 
-template<typename StrTy, typename Ty>
-using arg_size = uxs::size_of<typename arg_store_type<StrTy, Ty>::type>;
+template<typename FmtCtx, typename Ty>
+using arg_size = uxs::size_of<typename arg_store_type<FmtCtx, Ty>::type>;
 
-template<typename StrTy, typename Ty>
-using arg_alignment = std::alignment_of<typename arg_store_type<StrTy, Ty>::type>;
+template<typename FmtCtx, typename Ty>
+using arg_alignment = std::alignment_of<typename arg_store_type<FmtCtx, Ty>::type>;
 
-template<typename StrTy, std::size_t, typename...>
+template<typename FmtCtx, std::size_t, typename...>
 struct arg_store_size_evaluator;
-template<typename StrTy, std::size_t Size>
-struct arg_store_size_evaluator<StrTy, Size> : std::integral_constant<std::size_t, Size> {};
-template<typename StrTy, std::size_t Size, typename Ty, typename... Rest>
-struct arg_store_size_evaluator<StrTy, Size, Ty, Rest...>
+template<typename FmtCtx, std::size_t Size>
+struct arg_store_size_evaluator<FmtCtx, Size> : std::integral_constant<std::size_t, Size> {};
+template<typename FmtCtx, std::size_t Size, typename Ty, typename... Rest>
+struct arg_store_size_evaluator<FmtCtx, Size, Ty, Rest...>
     : std::integral_constant<
           std::size_t,
-          arg_store_size_evaluator<StrTy,
-                                   uxs::align_up<arg_alignment<StrTy, Ty>::value>::template type<Size>::value +
-                                       arg_size<StrTy, Ty>::value,
+          arg_store_size_evaluator<FmtCtx,
+                                   uxs::align_up<arg_alignment<FmtCtx, Ty>::value>::template type<Size>::value +
+                                       arg_size<FmtCtx, Ty>::value,
                                    Rest...>::value> {};
 
-template<typename StrTy, typename...>
+template<typename FmtCtx, typename...>
 struct arg_store_alignment_evaluator;
-template<typename StrTy, typename Ty>
-struct arg_store_alignment_evaluator<StrTy, Ty> : arg_alignment<StrTy, Ty> {};
-template<typename StrTy, typename Ty1, typename Ty2, typename... Rest>
-struct arg_store_alignment_evaluator<StrTy, Ty1, Ty2, Rest...>
-    : std::conditional<(arg_alignment<StrTy, Ty1>::value > arg_alignment<StrTy, Ty2>::value),
-                       arg_store_alignment_evaluator<StrTy, Ty1, Rest...>,
-                       arg_store_alignment_evaluator<StrTy, Ty2, Rest...>>::type {};
+template<typename FmtCtx, typename Ty>
+struct arg_store_alignment_evaluator<FmtCtx, Ty> : arg_alignment<FmtCtx, Ty> {};
+template<typename FmtCtx, typename Ty1, typename Ty2, typename... Rest>
+struct arg_store_alignment_evaluator<FmtCtx, Ty1, Ty2, Rest...>
+    : std::conditional<(arg_alignment<FmtCtx, Ty1>::value > arg_alignment<FmtCtx, Ty2>::value),
+                       arg_store_alignment_evaluator<FmtCtx, Ty1, Rest...>,
+                       arg_store_alignment_evaluator<FmtCtx, Ty2, Rest...>>::type {};
 
-template<typename StrTy, typename Ty>
-struct arg_fmt_func_t {
-    static void func(StrTy& s, const void* val, fmt_opts& fmt) {
-        formatter<Ty, typename StrTy::value_type>{}.format(s, *static_cast<const Ty*>(val), fmt);
-    }
-};
-
-template<typename StrTy, typename... Args>
+template<typename FmtCtx, typename... Args>
 class arg_store {
  public:
-    using char_type = typename StrTy::value_type;
+    using char_type = typename FmtCtx::char_type;
     static const std::size_t arg_count = sizeof...(Args);
 
     arg_store& operator=(const arg_store&) = delete;
@@ -214,8 +225,8 @@ class arg_store {
 
  private:
     static const std::size_t storage_size =
-        arg_store_size_evaluator<StrTy, arg_count * sizeof(unsigned), Args...>::value;
-    static const std::size_t storage_alignment = arg_store_alignment_evaluator<StrTy, unsigned, Args...>::value;
+        arg_store_size_evaluator<FmtCtx, arg_count * sizeof(unsigned), Args...>::value;
+    static const std::size_t storage_alignment = arg_store_alignment_evaluator<FmtCtx, unsigned, Args...>::value;
     alignas(storage_alignment) std::uint8_t data_[storage_size];
 
     template<typename Ty>
@@ -232,8 +243,8 @@ class arg_store {
         const Ty& v,
         std::enable_if_t<(arg_type_index<Ty, char_type>::value == type_index::custom), void*> data) noexcept {
         using ReducedTy = reduce_type_t<Ty, char_type>;
-        static_assert(formattable<ReducedTy, StrTy>::value, "value of this type cannot be formatted");
-        ::new (data) custom_arg_handle<StrTy>(&v, &arg_fmt_func_t<StrTy, ReducedTy>::func);
+        static_assert(formattable<ReducedTy, FmtCtx>::value, "value of this type cannot be formatted");
+        ::new (data) custom_arg_handle<FmtCtx>(static_cast<const ReducedTy&>(v));
     }
 
     template<typename Ty>
@@ -267,46 +278,22 @@ class arg_store {
 
     template<typename Ty, typename... Ts>
     CONSTEXPR void store_values(std::size_t i, std::size_t offset, const Ty& v, const Ts&... other) noexcept {
-        offset = uxs::align_up<arg_alignment<StrTy, Ty>::value>::value(offset);
+        offset = uxs::align_up<arg_alignment<FmtCtx, Ty>::value>::value(offset);
         ::new (reinterpret_cast<unsigned*>(&data_) + i) unsigned(
             static_cast<unsigned>(offset << 8) | static_cast<unsigned>(arg_type_index<Ty, char_type>::value));
         store_value(v, &data_[offset]);
-        store_values(i + 1, offset + arg_size<StrTy, Ty>::value, other...);
+        store_values(i + 1, offset + arg_size<FmtCtx, Ty>::value, other...);
     }
 };
 
-template<typename StrTy>
-class arg_store<StrTy> {
+template<typename FmtCtx>
+class arg_store<FmtCtx> {
  public:
-    using char_type = typename StrTy::value_type;
+    using char_type = typename FmtCtx::char_type;
     static const std::size_t arg_count = 0;
     arg_store& operator=(const arg_store&) = delete;
     CONSTEXPR arg_store() noexcept = default;
     CONSTEXPR const void* data() const noexcept { return nullptr; }
-};
-
-template<typename StrTy>
-class arg_list {
- public:
-    template<typename... Args>
-    CONSTEXPR arg_list(const arg_store<StrTy, Args...>& store) noexcept
-        : data_(store.data()), size_(arg_store<StrTy, Args...>::arg_count) {}
-
-    CONSTEXPR std::size_t size() const noexcept { return size_; }
-    CONSTEXPR bool empty() const noexcept { return !size_; }
-    CONSTEXPR type_index index(std::size_t i) const noexcept {
-        return static_cast<type_index>(static_cast<const unsigned*>(data_)[i] & 0xff);
-    }
-    CONSTEXPR uxs::span<const unsigned> metadata() const noexcept {
-        return uxs::as_span(static_cast<const unsigned*>(data_), size_);
-    }
-    CONSTEXPR const void* data(std::size_t i) const noexcept {
-        return static_cast<const std::uint8_t*>(data_) + (static_cast<const unsigned*>(data_)[i] >> 8);
-    }
-
- private:
-    const void* data_;
-    std::size_t size_;
 };
 
 // --------------------------
@@ -604,25 +591,112 @@ CONSTEXPR void parse_format(std::basic_string_view<CharT> fmt, uxs::span<const u
     append_text_fn(first0, last);
 }
 
-template<typename StrTy>
-UXS_EXPORT StrTy& vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt, arg_list<StrTy> args,
-                          const std::locale* p_loc = nullptr);
+template<typename FmtCtx>
+UXS_EXPORT void vformat(FmtCtx ctx, std::basic_string_view<typename FmtCtx::char_type> fmt);
 
 }  // namespace sfmt
 
-template<typename StrTy>
-using basic_format_args = sfmt::arg_list<StrTy>;
-using format_args = basic_format_args<membuffer>;
-using wformat_args = basic_format_args<wmembuffer>;
+template<typename FmtCtx, typename Ty>
+struct format_arg_type_index : sfmt::detail::arg_type_index<Ty, typename FmtCtx::char_type> {};
+template<typename FmtCtx>
+struct format_arg_type_index<FmtCtx, sfmt::custom_arg_handle<FmtCtx>>
+    : std::integral_constant<sfmt::type_index, sfmt::type_index::custom> {};
 
-template<typename StrTy = membuffer, typename... Args>
-NODISCARD CONSTEXPR sfmt::arg_store<StrTy, Args...> make_format_args(const Args&... args) noexcept {
-    return sfmt::arg_store<StrTy, Args...>{args...};
+template<typename FmtCtx>
+class basic_format_arg {
+ public:
+    using char_type = typename FmtCtx::char_type;
+    using handle = sfmt::custom_arg_handle<FmtCtx>;
+
+    basic_format_arg(sfmt::type_index index, const void* data) noexcept : index_(index), data_(data) {}
+
+    NODISCARD sfmt::type_index index() const noexcept { return index_; }
+
+    template<typename Ty>
+    NODISCARD const Ty* get() const noexcept {
+        if (index_ != format_arg_type_index<FmtCtx, Ty>::value) { return nullptr; }
+        return static_cast<const Ty*>(data_);
+    }
+
+    template<typename Ty>
+    NODISCARD const Ty& as() const {
+        if (index_ != format_arg_type_index<FmtCtx, Ty>::value) { throw format_error("invalid value type"); }
+        return *static_cast<const Ty*>(data_);
+    }
+
+ private:
+    sfmt::type_index index_;
+    const void* data_;
+};
+
+template<typename FmtCtx>
+class basic_format_args {
+ public:
+    template<typename... Args>
+    basic_format_args(const sfmt::arg_store<FmtCtx, Args...>& store) noexcept
+        : data_(store.data()), size_(sfmt::arg_store<FmtCtx, Args...>::arg_count) {}
+
+    NODISCARD std::size_t size() const noexcept { return size_; }
+    NODISCARD bool empty() const noexcept { return !size_; }
+    NODISCARD uxs::span<const unsigned> metadata() const noexcept {
+        return uxs::as_span(static_cast<const unsigned*>(data_), size_);
+    }
+
+    NODISCARD basic_format_arg<FmtCtx> at(std::size_t id) const noexcept {
+        assert(id < size_);
+        const unsigned meta = static_cast<const unsigned*>(data_)[id];
+        return basic_format_arg<FmtCtx>(static_cast<sfmt::type_index>(meta & 0xff),
+                                        static_cast<const std::uint8_t*>(data_) + (meta >> 8));
+    }
+
+ private:
+    const void* data_;
+    std::size_t size_;
+};
+
+template<typename StrTy>
+class basic_format_context {
+ public:
+    using output_type = StrTy;
+    using char_type = typename StrTy::value_type;
+    template<typename Ty>
+    using formatter_type = formatter<Ty, char_type>;
+    using format_args_type = basic_format_args<basic_format_context>;
+    using format_arg_type = basic_format_arg<basic_format_context>;
+
+    basic_format_context(StrTy& s, const format_args_type& args) : s_(s), args_(args) {}
+    basic_format_context(StrTy& s, const std::locale& loc, const format_args_type& args)
+        : s_(s), loc_(loc), args_(args) {}
+    basic_format_context& operator=(const basic_format_context&) = delete;
+    NODISCARD StrTy& out() { return s_; }
+    NODISCARD locale_ref locale() const { return loc_; }
+    NODISCARD const format_args_type& args() const { return args_; }
+    NODISCARD format_arg_type arg(std::size_t id) const { return args_.at(id); }
+
+    template<typename Ty>
+    void format_arg(const Ty& val, fmt_opts& fmt) {
+        formatter_type<Ty>().format(*this, val, fmt);
+    }
+
+    void format_arg(const typename format_arg_type::handle& h, fmt_opts& fmt) { h.format(*this, fmt); }
+
+ private:
+    StrTy& s_;
+    locale_ref loc_;
+    const basic_format_args<basic_format_context>& args_;
+};
+
+using format_args = basic_format_args<format_context>;
+using wformat_args = basic_format_args<wformat_context>;
+
+template<typename FmtCtx = format_context, typename... Args>
+NODISCARD CONSTEXPR sfmt::arg_store<FmtCtx, Args...> make_format_args(const Args&... args) noexcept {
+    return sfmt::arg_store<FmtCtx, Args...>{args...};
 }
 
 template<typename... Args>
-NODISCARD CONSTEXPR sfmt::arg_store<wmembuffer, Args...> make_wformat_args(const Args&... args) noexcept {
-    return sfmt::arg_store<wmembuffer, Args...>{args...};
+NODISCARD CONSTEXPR sfmt::arg_store<wformat_context, Args...> make_wformat_args(const Args&... args) noexcept {
+    return sfmt::arg_store<wformat_context, Args...>{args...};
 }
 
 template<typename CharT, typename... Args>
@@ -638,7 +712,7 @@ class basic_format_string {
         sfmt::parse_format<char_type>(fmt_, args_metadata, [](auto&&...) constexpr {}, [](auto&&...) constexpr {});
 #endif  // defined(HAS_CONSTEVAL)
     }
-    CONSTEXPR std::basic_string_view<char_type> get() const noexcept { return fmt_; }
+    NODISCARD CONSTEXPR std::basic_string_view<char_type> get() const noexcept { return fmt_; }
 
  private:
     std::basic_string_view<char_type> fmt_;
@@ -652,27 +726,30 @@ using wformat_string = basic_format_string<wchar_t, type_identity_t<Args>...>;
 // ---- basic_vformat
 
 template<typename StrTy>
-StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt, basic_format_args<StrTy> args) {
-    return sfmt::vformat(s, fmt, args);
+StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
+                     basic_format_args<basic_format_context<StrTy>> args) {
+    sfmt::vformat(basic_format_context<StrTy>{s, args}, fmt);
+    return s;
 }
 
 template<typename StrTy>
 StrTy& basic_vformat(StrTy& s, const std::locale& loc, std::basic_string_view<typename StrTy::value_type> fmt,
-                     basic_format_args<StrTy> args) {
-    return sfmt::vformat(s, fmt, args, &loc);
+                     basic_format_args<basic_format_context<StrTy>> args) {
+    sfmt::vformat(basic_format_context<StrTy>{s, loc, args}, fmt);
+    return s;
 }
 
 // ---- basic_format
 
 template<typename StrTy, typename... Args>
 StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type, Args...> fmt, const Args&... args) {
-    return basic_vformat(s, fmt.get(), make_format_args<StrTy>(args...));
+    return basic_vformat(s, fmt.get(), make_format_args<basic_format_context<StrTy>>(args...));
 }
 
 template<typename StrTy, typename... Args>
 StrTy& basic_format(StrTy& s, const std::locale& loc, basic_format_string<typename StrTy::value_type, Args...> fmt,
                     const Args&... args) {
-    return basic_vformat(s, loc, fmt.get(), make_format_args<StrTy>(args...));
+    return basic_vformat(s, loc, fmt.get(), make_format_args<basic_format_context<StrTy>>(args...));
 }
 
 // ---- vformat

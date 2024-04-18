@@ -4,7 +4,7 @@ using namespace uxs;
 
 namespace uxs {
 namespace sfmt {
-template UXS_EXPORT membuffer& vformat(membuffer&, std::string_view, format_args, const std::locale*);
-template UXS_EXPORT wmembuffer& vformat(wmembuffer&, std::wstring_view, wformat_args, const std::locale*);
+template UXS_EXPORT void vformat(format_context, std::string_view);
+template UXS_EXPORT void vformat(wformat_context, std::wstring_view);
 }  // namespace sfmt
 }  // namespace uxs

@@ -238,7 +238,6 @@ struct fmt_opts {
     int prec = -1;
     unsigned width = 0;
     int fill = ' ';
-    const std::locale* loc = nullptr;
 };
 
 class UXS_EXPORT_ALL_STUFF_FOR_GNUC format_error : public std::runtime_error {
@@ -246,6 +245,17 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC format_error : public std::runtime_error {
     UXS_EXPORT explicit format_error(const char* message);
     UXS_EXPORT explicit format_error(const std::string& message);
     UXS_EXPORT const char* what() const noexcept override;
+};
+
+class locale_ref {
+ public:
+    locale_ref() noexcept = default;
+    explicit locale_ref(const std::locale& loc) noexcept : ref_(&loc) {}
+    operator bool() const noexcept { return ref_ != nullptr; }
+    std::locale operator*() const noexcept { return ref_ ? *ref_ : std::locale{}; }
+
+ private:
+    const std::locale* ref_ = nullptr;
 };
 
 // --------------------------
@@ -344,74 +354,76 @@ Ty to_float(const CharT* p, const CharT* end, const CharT*& last) noexcept {
 // --------------------------
 
 template<typename CharT>
-UXS_EXPORT void fmt_boolean(basic_membuffer<CharT>& s, bool val, const fmt_opts& fmt);
+UXS_EXPORT void fmt_boolean(basic_membuffer<CharT>& s, bool val, const fmt_opts& fmt, locale_ref loc);
 
 template<typename StrTy,
          typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
-void fmt_boolean(StrTy& s, bool val, const fmt_opts& fmt) {
+void fmt_boolean(StrTy& s, bool val, const fmt_opts& fmt, locale_ref loc) {
     inline_basic_dynbuffer<typename StrTy::value_type> buf;
-    fmt_boolean(buf, val, fmt);
+    fmt_boolean(buf, val, fmt, loc);
     s.append(buf.data(), buf.data() + buf.size());
 }
 
 template<typename CharT>
-UXS_EXPORT void fmt_character(basic_membuffer<CharT>& s, CharT val, const fmt_opts& fmt);
+UXS_EXPORT void fmt_character(basic_membuffer<CharT>& s, CharT val, const fmt_opts& fmt, locale_ref loc);
 
 template<typename StrTy,
          typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
-void fmt_character(StrTy& s, typename StrTy::value_type val, const fmt_opts& fmt) {
+void fmt_character(StrTy& s, typename StrTy::value_type val, const fmt_opts& fmt, locale_ref loc) {
     inline_basic_dynbuffer<typename StrTy::value_type> buf;
-    fmt_character(buf, val, fmt);
+    fmt_character(buf, val, fmt, loc);
     s.append(buf.data(), buf.data() + buf.size());
 }
 
 template<typename CharT>
-UXS_EXPORT void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, const fmt_opts& fmt);
+UXS_EXPORT void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, const fmt_opts& fmt,
+                           locale_ref loc);
 
 template<typename StrTy,
          typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
-void fmt_string(StrTy& s, std::basic_string_view<typename StrTy::value_type> val, const fmt_opts& fmt) {
+void fmt_string(StrTy& s, std::basic_string_view<typename StrTy::value_type> val, const fmt_opts& fmt, locale_ref loc) {
     inline_basic_dynbuffer<typename StrTy::value_type> buf;
-    fmt_string(buf, val, fmt);
+    fmt_string(buf, val, fmt, loc);
     s.append(buf.data(), buf.data() + buf.size());
 }
 
 template<typename CharT, typename Ty>
-UXS_EXPORT void fmt_integer_common(basic_membuffer<CharT>& s, Ty val, bool is_signed, const fmt_opts& fmt);
+UXS_EXPORT void fmt_integer_common(basic_membuffer<CharT>& s, Ty val, bool is_signed, const fmt_opts& fmt,
+                                   locale_ref loc);
 
 template<typename StrTy, typename Ty,
          typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
-void fmt_integer_common(StrTy& s, Ty val, bool is_signed, const fmt_opts& fmt) {
+void fmt_integer_common(StrTy& s, Ty val, bool is_signed, const fmt_opts& fmt, locale_ref loc) {
     inline_basic_dynbuffer<typename StrTy::value_type> buf;
-    fmt_integer_common(buf, val, is_signed, fmt);
+    fmt_integer_common(buf, val, is_signed, fmt, loc);
     s.append(buf.data(), buf.data() + buf.size());
 }
 
 template<typename CharT>
 UXS_EXPORT void fmt_float_common(basic_membuffer<CharT>& s, std::uint64_t u64, const fmt_opts& fmt, unsigned bpm,
-                                 int exp_max);
+                                 int exp_max, locale_ref loc);
 
 template<typename StrTy,
          typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
-void fmt_float_common(StrTy& s, std::uint64_t u64, const fmt_opts& fmt, unsigned bpm, int exp_max) {
+void fmt_float_common(StrTy& s, std::uint64_t u64, const fmt_opts& fmt, unsigned bpm, int exp_max, locale_ref loc) {
     inline_basic_dynbuffer<typename StrTy::value_type> buf;
-    fmt_float_common(buf, u64, fmt, bpm, exp_max);
+    fmt_float_common(buf, u64, fmt, bpm, exp_max, loc);
     s.append(buf.data(), buf.data() + buf.size());
 }
 
 template<typename StrTy, typename Ty>
-void fmt_integer(StrTy& s, Ty val, const fmt_opts& fmt) {
+void fmt_integer(StrTy& s, Ty val, const fmt_opts& fmt, locale_ref loc) {
     using UTy = typename std::make_unsigned<Ty>::type;
     using ReducedTy = std::conditional_t<(sizeof(UTy) <= sizeof(std::uint32_t)), std::uint32_t, std::uint64_t>;
     const bool is_signed = std::is_signed<Ty>::value;
-    fmt_integer_common(s, static_cast<ReducedTy>(val), is_signed, fmt);
+    fmt_integer_common(s, static_cast<ReducedTy>(val), is_signed, fmt, loc);
 }
 
 template<typename StrTy, typename Ty>
-void fmt_float(StrTy& s, Ty val, const fmt_opts& fmt) {
+void fmt_float(StrTy& s, Ty val, const fmt_opts& fmt, locale_ref loc) {
     using FpTy = std::conditional_t<(sizeof(Ty) <= sizeof(double)), Ty, double>;
     fmt_float_common(s, fp_traits<Ty>::to_u64(static_cast<FpTy>(val)), fmt, fp_traits<Ty>::bits_per_mantissa,
-                     fp_traits<Ty>::exp_max);
+                     fp_traits<Ty>::exp_max, loc);
 }
 
 }  // namespace scvt
@@ -460,8 +472,8 @@ struct convertible_to_string : detail::has_to_string_converter<Ty, StrTy>::type 
             return last; \
         } \
         template<typename StrTy> \
-        void to_string(StrTy& s, ty val, const fmt_opts& fmt) const { \
-            fmt_func(s, val, fmt); \
+        void to_string(StrTy& s, ty val, const fmt_opts& fmt, locale_ref loc = locale_ref{}) const { \
+            fmt_func(s, val, fmt, loc); \
         } \
     };
 UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(bool, scvt::to_boolean, scvt::fmt_boolean)
@@ -531,6 +543,12 @@ NODISCARD Ty from_wstring(std::wstring_view s) {
 template<typename StrTy, typename Ty>
 StrTy& to_basic_string(StrTy& s, const Ty& val, fmt_opts fmt = fmt_opts{}) {
     string_converter<Ty, typename StrTy::value_type>{}.to_string(s, val, fmt);
+    return s;
+}
+
+template<typename StrTy, typename Ty>
+StrTy& to_basic_string(StrTy& s, const std::locale& loc, const Ty& val, fmt_opts fmt = fmt_opts{}) {
+    string_converter<Ty, typename StrTy::value_type>{}.to_string(s, val, fmt, loc);
     return s;
 }
 
