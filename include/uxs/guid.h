@@ -139,9 +139,9 @@ struct string_converter<guid, CharT> {
 
 template<typename CharT>
 struct formatter<guid, CharT> {
-    template<typename StrTy>
-    void format(StrTy& s, const guid& val, fmt_opts& fmt) const {
-        string_converter<guid, CharT>{}.to_string(s, val, fmt);
+    template<typename FmtCtx>
+    void format(FmtCtx& ctx, const guid& val, fmt_opts& fmt) const {
+        string_converter<guid, CharT>{}.to_string(ctx.out(), val, fmt);
     }
 };
 

@@ -983,19 +983,21 @@ template UXS_EXPORT std::uint64_t to_float_common(const wchar_t*, const wchar_t*
                                                   const int) noexcept;
 template UXS_EXPORT bool to_boolean(const wchar_t*, const wchar_t*, const wchar_t*& last) noexcept;
 
-template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint32_t, bool, const fmt_opts&);
-template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint64_t, bool, const fmt_opts&);
-template UXS_EXPORT void fmt_float_common(membuffer&, std::uint64_t, const fmt_opts&, const unsigned, const int);
-template UXS_EXPORT void fmt_boolean(membuffer&, bool, const fmt_opts&);
-template UXS_EXPORT void fmt_character(membuffer&, char, const fmt_opts&);
-template UXS_EXPORT void fmt_string(membuffer&, std::string_view, const fmt_opts&);
+template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint32_t, bool, const fmt_opts&, locale_ref);
+template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint64_t, bool, const fmt_opts&, locale_ref);
+template UXS_EXPORT void fmt_float_common(membuffer&, std::uint64_t, const fmt_opts&, const unsigned, const int,
+                                          locale_ref);
+template UXS_EXPORT void fmt_boolean(membuffer&, bool, const fmt_opts&, locale_ref);
+template UXS_EXPORT void fmt_character(membuffer&, char, const fmt_opts&, locale_ref);
+template UXS_EXPORT void fmt_string(membuffer&, std::string_view, const fmt_opts&, locale_ref);
 
-template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint32_t, bool, const fmt_opts&);
-template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint64_t, bool, const fmt_opts&);
-template UXS_EXPORT void fmt_float_common(wmembuffer&, std::uint64_t, const fmt_opts&, const unsigned, const int);
-template UXS_EXPORT void fmt_boolean(wmembuffer&, bool, const fmt_opts&);
-template UXS_EXPORT void fmt_character(wmembuffer&, wchar_t, const fmt_opts&);
-template UXS_EXPORT void fmt_string(wmembuffer&, std::wstring_view, const fmt_opts&);
+template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint32_t, bool, const fmt_opts&, locale_ref);
+template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint64_t, bool, const fmt_opts&, locale_ref);
+template UXS_EXPORT void fmt_float_common(wmembuffer&, std::uint64_t, const fmt_opts&, const unsigned, const int,
+                                          locale_ref);
+template UXS_EXPORT void fmt_boolean(wmembuffer&, bool, const fmt_opts&, locale_ref);
+template UXS_EXPORT void fmt_character(wmembuffer&, wchar_t, const fmt_opts&, locale_ref);
+template UXS_EXPORT void fmt_string(wmembuffer&, std::wstring_view, const fmt_opts&, locale_ref);
 
 }  // namespace scvt
 
