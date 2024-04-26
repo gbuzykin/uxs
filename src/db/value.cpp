@@ -14,7 +14,7 @@ template struct record_node_type<wchar_t, std::allocator<wchar_t>>;
 }  // namespace detail
 template class basic_value<char>;
 template class basic_value<wchar_t>;
-template UXS_EXPORT bool operator==(const basic_value<char>&, const basic_value<char>&);
-template UXS_EXPORT bool operator==(const basic_value<wchar_t>&, const basic_value<wchar_t>&);
+template UXS_EXPORT bool operator==(const basic_value<char>&, const basic_value<char>&) noexcept;
+template UXS_EXPORT bool operator==(const basic_value<wchar_t>&, const basic_value<wchar_t>&) noexcept;
 }  // namespace db
 }  // namespace uxs

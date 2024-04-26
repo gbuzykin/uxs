@@ -54,12 +54,12 @@ class cow_ptr {
 
  private:
     object_body_t* ptr_;
-    explicit cow_ptr(object_body_t* ptr) : ptr_(ptr) {}
-    object_body_t* ref() const {
+    explicit cow_ptr(object_body_t* ptr) noexcept : ptr_(ptr) {}
+    object_body_t* ref() const noexcept {
         if (ptr_) { ++ptr_->ref_count; }
         return ptr_;
     }
-    void reset(object_body_t* ptr) {
+    void reset(object_body_t* ptr) noexcept {
         if (ptr_ && --ptr_->ref_count == 0) { delete ptr_; }
         ptr_ = ptr;
     }

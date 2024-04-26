@@ -14,7 +14,7 @@ class basic_iflatbuf : public basic_ibuf<CharT> {
     using pos_type = typename basic_ibuf<CharT>::pos_type;
     using off_type = typename basic_ibuf<CharT>::off_type;
 
-    explicit basic_iflatbuf(uxs::span<const char_type> s) : basic_ibuf<CharT>(iomode::in) {
+    explicit basic_iflatbuf(uxs::span<const char_type> s) noexcept : basic_ibuf<CharT>(iomode::in) {
         char_type* p = const_cast<char_type*>(s.data());
         this->setview(p, p, p + s.size());
     }

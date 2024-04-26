@@ -23,19 +23,19 @@ class basic_ibuf : public iostate {
     using pos_type = typename traits_type::pos_type;
     using off_type = typename traits_type::off_type;
 
-    basic_ibuf() = default;
-    explicit basic_ibuf(iomode mode) : iostate(mode) {}
-    basic_ibuf(iomode mode, iostate_bits state) : iostate(mode, state) {}
+    basic_ibuf() noexcept = default;
+    explicit basic_ibuf(iomode mode) noexcept : iostate(mode) {}
+    basic_ibuf(iomode mode, iostate_bits state) noexcept : iostate(mode, state) {}
     virtual ~basic_ibuf() = default;
     basic_ibuf(const basic_ibuf&) = delete;
     basic_ibuf& operator=(const basic_ibuf&) = delete;
     UXS_EXPORT basic_ibuf(basic_ibuf&& other) noexcept;
     UXS_EXPORT basic_ibuf& operator=(basic_ibuf&& other) noexcept;
 
-    size_type avail() const { return last_ - curr_; }
-    const char_type* first_avail() const { return curr_; }
-    const char_type* last_avail() const { return last_; }
-    uxs::span<const char_type> view_avail() const { return uxs::as_span(curr_, avail()); }
+    size_type avail() const noexcept { return last_ - curr_; }
+    const char_type* first_avail() const noexcept { return curr_; }
+    const char_type* last_avail() const noexcept { return last_; }
+    uxs::span<const char_type> view_avail() const noexcept { return uxs::as_span(curr_, avail()); }
 
     int_type peek() {
         if (curr_ != last_ || (this->good() && underflow() >= 0)) { return traits_type::to_int_type(*curr_); }
@@ -59,7 +59,7 @@ class basic_ibuf : public iostate {
         return *this;
     }
 
-    basic_ibuf& advance(size_type n) {
+    basic_ibuf& advance(size_type n) noexcept {
         assert(n <= static_cast<size_type>(last_ - curr_));
         curr_ += n;
         return *this;
@@ -100,13 +100,13 @@ class basic_ibuf : public iostate {
     UXS_EXPORT virtual pos_type seekimpl(off_type off, seekdir dir);
     UXS_EXPORT virtual int sync();
 
-    char_type* first() const { return first_; }
-    char_type* curr() const { return curr_; }
-    char_type* last() const { return last_; }
+    char_type* first() const noexcept { return first_; }
+    char_type* curr() const noexcept { return curr_; }
+    char_type* last() const noexcept { return last_; }
 
-    void putcurr(char_type ch) { *curr_++ = ch; }
-    void setcurr(char_type* curr) { curr_ = curr; }
-    void setview(char_type* first, char_type* curr, char_type* last) {
+    void putcurr(char_type ch) noexcept { *curr_++ = ch; }
+    void setcurr(char_type* curr) noexcept { curr_ = curr; }
+    void setview(char_type* first, char_type* curr, char_type* last) noexcept {
         first_ = first;
         curr_ = curr;
         last_ = last;

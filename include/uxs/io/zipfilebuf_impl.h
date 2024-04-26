@@ -16,7 +16,7 @@ basic_zipfilebuf<CharT>::basic_zipfilebuf(basic_zipfilebuf&& other) noexcept
 }
 
 template<typename CharT>
-basic_zipfilebuf<CharT>& basic_zipfilebuf<CharT>::operator=(basic_zipfilebuf&& other) {
+basic_zipfilebuf<CharT>& basic_zipfilebuf<CharT>::operator=(basic_zipfilebuf&& other) noexcept {
     if (&other == this) { return *this; }
     basic_devbuf<CharT>::operator=(std::move(other));
     zip_file_ = std::move(other.zip_file_);
@@ -41,7 +41,7 @@ bool basic_zipfilebuf<CharT>::open(ziparch& arch, const wchar_t* fname, iomode m
 }
 
 template<typename CharT>
-void basic_zipfilebuf<CharT>::close() {
+void basic_zipfilebuf<CharT>::close() noexcept {
     this->freebuf();
     zip_file_.close();
 }

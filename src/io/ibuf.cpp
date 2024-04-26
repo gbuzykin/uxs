@@ -1,7 +1,7 @@
 #include "uxs/io/ibuf_impl.h"
 
 namespace uxs {
-iomode detail::iomode_from_str(const char* mode, iomode def) {
+iomode detail::iomode_from_str(const char* mode, iomode def) noexcept {
     iomode result = def;
     while (*mode) {
         switch (*mode) {

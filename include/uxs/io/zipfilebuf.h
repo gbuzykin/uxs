@@ -23,13 +23,13 @@ class basic_zipfilebuf : public basic_devbuf<CharT> {
     }
     UXS_EXPORT ~basic_zipfilebuf() override;
     UXS_EXPORT basic_zipfilebuf(basic_zipfilebuf&& other) noexcept;
-    UXS_EXPORT basic_zipfilebuf& operator=(basic_zipfilebuf&& other);
+    UXS_EXPORT basic_zipfilebuf& operator=(basic_zipfilebuf&& other) noexcept;
 
     UXS_EXPORT bool open(ziparch& arch, const char* fname,
                          iomode mode = is_character<CharT>::value ? iomode::text | iomode::in : iomode::in);
     UXS_EXPORT bool open(ziparch& arch, const wchar_t* fname,
                          iomode mode = is_character<CharT>::value ? iomode::text | iomode::in : iomode::in);
-    UXS_EXPORT void close();
+    UXS_EXPORT void close() noexcept;
 
  private:
     zipfile zip_file_;

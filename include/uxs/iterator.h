@@ -322,7 +322,7 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
     template<typename, bool>
     friend class array_iterator;
 
-    array_iterator() noexcept {}
+    array_iterator() noexcept = default;
 
     void increment() noexcept {
         iterator_assert(ptr_ < end_);
@@ -421,7 +421,7 @@ class list_iterator : public container_iterator_facade<Traits, list_iterator<Tra
     template<typename, typename, bool>
     friend class list_iterator;
 
-    list_iterator() noexcept {}
+    list_iterator() noexcept = default;
     explicit list_iterator(node_type* node) noexcept : node_(node) {}
 
     // this iterator consists of one natural pointer,

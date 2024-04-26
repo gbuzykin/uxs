@@ -17,7 +17,7 @@ class basic_obuf_iterator {
     using traits_type = typename obuf_type::traits_type;
     using int_type = typename traits_type::int_type;
 
-    explicit basic_obuf_iterator(obuf_type& buf) : buf_(&buf) {}
+    explicit basic_obuf_iterator(obuf_type& buf) noexcept : buf_(&buf) {}
 
     basic_obuf_iterator& operator=(char_type ch) {
         iterator_assert(buf_);
@@ -25,7 +25,7 @@ class basic_obuf_iterator {
         return *this;
     }
 
-    bool failed() const { return buf_->eof(); }
+    bool failed() const noexcept { return buf_->eof(); }
 
     basic_obuf_iterator& operator*() { return *this; }
     basic_obuf_iterator& operator++() { return *this; }

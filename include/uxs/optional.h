@@ -34,7 +34,7 @@ class optional {
  public:
     using value_type = Ty;
 
-    optional() noexcept {}
+    optional() noexcept = default;
     optional(nullopt_t) noexcept {}
 
     optional(const optional& other) : valid_(other.valid_) {

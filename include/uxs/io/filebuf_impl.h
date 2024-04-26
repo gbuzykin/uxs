@@ -16,7 +16,7 @@ basic_filebuf<CharT>::basic_filebuf(basic_filebuf&& other) noexcept
 }
 
 template<typename CharT>
-basic_filebuf<CharT>& basic_filebuf<CharT>::operator=(basic_filebuf&& other) {
+basic_filebuf<CharT>& basic_filebuf<CharT>::operator=(basic_filebuf&& other) noexcept {
     if (&other == this) { return *this; }
     basic_devbuf<CharT>::operator=(std::move(other));
     file_ = std::move(other.file_);
@@ -31,7 +31,7 @@ void basic_filebuf<CharT>::attach(file_desc_t fd, iomode mode) {
 }
 
 template<typename CharT>
-file_desc_t basic_filebuf<CharT>::detach() {
+file_desc_t basic_filebuf<CharT>::detach() noexcept {
     this->freebuf();
     return file_.detach();
 }
@@ -53,7 +53,7 @@ bool basic_filebuf<CharT>::open(const wchar_t* fname, iomode mode) {
 }
 
 template<typename CharT>
-void basic_filebuf<CharT>::close() {
+void basic_filebuf<CharT>::close() noexcept {
     this->freebuf();
     file_.close();
 }

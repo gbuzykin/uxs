@@ -110,7 +110,7 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
 }
 
 template<typename CharT, typename Alloc>
-void basic_devbuf<CharT, Alloc>::freebuf() {
+void basic_devbuf<CharT, Alloc>::freebuf() noexcept {
     if (this->mode() == iomode::none) { return; }
     if (!!(this->mode() & iomode::out)) {
         this->flush();
@@ -136,7 +136,7 @@ void basic_devbuf<CharT, Alloc>::freebuf() {
 
 template<typename CharT, typename Alloc>
 const typename basic_devbuf<CharT, Alloc>::char_type* basic_devbuf<CharT, Alloc>::find_end_of_ctrlesc(
-    const char_type* first, const char_type* last) {
+    const char_type* first, const char_type* last) noexcept {
     if (first == last) { return first; }
     const char_type* p = first;
     if (*p == '[') {
@@ -342,7 +342,7 @@ int basic_devbuf<CharT, Alloc>::flush_buffer() {
 }
 
 template<typename CharT, typename Alloc>
-std::size_t basic_devbuf<CharT, Alloc>::remove_crlf(char_type* dst, std::size_t count) {
+std::size_t basic_devbuf<CharT, Alloc>::remove_crlf(char_type* dst, std::size_t count) noexcept {
     if (!count) { return 0; }
     char_type* dst_end = dst + count;
     do {

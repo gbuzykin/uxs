@@ -8,64 +8,66 @@ namespace uxs {
 
 class guid {
  public:
-    guid() { data64_[0] = data64_[1] = 0; }
-    explicit guid(const std::uint32_t* id) { set_data(id); }
+    guid() noexcept { data64_[0] = data64_[1] = 0; }
+    explicit guid(const std::uint32_t* id) noexcept { set_data(id); }
     guid(std::uint32_t l, std::uint16_t w1, std::uint16_t w2, std::uint8_t b1, std::uint8_t b2, std::uint8_t b3,
-         std::uint8_t b4, std::uint8_t b5, std::uint8_t b6, std::uint8_t b7, std::uint8_t b8) {
+         std::uint8_t b4, std::uint8_t b5, std::uint8_t b6, std::uint8_t b7, std::uint8_t b8) noexcept {
         data32_[0] = l, data16_[2] = w1, data16_[3] = w2;
         data8_[8] = b1, data8_[9] = b2, data8_[10] = b3, data8_[11] = b4;
         data8_[12] = b5, data8_[13] = b6, data8_[14] = b7, data8_[15] = b8;
     }
 
-    bool valid() const { return data64_[0] || data64_[1]; }
-    guid make_xor(std::uint32_t a) const;
+    bool valid() const noexcept { return data64_[0] || data64_[1]; }
+    guid make_xor(std::uint32_t a) const noexcept;
 
-    std::uint8_t data8(unsigned i) const { return data8_[i]; }
-    std::uint16_t data16(unsigned i) const { return data16_[i]; }
-    std::uint32_t data32(unsigned i) const { return data32_[i]; }
-    std::uint64_t data64(unsigned i) const { return data64_[i]; }
+    std::uint8_t data8(unsigned i) const noexcept { return data8_[i]; }
+    std::uint16_t data16(unsigned i) const noexcept { return data16_[i]; }
+    std::uint32_t data32(unsigned i) const noexcept { return data32_[i]; }
+    std::uint64_t data64(unsigned i) const noexcept { return data64_[i]; }
 
-    std::uint8_t& data8(unsigned i) { return data8_[i]; }
-    std::uint16_t& data16(unsigned i) { return data16_[i]; }
-    std::uint32_t& data32(unsigned i) { return data32_[i]; }
-    std::uint64_t& data64(unsigned i) { return data64_[i]; }
+    std::uint8_t& data8(unsigned i) noexcept { return data8_[i]; }
+    std::uint16_t& data16(unsigned i) noexcept { return data16_[i]; }
+    std::uint32_t& data32(unsigned i) noexcept { return data32_[i]; }
+    std::uint64_t& data64(unsigned i) noexcept { return data64_[i]; }
 
-    void get_data(std::uint32_t* id) const {
+    void get_data(std::uint32_t* id) const noexcept {
         id[0] = data32_[0], id[1] = data32_[1], id[2] = data32_[2], id[3] = data32_[3];
     }
 
-    void set_data(const std::uint32_t* id) {
+    void set_data(const std::uint32_t* id) noexcept {
         data32_[0] = id[0], data32_[1] = id[1], data32_[2] = id[2], data32_[3] = id[3];
     }
 
-    bool operator==(const guid& id) const { return data64_[0] == id.data64_[0] && data64_[1] == id.data64_[1]; }
-    bool operator!=(const guid& id) const { return !(*this == id); }
+    bool operator==(const guid& id) const noexcept {
+        return data64_[0] == id.data64_[0] && data64_[1] == id.data64_[1];
+    }
+    bool operator!=(const guid& id) const noexcept { return !(*this == id); }
 
-    bool operator<(const guid& id) const {
+    bool operator<(const guid& id) const noexcept {
         return data64_[0] < id.data64_[0] || (data64_[0] == id.data64_[0] && data64_[1] < id.data64_[1]);
     }
-    bool operator<=(const guid& id) const { return !(id < *this); }
-    bool operator>(const guid& id) const { return id < *this; }
-    bool operator>=(const guid& id) const { return !(*this < id); }
+    bool operator<=(const guid& id) const noexcept { return !(id < *this); }
+    bool operator>(const guid& id) const noexcept { return id < *this; }
+    bool operator>=(const guid& id) const noexcept { return !(*this < id); }
 
     template<typename CharT, typename Traits, typename Alloc>
     void to_per_byte_basic_string(std::basic_string<CharT, Traits, Alloc>& s) const;
     template<typename CharT, typename Traits>
-    static guid from_per_byte_basic_string(std::basic_string_view<CharT, Traits> s);
+    static guid from_per_byte_basic_string(std::basic_string_view<CharT, Traits> s) noexcept;
 
     std::string to_per_byte_string() const {
         std::string s;
         to_per_byte_basic_string(s);
         return s;
     }
-    static guid from_per_byte_string(std::string_view s) { return from_per_byte_basic_string(s); }
+    static guid from_per_byte_string(std::string_view s) noexcept { return from_per_byte_basic_string(s); }
 
     std::wstring to_per_byte_wstring() const {
         std::wstring s;
         to_per_byte_basic_string(s);
         return s;
     }
-    static guid from_per_byte_wstring(std::wstring_view s) { return from_per_byte_basic_string(s); }
+    static guid from_per_byte_wstring(std::wstring_view s) noexcept { return from_per_byte_basic_string(s); }
 
     UXS_EXPORT static guid generate();
 
@@ -78,7 +80,7 @@ class guid {
     };
 };
 
-inline guid guid::make_xor(std::uint32_t a) const {
+inline guid guid::make_xor(std::uint32_t a) const noexcept {
     guid id;
     id.data32_[0] = data32_[0] ^ a, id.data32_[1] = data32_[1] ^ a;
     id.data32_[2] = data32_[2] ^ a, id.data32_[3] = data32_[3] ^ a;
@@ -93,7 +95,7 @@ void guid::to_per_byte_basic_string(std::basic_string<CharT, Traits, Alloc>& s) 
 }
 
 template<typename CharT, typename Traits>
-/*static*/ guid guid::from_per_byte_basic_string(std::basic_string_view<CharT, Traits> s) {
+/*static*/ guid guid::from_per_byte_basic_string(std::basic_string_view<CharT, Traits> s) noexcept {
     guid id;
     if (s.size() < 32) { return id; }
     const auto* p = s.data();

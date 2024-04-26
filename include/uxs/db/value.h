@@ -396,9 +396,10 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     template<typename CharT_, typename Alloc_>
-    friend UXS_EXPORT bool operator==(const basic_value<CharT_, Alloc_>& lhs, const basic_value<CharT_, Alloc_>& rhs);
+    friend UXS_EXPORT bool operator==(const basic_value<CharT_, Alloc_>& lhs,
+                                      const basic_value<CharT_, Alloc_>& rhs) noexcept;
     template<typename CharT_, typename Alloc_>
-    friend bool operator!=(const basic_value<CharT_, Alloc_>& lhs, const basic_value<CharT_, Alloc_>& rhs);
+    friend bool operator!=(const basic_value<CharT_, Alloc_>& lhs, const basic_value<CharT_, Alloc_>& rhs) noexcept;
 
     dtype type() const noexcept { return type_; }
     allocator_type get_allocator() const noexcept { return allocator_type(*this); }
@@ -1169,7 +1170,7 @@ uxs::optional<Ty> basic_value<CharT, Alloc>::get() const {
 }
 
 template<typename CharT, typename Alloc>
-bool operator!=(const basic_value<CharT, Alloc>& lhs, const basic_value<CharT, Alloc>& rhs) {
+bool operator!=(const basic_value<CharT, Alloc>& lhs, const basic_value<CharT, Alloc>& rhs) noexcept {
     return !(lhs == rhs);
 }
 

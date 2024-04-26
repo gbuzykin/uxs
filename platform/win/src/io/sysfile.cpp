@@ -9,21 +9,21 @@
 
 using namespace uxs;
 
-sysfile::sysfile() : fd_(INVALID_HANDLE_VALUE) {}
-sysfile::sysfile(file_desc_t fd) : fd_(fd) {}
+sysfile::sysfile() noexcept : fd_(INVALID_HANDLE_VALUE) {}
+sysfile::sysfile(file_desc_t fd) noexcept : fd_(fd) {}
 sysfile::~sysfile() {
     if (fd_ != INVALID_HANDLE_VALUE) { ::CloseHandle(fd_); }
 }
 
-bool sysfile::valid() const { return fd_ != INVALID_HANDLE_VALUE; }
+bool sysfile::valid() const noexcept { return fd_ != INVALID_HANDLE_VALUE; }
 
-void sysfile::attach(file_desc_t fd) {
+void sysfile::attach(file_desc_t fd) noexcept {
     if (fd == fd_) { return; }
     if (fd_ != INVALID_HANDLE_VALUE) { ::CloseHandle(fd_); }
     fd_ = fd;
 }
 
-file_desc_t sysfile::detach() {
+file_desc_t sysfile::detach() noexcept {
     file_desc_t fd = fd_;
     fd_ = INVALID_HANDLE_VALUE;
     return fd;
@@ -62,7 +62,7 @@ bool sysfile::open(const wchar_t* fname, iomode mode) {
 
 bool sysfile::open(const char* fname, iomode mode) { return open(from_utf8_to_wide(fname).c_str(), mode); }
 
-void sysfile::close() { ::CloseHandle(detach()); }
+void sysfile::close() noexcept { ::CloseHandle(detach()); }
 
 int sysfile::read(void* data, std::size_t sz, std::size_t& n_read) {
     DWORD n_read_native = 0;

@@ -23,7 +23,7 @@ bool ziparch::open(const char* name, iomode mode) {
     return (zip_ = zip_open(name, oflag, &ziperr)) != nullptr;
 }
 
-void ziparch::close() {
+void ziparch::close() noexcept {
     if (!zip_) { return; }
     zip_close(static_cast<zip_t*>(zip_));
     zip_ = nullptr;
@@ -51,7 +51,7 @@ bool ziparch::stat_crc(const char* fname, std::uint32_t& crc) {
 
 using namespace uxs;
 bool ziparch::open(const char* name, iomode mode) { return false; }
-void ziparch::close() {}
+void ziparch::close() noexcept {}
 bool ziparch::stat_size(const char* fname, std::uint64_t& sz) { return false; }
 bool ziparch::stat_crc(const char* fname, std::uint32_t& crc) { return false; }
 
