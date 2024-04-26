@@ -13,20 +13,20 @@ struct rbtree_node_t {
     enum class color_t : char { black = 0, red = 1 } color;
 };
 
-inline bool rbtree_is_empty(const rbtree_node_t* head) { return head->left == nullptr; }
+inline bool rbtree_is_empty(const rbtree_node_t* head) noexcept { return head->left == nullptr; }
 
-inline void rbtree_init_head(rbtree_node_t* head) {
+inline void rbtree_init_head(rbtree_node_t* head) noexcept {
     head->left = nullptr;
     head->right = head->parent = head;
     head->color = rbtree_node_t::color_t::black;
 }
 
-inline rbtree_node_t* rbtree_right_bound(rbtree_node_t* node) {
+inline rbtree_node_t* rbtree_right_bound(rbtree_node_t* node) noexcept {
     while (node->right) { node = node->right; }
     return node;
 }
 
-inline rbtree_node_t* rbtree_left_bound(rbtree_node_t* node) {
+inline rbtree_node_t* rbtree_left_bound(rbtree_node_t* node) noexcept {
     while (node->left) { node = node->left; }
     return node;
 }

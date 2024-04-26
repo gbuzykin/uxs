@@ -33,12 +33,12 @@ class basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_all
     UXS_EXPORT basic_devbuf(basic_devbuf&& other) noexcept;
     UXS_EXPORT basic_devbuf& operator=(basic_devbuf&& other) noexcept;
 
-    iodevice* dev() const { return dev_; }
-    basic_iobuf<CharT>* tie() const { return tie_buf_; }
-    void settie(basic_iobuf<CharT>* tie) { tie_buf_ = tie; }
+    iodevice* dev() const noexcept { return dev_; }
+    basic_iobuf<CharT>* tie() const noexcept { return tie_buf_; }
+    void settie(basic_iobuf<CharT>* tie) noexcept { tie_buf_ = tie; }
 
     UXS_EXPORT void initbuf(iomode mode, size_type bufsz = 0);
-    UXS_EXPORT void freebuf();
+    UXS_EXPORT void freebuf() noexcept;
     allocator_type get_allocator() const noexcept { return allocator_type(*this); }
 
  protected:
@@ -66,7 +66,7 @@ class basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_all
     flexbuf_t* buf_ = nullptr;
     basic_iobuf<char_type>* tie_buf_ = nullptr;
 
-    UXS_EXPORT const char_type* find_end_of_ctrlesc(const char_type* first, const char_type* last);
+    UXS_EXPORT const char_type* find_end_of_ctrlesc(const char_type* first, const char_type* last) noexcept;
     UXS_EXPORT int write_buf(const void* data, std::size_t sz);
     UXS_EXPORT int read_buf(void* data, std::size_t sz, std::size_t& n_read);
     UXS_EXPORT int flush_compressed_buf();
@@ -75,7 +75,7 @@ class basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_all
     UXS_EXPORT int read_compressed(void* data, std::size_t sz, std::size_t& n_read);
     UXS_EXPORT void parse_ctrlesc(const char_type* first, const char_type* last);
     UXS_EXPORT int flush_buffer();
-    UXS_EXPORT std::size_t remove_crlf(char_type* dst, std::size_t count);
+    UXS_EXPORT std::size_t remove_crlf(char_type* dst, std::size_t count) noexcept;
 };
 
 using devbuf = basic_devbuf<char>;

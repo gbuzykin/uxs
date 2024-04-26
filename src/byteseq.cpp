@@ -19,16 +19,19 @@ using namespace uxs;
 
 byteseq::~byteseq() {
     if (!head_) { return; }
-    chunk_t* chunk = head_->next;
-    while (chunk != head_) {
-        chunk_t* next = chunk->next;
-        chunk_t::dealloc(*this, chunk);
-        chunk = next;
-    }
+    delete_chunks();
     chunk_t::dealloc(*this, head_);
 }
 
-std::uint32_t byteseq::calc_crc32() const {
+void byteseq::clear() noexcept {
+    if (!head_) { return; }
+    delete_chunks();
+    dllist_make_cycle(head_);
+    head_->end = head_->data;
+    size_ = 0;
+}
+
+std::uint32_t byteseq::calc_crc32() const noexcept {
     std::uint32_t crc32 = 0xffffffff;
     scan([&crc32](const std::uint8_t* p, std::size_t sz) { crc32 = crc32::calc(p, p + sz, crc32); });
     return crc32;
@@ -166,15 +169,19 @@ byteseq byteseq::make_compressed() const { return *this; }
 byteseq byteseq::make_uncompressed() const { return *this; }
 #endif
 
+void byteseq::delete_chunks() noexcept {
+    chunk_t* chunk = head_->next;
+    while (chunk != head_) {
+        chunk_t* next = chunk->next;
+        chunk_t::dealloc(*this, chunk);
+        chunk = next;
+    }
+}
+
 void byteseq::clear_and_reserve(std::size_t cap) {
     if (head_) {
+        delete_chunks();
         // delete chunks excepts of the last
-        chunk_t* chunk = head_->next;
-        while (chunk != head_) {
-            chunk_t* next = chunk->next;
-            chunk_t::dealloc(*this, chunk);
-            chunk = next;
-        }
         if (head_->capacity() < cap) {
             // create new head buffer
             chunk_t::dealloc(*this, head_);

@@ -33,25 +33,25 @@ UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(seekdir, std::uint8_t);
 
 class iostate {
  public:
-    iostate() = default;
-    explicit iostate(iomode mode) : mode_(mode) {}
-    iostate(iomode mode, iostate_bits state) : mode_(mode), state_(state) {}
+    iostate() noexcept = default;
+    explicit iostate(iomode mode) noexcept : mode_(mode) {}
+    iostate(iomode mode, iostate_bits state) noexcept : mode_(mode), state_(state) {}
 
-    iomode mode() const { return mode_; }
+    iomode mode() const noexcept { return mode_; }
 
-    iostate_bits rdstate() const { return state_; }
-    bool good() const { return state_ == iostate_bits::good; }
-    bool bad() const { return !!(state_ & iostate_bits::bad); }
-    bool fail() const { return !!(state_ & (iostate_bits::fail | iostate_bits::bad)); }
-    bool eof() const { return !!(state_ & iostate_bits::eof); }
-    operator bool() const { return !fail(); }
-    bool operator!() const { return fail(); }
+    iostate_bits rdstate() const noexcept { return state_; }
+    bool good() const noexcept { return state_ == iostate_bits::good; }
+    bool bad() const noexcept { return !!(state_ & iostate_bits::bad); }
+    bool fail() const noexcept { return !!(state_ & (iostate_bits::fail | iostate_bits::bad)); }
+    bool eof() const noexcept { return !!(state_ & iostate_bits::eof); }
+    operator bool() const noexcept { return !fail(); }
+    bool operator!() const noexcept { return fail(); }
 
-    void setstate(iostate_bits bits) { state_ |= bits; }
-    void clear(iostate_bits bits = iostate_bits::good) { state_ = bits; }
+    void setstate(iostate_bits bits) noexcept { state_ |= bits; }
+    void clear(iostate_bits bits = iostate_bits::good) noexcept { state_ = bits; }
 
  protected:
-    void setmode(iomode mode) { mode_ = mode; }
+    void setmode(iomode mode) noexcept { mode_ = mode; }
 
  private:
     iomode mode_ = iomode::none;
@@ -59,7 +59,7 @@ class iostate {
 };
 
 namespace detail {
-UXS_EXPORT iomode iomode_from_str(const char* mode, iomode def);
+UXS_EXPORT iomode iomode_from_str(const char* mode, iomode def) noexcept;
 }
 
 }  // namespace uxs

@@ -37,7 +37,7 @@ class zip_iterator
     using reference = typename super::reference;
     using difference_type = typename super::difference_type;
 
-    zip_iterator() noexcept {}
+    zip_iterator() noexcept = default;
     zip_iterator(Iter... curr) noexcept : curr_(std::make_tuple(curr...)) {}
 
     void increment() noexcept(noexcept(this->increment_impl(std::index_sequence_for<Iter...>{}))) {

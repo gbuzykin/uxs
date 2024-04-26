@@ -35,7 +35,7 @@ struct byteseq_chunk_t {
 
 class byteseq : public detail::byteseq_chunk_t::alloc_type {
  public:
-    byteseq() = default;
+    byteseq() noexcept = default;
     byteseq(const byteseq& other) { assign(other); }
     byteseq(byteseq&& other) noexcept : head_(other.head_), size_(other.size_) {
         other.head_ = nullptr, other.size_ = 0;
@@ -51,10 +51,10 @@ class byteseq : public detail::byteseq_chunk_t::alloc_type {
         return *this;
     }
 
-    std::size_t size() const { return size_; }
-    bool empty() const { return size_ == 0; }
-    void clear() { clear_and_reserve(0); }
-    UXS_EXPORT std::uint32_t calc_crc32() const;
+    std::size_t size() const noexcept { return size_; }
+    bool empty() const noexcept { return size_ == 0; }
+    void clear() noexcept;
+    UXS_EXPORT std::uint32_t calc_crc32() const noexcept;
 
     void swap(byteseq& other) {
         std::swap(head_, other.head_);
@@ -100,6 +100,7 @@ class byteseq : public detail::byteseq_chunk_t::alloc_type {
     chunk_t* head_ = nullptr;
     std::size_t size_ = 0;
 
+    UXS_EXPORT void delete_chunks() noexcept;
     UXS_EXPORT void clear_and_reserve(std::size_t cap);
     UXS_EXPORT void create_head(std::size_t cap);
     UXS_EXPORT void create_head_chunk();

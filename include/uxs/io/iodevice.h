@@ -11,12 +11,12 @@ UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iodevcaps, unsigned);
 
 class iodevice {
  public:
-    iodevice() = default;
-    explicit iodevice(iodevcaps caps) : caps_(caps) {}
+    iodevice() noexcept = default;
+    explicit iodevice(iodevcaps caps) noexcept : caps_(caps) {}
     virtual ~iodevice() = default;
     iodevice(const iodevice&) = delete;
     iodevice& operator=(const iodevice&) = delete;
-    iodevcaps caps() const { return caps_; }
+    iodevcaps caps() const noexcept { return caps_; }
     virtual int read(void* data, std::size_t sz, std::size_t& n_read) = 0;
     virtual int write(const void* data, std::size_t sz, std::size_t& n_written) = 0;
     virtual void* map(std::size_t& sz, bool wr) { return nullptr; }

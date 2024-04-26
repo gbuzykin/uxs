@@ -16,7 +16,7 @@ namespace uxs {
 // --------------------------
 
 template<typename InputIt, typename InputFn = nofunc>
-unsigned from_hex(InputIt in, unsigned n_digs, InputFn fn = InputFn{}, unsigned* n_valid = nullptr) {
+unsigned from_hex(InputIt in, unsigned n_digs, InputFn fn = InputFn{}, unsigned* n_valid = nullptr) noexcept {
     unsigned val = 0;
     if (n_valid) { *n_valid = n_digs; }
     while (n_digs) {
@@ -33,7 +33,7 @@ unsigned from_hex(InputIt in, unsigned n_digs, InputFn fn = InputFn{}, unsigned*
 }
 
 template<typename OutputIt, typename OutputFn = nofunc>
-void to_hex(unsigned val, OutputIt out, unsigned n_digs, bool upper = false, OutputFn fn = OutputFn{}) {
+void to_hex(unsigned val, OutputIt out, unsigned n_digs, bool upper = false, OutputFn fn = OutputFn{}) noexcept {
     const char* digs = upper ? "0123456789ABCDEF" : "0123456789abcdef";
     unsigned shift = n_digs << 2;
     while (shift) {
@@ -145,7 +145,7 @@ class basic_membuffer {
     void push_back(Ty val) {
         if (curr_ != last_ || try_grow(1)) { *curr_++ = val; }
     }
-    void pop_back() { --curr_; }
+    void pop_back() noexcept { --curr_; }
 
     template<typename Range, typename = std::void_t<decltype(std::declval<Range>().end())>>
     basic_membuffer& operator+=(const Range& r) {
@@ -220,7 +220,7 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
 template<typename Ty, std::size_t InlineBufSize = 0, typename Alloc = std::allocator<Ty>>
 class inline_basic_dynbuffer final : public basic_dynbuffer<Ty, Alloc> {
  public:
-    inline_basic_dynbuffer()
+    inline_basic_dynbuffer() noexcept
         : basic_dynbuffer<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), reinterpret_cast<Ty*>(buf_) + inline_buf_size) {}
 
  private:
@@ -264,7 +264,7 @@ template<typename Ty>
 struct fp_traits;
 
 template<typename TyTo, typename TyFrom>
-TyTo bit_cast(const TyFrom& v) {
+TyTo bit_cast(const TyFrom& v) noexcept {
     static_assert(sizeof(TyTo) == sizeof(TyFrom), "bad bit cast");
     TyTo ret;
     std::memcpy(&ret, &v, sizeof(TyFrom));
@@ -277,8 +277,8 @@ struct fp_traits<double> {
     enum : unsigned { total_bits = 64, bits_per_mantissa = 52 };
     enum : std::uint64_t { mantissa_mask = (1ull << bits_per_mantissa) - 1 };
     enum : int { exp_max = (1 << (total_bits - bits_per_mantissa - 1)) - 1 };
-    static std::uint64_t to_u64(const double& f) { return bit_cast<std::uint64_t>(f); }
-    static double from_u64(const std::uint64_t& u64) { return bit_cast<double>(u64); }
+    static std::uint64_t to_u64(const double& f) noexcept { return bit_cast<std::uint64_t>(f); }
+    static double from_u64(const std::uint64_t& u64) noexcept { return bit_cast<double>(u64); }
 };
 
 template<>
@@ -287,8 +287,10 @@ struct fp_traits<float> {
     enum : unsigned { total_bits = 32, bits_per_mantissa = 23 };
     enum : std::uint64_t { mantissa_mask = (1ull << bits_per_mantissa) - 1 };
     enum : int { exp_max = (1 << (total_bits - bits_per_mantissa - 1)) - 1 };
-    static std::uint64_t to_u64(const float& f) { return bit_cast<std::uint32_t>(f); }
-    static float from_u64(const std::uint64_t& u64) { return bit_cast<float>(static_cast<std::uint32_t>(u64)); }
+    static std::uint64_t to_u64(const float& f) noexcept { return bit_cast<std::uint32_t>(f); }
+    static float from_u64(const std::uint64_t& u64) noexcept {
+        return bit_cast<float>(static_cast<std::uint32_t>(u64));
+    }
 };
 
 extern UXS_EXPORT const fmt_opts g_default_opts;

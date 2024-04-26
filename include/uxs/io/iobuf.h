@@ -14,13 +14,13 @@ class basic_iobuf : public basic_ibuf<CharT> {
     using pos_type = typename basic_ibuf<CharT>::pos_type;
     using off_type = typename basic_ibuf<CharT>::off_type;
 
-    basic_iobuf() = default;
-    explicit basic_iobuf(iomode mode) : basic_ibuf<CharT>(mode) {}
-    basic_iobuf(iomode mode, iostate_bits state) : basic_ibuf<CharT>(mode, state) {}
+    basic_iobuf() noexcept = default;
+    explicit basic_iobuf(iomode mode) noexcept : basic_ibuf<CharT>(mode) {}
+    basic_iobuf(iomode mode, iostate_bits state) noexcept : basic_ibuf<CharT>(mode, state) {}
 
-    char_type* first_avail() const { return this->curr(); }
-    char_type* last_avail() const { return this->last(); }
-    uxs::span<char_type> view_avail() const { return uxs::as_span(this->curr(), this->avail()); }
+    char_type* first_avail() const noexcept { return this->curr(); }
+    char_type* last_avail() const noexcept { return this->last(); }
+    uxs::span<char_type> view_avail() const noexcept { return uxs::as_span(this->curr(), this->avail()); }
 
     basic_iobuf& reserve() {
         if (this->curr() != this->last() || (this->good() && overflow() >= 0)) { return *this; }

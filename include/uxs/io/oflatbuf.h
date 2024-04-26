@@ -26,12 +26,12 @@ class basic_oflatbuf : protected std::allocator_traits<Alloc>::template rebind_a
     UXS_EXPORT basic_oflatbuf(basic_oflatbuf&& other) noexcept;
     UXS_EXPORT basic_oflatbuf& operator=(basic_oflatbuf&& other) noexcept;
 
-    const char_type* data() const { return this->first(); }
-    size_type size() const { return std::max(top_, this->curr()) - this->first(); }
-    uxs::span<const char_type> view() const { return uxs::as_span(this->first(), size()); }
+    const char_type* data() const noexcept { return this->first(); }
+    size_type size() const noexcept { return std::max(top_, this->curr()) - this->first(); }
+    uxs::span<const char_type> view() const noexcept { return uxs::as_span(this->first(), size()); }
     allocator_type get_allocator() const noexcept { return allocator_type(*this); }
 
-    void truncate(size_type sz) {
+    void truncate(size_type sz) noexcept {
         top_ = this->first() + std::min(sz, size());
         this->setcurr(std::min(top_, this->curr()));
     }

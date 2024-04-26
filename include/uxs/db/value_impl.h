@@ -13,7 +13,7 @@ namespace db {
 // --------------------------
 
 template<typename CharT, typename Alloc>
-UXS_EXPORT bool operator==(const basic_value<CharT, Alloc>& lhs, const basic_value<CharT, Alloc>& rhs) {
+UXS_EXPORT bool operator==(const basic_value<CharT, Alloc>& lhs, const basic_value<CharT, Alloc>& rhs) noexcept {
     if (lhs.type_ != rhs.type_) { return false; }
     switch (lhs.type_) {
         case dtype::null: return true;

@@ -33,7 +33,7 @@ class span {
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
 
-    CONSTEXPR span() noexcept {}
+    CONSTEXPR span() noexcept = default;
     template<typename Ty2, typename = std::enable_if_t<std::is_convertible<Ty2*, Ty*>::value>>
     CONSTEXPR span(Ty2* v, size_type count) noexcept : begin_(v), size_(count) {}
     template<typename Ty2, std::size_t N, typename = std::enable_if_t<std::is_convertible<Ty2*, Ty*>::value>>

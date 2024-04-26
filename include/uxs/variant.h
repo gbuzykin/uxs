@@ -93,7 +93,7 @@ class variant {
     enum : std::size_t { storage_size = sizeof(storage_t) };
     enum : std::size_t { storage_alignment = std::alignment_of<storage_t>::value };
 
-    variant() noexcept {}
+    variant() noexcept = default;
     explicit variant(variant_id type) : vtable_(get_vtable(type)) {
         if (vtable_) { vtable_->construct_default(&data_); }
     }

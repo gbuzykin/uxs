@@ -34,11 +34,11 @@ struct crc32_table_t {
 class crc32 {
  public:
     template<typename InputIt>
-    static CONSTEXPR std::uint32_t calc(InputIt it, InputIt end, std::uint32_t crc32 = 0xffffffff) {
+    static CONSTEXPR std::uint32_t calc(InputIt it, InputIt end, std::uint32_t crc32 = 0xffffffff) noexcept {
         while (it != end) { crc32 = (crc32 >> 8) ^ table_.v[(crc32 & 0xff) ^ static_cast<std::uint8_t>(*it++)]; }
         return crc32;
     }
-    static CONSTEXPR std::uint32_t calc(const char* zstr, std::uint32_t crc32 = 0xffffffff) {
+    static CONSTEXPR std::uint32_t calc(const char* zstr, std::uint32_t crc32 = 0xffffffff) noexcept {
         while (*zstr) { crc32 = (crc32 >> 8) ^ table_.v[(crc32 & 0xff) ^ static_cast<std::uint8_t>(*zstr++)]; }
         return crc32;
     }

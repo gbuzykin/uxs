@@ -10,21 +10,21 @@
 
 using namespace uxs;
 
-sysfile::sysfile() : fd_(-1) {}
-sysfile::sysfile(file_desc_t fd) : fd_(fd) {}
+sysfile::sysfile() noexcept : fd_(-1) {}
+sysfile::sysfile(file_desc_t fd) noexcept : fd_(fd) {}
 sysfile::~sysfile() {
     if (fd_ >= 0) { ::close(fd_); }
 }
 
-bool sysfile::valid() const { return fd_ >= 0; }
+bool sysfile::valid() const noexcept { return fd_ >= 0; }
 
-void sysfile::attach(file_desc_t fd) {
+void sysfile::attach(file_desc_t fd) noexcept {
     if (fd == fd_) { return; }
     if (fd_ >= 0) { ::close(fd_); }
     fd_ = fd;
 }
 
-file_desc_t sysfile::detach() {
+file_desc_t sysfile::detach() noexcept {
     file_desc_t fd = fd_;
     fd_ = -1;
     return fd;
@@ -50,7 +50,7 @@ bool sysfile::open(const char* fname, iomode mode) {
 
 bool sysfile::open(const wchar_t* fname, iomode mode) { return open(from_wide_to_utf8(fname).c_str(), mode); }
 
-void sysfile::close() { ::close(detach()); }
+void sysfile::close() noexcept { ::close(detach()); }
 
 int sysfile::read(void* data, std::size_t sz, std::size_t& n_read) {
     ssize_t result = ::read(fd_, data, sz);

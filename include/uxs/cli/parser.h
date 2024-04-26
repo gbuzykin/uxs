@@ -53,20 +53,20 @@ class basic_command;
 template<typename CharT>
 class basic_node {
  public:
-    explicit basic_node(node_type type) : type_(type), is_optional_(false), parent_(nullptr) {}
+    explicit basic_node(node_type type) noexcept : type_(type), is_optional_(false), parent_(nullptr) {}
     basic_node(const basic_node&) = default;
     basic_node& operator=(const basic_node&) = delete;
     virtual ~basic_node() = default;
     virtual std::unique_ptr<basic_node> clone() const = 0;
 
-    node_type get_type() const { return type_; }
-    bool is_optional() const { return is_optional_; }
+    node_type get_type() const noexcept { return type_; }
+    bool is_optional() const noexcept { return is_optional_; }
     void set_optional(bool v) { is_optional_ = v; }
 
-    const std::basic_string<CharT>& get_doc() const { return doc_; }
+    const std::basic_string<CharT>& get_doc() const noexcept { return doc_; }
     void add_doc(std::basic_string_view<CharT> text) { doc_ += text; }
 
-    basic_node* get_parent() const { return parent_; }
+    basic_node* get_parent() const noexcept { return parent_; }
 
  protected:
     void set_parent(basic_node* parent) { parent_ = parent; }
@@ -85,10 +85,10 @@ class basic_value : public basic_node<CharT> {
         : basic_node<CharT>(node_type::value), label_(std::move(label)), handler_(std::move(fn)), is_multiple_(false) {}
     std::unique_ptr<basic_node<CharT>> clone() const override { return detail::make_unique<basic_value>(*this); }
 
-    const std::basic_string<CharT>& get_label() const { return label_; }
-    const value_handler_fn<CharT>& get_handler() const { return handler_; }
+    const std::basic_string<CharT>& get_label() const noexcept { return label_; }
+    const value_handler_fn<CharT>& get_handler() const noexcept { return handler_; }
 
-    bool is_multiple() const { return is_multiple_; }
+    bool is_multiple() const noexcept { return is_multiple_; }
     void set_multiple(bool v) { is_multiple_ = v; }
 
     friend class basic_option<CharT>;
@@ -103,7 +103,7 @@ class basic_value : public basic_node<CharT> {
 template<typename CharT>
 class basic_option_node : public basic_node<CharT> {
  public:
-    explicit basic_option_node(node_type type) : basic_node<CharT>(type) {}
+    explicit basic_option_node(node_type type) noexcept : basic_node<CharT>(type) {}
 
     std::basic_string<CharT> make_string(bool brief) const;
 
@@ -118,14 +118,14 @@ class basic_option_node : public basic_node<CharT> {
 template<typename CharT>
 class basic_option_group : public basic_option_node<CharT> {
  public:
-    explicit basic_option_group(bool is_exclusive)
+    explicit basic_option_group(bool is_exclusive) noexcept
         : basic_option_node<CharT>(node_type::option_group), is_exclusive_(is_exclusive) {}
     UXS_EXPORT basic_option_group(const basic_option_group&);
     std::unique_ptr<basic_node<CharT>> clone() const override {
         return detail::make_unique<basic_option_group>(*this);
     };
 
-    const std::vector<std::unique_ptr<basic_option_node<CharT>>>& get_children() const { return children_; }
+    const std::vector<std::unique_ptr<basic_option_node<CharT>>>& get_children() const noexcept { return children_; }
     void add_child(std::unique_ptr<basic_option_node<CharT>> child) {
         child->set_parent(this);
         if (this->is_exclusive() && child->is_optional()) {
@@ -135,7 +135,7 @@ class basic_option_group : public basic_option_node<CharT> {
         children_.emplace_back(std::move(child));
     }
 
-    bool is_exclusive() const { return is_exclusive_; }
+    bool is_exclusive() const noexcept { return is_exclusive_; }
 
     friend class basic_command<CharT>;
 
@@ -152,15 +152,15 @@ class basic_option : public basic_option_node<CharT> {
     UXS_EXPORT basic_option(const basic_option&);
     std::unique_ptr<basic_node<CharT>> clone() const override { return detail::make_unique<basic_option>(*this); };
 
-    const std::vector<std::basic_string<CharT>>& get_keys() const { return keys_; }
+    const std::vector<std::basic_string<CharT>>& get_keys() const noexcept { return keys_; }
 
-    const std::vector<std::unique_ptr<basic_value<CharT>>>& get_values() const { return values_; }
+    const std::vector<std::unique_ptr<basic_value<CharT>>>& get_values() const noexcept { return values_; }
     void add_value(std::unique_ptr<basic_value<CharT>> val) {
         val->set_parent(this);
         values_.emplace_back(std::move(val));
     }
 
-    const std::function<void()>& get_handler() const { return handler_; }
+    const std::function<void()>& get_handler() const noexcept { return handler_; }
     void set_handler(std::function<void()> fn) { handler_ = std::move(fn); }
 
  private:
@@ -209,11 +209,11 @@ class basic_command : public basic_node<CharT> {
     UXS_EXPORT basic_command(const basic_command&);
     std::unique_ptr<basic_node<CharT>> clone() const override { return detail::make_unique<basic_command>(*this); };
 
-    const std::basic_string<CharT>& get_name() const { return name_; }
-    const std::basic_string<CharT>& get_overview() const { return overview_; }
-    const std::vector<std::unique_ptr<basic_value<CharT>>>& get_values() const { return values_; }
-    basic_option_group<CharT>* get_options() const { return &*opts_; }
-    const std::map<std::basic_string_view<CharT>, std::unique_ptr<basic_command>>& get_subcommands() const {
+    const std::basic_string<CharT>& get_name() const noexcept { return name_; }
+    const std::basic_string<CharT>& get_overview() const noexcept { return overview_; }
+    const std::vector<std::unique_ptr<basic_value<CharT>>>& get_values() const noexcept { return values_; }
+    basic_option_group<CharT>* get_options() const noexcept { return opts_.get(); }
+    const std::map<std::basic_string_view<CharT>, std::unique_ptr<basic_command>>& get_subcommands() const noexcept {
         return subcommands_;
     }
 
@@ -225,7 +225,7 @@ class basic_command : public basic_node<CharT> {
     UXS_EXPORT void add_option(std::unique_ptr<basic_option_node<CharT>> opt);
     UXS_EXPORT void add_subcommand(std::unique_ptr<basic_command> cmd);
 
-    const std::function<void()>& get_handler() const { return handler_; }
+    const std::function<void()>& get_handler() const noexcept { return handler_; }
     void set_handler(std::function<void()> fn) { handler_ = std::move(fn); }
 
     parsing_result<CharT> parse(int argc, const CharT* const* argv) const { return parse(this, argc, argv); }
@@ -273,8 +273,8 @@ class basic_node_wrapper {
     }
 
     basic_node_wrapper clone() const { return basic_node_wrapper(ptr_->clone()); }
-    basic_node<CharT>* get() const { return &*ptr_; }
-    basic_node<CharT>* operator->() const { return get(); }
+    basic_node<CharT>* get() const noexcept { return ptr_.get(); }
+    basic_node<CharT>* operator->() const noexcept { return get(); }
 
  protected:
     explicit basic_node_wrapper(std::unique_ptr<basic_node<CharT>> ptr) : ptr_(std::move(ptr)) {}
@@ -296,8 +296,8 @@ class basic_value_wrapper : public basic_node_wrapper<CharT> {
 #endif  // __cplusplus < 201703L
 
     basic_value_wrapper clone() const { return basic_value_wrapper(this->ptr_->clone()); }
-    basic_value<CharT>* get() const { return &static_cast<basic_value<CharT>&>(*this->ptr_); }
-    basic_value<CharT>* operator->() const { return get(); }
+    basic_value<CharT>* get() const noexcept { return static_cast<basic_value<CharT>*>(this->ptr_.get()); }
+    basic_value<CharT>* operator->() const noexcept { return get(); }
 
     basic_value_wrapper optional(bool v = true) {
         this->ptr_->set_optional(v);
@@ -339,8 +339,10 @@ class basic_option_node_wrapper : public basic_node_wrapper<CharT> {
 #endif  // __cplusplus < 201703L
 
     basic_option_node_wrapper clone() const { return basic_option_node_wrapper(this->ptr_->clone()); }
-    basic_option_group<CharT>* get() const { return &static_cast<basic_option_group<CharT>&>(*this->ptr_); }
-    basic_option_group<CharT>* operator->() const { return get(); }
+    basic_option_group<CharT>* get() const noexcept {
+        return static_cast<basic_option_group<CharT>*>(this->ptr_.get());
+    }
+    basic_option_group<CharT>* operator->() const noexcept { return get(); }
 
     basic_option_node_wrapper optional(bool v = true) {
         this->ptr_->set_optional(v);
@@ -416,8 +418,8 @@ class basic_option_wrapper : public basic_option_node_wrapper<CharT> {
 #endif  // __cplusplus < 201703L
 
     basic_option_wrapper clone() const { return basic_option_wrapper(this->ptr_->clone()); }
-    basic_option<CharT>* get() const { return &static_cast<basic_option<CharT>&>(*this->ptr_); }
-    basic_option<CharT>* operator->() const { return get(); }
+    basic_option<CharT>* get() const noexcept { return static_cast<basic_option<CharT>*>(this->ptr_.get()); }
+    basic_option<CharT>* operator->() const noexcept { return get(); }
 
     basic_option_wrapper optional(bool v = true) {
         this->ptr_->set_optional(v);
@@ -478,8 +480,8 @@ class basic_command_wrapper : public basic_node_wrapper<CharT> {
 #endif  // __cplusplus < 201703L
 
     basic_command_wrapper clone() const { return basic_command_wrapper(this->ptr_->clone()); }
-    basic_command<CharT>* get() const { return &static_cast<basic_command<CharT>&>(*this->ptr_); }
-    basic_command<CharT>* operator->() const { return get(); }
+    basic_command<CharT>* get() const noexcept { return static_cast<basic_command<CharT>*>(this->ptr_.get()); }
+    basic_command<CharT>* operator->() const noexcept { return get(); }
 
     basic_command_wrapper& operator%=(std::basic_string_view<CharT> doc) {
         this->ptr_->add_doc(doc);

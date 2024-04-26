@@ -8,16 +8,16 @@ namespace uxs {
 
 class UXS_EXPORT_ALL_STUFF_FOR_GNUC byteseqdev : public iodevice {
  public:
-    explicit byteseqdev(const byteseq& seq)
+    explicit byteseqdev(const byteseq& seq) noexcept
         : iodevice(iodevcaps::rdonly | iodevcaps::mappable), seq_(&const_cast<byteseq&>(seq)),
           chunk_(seq_->head_ ? seq_->head_->next : nullptr) {}
-    explicit byteseqdev(byteseq& seq)
+    explicit byteseqdev(byteseq& seq) noexcept
         : iodevice(iodevcaps::mappable), seq_(&seq), chunk_(seq_->head_ ? seq_->head_->next : nullptr) {}
     UXS_EXPORT byteseqdev(byteseqdev&& other) noexcept;
     UXS_EXPORT byteseqdev& operator=(byteseqdev&& other) noexcept;
 
-    const byteseq* get() const { return seq_; }
-    UXS_EXPORT void clear();
+    const byteseq* get() const noexcept { return seq_; }
+    UXS_EXPORT void clear() noexcept;
     UXS_EXPORT int read(void* data, std::size_t sz, std::size_t& n_read) final;
     UXS_EXPORT int write(const void* data, std::size_t sz, std::size_t& n_written) final;
     UXS_EXPORT void* map(std::size_t& sz, bool wr) final;

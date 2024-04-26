@@ -37,7 +37,7 @@ class basic_string_view {
 
     static const size_type npos = std::string::npos;
 
-    basic_string_view() noexcept {}
+    basic_string_view() noexcept = default;
     basic_string_view(const CharT* s, size_type count) : begin_(s), size_(count) {}
     basic_string_view(const CharT* s) : begin_(s) {
         for (; *s; ++s, ++size_) {}
@@ -68,8 +68,8 @@ class basic_string_view {
         return begin_[pos];
     }
     const_reference at(size_type pos) const {
-        if (pos < size_) { return begin_[pos]; }
-        throw out_of_range("index out of range");
+        if (pos >= size_) { throw out_of_range("index out of range"); }
+        return begin_[pos];
     }
     const_reference front() const {
         assert(size_ > 0);
@@ -81,8 +81,11 @@ class basic_string_view {
     }
     const_pointer data() const noexcept { return begin_; }
 
+    void remove_prefix(size_type n) { begin_ += n, size_ -= n; }
+    void remove_suffix(size_type n) { size_ -= n; }
+
     basic_string_view substr(size_type pos, size_type count = npos) const {
-        if (pos > size_) { pos = size_; }
+        if (pos > size_) { throw std::out_of_range("index out of range"); }
         return basic_string_view(begin_ + pos, count < size_ - pos ? count : size_ - pos);
     }
 

@@ -14,7 +14,7 @@ class basic_ibuf_iterator : public iterator_facade<basic_ibuf_iterator<CharT>, C
     using traits_type = typename ibuf_type::traits_type;
     using int_type = typename traits_type::int_type;
 
-    basic_ibuf_iterator() = default;
+    basic_ibuf_iterator() noexcept = default;
     explicit basic_ibuf_iterator(ibuf_type& buf) : buf_(&buf) {
         if ((val_ = buf_->peek()) == traits_type::eof()) { buf_ = nullptr; }
     }
@@ -25,8 +25,8 @@ class basic_ibuf_iterator : public iterator_facade<basic_ibuf_iterator<CharT>, C
         if ((val_ = buf_->peek()) == traits_type::eof()) { buf_ = nullptr; }
     }
 
-    char_type dereference() const { return traits_type::to_char_type(val_); }
-    bool is_equal_to(const basic_ibuf_iterator& it) const { return buf_ == it.buf_; }
+    char_type dereference() const noexcept { return traits_type::to_char_type(val_); }
+    bool is_equal_to(const basic_ibuf_iterator& it) const noexcept { return buf_ == it.buf_; }
 
  private:
     ibuf_type* buf_ = nullptr;

@@ -19,7 +19,7 @@ byteseqdev& byteseqdev::operator=(byteseqdev&& other) noexcept {
     return *this;
 }
 
-void byteseqdev::clear() {
+void byteseqdev::clear() noexcept {
     if (!seq_ || !!(this->caps() & iodevcaps::rdonly)) { return; }
     seq_->clear();
     chunk_ = seq_->head_;

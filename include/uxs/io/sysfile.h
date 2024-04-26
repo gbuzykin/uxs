@@ -12,8 +12,8 @@ using file_desc_t = int;
 
 class UXS_EXPORT_ALL_STUFF_FOR_GNUC sysfile : public iodevice {
  public:
-    UXS_EXPORT sysfile();
-    UXS_EXPORT explicit sysfile(file_desc_t fd);
+    UXS_EXPORT sysfile() noexcept;
+    UXS_EXPORT explicit sysfile(file_desc_t fd) noexcept;
     sysfile(const char* fname, iomode mode) : sysfile() { open(fname, mode); }
     sysfile(const wchar_t* fname, iomode mode) : sysfile() { open(fname, mode); }
     sysfile(const char* fname, const char* mode) : sysfile() {
@@ -24,17 +24,17 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC sysfile : public iodevice {
     }
     UXS_EXPORT ~sysfile() override;
     sysfile(sysfile&& other) noexcept : fd_(other.detach()) {}
-    sysfile& operator=(sysfile&& other) {
+    sysfile& operator=(sysfile&& other) noexcept {
         if (&other == this) { return *this; }
         attach(other.detach());
         return *this;
     }
 
-    UXS_EXPORT bool valid() const;
-    explicit operator bool() const { return valid(); }
+    UXS_EXPORT bool valid() const noexcept;
+    explicit operator bool() const noexcept { return valid(); }
 
-    UXS_EXPORT void attach(file_desc_t fd);
-    UXS_EXPORT file_desc_t detach();
+    UXS_EXPORT void attach(file_desc_t fd) noexcept;
+    UXS_EXPORT file_desc_t detach() noexcept;
 
     UXS_EXPORT bool open(const char* fname, iomode mode);
     UXS_EXPORT bool open(const wchar_t* fname, iomode mode);
@@ -42,7 +42,7 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC sysfile : public iodevice {
     bool open(const wchar_t* fname, const char* mode) {
         return open(fname, detail::iomode_from_str(mode, iomode::none));
     }
-    UXS_EXPORT void close();
+    UXS_EXPORT void close() noexcept;
 
     UXS_EXPORT int read(void* buf, std::size_t sz, std::size_t& n_read) override;
     UXS_EXPORT int write(const void* buf, std::size_t sz, std::size_t& n_written) override;
