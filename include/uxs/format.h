@@ -288,66 +288,6 @@ struct arg_specs {
     unsigned n_prec_arg = 0;
 };
 
-struct meta_tbl_t {
-    enum code_t {
-        other = 0,
-        left,
-        internal,
-        right,
-        minus,
-        plus,
-        space,
-        sharp,
-        zero,
-        locale,
-        open_brace,
-        digit19,
-        dot,
-        close_brace,
-        decimal,
-        binary_cap,
-        binary,
-        octal,
-        hex_cap,
-        hex,
-        fixed_cap,
-        fixed,
-        scientific_cap,
-        scientific,
-        general_cap,
-        general,
-        hex_real_cap,
-        hex_real,
-        pointer_cap,
-        pointer,
-        character,
-        string,
-    };
-    std::array<std::uint8_t, 128> tbl;
-    CONSTEXPR meta_tbl_t() : tbl() {
-        for (unsigned ch = 0; ch < tbl.size(); ++ch) { tbl[ch] = code_t::other; }
-        tbl['<'] = code_t::left, tbl['^'] = code_t::internal, tbl['>'] = code_t::right;
-        tbl['-'] = code_t::minus, tbl['+'] = code_t::plus, tbl[' '] = code_t::space;
-        tbl['#'] = code_t::sharp, tbl['0'] = code_t::zero, tbl['L'] = code_t::locale;
-        tbl['{'] = code_t::open_brace, tbl['}'] = code_t::close_brace, tbl['.'] = code_t::dot;
-        for (unsigned ch = '1'; ch <= '9'; ++ch) { tbl[ch] = code_t::digit19; }
-        tbl['d'] = code_t::decimal, tbl['B'] = code_t::binary_cap, tbl['b'] = code_t::binary;
-        tbl['o'] = code_t::octal, tbl['X'] = code_t::hex_cap, tbl['x'] = code_t::hex;
-        tbl['F'] = code_t::fixed_cap, tbl['f'] = code_t::fixed;
-        tbl['E'] = code_t::scientific_cap, tbl['e'] = code_t::scientific;
-        tbl['G'] = code_t::general_cap, tbl['g'] = code_t::general;
-        tbl['A'] = code_t::hex_real_cap, tbl['a'] = code_t::hex_real;
-        tbl['P'] = code_t::pointer_cap, tbl['p'] = code_t::pointer;
-        tbl['c'] = code_t::character, tbl['s'] = code_t::string;
-    }
-};
-
-#if __cplusplus < 201703L
-extern UXS_EXPORT const meta_tbl_t g_meta_tbl;
-#else   // __cplusplus < 201703L
-static constexpr meta_tbl_t g_meta_tbl{};
-#endif  // __cplusplus < 201703L
-
 template<typename CharT, typename Ty>
 CONSTEXPR const CharT* parse_num(const CharT* p, const CharT* last, Ty& num) noexcept {
     for (unsigned dig = 0; p != last && (dig = dig_v(*p)) < 10; ++p) { num = 10 * num + dig; }
@@ -357,8 +297,7 @@ CONSTEXPR const CharT* parse_num(const CharT* p, const CharT* last, Ty& num) noe
 template<typename CharT>
 CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, uxs::span<const unsigned> args_metadata,
                                       arg_specs& specs, unsigned& n_arg_auto) {
-    assert(p != last);
-
+    auto syntax_error = []() { throw format_error("invalid specifier syntax"); };
     auto out_of_arg_list_error = []() { throw format_error("out of argument list"); };
     auto arg_is_not_an_integer_error = []() { throw format_error("argument is not an integer"); };
 
@@ -367,92 +306,78 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, uxs::sp
     if ((dig = dig_v(*p)) < 10) {
         specs.n_arg = dig;
         p = parse_num(++p, last, specs.n_arg);
-        if (p == last) { return nullptr; }
     } else {
         specs.n_arg = n_arg_auto++;
     }
     if (specs.n_arg >= args_metadata.size()) { out_of_arg_list_error(); }
 
-    if (*p == '}') { return p; }
-    if (*p != ':' || ++p == last) { return nullptr; }
+    if (p == last || *p != ':' || ++p == last) { return p; }
 
     enum class state_t { adjustment = 0, sign, alternate, leading_zeroes, width, precision, locale, type, finish };
 
     state_t state = state_t::adjustment;
 
     if (p + 1 != last) {
-        auto ch = static_cast<typename std::make_unsigned<CharT>::type>(*(p + 1));
-        if (ch < g_meta_tbl.tbl.size()) {
-            switch (g_meta_tbl.tbl[ch]) {  // adjustment with fill character
-                case meta_tbl_t::left: {
-                    specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::left;
-                    p += 2, state = state_t::sign;
-                } break;
-                case meta_tbl_t::internal: {
-                    specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::internal;
-                    p += 2, state = state_t::sign;
-                } break;
-                case meta_tbl_t::right: {
-                    specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::right;
-                    p += 2, state = state_t::sign;
-                } break;
-                default: break;
-            }
+        switch (*(p + 1)) {  // adjustment with fill character
+            case '<': {
+                specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::left;
+                p += 2, state = state_t::sign;
+            } break;
+            case '^': {
+                specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::internal;
+                p += 2, state = state_t::sign;
+            } break;
+            case '>': {
+                specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::right;
+                p += 2, state = state_t::sign;
+            } break;
+            default: break;
         }
     }
 
-    while (p != last) {
-        auto ch = static_cast<typename std::make_unsigned<CharT>::type>(*p++);
-        if (ch >= g_meta_tbl.tbl.size()) { return nullptr; }
-        switch (g_meta_tbl.tbl[ch]) {
+    for (; p != last; ++p) {
+        switch (*p) {
 #define UXS_FMT_SPECIFIER_CASE(next_state, action) \
     if (state < next_state) { \
         state = next_state; \
         action; \
         break; \
     } \
-    return nullptr;
+    return p;
 
             // adjustment
-            case meta_tbl_t::left: UXS_FMT_SPECIFIER_CASE(state_t::sign, { specs.fmt.flags |= fmt_flags::left; });
-            case meta_tbl_t::internal:
-                UXS_FMT_SPECIFIER_CASE(state_t::sign, { specs.fmt.flags |= fmt_flags::internal; });
-            case meta_tbl_t::right: UXS_FMT_SPECIFIER_CASE(state_t::sign, { specs.fmt.flags |= fmt_flags::right; });
+            case '<': UXS_FMT_SPECIFIER_CASE(state_t::sign, { specs.fmt.flags |= fmt_flags::left; });
+            case '^': UXS_FMT_SPECIFIER_CASE(state_t::sign, { specs.fmt.flags |= fmt_flags::internal; });
+            case '>': UXS_FMT_SPECIFIER_CASE(state_t::sign, { specs.fmt.flags |= fmt_flags::right; });
 
             // sign specifiers
-            case meta_tbl_t::minus:
-                UXS_FMT_SPECIFIER_CASE(state_t::alternate, { specs.fmt.flags |= fmt_flags::sign_neg; });
-            case meta_tbl_t::plus:
-                UXS_FMT_SPECIFIER_CASE(state_t::alternate, { specs.fmt.flags |= fmt_flags::sign_pos; });
-            case meta_tbl_t::space:
-                UXS_FMT_SPECIFIER_CASE(state_t::alternate, { specs.fmt.flags |= fmt_flags::sign_align; });
+            case '-': UXS_FMT_SPECIFIER_CASE(state_t::alternate, { specs.fmt.flags |= fmt_flags::sign_neg; });
+            case '+': UXS_FMT_SPECIFIER_CASE(state_t::alternate, { specs.fmt.flags |= fmt_flags::sign_pos; });
+            case ' ': UXS_FMT_SPECIFIER_CASE(state_t::alternate, { specs.fmt.flags |= fmt_flags::sign_align; });
 
             // alternate
-            case meta_tbl_t::sharp:
-                UXS_FMT_SPECIFIER_CASE(state_t::leading_zeroes, { specs.fmt.flags |= fmt_flags::alternate; });
+            case '#': UXS_FMT_SPECIFIER_CASE(state_t::leading_zeroes, { specs.fmt.flags |= fmt_flags::alternate; });
 
             // leading zeroes
-            case meta_tbl_t::zero:
-                UXS_FMT_SPECIFIER_CASE(state_t::width, { specs.fmt.flags |= fmt_flags::leading_zeroes; });
+            case '0': UXS_FMT_SPECIFIER_CASE(state_t::width, { specs.fmt.flags |= fmt_flags::leading_zeroes; });
 
             // locale
-            case meta_tbl_t::locale: UXS_FMT_SPECIFIER_CASE(state_t::type, { specs.fmt.flags |= fmt_flags::localize; });
+            case 'L': UXS_FMT_SPECIFIER_CASE(state_t::type, { specs.fmt.flags |= fmt_flags::localize; });
 
             // width
-            case meta_tbl_t::open_brace:
+            case '{':
                 UXS_FMT_SPECIFIER_CASE(state_t::precision, {
-                    if (p == last) { return nullptr; }
+                    if (++p == last) { syntax_error(); }
                     specs.flags |= parse_flags::dynamic_width;
                     // obtain argument number for width
                     if (*p == '}') {
-                        ++p;
                         specs.n_width_arg = n_arg_auto++;
                     } else if ((dig = dig_v(*p)) < 10) {
                         specs.n_width_arg = dig;
                         p = parse_num(++p, last, specs.n_width_arg);
-                        if (p == last || *p++ != '}') { return nullptr; }
+                        if (p == last || *p != '}') { syntax_error(); }
                     } else {
-                        return nullptr;
+                        syntax_error();
                     }
                     if (specs.n_width_arg >= args_metadata.size()) { out_of_arg_list_error(); }
                     const type_index index = static_cast<type_index>(args_metadata[specs.n_width_arg] & 0xff);
@@ -461,32 +386,39 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, uxs::sp
                     }
                     break;
                 });
-            case meta_tbl_t::digit19:
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
                 UXS_FMT_SPECIFIER_CASE(state_t::precision, {
-                    specs.fmt.width = static_cast<unsigned>(*(p - 1) - '0');
-                    p = parse_num(p, last, specs.fmt.width);
+                    specs.fmt.width = static_cast<unsigned>(*p - '0');
+                    p = parse_num(++p, last, specs.fmt.width) - 1;
                 });
 
             // precision
-            case meta_tbl_t::dot:
+            case '.':
                 UXS_FMT_SPECIFIER_CASE(state_t::locale, {
-                    if (p == last) { return nullptr; }
+                    if (++p == last) { syntax_error(); }
                     specs.flags |= parse_flags::prec_specified;
                     if ((dig = dig_v(*p)) < 10) {
                         specs.fmt.prec = dig;
-                        p = parse_num(++p, last, specs.fmt.prec);
+                        p = parse_num(++p, last, specs.fmt.prec) - 1;
                     } else if (*p == '{' && ++p != last) {
                         specs.flags |= parse_flags::dynamic_prec;
                         // obtain argument number for precision
                         if (*p == '}') {
-                            ++p;
                             specs.n_prec_arg = n_arg_auto++;
                         } else if ((dig = dig_v(*p)) < 10) {
                             specs.n_prec_arg = dig;
                             p = parse_num(++p, last, specs.n_prec_arg);
-                            if (p == last || *p++ != '}') { return nullptr; }
+                            if (p == last || *p != '}') { syntax_error(); }
                         } else {
-                            return nullptr;
+                            syntax_error();
                         }
                         if (specs.n_prec_arg >= args_metadata.size()) { out_of_arg_list_error(); }
                         const type_index index = static_cast<type_index>(args_metadata[specs.n_prec_arg] & 0xff);
@@ -494,77 +426,69 @@ CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, uxs::sp
                             arg_is_not_an_integer_error();
                         }
                     } else {
-                        return nullptr;
+                        syntax_error();
                     }
                     break;
                 });
 
-            // end of format specifier
-            case meta_tbl_t::close_brace: return p - 1;
-
             // types
-            case meta_tbl_t::decimal: UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::dec; });
+            case 'd': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::dec; });
 
-            case meta_tbl_t::binary_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
-            case meta_tbl_t::binary: UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::bin; });
+            case 'B': specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
+            case 'b': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::bin; });
 
-            case meta_tbl_t::octal: UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::oct; });
+            case 'o': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::oct; });
 
-            case meta_tbl_t::hex_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
-            case meta_tbl_t::hex: UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::hex; });
+            case 'X': specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
+            case 'x': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::hex; });
 
-            case meta_tbl_t::fixed_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
-            case meta_tbl_t::fixed: UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::fixed; });
+            case 'F': specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
+            case 'f': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::fixed; });
 
-            case meta_tbl_t::scientific_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
-            case meta_tbl_t::scientific:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::scientific; });
+            case 'E': specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
+            case 'e': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::scientific; });
 
-            case meta_tbl_t::general_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
-            case meta_tbl_t::general:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::general; });
+            case 'G': specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
+            case 'g': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::general; });
 
-            case meta_tbl_t::hex_real_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
-            case meta_tbl_t::hex_real:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::scientific_hex; });
+            case 'A': specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
+            case 'a': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::scientific_hex; });
 
-            case meta_tbl_t::pointer_cap: specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
-            case meta_tbl_t::pointer:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::pointer; });
+            case 'P': specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
+            case 'p': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::pointer; });
 
-            case meta_tbl_t::character:
-                UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::character; });
+            case 'c': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::character; });
 
-            case meta_tbl_t::string: UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::string; });
+            case 's': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::string; });
 #undef UXS_FMT_SPECIFIER_CASE
 
-            case meta_tbl_t::other: return nullptr;
+            default: return p;
         }
     }
 
-    return nullptr;
+    return p;
 }
 
 template<typename CharT, typename AppendTextFn, typename AppendArgFn>
 CONSTEXPR void parse_format(std::basic_string_view<CharT> fmt, uxs::span<const unsigned> args_metadata,
                             const AppendTextFn& append_text_fn, const AppendArgFn& append_arg_fn) {
-    auto invalid_specifier_syntax_error = []() { throw format_error("invalid specifier syntax"); };
+    auto syntax_error = []() { throw format_error("invalid specifier syntax"); };
     auto unexpected_prec_error = []() { throw format_error("unexpected precision specifier"); };
     auto unexpected_sign_error = []() { throw format_error("unexpected sign specifier"); };
     auto unexpected_leading_zeroes_error = []() { throw format_error("unexpected leading zeroes specifier"); };
     auto type_error = []() { throw format_error("invalid argument type specifier"); };
 
     unsigned n_arg_auto = 0;
-    const CharT *first0 = fmt.data(), *first = first0, *last = first0 + fmt.size();
-    while (first != last) {
+    const CharT *first0 = fmt.data(), *last = first0 + fmt.size();
+    for (const CharT* first = first0; first != last; ++first) {
         if (*first == '{' || *first == '}') {
             append_text_fn(first0, first);
             first0 = ++first;
-            if (first == last) { invalid_specifier_syntax_error(); }
+            if (first == last) { syntax_error(); }
             if (*(first - 1) == '{' && *first != '{') {
                 arg_specs specs;
                 first = parse_arg_spec(first, last, args_metadata, specs, n_arg_auto);
-                if (!first) { invalid_specifier_syntax_error(); }
+                if (first == last || *first != '}') { syntax_error(); }
 
                 const type_index index = static_cast<type_index>(args_metadata[specs.n_arg] & 0xff);
                 switch (specs.fmt.flags & (fmt_flags::base_field | fmt_flags::float_field | fmt_flags::type_field)) {
@@ -634,10 +558,9 @@ CONSTEXPR void parse_format(std::basic_string_view<CharT> fmt, uxs::span<const u
                 append_arg_fn(specs);
                 first0 = first + 1;
             } else if (*(first - 1) != *first) {
-                invalid_specifier_syntax_error();
+                syntax_error();
             }
         }
-        ++first;
     }
     append_text_fn(first0, last);
 }
