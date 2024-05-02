@@ -139,6 +139,17 @@ struct string_converter<guid, CharT> {
 
 template<typename CharT>
 struct formatter<guid, CharT> {
+    template<typename ParseCtx>
+    CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx, fmt_opts& fmt) {
+        if (fmt.prec >= 0) { ParseCtx::unexpected_prec_error(); }
+        if (!!(fmt.flags & fmt_flags::sign_field)) { ParseCtx::unexpected_sign_error(); }
+        if (!!(fmt.flags & fmt_flags::leading_zeroes)) { ParseCtx::unexpected_leading_zeroes_error(); }
+        if (!!(fmt.flags & (fmt_flags::float_field | fmt_flags::type_field)) ||
+            (!!(fmt.flags & fmt_flags::base_field) && (fmt.flags & fmt_flags::base_field) != fmt_flags::hex)) {
+            ParseCtx::type_error();
+        }
+        return ctx.begin();
+    }
     template<typename FmtCtx>
     void format(FmtCtx& ctx, const guid& val, fmt_opts& fmt) const {
         string_converter<guid, CharT>{}.to_string(ctx.out(), val, fmt);

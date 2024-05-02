@@ -9,27 +9,46 @@ namespace uxs {
 template<typename StrTy>
 class basic_format_context;
 
+template<typename CharT>
+class basic_format_parse_context;
+
 using format_context = basic_format_context<membuffer>;
 using wformat_context = basic_format_context<wmembuffer>;
+using format_parse_context = basic_format_parse_context<char>;
+using wformat_parse_context = basic_format_parse_context<wchar_t>;
 
 namespace detail {
 template<typename Ty, typename FmtCtx>
 struct has_formatter {
-    template<typename U>
+    template<typename F, typename U>
     static auto test(U& ctx, const Ty& v)
         -> always_true<decltype(formatter<Ty, typename U::char_type>().format(ctx, v, std::declval<fmt_opts&>()))>;
     template<typename U>
     static auto test(...) -> std::false_type;
     using type = decltype(test<FmtCtx>(std::declval<FmtCtx&>(), std::declval<const Ty&>()));
 };
+template<typename Ty, typename ParseCtx>
+struct has_format_parser {
+    template<typename U>
+    static auto test(U& ctx) -> always_true<decltype(ctx.advance_to(
+        std::declval<formatter<Ty, typename U::char_type>&>().parse(ctx, std::declval<fmt_opts&>())))>;
+    template<typename U>
+    static auto test(...) -> std::false_type;
+    using type = decltype(test<ParseCtx>(std::declval<ParseCtx&>()));
+};
 }  // namespace detail
 
 template<typename Ty, typename FmtCtx = format_context>
-struct formattable : detail::has_formatter<Ty, FmtCtx>::type {};
+struct formattable : std::bool_constant<detail::has_formatter<Ty, FmtCtx>::type::value &&
+                                        detail::has_format_parser<Ty, typename FmtCtx::parse_context>::type::value> {};
 
 #define UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(ty, func) \
     template<typename CharT> \
     struct formatter<ty, CharT> { \
+        template<typename ParseCtx> \
+        CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx, fmt_opts& fmt) { \
+            return ctx.begin(); \
+        } \
         template<typename FmtCtx> \
         void format(FmtCtx& ctx, ty val, fmt_opts& fmt) const { \
             func(ctx.out(), val, fmt, ctx.locale()); \
@@ -50,6 +69,10 @@ UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(long double, scvt::fmt_float)
 
 template<typename CharT>
 struct formatter<const void*, CharT> {
+    template<typename ParseCtx>
+    CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx, fmt_opts& fmt) {
+        return ctx.begin();
+    }
     template<typename FmtCtx>
     void format(FmtCtx& ctx, const void* val, fmt_opts& fmt) const {
         fmt.flags |= fmt_flags::hex | fmt_flags::alternate;
@@ -152,20 +175,22 @@ UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::basic_string_view<CharT>, type_index::string
 template<typename FmtCtx>
 class custom_arg_handle {
  public:
-    using format_func_type = void (*)(FmtCtx&, const void*, fmt_opts&);
+    using format_func_type = void (*)(FmtCtx&, typename FmtCtx::parse_context&, const void*, fmt_opts&);
 
     template<typename Ty>
     CONSTEXPR custom_arg_handle(const Ty& v) noexcept : val_(&v), print_fn_(func<Ty>) {}
 
-    void format(FmtCtx& ctx, fmt_opts& fmt) const { print_fn_(ctx, val_, fmt); }
+    void format(FmtCtx& ctx, typename FmtCtx::parse_context& parse_ctx, fmt_opts& fmt) const {
+        print_fn_(ctx, parse_ctx, val_, fmt);
+    }
 
  private:
     const void* val_;            // value pointer
     format_func_type print_fn_;  // printing function pointer
 
     template<typename Ty>
-    static void func(FmtCtx& ctx, const void* val, fmt_opts& fmt) {
-        ctx.format_arg(*static_cast<const Ty*>(val), fmt);
+    static void func(FmtCtx& ctx, typename FmtCtx::parse_context& parse_ctx, const void* val, fmt_opts& fmt) {
+        ctx.format_arg(parse_ctx, *static_cast<const Ty*>(val), fmt);
     }
 };
 
@@ -298,301 +323,294 @@ class arg_store<FmtCtx> {
 
 // --------------------------
 
-enum class parse_flags : unsigned {
-    none = 0,
-    prec_specified = 0x100,
-    dynamic_width = 0x200,
-    dynamic_prec = 0x400,
-};
-UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(parse_flags, unsigned);
-
-struct arg_specs {
-    fmt_opts fmt;
-    parse_flags flags = parse_flags::none;
-    unsigned n_arg = 0;
-    unsigned n_width_arg = 0;
-    unsigned n_prec_arg = 0;
-};
-
-template<typename CharT, typename Ty>
-CONSTEXPR const CharT* parse_num(const CharT* p, const CharT* last, Ty& num) noexcept {
-    for (unsigned dig = 0; p != last && (dig = dig_v(*p)) < 10; ++p) { num = 10 * num + dig; }
-    return p;
-}
-
-template<typename CharT>
-CONSTEXPR const CharT* parse_arg_spec(const CharT* p, const CharT* last, uxs::span<const unsigned> args_metadata,
-                                      arg_specs& specs, unsigned& n_arg_auto) {
-    auto syntax_error = []() { throw format_error("invalid specifier syntax"); };
-    auto out_of_arg_list_error = []() { throw format_error("out of argument list"); };
-    auto arg_is_not_an_integer_error = []() { throw format_error("argument is not an integer"); };
-
-    // obtain argument number
-    unsigned dig = 0;
-    if ((dig = dig_v(*p)) < 10) {
-        specs.n_arg = dig;
-        p = parse_num(++p, last, specs.n_arg);
-    } else {
-        specs.n_arg = n_arg_auto++;
-    }
-    if (specs.n_arg >= args_metadata.size()) { out_of_arg_list_error(); }
-
-    if (p == last || *p != ':' || ++p == last) { return p; }
-
-    enum class state_t { adjustment = 0, sign, alternate, leading_zeroes, width, precision, locale, type, finish };
-
-    state_t state = state_t::adjustment;
-
-    if (p + 1 != last) {
-        switch (*(p + 1)) {  // adjustment with fill character
-            case '<': {
-                specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::left;
-                p += 2, state = state_t::sign;
-            } break;
-            case '^': {
-                specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::internal;
-                p += 2, state = state_t::sign;
-            } break;
-            case '>': {
-                specs.fmt.fill = *p, specs.fmt.flags |= fmt_flags::right;
-                p += 2, state = state_t::sign;
-            } break;
-            default: break;
+struct parse_context_utils {
+    template<typename Iter, typename Ty>
+    static CONSTEXPR Iter parse_number(Iter first, Iter last, Ty& num) {
+        for (unsigned dig = 0; first != last && (dig = dig_v(*first)) < 10; ++first) {
+            Ty num0 = num;
+            num = 10 * num + dig;
+            if (num < num0) { throw format_error("integer overflow"); }
         }
+        return first;
     }
 
-    for (; p != last; ++p) {
-        switch (*p) {
+    template<typename ParseCtx>
+    static CONSTEXPR typename ParseCtx::iterator parse_standard(ParseCtx& ctx, typename ParseCtx::iterator it,
+                                                                fmt_opts& specs, std::size_t& width_arg_id,
+                                                                std::size_t& prec_arg_id) {
+        if (it == ctx.end()) { return it; }
+
+        enum class state_t { adjustment = 0, sign, alternate, leading_zeroes, width, precision, locale, type, finish };
+
+        state_t state = state_t::adjustment;
+
+        if (it + 1 != ctx.end()) {
+            switch (*(it + 1)) {  // adjustment with fill character
+                case '<': {
+                    specs.fill = *it, specs.flags |= fmt_flags::left;
+                    it += 2, state = state_t::sign;
+                } break;
+                case '^': {
+                    specs.fill = *it, specs.flags |= fmt_flags::internal;
+                    it += 2, state = state_t::sign;
+                } break;
+                case '>': {
+                    specs.fill = *it, specs.flags |= fmt_flags::right;
+                    it += 2, state = state_t::sign;
+                } break;
+                default: break;
+            }
+        }
+
+        for (; it != ctx.end(); ++it) {
+            switch (*it) {
 #define UXS_FMT_SPECIFIER_CASE(next_state, action) \
     if (state < next_state) { \
         state = next_state; \
         action; \
         break; \
     } \
-    return p;
+    return it;
 
-            // adjustment
-            case '<': UXS_FMT_SPECIFIER_CASE(state_t::sign, { specs.fmt.flags |= fmt_flags::left; });
-            case '^': UXS_FMT_SPECIFIER_CASE(state_t::sign, { specs.fmt.flags |= fmt_flags::internal; });
-            case '>': UXS_FMT_SPECIFIER_CASE(state_t::sign, { specs.fmt.flags |= fmt_flags::right; });
+                // adjustment
+                case '<': UXS_FMT_SPECIFIER_CASE(state_t::sign, { specs.flags |= fmt_flags::left; });
+                case '^': UXS_FMT_SPECIFIER_CASE(state_t::sign, { specs.flags |= fmt_flags::internal; });
+                case '>': UXS_FMT_SPECIFIER_CASE(state_t::sign, { specs.flags |= fmt_flags::right; });
 
-            // sign specifiers
-            case '-': UXS_FMT_SPECIFIER_CASE(state_t::alternate, { specs.fmt.flags |= fmt_flags::sign_neg; });
-            case '+': UXS_FMT_SPECIFIER_CASE(state_t::alternate, { specs.fmt.flags |= fmt_flags::sign_pos; });
-            case ' ': UXS_FMT_SPECIFIER_CASE(state_t::alternate, { specs.fmt.flags |= fmt_flags::sign_align; });
+                // sign specifiers
+                case '-': UXS_FMT_SPECIFIER_CASE(state_t::alternate, { specs.flags |= fmt_flags::sign_neg; });
+                case '+': UXS_FMT_SPECIFIER_CASE(state_t::alternate, { specs.flags |= fmt_flags::sign_pos; });
+                case ' ': UXS_FMT_SPECIFIER_CASE(state_t::alternate, { specs.flags |= fmt_flags::sign_align; });
 
-            // alternate
-            case '#': UXS_FMT_SPECIFIER_CASE(state_t::leading_zeroes, { specs.fmt.flags |= fmt_flags::alternate; });
+                // alternate
+                case '#': UXS_FMT_SPECIFIER_CASE(state_t::leading_zeroes, { specs.flags |= fmt_flags::alternate; });
 
-            // leading zeroes
-            case '0': UXS_FMT_SPECIFIER_CASE(state_t::width, { specs.fmt.flags |= fmt_flags::leading_zeroes; });
+                // leading zeroes
+                case '0': UXS_FMT_SPECIFIER_CASE(state_t::width, { specs.flags |= fmt_flags::leading_zeroes; });
 
-            // locale
-            case 'L': UXS_FMT_SPECIFIER_CASE(state_t::type, { specs.fmt.flags |= fmt_flags::localize; });
+                // locale
+                case 'L': UXS_FMT_SPECIFIER_CASE(state_t::type, { specs.flags |= fmt_flags::localize; });
 
-            // width
-            case '{':
-                UXS_FMT_SPECIFIER_CASE(state_t::precision, {
-                    if (++p == last) { syntax_error(); }
-                    specs.flags |= parse_flags::dynamic_width;
-                    // obtain argument number for width
-                    if (*p == '}') {
-                        specs.n_width_arg = n_arg_auto++;
-                    } else if ((dig = dig_v(*p)) < 10) {
-                        specs.n_width_arg = dig;
-                        p = parse_num(++p, last, specs.n_width_arg);
-                        if (p == last || *p != '}') { syntax_error(); }
-                    } else {
-                        syntax_error();
-                    }
-                    if (specs.n_width_arg >= args_metadata.size()) { out_of_arg_list_error(); }
-                    const type_index index = static_cast<type_index>(args_metadata[specs.n_width_arg] & 0xff);
-                    if (index < type_index::integer || index > type_index::unsigned_long_integer) {
-                        arg_is_not_an_integer_error();
-                    }
-                    break;
-                });
-            case '1':
-            case '2':
-            case '3':
-            case '4':
-            case '5':
-            case '6':
-            case '7':
-            case '8':
-            case '9':
-                UXS_FMT_SPECIFIER_CASE(state_t::precision, {
-                    specs.fmt.width = static_cast<unsigned>(*p - '0');
-                    p = parse_num(++p, last, specs.fmt.width) - 1;
-                });
-
-            // precision
-            case '.':
-                UXS_FMT_SPECIFIER_CASE(state_t::locale, {
-                    if (++p == last) { syntax_error(); }
-                    specs.flags |= parse_flags::prec_specified;
-                    if ((dig = dig_v(*p)) < 10) {
-                        specs.fmt.prec = dig;
-                        p = parse_num(++p, last, specs.fmt.prec) - 1;
-                    } else if (*p == '{' && ++p != last) {
-                        specs.flags |= parse_flags::dynamic_prec;
-                        // obtain argument number for precision
-                        if (*p == '}') {
-                            specs.n_prec_arg = n_arg_auto++;
-                        } else if ((dig = dig_v(*p)) < 10) {
-                            specs.n_prec_arg = dig;
-                            p = parse_num(++p, last, specs.n_prec_arg);
-                            if (p == last || *p != '}') { syntax_error(); }
+                // width
+                case '{':
+                    UXS_FMT_SPECIFIER_CASE(state_t::precision, {
+                        if (++it == ctx.end()) { ParseCtx::syntax_error(); }
+                        specs.width = 1;  // width is specified
+                        // obtain argument number for width
+                        if (*it == '}') {
+                            width_arg_id = ctx.next_arg_id();
+                        } else if ((width_arg_id = dig_v(*it)) < 10) {
+                            it = ParseCtx::parse_number(++it, ctx.end(), width_arg_id);
+                            ctx.check_arg_id(width_arg_id);
+                            if (it == ctx.end() || *it != '}') { ParseCtx::syntax_error(); }
                         } else {
-                            syntax_error();
+                            ParseCtx::syntax_error();
                         }
-                        if (specs.n_prec_arg >= args_metadata.size()) { out_of_arg_list_error(); }
-                        const type_index index = static_cast<type_index>(args_metadata[specs.n_prec_arg] & 0xff);
-                        if (index < type_index::integer || index > type_index::unsigned_long_integer) {
-                            arg_is_not_an_integer_error();
+                        ctx.check_arg_integral(width_arg_id);
+                        break;
+                    });
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                case '5':
+                case '6':
+                case '7':
+                case '8':
+                case '9':
+                    UXS_FMT_SPECIFIER_CASE(state_t::precision, {
+                        specs.width = static_cast<unsigned>(*it - '0');
+                        it = ParseCtx::parse_number(++it, ctx.end(), specs.width) - 1;
+                    });
+
+                // precision
+                case '.':
+                    UXS_FMT_SPECIFIER_CASE(state_t::locale, {
+                        if (++it == ctx.end()) { syntax_error(); }
+                        unsigned dig = dig_v(*it);
+                        if (dig < 10) {
+                            specs.prec = dig;
+                            it = ParseCtx::parse_number(++it, ctx.end(), specs.prec) - 1;
+                        } else if (*it == '{' && ++it != ctx.end()) {
+                            specs.prec = 0;  // precision is specified
+                            // obtain argument number for precision
+                            if (*it == '}') {
+                                prec_arg_id = ctx.next_arg_id();
+                            } else if ((prec_arg_id = dig_v(*it)) < 10) {
+                                it = ParseCtx::parse_number(++it, ctx.end(), prec_arg_id);
+                                ctx.check_arg_id(prec_arg_id);
+                                if (it == ctx.end() || *it != '}') { ParseCtx::syntax_error(); }
+                            } else {
+                                ParseCtx::syntax_error();
+                            }
+                            ctx.check_arg_integral(prec_arg_id);
+                        } else {
+                            ParseCtx::syntax_error();
                         }
-                    } else {
-                        syntax_error();
-                    }
-                    break;
-                });
+                        break;
+                    });
 
-            // types
-            case 'd': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::dec; });
+                // types
+                case 'd': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= fmt_flags::dec; });
 
-            case 'B': specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
-            case 'b': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::bin; });
+                case 'B': specs.flags |= fmt_flags::uppercase; /*fallthrough*/
+                case 'b': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= fmt_flags::bin; });
 
-            case 'o': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::oct; });
+                case 'o': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= fmt_flags::oct; });
 
-            case 'X': specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
-            case 'x': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::hex; });
+                case 'X': specs.flags |= fmt_flags::uppercase; /*fallthrough*/
+                case 'x': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= fmt_flags::hex; });
 
-            case 'F': specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
-            case 'f': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::fixed; });
+                case 'F': specs.flags |= fmt_flags::uppercase; /*fallthrough*/
+                case 'f': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= fmt_flags::fixed; });
 
-            case 'E': specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
-            case 'e': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::scientific; });
+                case 'E': specs.flags |= fmt_flags::uppercase; /*fallthrough*/
+                case 'e': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= fmt_flags::scientific; });
 
-            case 'G': specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
-            case 'g': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::general; });
+                case 'G': specs.flags |= fmt_flags::uppercase; /*fallthrough*/
+                case 'g': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= fmt_flags::general; });
 
-            case 'A': specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
-            case 'a': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::scientific_hex; });
+                case 'A': specs.flags |= fmt_flags::uppercase; /*fallthrough*/
+                case 'a': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= fmt_flags::scientific_hex; });
 
-            case 'P': specs.fmt.flags |= fmt_flags::uppercase; /*fallthrough*/
-            case 'p': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::pointer; });
+                case 'P': specs.flags |= fmt_flags::uppercase; /*fallthrough*/
+                case 'p': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= fmt_flags::pointer; });
 
-            case 'c': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::character; });
+                case 'c': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= fmt_flags::character; });
 
-            case 's': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.fmt.flags |= fmt_flags::string; });
+                case 's': UXS_FMT_SPECIFIER_CASE(state_t::finish, { specs.flags |= fmt_flags::string; });
 #undef UXS_FMT_SPECIFIER_CASE
 
-            default: return p;
+                default: return it;
+            }
         }
+
+        return it;
     }
 
-    return p;
-}
+    static void syntax_error() { throw format_error("invalid specifier syntax"); }
+    static void unexpected_prec_error() { throw format_error("unexpected precision specifier"); };
+    static void unexpected_sign_error() { throw format_error("unexpected sign specifier"); };
+    static void unexpected_leading_zeroes_error() { throw format_error("unexpected leading zeroes specifier"); };
+    static void type_error() { throw format_error("invalid type specifier"); };
+};
 
-template<typename CharT, typename AppendTextFn, typename AppendArgFn>
-CONSTEXPR void parse_format(std::basic_string_view<CharT> fmt, uxs::span<const unsigned> args_metadata,
-                            const AppendTextFn& append_text_fn, const AppendArgFn& append_arg_fn) {
-    auto syntax_error = []() { throw format_error("invalid specifier syntax"); };
-    auto unexpected_prec_error = []() { throw format_error("unexpected precision specifier"); };
-    auto unexpected_sign_error = []() { throw format_error("unexpected sign specifier"); };
-    auto unexpected_leading_zeroes_error = []() { throw format_error("unexpected leading zeroes specifier"); };
-    auto type_error = []() { throw format_error("invalid argument type specifier"); };
-
-    unsigned n_arg_auto = 0;
-    const CharT *first0 = fmt.data(), *last = first0 + fmt.size();
-    for (const CharT* first = first0; first != last; ++first) {
-        if (*first == '{' || *first == '}') {
-            append_text_fn(first0, first);
-            first0 = ++first;
-            if (first == last) { syntax_error(); }
-            if (*(first - 1) == '{' && *first != '{') {
-                arg_specs specs;
-                first = parse_arg_spec(first, last, args_metadata, specs, n_arg_auto);
-                if (first == last || *first != '}') { syntax_error(); }
-
-                const type_index index = static_cast<type_index>(args_metadata[specs.n_arg] & 0xff);
-                switch (specs.fmt.flags & (fmt_flags::base_field | fmt_flags::float_field | fmt_flags::type_field)) {
-                    case fmt_flags::none: {
-                        if (!!(specs.flags & parse_flags::prec_specified) &&
-                            (index < type_index::single_precision || index > type_index::long_double_precision) &&
-                            index != type_index::z_string && index != type_index::string) {
-                            unexpected_prec_error();
-                        }
-                        if (!!(specs.fmt.flags & fmt_flags::sign_field) &&
-                            (index < type_index::integer || index > type_index::long_double_precision)) {
-                            unexpected_sign_error();
-                        }
-                        if (!!(specs.fmt.flags & fmt_flags::leading_zeroes) &&
-                            (index < type_index::integer || index > type_index::pointer)) {
-                            unexpected_leading_zeroes_error();
-                        }
-                    } break;
-
-                    case fmt_flags::dec:
-                    case fmt_flags::bin:
-                    case fmt_flags::oct:
-                    case fmt_flags::hex: {
-                        if (!!(specs.flags & parse_flags::prec_specified)) { unexpected_prec_error(); }
-                        if (index > type_index::unsigned_long_integer) { type_error(); }
-                    } break;
-
-                    case fmt_flags::fixed:
-                    case fmt_flags::scientific:
-                    case fmt_flags::general:
-                    case fmt_flags::scientific_hex: {
-                        if (index < type_index::single_precision || index > type_index::long_double_precision) {
-                            type_error();
-                        }
-                    } break;
-
-                    case fmt_flags::character: {
-                        if (!!(specs.flags & parse_flags::prec_specified)) { unexpected_prec_error(); }
-                        if (!!(specs.fmt.flags & fmt_flags::sign_field)) { unexpected_sign_error(); }
-                        if (!!(specs.fmt.flags & fmt_flags::leading_zeroes)) { unexpected_leading_zeroes_error(); }
-                        if (index < type_index::character || index > type_index::unsigned_long_integer) {
-                            type_error();
-                        }
-                    } break;
-
-                    case fmt_flags::pointer: {
-                        if (!!(specs.flags & parse_flags::prec_specified)) { unexpected_prec_error(); }
-                        if (!!(specs.fmt.flags & fmt_flags::sign_field)) { unexpected_sign_error(); }
-                        if (index != type_index::pointer) { type_error(); }
-                    } break;
-
-                    case fmt_flags::string: {
-                        if (!!(specs.flags & parse_flags::prec_specified) && index == type_index::boolean) {
-                            unexpected_prec_error();
-                        }
-                        if (!!(specs.fmt.flags & fmt_flags::sign_field)) { unexpected_sign_error(); }
-                        if (!!(specs.fmt.flags & fmt_flags::leading_zeroes)) { unexpected_leading_zeroes_error(); }
-                        if (index != type_index::boolean && index != type_index::z_string &&
-                            index != type_index::string) {
-                            type_error();
-                        }
-                    } break;
-
-                    default: break;
+template<typename ParseCtx, typename AppendTextFn, typename AppendArgFn>
+CONSTEXPR void parse_format(ParseCtx& ctx, const AppendTextFn& append_text_fn, const AppendArgFn& append_arg_fn) {
+    auto it0 = ctx.begin();
+    for (auto it = it0; it != ctx.end(); ++it) {
+        if (*it == '{' || *it == '}') {
+            append_text_fn(it0, it++);
+            if (it == ctx.end()) { ParseCtx::syntax_error(); }
+            it0 = it;
+            if (*(it - 1) == '{' && *it != '{') {
+                // obtain argument number
+                std::size_t arg_id = 0;
+                if ((arg_id = dig_v(*it)) < 10) {
+                    it = ParseCtx::parse_number(++it, ctx.end(), arg_id);
+                    ctx.check_arg_id(arg_id);
+                    if (it == ctx.end()) { ParseCtx::syntax_error(); }
+                } else {
+                    arg_id = ctx.next_arg_id();
                 }
 
-                append_arg_fn(specs);
-                first0 = first + 1;
-            } else if (*(first - 1) != *first) {
-                syntax_error();
+                fmt_opts specs;
+                std::size_t width_arg_id = dynamic_extent;
+                std::size_t prec_arg_id = dynamic_extent;
+
+                if (*it == ':') {
+                    it = ParseCtx::parse_standard(ctx, it + 1, specs, width_arg_id, prec_arg_id);
+
+                    using sfmt::type_index;
+                    const type_index index = ctx.arg_index(arg_id);
+                    if (index != type_index::custom) {
+                        switch (specs.flags & (fmt_flags::base_field | fmt_flags::float_field | fmt_flags::type_field)) {
+                            case fmt_flags::none: {
+                                if (specs.prec >= 0 &&
+                                    (index < type_index::single_precision ||
+                                     index > type_index::long_double_precision) &&
+                                    index != type_index::z_string && index != type_index::string) {
+                                    ParseCtx::unexpected_prec_error();
+                                }
+                                if (!!(specs.flags & fmt_flags::sign_field) &&
+                                    (index < type_index::integer || index > type_index::long_double_precision)) {
+                                    ParseCtx::unexpected_sign_error();
+                                }
+                                if (!!(specs.flags & fmt_flags::leading_zeroes) &&
+                                    (index < type_index::integer || index > type_index::pointer)) {
+                                    ParseCtx::unexpected_leading_zeroes_error();
+                                }
+                            } break;
+
+                            case fmt_flags::dec:
+                            case fmt_flags::bin:
+                            case fmt_flags::oct:
+                            case fmt_flags::hex: {
+                                if (specs.prec >= 0) { ParseCtx::unexpected_prec_error(); }
+                                if (index > type_index::unsigned_long_integer) { ParseCtx::type_error(); }
+                            } break;
+
+                            case fmt_flags::fixed:
+                            case fmt_flags::scientific:
+                            case fmt_flags::general:
+                            case fmt_flags::scientific_hex: {
+                                if (index < type_index::single_precision || index > type_index::long_double_precision) {
+                                    ParseCtx::type_error();
+                                }
+                            } break;
+
+                            case fmt_flags::character: {
+                                if (specs.prec >= 0) { ParseCtx::unexpected_prec_error(); }
+                                if (!!(specs.flags & fmt_flags::sign_field)) { ParseCtx::unexpected_sign_error(); }
+                                if (!!(specs.flags & fmt_flags::leading_zeroes)) {
+                                    ParseCtx::unexpected_leading_zeroes_error();
+                                }
+                                if (index < type_index::character || index > type_index::unsigned_long_integer) {
+                                    ParseCtx::type_error();
+                                }
+                            } break;
+
+                            case fmt_flags::pointer: {
+                                if (specs.prec >= 0) { ParseCtx::unexpected_prec_error(); }
+                                if (!!(specs.flags & fmt_flags::sign_field)) { ParseCtx::unexpected_sign_error(); }
+                                if (index != type_index::pointer) { ParseCtx::type_error(); }
+                            } break;
+
+                            case fmt_flags::string: {
+                                if (specs.prec >= 0 && index == type_index::boolean) {
+                                    ParseCtx::unexpected_prec_error();
+                                }
+                                if (!!(specs.flags & fmt_flags::sign_field)) { ParseCtx::unexpected_sign_error(); }
+                                if (!!(specs.flags & fmt_flags::leading_zeroes)) {
+                                    ParseCtx::unexpected_leading_zeroes_error();
+                                }
+                                if (index != type_index::boolean && index != type_index::z_string &&
+                                    index != type_index::string) {
+                                    ParseCtx::type_error();
+                                }
+                            } break;
+
+                            default: break;
+                        }
+                    }
+                } else if (*it != '}') {
+                    ParseCtx::syntax_error();
+                }
+
+                ctx.advance_to(it);
+                append_arg_fn(ctx, arg_id, specs, width_arg_id, prec_arg_id);
+                if ((it = ctx.begin()) == ctx.end() || *it != '}') { ParseCtx::syntax_error(); }
+                it0 = it + 1;
+            } else if (*(it - 1) != *it) {
+                ParseCtx::syntax_error();
             }
         }
     }
-    append_text_fn(first0, last);
+    append_text_fn(it0, ctx.end());
 }
 
 template<typename FmtCtx>
-UXS_EXPORT void vformat(FmtCtx ctx, std::basic_string_view<typename FmtCtx::char_type> fmt);
+UXS_EXPORT void vformat(FmtCtx, typename FmtCtx::parse_context);
 
 }  // namespace sfmt
 
@@ -636,13 +654,11 @@ class basic_format_args {
     basic_format_args(const sfmt::arg_store<FmtCtx, Args...>& store) noexcept
         : data_(store.data()), size_(sfmt::arg_store<FmtCtx, Args...>::arg_count) {}
 
-    NODISCARD std::size_t size() const noexcept { return size_; }
-    NODISCARD bool empty() const noexcept { return !size_; }
     NODISCARD uxs::span<const unsigned> metadata() const noexcept {
         return uxs::as_span(static_cast<const unsigned*>(data_), size_);
     }
 
-    NODISCARD basic_format_arg<FmtCtx> at(std::size_t id) const noexcept {
+    NODISCARD basic_format_arg<FmtCtx> get(std::size_t id) const noexcept {
         assert(id < size_);
         const unsigned meta = static_cast<const unsigned*>(data_)[id];
         return basic_format_arg<FmtCtx>(static_cast<sfmt::type_index>(meta & 0xff),
@@ -654,6 +670,64 @@ class basic_format_args {
     std::size_t size_;
 };
 
+template<typename CharT>
+class basic_format_parse_context : public sfmt::parse_context_utils {
+ public:
+    using char_type = CharT;
+    using iterator = typename std::basic_string_view<char_type>::const_iterator;
+    using const_iterator = typename std::basic_string_view<char_type>::const_iterator;
+
+    CONSTEXPR basic_format_parse_context(std::basic_string_view<char_type> fmt,
+                                         uxs::span<const unsigned> args_metadata) noexcept
+        : fmt_(fmt), args_metadata_(args_metadata) {}
+
+#if __cplusplus >= 201703L
+    basic_format_parse_context(const basic_format_parse_context&) = delete;
+#endif  // __cplusplus >= 201703L
+    basic_format_parse_context& operator=(const basic_format_parse_context&) = delete;
+
+    NODISCARD CONSTEXPR iterator begin() const noexcept { return fmt_.begin(); }
+    NODISCARD CONSTEXPR iterator end() const noexcept { return fmt_.end(); }
+    CONSTEXPR void advance_to(iterator it) { fmt_.remove_prefix(static_cast<std::size_t>(it - fmt_.begin())); }
+
+    NODISCARD CONSTEXPR std::size_t next_arg_id() {
+        if (next_arg_id_ == dynamic_extent) { throw format_error("automatic argument indexing error"); }
+        if (next_arg_id_ >= args_metadata_.size()) { throw format_error("out of argument list"); }
+        return next_arg_id_++;
+    }
+    CONSTEXPR void check_arg_id(std::size_t id) {
+        if (next_arg_id_ != dynamic_extent && next_arg_id_ > 0) {
+            throw format_error("manual argument indexing error");
+        }
+        if (id >= args_metadata_.size()) { throw format_error("out of argument list"); }
+        next_arg_id_ = dynamic_extent;
+    }
+
+    NODISCARD CONSTEXPR sfmt::type_index arg_index(std::size_t id) const noexcept {
+        return static_cast<sfmt::type_index>(args_metadata_[id] & 0xff);
+    }
+
+    template<typename... Ts>
+    CONSTEXPR void check_arg_type(std::size_t id) {
+        const std::array<sfmt::type_index, sizeof...(Ts)> types{sfmt::detail::arg_type_index<Ts, char_type>::value...};
+        if (std::find(types.begin(), types.end(), arg_index(id)) == types.end()) {
+            throw format_error("argument is not of valid type");
+        }
+    }
+
+    CONSTEXPR void check_arg_integral(std::size_t id) const {
+        const auto index = arg_index(id);
+        if (index < sfmt::type_index::integer || index > sfmt::type_index::unsigned_long_integer) {
+            throw format_error("argument is not an integer");
+        }
+    }
+
+ private:
+    std::size_t next_arg_id_ = 0;
+    std::basic_string_view<char_type> fmt_;
+    uxs::span<const unsigned> args_metadata_;
+};
+
 template<typename StrTy>
 class basic_format_context {
  public:
@@ -661,6 +735,7 @@ class basic_format_context {
     using char_type = typename StrTy::value_type;
     template<typename Ty>
     using formatter_type = formatter<Ty, char_type>;
+    using parse_context = basic_format_parse_context<char_type>;
     using format_args_type = basic_format_args<basic_format_context>;
     using format_arg_type = basic_format_arg<basic_format_context>;
 
@@ -670,15 +745,18 @@ class basic_format_context {
     basic_format_context& operator=(const basic_format_context&) = delete;
     NODISCARD StrTy& out() { return s_; }
     NODISCARD locale_ref locale() const { return loc_; }
-    NODISCARD const format_args_type& args() const { return args_; }
-    NODISCARD format_arg_type arg(std::size_t id) const { return args_.at(id); }
+    NODISCARD format_arg_type arg(std::size_t id) const { return args_.get(id); }
 
     template<typename Ty>
-    void format_arg(const Ty& val, fmt_opts& fmt) {
-        formatter_type<Ty>().format(*this, val, fmt);
+    void format_arg(parse_context& parse_ctx, const Ty& val, fmt_opts& fmt) {
+        formatter_type<Ty> f;
+        parse_ctx.advance_to(f.parse(parse_ctx, fmt));
+        f.format(*this, val, fmt);
     }
 
-    void format_arg(const typename format_arg_type::handle& h, fmt_opts& fmt) { h.format(*this, fmt); }
+    void format_arg(parse_context& parse_ctx, const typename format_arg_type::handle& h, fmt_opts& fmt) {
+        h.format(*this, parse_ctx, fmt);
+    }
 
  private:
     StrTy& s_;
@@ -686,6 +764,8 @@ class basic_format_context {
     const basic_format_args<basic_format_context>& args_;
 };
 
+using format_context = basic_format_context<membuffer>;
+using wformat_context = basic_format_context<wmembuffer>;
 using format_args = basic_format_args<format_context>;
 using wformat_args = basic_format_args<wformat_context>;
 
@@ -707,15 +787,28 @@ class basic_format_string {
              typename = std::enable_if_t<std::is_convertible<const Ty&, std::basic_string_view<char_type>>::value>>
     CONSTEVAL basic_format_string(const Ty& fmt) noexcept : fmt_(fmt) {
 #if defined(HAS_CONSTEVAL)
+        using parse_context = basic_format_parse_context<char_type>;
         constexpr std::array<unsigned, sizeof...(Args)> args_metadata = {
             static_cast<unsigned>(sfmt::arg_type_index<Args, char_type>::value)...};
-        sfmt::parse_format<char_type>(fmt_, args_metadata, [](auto&&...) constexpr {}, [](auto&&...) constexpr {});
+        constexpr std::array<void (*)(parse_context&, fmt_opts&), sizeof...(Args)> parsers = {
+            parse_arg<parse_context, sfmt::reduce_type_t<Args, char_type>>...};
+        parse_context ctx{fmt_, args_metadata};
+        sfmt::parse_format(
+            ctx, [](auto&&...) constexpr {}, [&parsers](auto& ctx, std::size_t id, auto& specs, auto&&...) constexpr {
+                parsers[id](ctx, specs);
+            });
 #endif  // defined(HAS_CONSTEVAL)
     }
     NODISCARD CONSTEXPR std::basic_string_view<char_type> get() const noexcept { return fmt_; }
 
  private:
     std::basic_string_view<char_type> fmt_;
+
+    template<typename ParseCtx, typename Ty>
+    static CONSTEXPR void parse_arg(ParseCtx& ctx, fmt_opts& fmt) {
+        formatter<Ty, typename ParseCtx::char_type> f;
+        ctx.advance_to(f.parse(ctx, fmt));
+    }
 };
 
 template<typename... Args>
@@ -728,14 +821,16 @@ using wformat_string = basic_format_string<wchar_t, type_identity_t<Args>...>;
 template<typename StrTy>
 StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
                      basic_format_args<basic_format_context<StrTy>> args) {
-    sfmt::vformat(basic_format_context<StrTy>{s, args}, fmt);
+    sfmt::vformat(basic_format_context<StrTy>{s, args},
+                  basic_format_parse_context<typename StrTy::value_type>{fmt, args.metadata()});
     return s;
 }
 
 template<typename StrTy>
 StrTy& basic_vformat(StrTy& s, const std::locale& loc, std::basic_string_view<typename StrTy::value_type> fmt,
                      basic_format_args<basic_format_context<StrTy>> args) {
-    sfmt::vformat(basic_format_context<StrTy>{s, loc, args}, fmt);
+    sfmt::vformat(basic_format_context<StrTy>{s, loc, args},
+                  basic_format_parse_context<typename StrTy::value_type>{fmt, args.metadata()});
     return s;
 }
 

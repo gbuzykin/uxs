@@ -6,17 +6,20 @@ namespace uxs {
 namespace sfmt {
 
 template<typename FmtCtx>
-unsigned get_arg_integer_value(basic_format_arg<FmtCtx> arg) {
+unsigned get_arg_integer_value(basic_format_arg<FmtCtx> arg, unsigned limit) {
     switch (arg.index()) {
 #define UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE(ty) \
     case format_arg_type_index<FmtCtx, ty>::value: { \
         ty val = *arg.template get<ty>(); \
         if (val < 0) { throw format_error("negative argument specified"); } \
+        if (static_cast<std::make_unsigned<ty>::type>(val) > limit) { throw format_error("too large integer"); } \
         return static_cast<unsigned>(val); \
     } break;
 #define UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(ty) \
     case format_arg_type_index<FmtCtx, ty>::value: { \
-        return static_cast<unsigned>(*arg.template get<ty>()); \
+        ty val = *arg.template get<ty>(); \
+        if (val > limit) { throw format_error("too large integer"); } \
+        return static_cast<unsigned>(val); \
     } break;
         UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE(std::int32_t)
         UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE(std::int64_t)
@@ -29,22 +32,27 @@ unsigned get_arg_integer_value(basic_format_arg<FmtCtx> arg) {
 }
 
 template<typename FmtCtx>
-void vformat(FmtCtx ctx, std::basic_string_view<typename FmtCtx::char_type> fmt) {
+void vformat(FmtCtx ctx, typename FmtCtx::parse_context parse_ctx) {
+    using parse_context = typename FmtCtx::parse_context;
     using char_type = typename FmtCtx::char_type;
-    parse_format<char_type>(
-        fmt, ctx.args().metadata(), [&ctx](const char_type* p0, const char_type* p) { ctx.out().append(p0, p); },
-        [&ctx](arg_specs& specs) {
-            if (!!(specs.flags & parse_flags::dynamic_width)) {
-                specs.fmt.width = get_arg_integer_value(ctx.arg(specs.n_width_arg));
+    using iterator = typename parse_context::const_iterator;
+    sfmt::parse_format(
+        parse_ctx, [&ctx](iterator first, iterator last) { ctx.out().append(first, last); },
+        [&ctx](parse_context& parse_ctx, std::size_t id, fmt_opts& specs, std::size_t width_arg_id,
+               std::size_t prec_arg_id) {
+            if (width_arg_id != dynamic_extent) {
+                specs.width = get_arg_integer_value(ctx.arg(width_arg_id),
+                                                    std::numeric_limits<decltype(specs.width)>::max());
             }
-            if (!!(specs.flags & parse_flags::dynamic_prec)) {
-                specs.fmt.prec = get_arg_integer_value(ctx.arg(specs.n_prec_arg));
+            if (prec_arg_id != dynamic_extent) {
+                specs.prec = get_arg_integer_value(ctx.arg(prec_arg_id),
+                                                   std::numeric_limits<decltype(specs.prec)>::max());
             }
-            auto arg = ctx.arg(specs.n_arg);
+            auto arg = ctx.arg(id);
             switch (arg.index()) {
 #define UXS_FMT_FORMAT_ARG_VALUE(ty) \
     case format_arg_type_index<FmtCtx, ty>::value: { \
-        ctx.format_arg(*arg.template get<ty>(), specs.fmt); \
+        ctx.format_arg(parse_ctx, *arg.template get<ty>(), specs); \
     } break;
                 UXS_FMT_FORMAT_ARG_VALUE(bool)
                 UXS_FMT_FORMAT_ARG_VALUE(char_type)
@@ -58,7 +66,7 @@ void vformat(FmtCtx ctx, std::basic_string_view<typename FmtCtx::char_type> fmt)
                 UXS_FMT_FORMAT_ARG_VALUE(const void*)
                 UXS_FMT_FORMAT_ARG_VALUE(const char_type*)
                 UXS_FMT_FORMAT_ARG_VALUE(std::basic_string_view<char_type>)
-                UXS_FMT_FORMAT_ARG_VALUE(custom_arg_handle<FmtCtx>)
+                UXS_FMT_FORMAT_ARG_VALUE(typename basic_format_arg<FmtCtx>::handle)
 #undef UXS_FMT_FORMAT_ARG_VALUE
             }
         });
