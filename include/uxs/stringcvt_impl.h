@@ -1,6 +1,7 @@
 #pragma once
 
 #include "stringcvt.h"
+#include "utf.h"
 
 #include <cstdlib>
 
@@ -40,6 +41,26 @@ __extension__ typedef unsigned __int128 uint128;
 
 namespace uxs {
 namespace scvt {
+
+template<typename CharT>
+struct count_utf_chars;
+
+template<>
+struct count_utf_chars<char> {
+    unsigned operator()(std::uint8_t ch) const { return get_utf8_byte_count(ch); }
+};
+
+#if defined(WCHAR_MAX) && WCHAR_MAX > 0xffff
+template<>
+struct count_utf_chars<wchar_t> {
+    unsigned operator()(std::uint32_t ch) const { return 1; }
+};
+#else   // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
+template<>
+struct count_utf_chars<wchar_t> {
+    unsigned operator()(std::uint16_t ch) const { return get_utf16_word_count(ch); }
+};
+#endif  // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
 
 template<typename CharT>
 struct default_numpunct;
@@ -672,6 +693,45 @@ void fmt_character(basic_membuffer<CharT>& s, CharT val, const fmt_opts& fmt) {
             const auto fn = [val](basic_membuffer<CharT>& s) { s.push_back(val); };
             return fmt.width > 1 ? append_adjusted(s, fn, 1, fmt) : fn(s);
         } break;
+    }
+}
+
+// ---- string
+
+template<typename CharT>
+void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, const fmt_opts& fmt) {
+    const CharT *first = val.data(), *last = first + val.size();
+    std::size_t len = 0;
+    unsigned count = 0;
+    const CharT* p = first;
+    if (fmt.prec >= 0) {
+        unsigned prec = fmt.prec;
+        len = prec;
+        while (prec > 0 && static_cast<std::size_t>(last - p) > count) {
+            p += count;
+            count = count_utf_chars<CharT>{}(*p), --prec;
+        }
+        if (prec > 0) {
+            len -= prec;
+        } else if (static_cast<std::size_t>(last - p) > count) {
+            last = p + count;
+        }
+    } else if (fmt.width > 0) {
+        while (static_cast<std::size_t>(last - p) > count) {
+            p += count;
+            count = count_utf_chars<CharT>{}(*p), ++len;
+        }
+    }
+    if (fmt.width > len) {
+        unsigned left = fmt.width - static_cast<unsigned>(len), right = left;
+        switch (fmt.flags & fmt_flags::adjust_field) {
+            case fmt_flags::right: right = 0; break;
+            case fmt_flags::internal: left >>= 1, right -= left; break;
+            default: left = 0; break;
+        }
+        s.append(left, fmt.fill).append(first, last).append(right, fmt.fill);
+    } else {
+        s.append(first, last);
     }
 }
 

@@ -5,6 +5,52 @@
 #include "stringcvt.h"
 
 namespace uxs {
+
+namespace detail {
+template<typename Ty, typename StrTy>
+struct has_formatter {
+    template<typename U>
+    static auto test(U& s, const Ty& v)
+        -> always_true<decltype(formatter<Ty, typename U::value_type>{}.format(s, v, std::declval<fmt_opts&>()))>;
+    template<typename U>
+    static auto test(...) -> std::false_type;
+    using type = decltype(test<StrTy>(std::declval<StrTy&>(), std::declval<const Ty&>()));
+};
+}  // namespace detail
+
+template<typename Ty, typename StrTy = membuffer>
+struct formattable : detail::has_formatter<Ty, StrTy>::type {};
+
+#define UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(ty, func) \
+    template<typename CharT> \
+    struct formatter<ty, CharT> { \
+        template<typename StrTy> \
+        void format(StrTy& s, ty val, fmt_opts& fmt) const { \
+            func(s, val, fmt); \
+        } \
+    };
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(bool, scvt::fmt_boolean)
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(CharT, scvt::fmt_character)
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(const CharT*, scvt::fmt_string<CharT>)
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::basic_string_view<CharT>, scvt::fmt_string)
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::int32_t, scvt::fmt_integer)
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::int64_t, scvt::fmt_integer)
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::uint32_t, scvt::fmt_integer)
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::uint64_t, scvt::fmt_integer)
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(float, scvt::fmt_float)
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(double, scvt::fmt_float)
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(long double, scvt::fmt_float)
+#undef UXS_FMT_IMPLEMENT_STANDARD_FORMATTER
+
+template<typename CharT>
+struct formatter<const void*, CharT> {
+    template<typename StrTy>
+    void format(StrTy& s, const void* val, fmt_opts& fmt) const {
+        fmt.flags |= fmt_flags::hex | fmt_flags::alternate;
+        scvt::fmt_integer(s, reinterpret_cast<std::uintptr_t>(val), fmt);
+    }
+};
+
 namespace sfmt {
 
 enum class type_index : std::uint8_t {
@@ -26,36 +72,74 @@ enum class type_index : std::uint8_t {
 // --------------------------
 
 namespace detail {
-template<typename Ty, typename = void>
+template<typename Ty, typename CharT, typename = void>
 struct reduce_type {
     using type = std::remove_cv_t<Ty>;
 };
-template<typename Ty>
-struct reduce_type<Ty, std::enable_if_t<std::is_integral<Ty>::value && std::is_unsigned<Ty>::value &&
-                                        !is_boolean<Ty>::value && !is_character<Ty>::value>> {
+template<typename Ty, typename CharT>
+struct reduce_type<Ty, CharT,
+                   std::enable_if_t<std::is_integral<Ty>::value && std::is_unsigned<Ty>::value &&
+                                    !is_boolean<Ty>::value && !is_character<Ty>::value>> {
     using type = std::conditional_t<(sizeof(Ty) <= sizeof(std::uint32_t)), std::uint32_t, std::uint64_t>;
 };
-template<typename Ty>
-struct reduce_type<Ty, std::enable_if_t<std::is_integral<Ty>::value && std::is_signed<Ty>::value &&
-                                        !is_boolean<Ty>::value && !is_character<Ty>::value>> {
+template<typename Ty, typename CharT>
+struct reduce_type<Ty, CharT,
+                   std::enable_if_t<std::is_integral<Ty>::value && std::is_signed<Ty>::value &&
+                                    !is_boolean<Ty>::value && !is_character<Ty>::value>> {
     using type = std::conditional_t<(sizeof(Ty) <= sizeof(std::int32_t)), std::int32_t, std::int64_t>;
 };
-template<typename Ty>
-struct reduce_type<Ty, std::enable_if_t<std::is_array<Ty>::value>> {
-    using type = typename std::add_pointer<std::remove_cv_t<typename std::remove_extent<Ty>::type>>::type;
+template<typename Ty, typename CharT>
+struct reduce_type<Ty, CharT, std::enable_if_t<is_character<Ty>::value>> {
+    using type = CharT;
 };
-template<typename Ty>
-struct reduce_type<Ty*> {
-    using type = typename std::add_pointer<std::remove_cv_t<Ty>>::type;
+template<typename CharT, typename Traits>
+struct reduce_type<std::basic_string_view<CharT, Traits>, CharT> {
+    using type = std::basic_string_view<CharT>;
 };
-template<>
-struct reduce_type<std::nullptr_t> {
-    using type = void*;
+template<typename CharT, typename Traits, typename Alloc>
+struct reduce_type<std::basic_string<CharT, Traits, Alloc>, CharT> {
+    using type = std::basic_string_view<CharT>;
+};
+template<typename Ty, typename CharT>
+struct reduce_type<Ty, CharT, std::enable_if_t<std::is_array<Ty>::value>> {
+    using type =
+        std::conditional_t<is_character<typename std::remove_extent<Ty>::type>::value, const CharT*, const void*>;
+};
+template<typename Ty, typename CharT>
+struct reduce_type<Ty*, CharT> {
+    using type = std::conditional_t<is_character<Ty>::value, const CharT*, const void*>;
+};
+template<typename CharT>
+struct reduce_type<std::nullptr_t, CharT> {
+    using type = const void*;
 };
 }  // namespace detail
 
-template<typename Ty>
-using reduce_type_t = typename detail::reduce_type<Ty>::type;
+template<typename Ty, typename CharT>
+using reduce_type_t = typename detail::reduce_type<Ty, CharT>::type;
+
+// --------------------------
+
+namespace detail {
+template<typename Ty, typename CharT>
+struct arg_type_index;
+#define UXS_FMT_DECLARE_ARG_TYPE_INDEX(ty, index) \
+    template<typename CharT> \
+    struct arg_type_index<ty, CharT> : std::integral_constant<type_index, index> {};
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(bool, type_index::boolean)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(CharT, type_index::character)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::int32_t, type_index::integer)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::int64_t, type_index::long_integer)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::uint32_t, type_index::unsigned_integer)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::uint64_t, type_index::unsigned_long_integer)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(float, type_index::single_precision)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(double, type_index::double_precision)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(long double, type_index::long_double_precision)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(const void*, type_index::pointer)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(const CharT*, type_index::z_string)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::basic_string_view<CharT>, type_index::string)
+#undef UXS_FMT_DECLARE_ARG_TYPE_INDEX
+}  // namespace detail
 
 // --------------------------
 
@@ -69,69 +153,21 @@ struct custom_arg_handle {
 
 // --------------------------
 
-namespace detail {
-template<typename Ty>
+template<typename Ty, typename CharT, typename = void>
 struct arg_type_index : std::integral_constant<type_index, type_index::custom> {};
+template<typename Ty, typename CharT>
+struct arg_type_index<Ty, CharT, std::void_t<typename detail::arg_type_index<reduce_type_t<Ty, CharT>, CharT>::type>>
+    : std::integral_constant<type_index, detail::arg_type_index<reduce_type_t<Ty, CharT>, CharT>::value> {};
 
 template<typename StrTy, typename Ty>
-struct arg_store_type {
-    using type = custom_arg_handle<StrTy>;
-};
-
-#define UXS_FMT_DECLARE_ARG_TYPE_INDEX(ty, store_ty, index) \
-    template<> \
-    struct arg_type_index<ty> : std::integral_constant<type_index, index> {}; \
-    template<typename StrTy> \
-    struct arg_store_type<StrTy, ty> { \
-        using type = store_ty; \
-    };
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(bool, bool, type_index::boolean)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(char, typename StrTy::value_type, type_index::character)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(wchar_t, typename StrTy::value_type, type_index::character)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::int32_t, std::int32_t, type_index::integer)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::int64_t, std::int64_t, type_index::long_integer)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::uint32_t, std::uint32_t, type_index::unsigned_integer)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::uint64_t, std::uint64_t, type_index::unsigned_long_integer)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(float, float, type_index::single_precision)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(double, double, type_index::double_precision)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(long double, long double, type_index::long_double_precision)
-#undef UXS_FMT_DECLARE_ARG_TYPE_INDEX
-
-template<typename Ty>
-struct arg_type_index<Ty*>
-    : std::integral_constant<type_index, is_character<Ty>::value ? type_index::z_string : type_index::pointer> {};
-template<typename CharT, typename Traits>
-struct arg_type_index<std::basic_string_view<CharT, Traits>> : std::integral_constant<type_index, type_index::string> {
-};
-template<typename CharT, typename Traits, typename Alloc>
-struct arg_type_index<std::basic_string<CharT, Traits, Alloc>>
-    : std::integral_constant<type_index, type_index::string> {};
+using arg_store_type = std::conditional<(arg_type_index<Ty, typename StrTy::value_type>::value) < type_index::custom,
+                                        reduce_type_t<Ty, typename StrTy::value_type>, custom_arg_handle<StrTy>>;
 
 template<typename StrTy, typename Ty>
-struct arg_store_type<StrTy, Ty*> {
-    using type = Ty*;
-};
-template<typename StrTy, typename CharT, typename Traits>
-struct arg_store_type<StrTy, std::basic_string_view<CharT, Traits>> {
-    using type = std::basic_string_view<CharT>;
-};
-template<typename StrTy, typename CharT, typename Traits, typename Alloc>
-struct arg_store_type<StrTy, std::basic_string<CharT, Traits, Alloc>> {
-    using type = std::basic_string_view<CharT>;
-};
-}  // namespace detail
-
-template<typename Ty>
-using arg_type_index = detail::arg_type_index<reduce_type_t<Ty>>;
+using arg_size = uxs::size_of<typename arg_store_type<StrTy, Ty>::type>;
 
 template<typename StrTy, typename Ty>
-using arg_store_type_t = typename detail::arg_store_type<StrTy, reduce_type_t<Ty>>::type;
-
-template<typename StrTy, typename Ty>
-using arg_size = uxs::size_of<arg_store_type_t<StrTy, Ty>>;
-
-template<typename StrTy, typename Ty>
-using arg_alignment = std::alignment_of<arg_store_type_t<StrTy, Ty>>;
+using arg_alignment = std::alignment_of<typename arg_store_type<StrTy, Ty>::type>;
 
 template<typename StrTy, std::size_t, typename...>
 struct arg_store_size_evaluator;
@@ -159,7 +195,7 @@ struct arg_store_alignment_evaluator<StrTy, Ty1, Ty2, Rest...>
 template<typename StrTy, typename Ty>
 struct arg_fmt_func_t {
     static void func(StrTy& s, const void* val, fmt_opts& fmt) {
-        to_basic_string(s, *static_cast<const Ty*>(val), fmt);
+        formatter<Ty, typename StrTy::value_type>{}.format(s, *static_cast<const Ty*>(val), fmt);
     }
 };
 
@@ -184,17 +220,20 @@ class arg_store {
 
     template<typename Ty>
     CONSTEXPR static void store_value(
-        const Ty& v, std::enable_if_t<(arg_type_index<Ty>::value < type_index::pointer), void*> data) noexcept {
-        static_assert(arg_type_index<Ty>::value != type_index::character || sizeof(Ty) <= sizeof(char_type),
+        const Ty& v,
+        std::enable_if_t<(arg_type_index<Ty, char_type>::value < type_index::pointer), void*> data) noexcept {
+        static_assert(!is_character<Ty>::value || sizeof(Ty) <= sizeof(char_type),
                       "inconsistent character argument type");
-        ::new (data) arg_store_type_t<StrTy, Ty>(v);
+        ::new (data) reduce_type_t<Ty, char_type>(v);
     }
 
     template<typename Ty>
     CONSTEXPR static void store_value(
-        const Ty& v, std::enable_if_t<(arg_type_index<Ty>::value == type_index::custom), void*> data) noexcept {
-        static_assert(has_formatter<reduce_type_t<Ty>, StrTy>::value, "value of this type cannot be formatted");
-        ::new (data) custom_arg_handle<StrTy>(&v, &arg_fmt_func_t<StrTy, reduce_type_t<Ty>>::func);
+        const Ty& v,
+        std::enable_if_t<(arg_type_index<Ty, char_type>::value == type_index::custom), void*> data) noexcept {
+        using ReducedTy = reduce_type_t<Ty, char_type>;
+        static_assert(formattable<ReducedTy, StrTy>::value, "value of this type cannot be formatted");
+        ::new (data) custom_arg_handle<StrTy>(&v, &arg_fmt_func_t<StrTy, ReducedTy>::func);
     }
 
     template<typename Ty>
@@ -208,7 +247,7 @@ class arg_store {
 
     template<typename CharT, typename Traits>
     CONSTEXPR static void store_value(const std::basic_string_view<CharT, Traits>& s, void* data) noexcept {
-        using Ty = std::basic_string_view<CharT, Traits>;
+        using Ty = std::basic_string_view<char_type>;
         static_assert(std::is_same<CharT, char_type>::value, "inconsistent string argument type");
         static_assert(std::is_trivially_copyable<Ty>::value && std::is_trivially_destructible<Ty>::value,
                       "std::basic_string_view<> is assumed to be trivially copyable and destructible");
@@ -217,7 +256,7 @@ class arg_store {
 
     template<typename CharT, typename Traits, typename Alloc>
     CONSTEXPR static void store_value(const std::basic_string<CharT, Traits, Alloc>& s, void* data) noexcept {
-        using Ty = std::basic_string_view<CharT, Traits>;
+        using Ty = std::basic_string_view<char_type>;
         static_assert(std::is_same<CharT, char_type>::value, "inconsistent string argument type");
         static_assert(std::is_trivially_copyable<Ty>::value && std::is_trivially_destructible<Ty>::value,
                       "std::basic_string_view<> is assumed to be trivially copyable and destructible");
@@ -229,8 +268,8 @@ class arg_store {
     template<typename Ty, typename... Ts>
     CONSTEXPR void store_values(std::size_t i, std::size_t offset, const Ty& v, const Ts&... other) noexcept {
         offset = uxs::align_up<arg_alignment<StrTy, Ty>::value>::value(offset);
-        ::new (reinterpret_cast<unsigned*>(&data_) + i) unsigned(static_cast<unsigned>(offset << 8) |
-                                                                 static_cast<unsigned>(arg_type_index<Ty>::value));
+        ::new (reinterpret_cast<unsigned*>(&data_) + i) unsigned(
+            static_cast<unsigned>(offset << 8) | static_cast<unsigned>(arg_type_index<Ty, char_type>::value));
         store_value(v, &data_[offset]);
         store_values(i + 1, offset + arg_size<StrTy, Ty>::value, other...);
     }
@@ -589,19 +628,20 @@ NODISCARD CONSTEXPR sfmt::arg_store<wmembuffer, Args...> make_wformat_args(const
 template<typename CharT, typename... Args>
 class basic_format_string {
  public:
+    using char_type = CharT;
     template<typename Ty,
-             typename = std::enable_if_t<std::is_convertible<const Ty&, std::basic_string_view<CharT>>::value>>
+             typename = std::enable_if_t<std::is_convertible<const Ty&, std::basic_string_view<char_type>>::value>>
     CONSTEVAL basic_format_string(const Ty& fmt) noexcept : fmt_(fmt) {
 #if defined(HAS_CONSTEVAL)
         constexpr std::array<unsigned, sizeof...(Args)> args_metadata = {
-            static_cast<unsigned>(sfmt::arg_type_index<Args>::value)...};
-        sfmt::parse_format<CharT>(fmt_, args_metadata, [](auto&&...) constexpr {}, [](auto&&...) constexpr {});
+            static_cast<unsigned>(sfmt::arg_type_index<Args, char_type>::value)...};
+        sfmt::parse_format<char_type>(fmt_, args_metadata, [](auto&&...) constexpr {}, [](auto&&...) constexpr {});
 #endif  // defined(HAS_CONSTEVAL)
     }
-    CONSTEXPR std::basic_string_view<CharT> get() const noexcept { return fmt_; }
+    CONSTEXPR std::basic_string_view<char_type> get() const noexcept { return fmt_; }
 
  private:
-    std::basic_string_view<CharT> fmt_;
+    std::basic_string_view<char_type> fmt_;
 };
 
 template<typename... Args>

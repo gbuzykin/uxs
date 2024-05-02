@@ -13,8 +13,6 @@ const char* format_error::what() const noexcept { return std::runtime_error::wha
 
 namespace scvt {
 
-const fmt_opts g_default_opts;
-
 #if __cplusplus < 201703L && \
     (SCVT_USE_COMPILER_128BIT_EXTENSIONS == 0 || \
      (!(defined(_MSC_VER) && defined(_M_X64)) && !(defined(__GNUC__) && defined(__x86_64__))))
@@ -987,15 +985,17 @@ template UXS_EXPORT bool to_boolean(const wchar_t*, const wchar_t*, const wchar_
 
 template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint32_t, bool, const fmt_opts&);
 template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint64_t, bool, const fmt_opts&);
-template UXS_EXPORT void fmt_character(membuffer&, char, const fmt_opts&);
 template UXS_EXPORT void fmt_float_common(membuffer&, std::uint64_t, const fmt_opts&, const unsigned, const int);
 template UXS_EXPORT void fmt_boolean(membuffer&, bool, const fmt_opts&);
+template UXS_EXPORT void fmt_character(membuffer&, char, const fmt_opts&);
+template UXS_EXPORT void fmt_string(membuffer&, std::string_view, const fmt_opts&);
 
 template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint32_t, bool, const fmt_opts&);
 template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint64_t, bool, const fmt_opts&);
-template UXS_EXPORT void fmt_character(wmembuffer&, wchar_t, const fmt_opts&);
 template UXS_EXPORT void fmt_float_common(wmembuffer&, std::uint64_t, const fmt_opts&, const unsigned, const int);
 template UXS_EXPORT void fmt_boolean(wmembuffer&, bool, const fmt_opts&);
+template UXS_EXPORT void fmt_character(wmembuffer&, wchar_t, const fmt_opts&);
+template UXS_EXPORT void fmt_string(wmembuffer&, std::wstring_view, const fmt_opts&);
 
 }  // namespace scvt
 

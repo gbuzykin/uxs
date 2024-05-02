@@ -308,8 +308,6 @@ struct fp_traits<long double> : fp_traits<double> {
     static long double from_u64(std::uint64_t u64) noexcept { return static_cast<long double>(bit_cast<double>(u64)); }
 };
 
-extern UXS_EXPORT const fmt_opts g_default_opts;
-
 // --------------------------
 
 template<typename CharT>
@@ -367,6 +365,17 @@ void fmt_character(StrTy& s, typename StrTy::value_type val, const fmt_opts& fmt
     s.append(buf.data(), buf.data() + buf.size());
 }
 
+template<typename CharT>
+UXS_EXPORT void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, const fmt_opts& fmt);
+
+template<typename StrTy,
+         typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
+void fmt_string(StrTy& s, std::basic_string_view<typename StrTy::value_type> val, const fmt_opts& fmt) {
+    inline_basic_dynbuffer<typename StrTy::value_type> buf;
+    fmt_string(buf, val, fmt);
+    s.append(buf.data(), buf.data() + buf.size());
+}
+
 template<typename CharT, typename Ty>
 UXS_EXPORT void fmt_integer_common(basic_membuffer<CharT>& s, Ty val, bool is_signed, const fmt_opts& fmt);
 
@@ -409,52 +418,49 @@ void fmt_float(StrTy& s, Ty val, const fmt_opts& fmt) {
 
 // --------------------------
 
-template<typename Ty, typename CharT>
-struct string_parser;
+template<typename Ty, typename CharT = char>
+struct string_converter;
 
-template<typename Ty, typename CharT>
+template<typename Ty, typename CharT = char>
 struct formatter;
 
 namespace detail {
 template<typename Ty, typename CharT>
-struct has_string_parser {
+struct has_from_string_converter {
     template<typename U>
     static auto test(const U* first, const U* last, Ty& v)
-        -> std::is_same<decltype(string_parser<Ty, U>{}.from_chars(first, last, v)), const U*>;
+        -> std::is_same<decltype(string_converter<Ty, U>{}.from_chars(first, last, v)), const U*>;
     template<typename U>
     static auto test(...) -> std::false_type;
     using type = decltype(test<CharT>(nullptr, nullptr, std::declval<Ty&>()));
 };
 template<typename Ty, typename StrTy>
-struct has_formatter {
+struct has_to_string_converter {
     template<typename U>
     static auto test(U& s, const Ty& v)
-        -> always_true<decltype(formatter<Ty, typename U::value_type>{}.format(s, v, fmt_opts{}))>;
+        -> always_true<decltype(string_converter<Ty, typename U::value_type>{}.to_string(s, v, fmt_opts{}))>;
     template<typename U>
     static auto test(...) -> std::false_type;
-    using type = decltype(test<StrTy>(std::declval<StrTy&>(), std::declval<Ty>()));
+    using type = decltype(test<StrTy>(std::declval<StrTy&>(), std::declval<const Ty&>()));
 };
 }  // namespace detail
 
 template<typename Ty, typename CharT = char>
-struct has_string_parser : detail::has_string_parser<Ty, CharT>::type {};
+struct convertible_from_string : detail::has_from_string_converter<Ty, CharT>::type {};
 
 template<typename Ty, typename StrTy = membuffer>
-struct has_formatter : detail::has_formatter<Ty, StrTy>::type {};
+struct convertible_to_string : detail::has_to_string_converter<Ty, StrTy>::type {};
 
-#define UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(ty, from_chars_func, fmt_func) \
+#define UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(ty, from_func, fmt_func) \
     template<typename CharT> \
-    struct string_parser<ty, CharT> { \
+    struct string_converter<ty, CharT> { \
         const CharT* from_chars(const CharT* first, const CharT* last, ty& val) const noexcept { \
-            auto t = from_chars_func(first, last, last); \
+            auto t = from_func(first, last, last); \
             if (last != first) { val = t; } \
             return last; \
         } \
-    }; \
-    template<typename CharT> \
-    struct formatter<ty, CharT> { \
         template<typename StrTy> \
-        void format(StrTy& s, ty val, const fmt_opts& fmt) const { \
+        void to_string(StrTy& s, ty val, const fmt_opts& fmt) const { \
             fmt_func(s, val, fmt); \
         } \
     };
@@ -477,7 +483,7 @@ UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(long double, scvt::to_float<long do
 
 template<typename CharT, typename Ty>
 const CharT* from_basic_chars(const CharT* first, const CharT* last, Ty& val) {
-    return string_parser<Ty, CharT>{}.from_chars(first, last, val);
+    return string_converter<Ty, CharT>{}.from_chars(first, last, val);
 }
 
 template<typename Ty>
@@ -523,8 +529,8 @@ NODISCARD Ty from_wstring(std::wstring_view s) {
 }
 
 template<typename StrTy, typename Ty>
-StrTy& to_basic_string(StrTy& s, const Ty& val, const fmt_opts& fmt = scvt::g_default_opts) {
-    formatter<Ty, typename StrTy::value_type>{}.format(s, val, fmt);
+StrTy& to_basic_string(StrTy& s, const Ty& val, fmt_opts fmt = fmt_opts{}) {
+    string_converter<Ty, typename StrTy::value_type>{}.to_string(s, val, fmt);
     return s;
 }
 
