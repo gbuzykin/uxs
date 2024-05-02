@@ -104,7 +104,7 @@ template<typename CharT, typename Traits>
 }
 
 template<typename CharT>
-struct string_parser<guid, CharT> {
+struct string_converter<guid, CharT> {
     const CharT* from_chars(const CharT* first, const CharT* last, guid& val) const noexcept {
         const std::size_t len = 38;
         if (static_cast<std::size_t>(last - first) < len) { return 0; }
@@ -118,12 +118,8 @@ struct string_parser<guid, CharT> {
         for (unsigned i = 10; i < 16; ++i, p += 2) { val.data8(i) = from_hex(p, 2); }
         return first + len;
     }
-};
-
-template<typename CharT>
-struct formatter<guid, CharT> {
     template<typename StrTy>
-    void format(StrTy& s, const guid& val, const fmt_opts& fmt) const {
+    void to_string(StrTy& s, const guid& val, const fmt_opts& fmt) const {
         const unsigned len = 38;
         const bool upper = !!(fmt.flags & fmt_flags::uppercase);
         std::array<typename StrTy::value_type, len> buf;
@@ -138,6 +134,14 @@ struct formatter<guid, CharT> {
         for (unsigned i = 10; i < 16; ++i, p += 2) { to_hex(val.data8(i), p, 2, upper); }
         const auto fn = [&buf](StrTy& s) { s.append(buf.data(), buf.data() + buf.size()); };
         fmt.width > len ? append_adjusted(s, fn, len, fmt) : fn(s);
+    }
+};
+
+template<typename CharT>
+struct formatter<guid, CharT> {
+    template<typename StrTy>
+    void format(StrTy& s, const guid& val, fmt_opts& fmt) const {
+        string_converter<guid, CharT>{}.to_string(s, val, fmt);
     }
 };
 
