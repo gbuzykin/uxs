@@ -20,7 +20,7 @@ class basic_ibuf_iterator : public iterator_facade<basic_ibuf_iterator<CharT>, C
     }
 
     void increment() {
-        iterator_assert(buf_);
+        uxs_iterator_assert(buf_);
         buf_->advance(1);
         if ((val_ = buf_->peek()) == traits_type::eof()) { buf_ = nullptr; }
     }

@@ -450,7 +450,7 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
 
     list_links_t* to_ptr(const_iterator it) const {
         auto* node = it.node();
-        iterator_assert(node_traits::get_head(node) == std::addressof(head_));
+        uxs_iterator_assert(node_traits::get_head(node) == std::addressof(head_));
         return node;
     }
 

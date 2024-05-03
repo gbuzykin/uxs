@@ -46,7 +46,7 @@ struct formattable : std::bool_constant<detail::has_formatter<Ty, FmtCtx>::type:
     template<typename CharT> \
     struct formatter<ty, CharT> { \
         template<typename ParseCtx> \
-        CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx, fmt_opts& fmt) { \
+        UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx, fmt_opts& fmt) { \
             return ctx.begin(); \
         } \
         template<typename FmtCtx> \
@@ -70,7 +70,7 @@ UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(long double, scvt::fmt_float)
 template<typename CharT>
 struct formatter<const void*, CharT> {
     template<typename ParseCtx>
-    CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx, fmt_opts& fmt) {
+    UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx, fmt_opts& fmt) {
         return ctx.begin();
     }
     template<typename FmtCtx>
@@ -178,7 +178,7 @@ class custom_arg_handle {
     using format_func_type = void (*)(FmtCtx&, typename FmtCtx::parse_context&, const void*, fmt_opts&);
 
     template<typename Ty>
-    CONSTEXPR custom_arg_handle(const Ty& v) noexcept : val_(&v), print_fn_(func<Ty>) {}
+    UXS_CONSTEXPR custom_arg_handle(const Ty& v) noexcept : val_(&v), print_fn_(func<Ty>) {}
 
     void format(FmtCtx& ctx, typename FmtCtx::parse_context& parse_ctx, fmt_opts& fmt) const {
         print_fn_(ctx, parse_ctx, val_, fmt);
@@ -243,10 +243,10 @@ class arg_store {
 
     arg_store& operator=(const arg_store&) = delete;
 
-    CONSTEXPR explicit arg_store(const Args&... args) noexcept {
+    UXS_CONSTEXPR explicit arg_store(const Args&... args) noexcept {
         store_values(0, arg_count * sizeof(unsigned), args...);
     }
-    CONSTEXPR const void* data() const noexcept { return data_; }
+    UXS_CONSTEXPR const void* data() const noexcept { return data_; }
 
  private:
     static const std::size_t storage_size =
@@ -255,7 +255,7 @@ class arg_store {
     alignas(storage_alignment) std::uint8_t data_[storage_size];
 
     template<typename Ty>
-    CONSTEXPR static void store_value(
+    UXS_CONSTEXPR static void store_value(
         const Ty& v,
         std::enable_if_t<(arg_type_index<Ty, char_type>::value < type_index::pointer), void*> data) noexcept {
         static_assert(!is_character<Ty>::value || sizeof(Ty) <= sizeof(char_type),
@@ -264,7 +264,7 @@ class arg_store {
     }
 
     template<typename Ty>
-    CONSTEXPR static void store_value(
+    UXS_CONSTEXPR static void store_value(
         const Ty& v,
         std::enable_if_t<(arg_type_index<Ty, char_type>::value == type_index::custom), void*> data) noexcept {
         using ReducedTy = reduce_type_t<Ty, char_type>;
@@ -273,16 +273,16 @@ class arg_store {
     }
 
     template<typename Ty>
-    CONSTEXPR static void store_value(Ty* v, void* data) noexcept {
+    UXS_CONSTEXPR static void store_value(Ty* v, void* data) noexcept {
         static_assert(!is_character<Ty>::value || std::is_same<std::remove_cv_t<Ty>, char_type>::value,
                       "inconsistent string argument type");
         ::new (data) const void*(v);
     }
 
-    CONSTEXPR static void store_value(std::nullptr_t, void* data) noexcept { ::new (data) const void*(nullptr); }
+    UXS_CONSTEXPR static void store_value(std::nullptr_t, void* data) noexcept { ::new (data) const void*(nullptr); }
 
     template<typename CharT, typename Traits>
-    CONSTEXPR static void store_value(const std::basic_string_view<CharT, Traits>& s, void* data) noexcept {
+    UXS_CONSTEXPR static void store_value(const std::basic_string_view<CharT, Traits>& s, void* data) noexcept {
         using Ty = std::basic_string_view<char_type>;
         static_assert(std::is_same<CharT, char_type>::value, "inconsistent string argument type");
         static_assert(std::is_trivially_copyable<Ty>::value && std::is_trivially_destructible<Ty>::value,
@@ -291,7 +291,7 @@ class arg_store {
     }
 
     template<typename CharT, typename Traits, typename Alloc>
-    CONSTEXPR static void store_value(const std::basic_string<CharT, Traits, Alloc>& s, void* data) noexcept {
+    UXS_CONSTEXPR static void store_value(const std::basic_string<CharT, Traits, Alloc>& s, void* data) noexcept {
         using Ty = std::basic_string_view<char_type>;
         static_assert(std::is_same<CharT, char_type>::value, "inconsistent string argument type");
         static_assert(std::is_trivially_copyable<Ty>::value && std::is_trivially_destructible<Ty>::value,
@@ -299,10 +299,10 @@ class arg_store {
         ::new (data) Ty(s.data(), s.size());
     }
 
-    CONSTEXPR void store_values(std::size_t i, std::size_t offset) noexcept {}
+    UXS_CONSTEXPR void store_values(std::size_t i, std::size_t offset) noexcept {}
 
     template<typename Ty, typename... Ts>
-    CONSTEXPR void store_values(std::size_t i, std::size_t offset, const Ty& v, const Ts&... other) noexcept {
+    UXS_CONSTEXPR void store_values(std::size_t i, std::size_t offset, const Ty& v, const Ts&... other) noexcept {
         offset = uxs::align_up<arg_alignment<FmtCtx, Ty>::value>::value(offset);
         ::new (reinterpret_cast<unsigned*>(&data_) + i) unsigned(
             static_cast<unsigned>(offset << 8) | static_cast<unsigned>(arg_type_index<Ty, char_type>::value));
@@ -317,15 +317,15 @@ class arg_store<FmtCtx> {
     using char_type = typename FmtCtx::char_type;
     static const std::size_t arg_count = 0;
     arg_store& operator=(const arg_store&) = delete;
-    CONSTEXPR arg_store() noexcept = default;
-    CONSTEXPR const void* data() const noexcept { return nullptr; }
+    UXS_CONSTEXPR arg_store() noexcept = default;
+    UXS_CONSTEXPR const void* data() const noexcept { return nullptr; }
 };
 
 // --------------------------
 
 struct parse_context_utils {
     template<typename Iter, typename Ty>
-    static CONSTEXPR Iter parse_number(Iter first, Iter last, Ty& num) {
+    static UXS_CONSTEXPR Iter parse_number(Iter first, Iter last, Ty& num) {
         for (unsigned dig = 0; first != last && (dig = dig_v(*first)) < 10; ++first) {
             Ty num0 = num;
             num = 10 * num + dig;
@@ -335,9 +335,9 @@ struct parse_context_utils {
     }
 
     template<typename ParseCtx>
-    static CONSTEXPR typename ParseCtx::iterator parse_standard(ParseCtx& ctx, typename ParseCtx::iterator it,
-                                                                fmt_opts& specs, std::size_t& width_arg_id,
-                                                                std::size_t& prec_arg_id) {
+    static UXS_CONSTEXPR typename ParseCtx::iterator parse_standard(ParseCtx& ctx, typename ParseCtx::iterator it,
+                                                                    fmt_opts& specs, std::size_t& width_arg_id,
+                                                                    std::size_t& prec_arg_id) {
         if (it == ctx.end()) { return it; }
 
         enum class state_t { adjustment = 0, sign, alternate, leading_zeroes, width, precision, locale, type, finish };
@@ -496,7 +496,7 @@ struct parse_context_utils {
 };
 
 template<typename ParseCtx, typename AppendTextFn, typename AppendArgFn>
-CONSTEXPR void parse_format(ParseCtx& ctx, const AppendTextFn& append_text_fn, const AppendArgFn& append_arg_fn) {
+UXS_CONSTEXPR void parse_format(ParseCtx& ctx, const AppendTextFn& append_text_fn, const AppendArgFn& append_arg_fn) {
     auto it0 = ctx.begin();
     for (auto it = it0; it != ctx.end(); ++it) {
         if (*it == '{' || *it == '}') {
@@ -628,16 +628,16 @@ class basic_format_arg {
 
     basic_format_arg(sfmt::type_index index, const void* data) noexcept : index_(index), data_(data) {}
 
-    NODISCARD sfmt::type_index index() const noexcept { return index_; }
+    UXS_NODISCARD sfmt::type_index index() const noexcept { return index_; }
 
     template<typename Ty>
-    NODISCARD const Ty* get() const noexcept {
+    UXS_NODISCARD const Ty* get() const noexcept {
         if (index_ != format_arg_type_index<FmtCtx, Ty>::value) { return nullptr; }
         return static_cast<const Ty*>(data_);
     }
 
     template<typename Ty>
-    NODISCARD const Ty& as() const {
+    UXS_NODISCARD const Ty& as() const {
         if (index_ != format_arg_type_index<FmtCtx, Ty>::value) { throw format_error("invalid value type"); }
         return *static_cast<const Ty*>(data_);
     }
@@ -654,11 +654,11 @@ class basic_format_args {
     basic_format_args(const sfmt::arg_store<FmtCtx, Args...>& store) noexcept
         : data_(store.data()), size_(sfmt::arg_store<FmtCtx, Args...>::arg_count) {}
 
-    NODISCARD uxs::span<const unsigned> metadata() const noexcept {
+    UXS_NODISCARD uxs::span<const unsigned> metadata() const noexcept {
         return uxs::as_span(static_cast<const unsigned*>(data_), size_);
     }
 
-    NODISCARD basic_format_arg<FmtCtx> get(std::size_t id) const noexcept {
+    UXS_NODISCARD basic_format_arg<FmtCtx> get(std::size_t id) const noexcept {
         assert(id < size_);
         const unsigned meta = static_cast<const unsigned*>(data_)[id];
         return basic_format_arg<FmtCtx>(static_cast<sfmt::type_index>(meta & 0xff),
@@ -677,8 +677,8 @@ class basic_format_parse_context : public sfmt::parse_context_utils {
     using iterator = typename std::basic_string_view<char_type>::const_iterator;
     using const_iterator = typename std::basic_string_view<char_type>::const_iterator;
 
-    CONSTEXPR basic_format_parse_context(std::basic_string_view<char_type> fmt,
-                                         uxs::span<const unsigned> args_metadata) noexcept
+    UXS_CONSTEXPR basic_format_parse_context(std::basic_string_view<char_type> fmt,
+                                             uxs::span<const unsigned> args_metadata) noexcept
         : fmt_(fmt), args_metadata_(args_metadata) {}
 
 #if __cplusplus >= 201703L
@@ -686,16 +686,16 @@ class basic_format_parse_context : public sfmt::parse_context_utils {
 #endif  // __cplusplus >= 201703L
     basic_format_parse_context& operator=(const basic_format_parse_context&) = delete;
 
-    NODISCARD CONSTEXPR iterator begin() const noexcept { return fmt_.begin(); }
-    NODISCARD CONSTEXPR iterator end() const noexcept { return fmt_.end(); }
-    CONSTEXPR void advance_to(iterator it) { fmt_.remove_prefix(static_cast<std::size_t>(it - fmt_.begin())); }
+    UXS_NODISCARD UXS_CONSTEXPR iterator begin() const noexcept { return fmt_.begin(); }
+    UXS_NODISCARD UXS_CONSTEXPR iterator end() const noexcept { return fmt_.end(); }
+    UXS_CONSTEXPR void advance_to(iterator it) { fmt_.remove_prefix(static_cast<std::size_t>(it - fmt_.begin())); }
 
-    NODISCARD CONSTEXPR std::size_t next_arg_id() {
+    UXS_NODISCARD UXS_CONSTEXPR std::size_t next_arg_id() {
         if (next_arg_id_ == dynamic_extent) { throw format_error("automatic argument indexing error"); }
         if (next_arg_id_ >= args_metadata_.size()) { throw format_error("out of argument list"); }
         return next_arg_id_++;
     }
-    CONSTEXPR void check_arg_id(std::size_t id) {
+    UXS_CONSTEXPR void check_arg_id(std::size_t id) {
         if (next_arg_id_ != dynamic_extent && next_arg_id_ > 0) {
             throw format_error("manual argument indexing error");
         }
@@ -703,19 +703,19 @@ class basic_format_parse_context : public sfmt::parse_context_utils {
         next_arg_id_ = dynamic_extent;
     }
 
-    NODISCARD CONSTEXPR sfmt::type_index arg_index(std::size_t id) const noexcept {
+    UXS_NODISCARD UXS_CONSTEXPR sfmt::type_index arg_index(std::size_t id) const noexcept {
         return static_cast<sfmt::type_index>(args_metadata_[id] & 0xff);
     }
 
     template<typename... Ts>
-    CONSTEXPR void check_arg_type(std::size_t id) {
+    UXS_CONSTEXPR void check_arg_type(std::size_t id) {
         const std::array<sfmt::type_index, sizeof...(Ts)> types{sfmt::detail::arg_type_index<Ts, char_type>::value...};
         if (std::find(types.begin(), types.end(), arg_index(id)) == types.end()) {
             throw format_error("argument is not of valid type");
         }
     }
 
-    CONSTEXPR void check_arg_integral(std::size_t id) const {
+    UXS_CONSTEXPR void check_arg_integral(std::size_t id) const {
         const auto index = arg_index(id);
         if (index < sfmt::type_index::integer || index > sfmt::type_index::unsigned_long_integer) {
             throw format_error("argument is not an integer");
@@ -743,9 +743,9 @@ class basic_format_context {
     basic_format_context(StrTy& s, const std::locale& loc, const format_args_type& args)
         : s_(s), loc_(loc), args_(args) {}
     basic_format_context& operator=(const basic_format_context&) = delete;
-    NODISCARD StrTy& out() { return s_; }
-    NODISCARD locale_ref locale() const { return loc_; }
-    NODISCARD format_arg_type arg(std::size_t id) const { return args_.get(id); }
+    UXS_NODISCARD StrTy& out() { return s_; }
+    UXS_NODISCARD locale_ref locale() const { return loc_; }
+    UXS_NODISCARD format_arg_type arg(std::size_t id) const { return args_.get(id); }
 
     template<typename Ty>
     void format_arg(parse_context& parse_ctx, const Ty& val, fmt_opts& fmt) {
@@ -770,12 +770,12 @@ using format_args = basic_format_args<format_context>;
 using wformat_args = basic_format_args<wformat_context>;
 
 template<typename FmtCtx = format_context, typename... Args>
-NODISCARD CONSTEXPR sfmt::arg_store<FmtCtx, Args...> make_format_args(const Args&... args) noexcept {
+UXS_NODISCARD UXS_CONSTEXPR sfmt::arg_store<FmtCtx, Args...> make_format_args(const Args&... args) noexcept {
     return sfmt::arg_store<FmtCtx, Args...>{args...};
 }
 
 template<typename... Args>
-NODISCARD CONSTEXPR sfmt::arg_store<wformat_context, Args...> make_wformat_args(const Args&... args) noexcept {
+UXS_NODISCARD UXS_CONSTEXPR sfmt::arg_store<wformat_context, Args...> make_wformat_args(const Args&... args) noexcept {
     return sfmt::arg_store<wformat_context, Args...>{args...};
 }
 
@@ -785,8 +785,8 @@ class basic_format_string {
     using char_type = CharT;
     template<typename Ty,
              typename = std::enable_if_t<std::is_convertible<const Ty&, std::basic_string_view<char_type>>::value>>
-    CONSTEVAL basic_format_string(const Ty& fmt) noexcept : fmt_(fmt) {
-#if defined(HAS_CONSTEVAL)
+    UXS_CONSTEVAL basic_format_string(const Ty& fmt) noexcept : fmt_(fmt) {
+#if defined(UXS_HAS_CONSTEVAL)
         using parse_context = basic_format_parse_context<char_type>;
         constexpr std::array<unsigned, sizeof...(Args)> args_metadata = {
             static_cast<unsigned>(sfmt::arg_type_index<Args, char_type>::value)...};
@@ -797,15 +797,15 @@ class basic_format_string {
             ctx, [](auto&&...) constexpr {}, [&parsers](auto& ctx, std::size_t id, auto& specs, auto&&...) constexpr {
                 parsers[id](ctx, specs);
             });
-#endif  // defined(HAS_CONSTEVAL)
+#endif  // defined(UXS_HAS_CONSTEVAL)
     }
-    NODISCARD CONSTEXPR std::basic_string_view<char_type> get() const noexcept { return fmt_; }
+    UXS_NODISCARD UXS_CONSTEXPR std::basic_string_view<char_type> get() const noexcept { return fmt_; }
 
  private:
     std::basic_string_view<char_type> fmt_;
 
     template<typename ParseCtx, typename Ty>
-    static CONSTEXPR void parse_arg(ParseCtx& ctx, fmt_opts& fmt) {
+    static UXS_CONSTEXPR void parse_arg(ParseCtx& ctx, fmt_opts& fmt) {
         formatter<Ty, typename ParseCtx::char_type> f;
         ctx.advance_to(f.parse(ctx, fmt));
     }
@@ -849,25 +849,25 @@ StrTy& basic_format(StrTy& s, const std::locale& loc, basic_format_string<typena
 
 // ---- vformat
 
-NODISCARD inline std::string vformat(std::string_view fmt, format_args args) {
+UXS_NODISCARD inline std::string vformat(std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
     basic_vformat<membuffer>(buf, fmt, args);
     return std::string(buf.data(), buf.size());
 }
 
-NODISCARD inline std::wstring vformat(std::wstring_view fmt, wformat_args args) {
+UXS_NODISCARD inline std::wstring vformat(std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
     basic_vformat<wmembuffer>(buf, fmt, args);
     return std::wstring(buf.data(), buf.size());
 }
 
-NODISCARD inline std::string vformat(const std::locale& loc, std::string_view fmt, format_args args) {
+UXS_NODISCARD inline std::string vformat(const std::locale& loc, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
     basic_vformat<membuffer>(buf, loc, fmt, args);
     return std::string(buf.data(), buf.size());
 }
 
-NODISCARD inline std::wstring vformat(const std::locale& loc, std::wstring_view fmt, wformat_args args) {
+UXS_NODISCARD inline std::wstring vformat(const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
     basic_vformat<wmembuffer>(buf, loc, fmt, args);
     return std::wstring(buf.data(), buf.size());
@@ -876,22 +876,22 @@ NODISCARD inline std::wstring vformat(const std::locale& loc, std::wstring_view 
 // ---- format
 
 template<typename... Args>
-NODISCARD std::string format(format_string<Args...> fmt, const Args&... args) {
+UXS_NODISCARD std::string format(format_string<Args...> fmt, const Args&... args) {
     return vformat(fmt.get(), make_format_args(args...));
 }
 
 template<typename... Args>
-NODISCARD std::wstring format(wformat_string<Args...> fmt, const Args&... args) {
+UXS_NODISCARD std::wstring format(wformat_string<Args...> fmt, const Args&... args) {
     return vformat(fmt.get(), make_wformat_args(args...));
 }
 
 template<typename... Args>
-NODISCARD std::string format(const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
+UXS_NODISCARD std::string format(const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
     return vformat(loc, fmt.get(), make_format_args(args...));
 }
 
 template<typename... Args>
-NODISCARD std::wstring format(const std::locale& loc, wformat_string<Args...> fmt, const Args&... args) {
+UXS_NODISCARD std::wstring format(const std::locale& loc, wformat_string<Args...> fmt, const Args&... args) {
     return vformat(loc, fmt.get(), make_wformat_args(args...));
 }
 

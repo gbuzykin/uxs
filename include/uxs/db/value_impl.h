@@ -455,7 +455,7 @@ uxs::optional<bool> basic_value<CharT, Alloc>::get_bool() const {
         } break;
         case dtype::array: return uxs::nullopt();
         case dtype::record: return uxs::nullopt();
-        default: UNREACHABLE_CODE;
+        default: UXS_UNREACHABLE_CODE;
     }
 }
 
@@ -489,7 +489,7 @@ uxs::optional<std::int32_t> basic_value<CharT, Alloc>::get_int() const {
         } break;
         case dtype::array: return uxs::nullopt();
         case dtype::record: return uxs::nullopt();
-        default: UNREACHABLE_CODE;
+        default: UXS_UNREACHABLE_CODE;
     }
 }
 
@@ -520,7 +520,7 @@ uxs::optional<std::uint32_t> basic_value<CharT, Alloc>::get_uint() const {
         } break;
         case dtype::array: return uxs::nullopt();
         case dtype::record: return uxs::nullopt();
-        default: UNREACHABLE_CODE;
+        default: UXS_UNREACHABLE_CODE;
     }
 }
 
@@ -548,7 +548,7 @@ uxs::optional<std::int64_t> basic_value<CharT, Alloc>::get_int64() const {
         } break;
         case dtype::array: return uxs::nullopt();
         case dtype::record: return uxs::nullopt();
-        default: UNREACHABLE_CODE;
+        default: UXS_UNREACHABLE_CODE;
     }
 }
 
@@ -574,7 +574,7 @@ uxs::optional<std::uint64_t> basic_value<CharT, Alloc>::get_uint64() const {
         } break;
         case dtype::array: return uxs::nullopt();
         case dtype::record: return uxs::nullopt();
-        default: UNREACHABLE_CODE;
+        default: UXS_UNREACHABLE_CODE;
     }
 }
 
@@ -594,7 +594,7 @@ uxs::optional<float> basic_value<CharT, Alloc>::get_float() const {
         } break;
         case dtype::array: return uxs::nullopt();
         case dtype::record: return uxs::nullopt();
-        default: UNREACHABLE_CODE;
+        default: UXS_UNREACHABLE_CODE;
     }
 }
 
@@ -614,7 +614,7 @@ uxs::optional<double> basic_value<CharT, Alloc>::get_double() const {
         } break;
         case dtype::array: return uxs::nullopt();
         case dtype::record: return uxs::nullopt();
-        default: UNREACHABLE_CODE;
+        default: UXS_UNREACHABLE_CODE;
     }
 }
 
@@ -657,7 +657,7 @@ uxs::optional<std::basic_string<CharT>> basic_value<CharT, Alloc>::get_string() 
         case dtype::string: return uxs::make_optional<std::basic_string<CharT>>(str_view());
         case dtype::array: return uxs::nullopt();
         case dtype::record: return uxs::nullopt();
-        default: UNREACHABLE_CODE;
+        default: UXS_UNREACHABLE_CODE;
     }
 }
 
@@ -789,7 +789,7 @@ bool basic_value<CharT, Alloc>::convert(dtype type) {
             value_.rec = record_t::create(rec_al);
             type_ = dtype::record;
         } break;
-        default: UNREACHABLE_CODE;
+        default: UXS_UNREACHABLE_CODE;
     }
     return true;
 }
@@ -898,7 +898,7 @@ template<typename CharT, typename Alloc>
 typename basic_value<CharT, Alloc>::record_iterator basic_value<CharT, Alloc>::erase(const_record_iterator it) {
     if (type_ != dtype::record) { throw database_error("not a record"); }
     detail::list_links_type* node = it.node();
-    iterator_assert(record_t::node_traits::get_head(node) == &value_.rec->head);
+    uxs_iterator_assert(record_t::node_traits::get_head(node) == &value_.rec->head);
     assert(node != &value_.rec->head);
     typename record_t::alloc_type rec_al(*this);
     return record_iterator(value_.rec->erase(rec_al, node));

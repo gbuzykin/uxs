@@ -7,16 +7,16 @@
 #include <utility>
 
 #define UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(ty, enum_base) \
-    CONSTEXPR ty operator&(ty lhs, ty rhs) { \
+    UXS_CONSTEXPR ty operator&(ty lhs, ty rhs) { \
         return static_cast<ty>(static_cast<enum_base>(lhs) & static_cast<enum_base>(rhs)); \
     } \
-    CONSTEXPR ty operator|(ty lhs, ty rhs) { \
+    UXS_CONSTEXPR ty operator|(ty lhs, ty rhs) { \
         return static_cast<ty>(static_cast<enum_base>(lhs) | static_cast<enum_base>(rhs)); \
     } \
-    CONSTEXPR ty operator~(ty flags) { return static_cast<ty>(~static_cast<enum_base>(flags)); } \
-    CONSTEXPR bool operator!(ty flags) { return static_cast<enum_base>(flags) == 0; } \
-    CONSTEXPR ty& operator&=(ty& lhs, ty rhs) { return lhs = lhs & rhs; } \
-    CONSTEXPR ty& operator|=(ty& lhs, ty rhs) { return lhs = lhs | rhs; } \
+    UXS_CONSTEXPR ty operator~(ty flags) { return static_cast<ty>(~static_cast<enum_base>(flags)); } \
+    UXS_CONSTEXPR bool operator!(ty flags) { return static_cast<enum_base>(flags) == 0; } \
+    UXS_CONSTEXPR ty& operator&=(ty& lhs, ty rhs) { return lhs = lhs & rhs; } \
+    UXS_CONSTEXPR ty& operator|=(ty& lhs, ty rhs) { return lhs = lhs | rhs; } \
     static_assert(true, "")
 
 namespace uxs {

@@ -167,7 +167,7 @@ int json::reader::parse_token(std::string_view& lval) {
             } break;
 
             case lex_detail::predef_pat_default: return static_cast<unsigned char>(lexeme[0]);
-            default: UNREACHABLE_CODE;
+            default: UXS_UNREACHABLE_CODE;
         }
     }
 }

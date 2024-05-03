@@ -39,12 +39,12 @@ class reader {
         }
 
         void increment() {
-            iterator_assert(rd_);
+            uxs_iterator_assert(rd_);
             if ((val_ = rd_->read_next()).first == token_t::eof) { rd_ = nullptr; }
         }
 
         std::map<std::string_view, std::string>& attributes() const {
-            iterator_assert(rd_);
+            uxs_iterator_assert(rd_);
             return rd_->attrs_;
         }
 

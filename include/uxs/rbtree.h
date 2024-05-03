@@ -31,8 +31,8 @@ inline rbtree_node_t* rbtree_left_bound(rbtree_node_t* node) noexcept {
     return node;
 }
 
-UXS_EXPORT NOALIAS rbtree_node_t* rbtree_next(rbtree_node_t* node) noexcept;
-UXS_EXPORT NOALIAS rbtree_node_t* rbtree_prev(rbtree_node_t* node) noexcept;
+UXS_EXPORT UXS_NOALIAS rbtree_node_t* rbtree_next(rbtree_node_t* node) noexcept;
+UXS_EXPORT UXS_NOALIAS rbtree_node_t* rbtree_prev(rbtree_node_t* node) noexcept;
 
 template<typename Traits, typename Key, typename Comp>
 std::pair<rbtree_node_t*, int> rbtree_find_insert_pos(rbtree_node_t* head, const Key& k, const Comp& comp) {
