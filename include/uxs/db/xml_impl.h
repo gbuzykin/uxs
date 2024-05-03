@@ -50,7 +50,7 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
             case string_class::floating_point_number: return {from_string<double>(sval), al};
             case string_class::ws_with_nl: return make_record<CharT>(al);
             case string_class::other: return {uxs::detail::utf8_string_converter<CharT>::from(sval), al};
-            default: UNREACHABLE_CODE;
+            default: UXS_UNREACHABLE_CODE;
         }
     };
 
@@ -90,7 +90,7 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
                 stack.pop_back();
                 if (stack.empty()) { return result; }
             } break;
-            default: UNREACHABLE_CODE;
+            default: UXS_UNREACHABLE_CODE;
         }
         tk = read_next();
     }

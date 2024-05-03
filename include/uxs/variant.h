@@ -37,7 +37,7 @@
         assert(!uxs::variant::vtables_[static_cast<unsigned>(type_id)]); \
         uxs::variant::vtables_[static_cast<unsigned>(type_id)] = &vtable; \
     } \
-    static uxs::variant_type_impl<ty> TOKENPASTE2(g_variant_type_impl_, __LINE__)
+    static uxs::variant_type_impl<ty> UXS_TOKENPASTE2(g_variant_type_impl_, __LINE__)
 
 #define UXS_IMPLEMENT_VARIANT_TYPE_WITH_STRING_CONVERTER(ty) \
     UXS_IMPLEMENT_VARIANT_STRING_CONVERTER(ty) \
@@ -63,10 +63,10 @@ enum class variant_id : std::uint32_t {
     matrix4x4,
     custom0
 };
-CONSTEXPR variant_id operator+(variant_id lhs, std::uint32_t rhs) {
+UXS_CONSTEXPR variant_id operator+(variant_id lhs, std::uint32_t rhs) {
     return static_cast<variant_id>(static_cast<std::uint32_t>(lhs) + rhs);
 }
-CONSTEXPR variant_id operator+(std::uint32_t lhs, variant_id rhs) {
+UXS_CONSTEXPR variant_id operator+(std::uint32_t lhs, variant_id rhs) {
     return static_cast<variant_id>(lhs + static_cast<std::uint32_t>(rhs));
 }
 

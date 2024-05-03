@@ -233,7 +233,7 @@ class list : public list_enumerator<Ty, HookTraits> {
         node_traits::reset_pointer(item, std::move(obj));
         node_traits::set_head(item, &this->head_);
         auto* after = pos.node();
-        iterator_assert(node_traits::get_head(after) == &this->head_);
+        uxs_iterator_assert(node_traits::get_head(after) == &this->head_);
         ++this->size_;
         dllist_insert_before<list_links_t>(after, item);
         return iterator(item);
@@ -245,7 +245,7 @@ class list : public list_enumerator<Ty, HookTraits> {
     std::pair<owning_pointer_t, iterator> extract(const_iterator pos) {
         auto* item = pos.node();
         assert(item != &this->head_);
-        iterator_assert(node_traits::get_head(item) == &this->head_);
+        uxs_iterator_assert(node_traits::get_head(item) == &this->head_);
         --this->size_;
         auto* next = dllist_remove(item);
         node_traits::set_head(item, nullptr);

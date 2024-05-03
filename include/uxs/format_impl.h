@@ -27,7 +27,7 @@ unsigned get_arg_integer_value(basic_format_arg<FmtCtx> arg, unsigned limit) {
         UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(std::uint64_t)
 #undef UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE
 #undef UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE
-        default: UNREACHABLE_CODE;
+        default: UXS_UNREACHABLE_CODE;
     }
 }
 

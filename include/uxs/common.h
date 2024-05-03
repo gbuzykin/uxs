@@ -5,8 +5,8 @@
 #include <cstddef>
 #include <cstdint>
 
-#define TOKENPASTE(x, y)  x##y
-#define TOKENPASTE2(x, y) TOKENPASTE(x, y)
+#define UXS_TOKENPASTE(x, y)  x##y
+#define UXS_TOKENPASTE2(x, y) UXS_TOKENPASTE(x, y)
 
 #if !defined(UXS_HAS_INCLUDE)
 #    if defined(__has_include) || _MSC_VER > 1900
@@ -24,48 +24,48 @@
 #    endif
 #endif
 
-#if !defined(CONSTEVAL)
+#if !defined(UXS_CONSTEVAL)
 #    if __cplusplus >= 202002L && \
         (__GNUC__ >= 10 || __clang_major__ >= 12 || (_MSC_VER >= 1920 && defined(__cpp_consteval)))
-#        define CONSTEVAL     consteval
-#        define HAS_CONSTEVAL 1
+#        define UXS_CONSTEVAL     consteval
+#        define UXS_HAS_CONSTEVAL 1
 #    else
-#        define CONSTEVAL inline
+#        define UXS_CONSTEVAL inline
 #    endif
-#endif  // !defined(CONSTEVAL)
+#endif  // !defined(UXS_CONSTEVAL)
 
-#if !defined(CONSTEXPR)
+#if !defined(UXS_CONSTEXPR)
 #    if __cplusplus < 201703L
-#        define CONSTEXPR inline
+#        define UXS_CONSTEXPR inline
 #    else  // __cplusplus < 201703L
-#        define CONSTEXPR constexpr
+#        define UXS_CONSTEXPR constexpr
 #    endif  // __cplusplus < 201703L
-#endif      // !defined(CONSTEXPR)
+#endif      // !defined(UXS_CONSTEXPR)
 
-#if !defined(NODISCARD)
+#if !defined(UXS_NODISCARD)
 #    if __cplusplus < 201703L
-#        define NODISCARD
+#        define UXS_NODISCARD
 #    else  // __cplusplus < 201703L
-#        define NODISCARD [[nodiscard]]
+#        define UXS_NODISCARD [[nodiscard]]
 #    endif  // __cplusplus < 201703L
-#endif      // !defined(NODISCARD)
+#endif      // !defined(UXS_NODISCARD)
 
-#if !defined(UNREACHABLE_CODE)
+#if !defined(UXS_UNREACHABLE_CODE)
 #    if defined(_MSC_VER)
-#        define UNREACHABLE_CODE __assume(false)
+#        define UXS_UNREACHABLE_CODE __assume(false)
 #    elif defined(__GNUC__)
-#        define UNREACHABLE_CODE __builtin_unreachable()
+#        define UXS_UNREACHABLE_CODE __builtin_unreachable()
 #    else
-#        define UNREACHABLE_CODE
+#        define UXS_UNREACHABLE_CODE
 #    endif
-#endif  // !defined(UNREACHABLE_CODE)
+#endif  // !defined(UXS_UNREACHABLE_CODE)
 
-#if !defined(NOALIAS)
+#if !defined(UXS_NOALIAS)
 #    if defined(_MSC_VER)
-#        define NOALIAS __declspec(noalias)
+#        define UXS_NOALIAS __declspec(noalias)
 #    elif defined(__GNUC__)
-#        define NOALIAS __attribute__((pure))
+#        define UXS_NOALIAS __attribute__((pure))
 #    else
-#        define NOALIAS
+#        define UXS_NOALIAS
 #    endif
-#endif  // !defined(NOALIAS)
+#endif  // !defined(UXS_NOALIAS)

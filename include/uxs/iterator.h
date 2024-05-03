@@ -7,9 +7,9 @@
 #include <limits>
 
 #if _ITERATOR_DEBUG_LEVEL != 0
-#    define iterator_assert(cond) assert(cond)
+#    define uxs_iterator_assert(cond) assert(cond)
 #else  // _ITERATOR_DEBUG_LEVEL != 0
-#    define iterator_assert(cond) ((void)0)
+#    define uxs_iterator_assert(cond) ((void)0)
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
 
 namespace uxs {
@@ -325,40 +325,40 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
     array_iterator() noexcept = default;
 
     void increment() noexcept {
-        iterator_assert(ptr_ < end_);
+        uxs_iterator_assert(ptr_ < end_);
         ++ptr_;
     }
 
     void decrement() noexcept {
-        iterator_assert(ptr_ > begin_);
+        uxs_iterator_assert(ptr_ > begin_);
         --ptr_;
     }
 
     void advance(difference_type j) noexcept {
-        iterator_assert(j >= 0 ? end_ - ptr_ >= j : ptr_ - begin_ >= -j);
+        uxs_iterator_assert(j >= 0 ? end_ - ptr_ >= j : ptr_ - begin_ >= -j);
         ptr_ += j;
     }
 
     reference dereference() const noexcept {
-        iterator_assert(begin_ <= ptr_ && ptr_ < end_);
+        uxs_iterator_assert(begin_ <= ptr_ && ptr_ < end_);
         return *ptr_;
     }
 
     template<bool Const2>
     bool is_equal_to(const array_iterator<Traits, Const2>& it) const noexcept {
-        iterator_assert(begin_ == it.begin_ && end_ == it.end_);
+        uxs_iterator_assert(begin_ == it.begin_ && end_ == it.end_);
         return ptr_ == it.ptr_;
     }
 
     template<bool Const2>
     bool is_less_than(const array_iterator<Traits, Const2>& it) const noexcept {
-        iterator_assert(begin_ == it.begin_ && end_ == it.end_);
+        uxs_iterator_assert(begin_ == it.begin_ && end_ == it.end_);
         return ptr_ < it.ptr_;
     }
 
     template<bool Const2>
     difference_type distance_to(const array_iterator<Traits, Const2>& it) const noexcept {
-        iterator_assert(begin_ == it.begin_ && end_ == it.end_);
+        uxs_iterator_assert(begin_ == it.begin_ && end_ == it.end_);
         return it.ptr_ - ptr_;
     }
 
@@ -437,24 +437,24 @@ class list_iterator : public container_iterator_facade<Traits, list_iterator<Tra
     }
 
     void increment() noexcept {
-        iterator_assert(node_ && (node_ != NodeTraits::get_head(node_)));
+        uxs_iterator_assert(node_ && (node_ != NodeTraits::get_head(node_)));
         node_ = NodeTraits::get_next(node_);
     }
 
     void decrement() noexcept {
-        iterator_assert(node_ && node_ != NodeTraits::get_front(NodeTraits::get_head(node_)));
+        uxs_iterator_assert(node_ && node_ != NodeTraits::get_front(NodeTraits::get_head(node_)));
         node_ = NodeTraits::get_prev(node_);
     }
 
     template<bool Const2>
     bool is_equal_to(const list_iterator<Traits, NodeTraits, Const2>& it) const noexcept {
-        iterator_assert((!node_ && !it.node_) ||
-                        (node_ && it.node_ && NodeTraits::get_head(node_) == NodeTraits::get_head(it.node_)));
+        uxs_iterator_assert((!node_ && !it.node_) ||
+                            (node_ && it.node_ && NodeTraits::get_head(node_) == NodeTraits::get_head(it.node_)));
         return node_ == it.node_;
     }
 
     reference dereference() const noexcept {
-        iterator_assert(node_ && node_ != NodeTraits::get_head(node_));
+        uxs_iterator_assert(node_ && node_ != NodeTraits::get_head(node_));
         return NodeTraits::get_value(node_);
     }
 
@@ -477,7 +477,7 @@ class const_value_iterator : public iterator_facade<const_value_iterator<Val>, V
     void advance(std::ptrdiff_t j) noexcept {}
     const Val& dereference() const noexcept { return *v_; }
     bool is_equal_to(const const_value_iterator& it) const noexcept {
-        iterator_assert(v_ == it.v_);
+        uxs_iterator_assert(v_ == it.v_);
         return true;
     }
 
@@ -581,7 +581,7 @@ struct pointer_traits<uxs::array_iterator<Traits, Const>> {
     using element_type = std::conditional_t<Const, const typename pointer::value_type, typename pointer::value_type>;
     using difference_type = typename pointer::difference_type;
     [[nodiscard]] static constexpr element_type* to_address(const pointer iter) noexcept {
-        iterator_assert(iter.begin() <= iter.ptr() && iter.ptr() <= iter.end());
+        uxs_iterator_assert(iter.begin() <= iter.ptr() && iter.ptr() <= iter.end());
         return std::to_address(iter.ptr());
     }
 };

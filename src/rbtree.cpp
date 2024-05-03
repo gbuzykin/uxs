@@ -48,12 +48,12 @@ inline void rbtree_rotate_right(rbtree_node_t* node) noexcept {
     node->parent = left;
 }
 
-NOALIAS rbtree_node_t* uxs::rbtree_next(rbtree_node_t* node) noexcept {
+UXS_NOALIAS rbtree_node_t* uxs::rbtree_next(rbtree_node_t* node) noexcept {
     if (node->right) { return rbtree_left_bound(node->right); }
     return rbtree_right_parent(node);
 }
 
-NOALIAS rbtree_node_t* uxs::rbtree_prev(rbtree_node_t* node) noexcept {
+UXS_NOALIAS rbtree_node_t* uxs::rbtree_prev(rbtree_node_t* node) noexcept {
     if (node->left) { return rbtree_right_bound(node->left); }
     return rbtree_left_parent(node);
 }

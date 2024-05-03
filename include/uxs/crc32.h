@@ -10,7 +10,7 @@ namespace detail {
 // CRC32 lookup table
 struct crc32_table_t {
     std::array<std::uint32_t, 256> v{};
-    CONSTEXPR crc32_table_t() {
+    UXS_CONSTEXPR crc32_table_t() {
         // The official polynomial used by CRC-32 in PKZip, WinZip and Ethernet
         const std::uint32_t poly = 0x04c11db7;
         const std::uint32_t msbit = 0x80000000;
@@ -20,7 +20,7 @@ struct crc32_table_t {
             v[i] = reflect(r, 32);
         }
     }
-    CONSTEXPR std::uint32_t reflect(std::uint32_t ref, unsigned ch) {
+    UXS_CONSTEXPR std::uint32_t reflect(std::uint32_t ref, unsigned ch) {
         std::uint32_t value = 0;
         for (unsigned i = 1; i < ch + 1; ++i) {  // Swap bit 0 for bit 7 bit 1 for bit 6, etc.
             if (ref & 1) { value |= 1 << (ch - i); }
@@ -34,11 +34,11 @@ struct crc32_table_t {
 class crc32 {
  public:
     template<typename InputIt>
-    static CONSTEXPR std::uint32_t calc(InputIt it, InputIt end, std::uint32_t crc32 = 0xffffffff) noexcept {
+    static UXS_CONSTEXPR std::uint32_t calc(InputIt it, InputIt end, std::uint32_t crc32 = 0xffffffff) noexcept {
         while (it != end) { crc32 = (crc32 >> 8) ^ table_.v[(crc32 & 0xff) ^ static_cast<std::uint8_t>(*it++)]; }
         return crc32;
     }
-    static CONSTEXPR std::uint32_t calc(const char* zstr, std::uint32_t crc32 = 0xffffffff) noexcept {
+    static UXS_CONSTEXPR std::uint32_t calc(const char* zstr, std::uint32_t crc32 = 0xffffffff) noexcept {
         while (*zstr) { crc32 = (crc32 >> 8) ^ table_.v[(crc32 & 0xff) ^ static_cast<std::uint8_t>(*zstr++)]; }
         return crc32;
     }

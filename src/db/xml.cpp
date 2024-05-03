@@ -104,7 +104,7 @@ std::pair<xml::token_t, std::string_view> xml::reader::read_next() {
                     if (!input_) { break; }
                     input_.advance(1);
                 } break;
-                default: UNREACHABLE_CODE;
+                default: UXS_UNREACHABLE_CODE;
             }
         } else if (*first == '&') {  // parse entity
             if (parse_token(lval) == lex_token_t::predef_entity) { return {token_t::plain_text, lval}; }
@@ -278,7 +278,7 @@ xml::reader::lex_token_t xml::reader::parse_token(std::string_view& lval) {
                     default: return static_cast<lex_token_t>(static_cast<unsigned char>(*first));
                 }
             } break;
-            default: UNREACHABLE_CODE;
+            default: UXS_UNREACHABLE_CODE;
         }
     }
 }
@@ -297,7 +297,7 @@ xml::reader::lex_token_t xml::reader::parse_token(std::string_view& lval) {
         case lex_detail::pat_real: return string_class::floating_point_number;
         case lex_detail::pat_ws_with_nl: return string_class::ws_with_nl;
         case lex_detail::pat_other_value: return string_class::other;
-        default: UNREACHABLE_CODE;
+        default: UXS_UNREACHABLE_CODE;
     }
 }
 

@@ -308,7 +308,7 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
 
     pointer to_ptr(const_iterator it) const {
         auto p = std::addressof(const_cast<reference>(*it.ptr()));
-        iterator_assert(it.begin() == v_.begin && it.end() == v_.end);
+        uxs_iterator_assert(it.begin() == v_.begin && it.end() == v_.end);
         assert(v_.begin <= p && p <= v_.end);
         return p;
     }
