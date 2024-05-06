@@ -119,7 +119,7 @@ struct string_converter<guid, CharT> {
         return first + len;
     }
     template<typename StrTy>
-    void to_string(StrTy& s, const guid& val, const fmt_opts& fmt) const {
+    void to_string(StrTy& s, const guid& val, fmt_opts fmt) const {
         const unsigned len = 38;
         const bool upper = !!(fmt.flags & fmt_flags::uppercase);
         std::array<typename StrTy::value_type, len> buf;
@@ -139,19 +139,27 @@ struct string_converter<guid, CharT> {
 
 template<typename CharT>
 struct formatter<guid, CharT> {
+    fmt_opts specs;
+    std::size_t width_arg_id = dynamic_extent;
     template<typename ParseCtx>
-    UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx, fmt_opts& fmt) {
-        if (fmt.prec >= 0) { ParseCtx::unexpected_prec_error(); }
-        if (!!(fmt.flags & fmt_flags::sign_field)) { ParseCtx::unexpected_sign_error(); }
-        if (!!(fmt.flags & fmt_flags::leading_zeroes)) { ParseCtx::unexpected_leading_zeroes_error(); }
-        if (!!(fmt.flags & (fmt_flags::float_field | fmt_flags::type_field)) ||
-            (!!(fmt.flags & fmt_flags::base_field) && (fmt.flags & fmt_flags::base_field) != fmt_flags::hex)) {
-            ParseCtx::type_error();
-        }
-        return ctx.begin();
+    UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) {
+        auto it = ctx.begin();
+        if (it == ctx.end() || *it != ':') { return it; }
+        std::size_t dummy_id = dynamic_extent;
+        it = ParseCtx::parse_standard(ctx, it + 1, specs, width_arg_id, dummy_id);
+        if (specs.prec >= 0) { ParseCtx::unexpected_prec_error(); }
+        if (!!(specs.flags & fmt_flags::sign_field)) { ParseCtx::unexpected_sign_error(); }
+        if (!!(specs.flags & fmt_flags::leading_zeroes)) { ParseCtx::unexpected_leading_zeroes_error(); }
+        if (it == ctx.end() || (*it != 'X' && *it != 'x')) { return it; }
+        if (*it == 'X') { specs.flags |= fmt_flags::uppercase; }
+        return it + 1;
     }
     template<typename FmtCtx>
-    void format(FmtCtx& ctx, const guid& val, fmt_opts& fmt) const {
+    void format(FmtCtx& ctx, const guid& val) const {
+        fmt_opts fmt = specs;
+        if (width_arg_id != dynamic_extent) {
+            fmt.width = ctx.arg(width_arg_id).get_unsigned(std::numeric_limits<decltype(fmt.width)>::max());
+        }
         string_converter<guid, CharT>{}.to_string(ctx.out(), val, fmt);
     }
 };

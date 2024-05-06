@@ -203,29 +203,25 @@ enum class fmt_flags : unsigned {
     bin = 2,
     oct = 3,
     hex = 4,
+    character = 5,
     base_field = 7,
     uppercase = 8,
     fixed = 0x10,
     scientific = 0x20,
     general = 0x30,
-    scientific_hex = scientific | hex,
     float_field = 0x30,
-    pointer = 0x40,
-    character = 0x80,
-    string = 0xc0,
-    type_field = 0xc0,
-    sign_neg = 0x100,
-    sign_pos = 0x200,
-    sign_align = 0x300,
-    sign_field = 0x300,
+    sign_neg = 0x40,
+    sign_pos = 0x80,
+    sign_align = 0xc0,
+    sign_field = 0xc0,
+    left = 0x100,
+    right = 0x200,
+    internal = 0x300,
+    adjust_field = 0x300,
     leading_zeroes = 0x400,
     alternate = 0x800,
-    left = 0x1000,
-    right = 0x2000,
-    internal = 0x3000,
-    adjust_field = 0x3000,
-    json_compat = 0x4000,
-    localize = 0x8000,
+    json_compat = 0x1000,
+    localize = 0x2000,
 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(fmt_flags, unsigned);
 
@@ -261,7 +257,7 @@ class locale_ref {
 // --------------------------
 
 template<typename StrTy, typename Func>
-void append_adjusted(StrTy& s, Func fn, unsigned len, const fmt_opts& fmt, bool prefer_right = false) {
+void append_adjusted(StrTy& s, Func fn, unsigned len, fmt_opts fmt, bool prefer_right = false) {
     unsigned left = fmt.width - len, right = left;
     if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::left) {
         left = 0;
@@ -354,65 +350,63 @@ Ty to_float(const CharT* p, const CharT* end, const CharT*& last) noexcept {
 // --------------------------
 
 template<typename CharT>
-UXS_EXPORT void fmt_boolean(basic_membuffer<CharT>& s, bool val, const fmt_opts& fmt, locale_ref loc);
+UXS_EXPORT void fmt_boolean(basic_membuffer<CharT>& s, bool val, fmt_opts fmt, locale_ref loc);
 
 template<typename StrTy,
          typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
-void fmt_boolean(StrTy& s, bool val, const fmt_opts& fmt, locale_ref loc) {
+void fmt_boolean(StrTy& s, bool val, fmt_opts fmt, locale_ref loc) {
     inline_basic_dynbuffer<typename StrTy::value_type> buf;
     fmt_boolean(buf, val, fmt, loc);
     s.append(buf.data(), buf.data() + buf.size());
 }
 
 template<typename CharT>
-UXS_EXPORT void fmt_character(basic_membuffer<CharT>& s, CharT val, const fmt_opts& fmt, locale_ref loc);
+UXS_EXPORT void fmt_character(basic_membuffer<CharT>& s, CharT val, fmt_opts fmt, locale_ref loc);
 
 template<typename StrTy,
          typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
-void fmt_character(StrTy& s, typename StrTy::value_type val, const fmt_opts& fmt, locale_ref loc) {
+void fmt_character(StrTy& s, typename StrTy::value_type val, fmt_opts fmt, locale_ref loc) {
     inline_basic_dynbuffer<typename StrTy::value_type> buf;
     fmt_character(buf, val, fmt, loc);
     s.append(buf.data(), buf.data() + buf.size());
 }
 
 template<typename CharT>
-UXS_EXPORT void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, const fmt_opts& fmt,
-                           locale_ref loc);
+UXS_EXPORT void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, fmt_opts fmt, locale_ref loc);
 
 template<typename StrTy,
          typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
-void fmt_string(StrTy& s, std::basic_string_view<typename StrTy::value_type> val, const fmt_opts& fmt, locale_ref loc) {
+void fmt_string(StrTy& s, std::basic_string_view<typename StrTy::value_type> val, fmt_opts fmt, locale_ref loc) {
     inline_basic_dynbuffer<typename StrTy::value_type> buf;
     fmt_string(buf, val, fmt, loc);
     s.append(buf.data(), buf.data() + buf.size());
 }
 
 template<typename CharT, typename Ty>
-UXS_EXPORT void fmt_integer_common(basic_membuffer<CharT>& s, Ty val, bool is_signed, const fmt_opts& fmt,
-                                   locale_ref loc);
+UXS_EXPORT void fmt_integer_common(basic_membuffer<CharT>& s, Ty val, bool is_signed, fmt_opts fmt, locale_ref loc);
 
 template<typename StrTy, typename Ty,
          typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
-void fmt_integer_common(StrTy& s, Ty val, bool is_signed, const fmt_opts& fmt, locale_ref loc) {
+void fmt_integer_common(StrTy& s, Ty val, bool is_signed, fmt_opts fmt, locale_ref loc) {
     inline_basic_dynbuffer<typename StrTy::value_type> buf;
     fmt_integer_common(buf, val, is_signed, fmt, loc);
     s.append(buf.data(), buf.data() + buf.size());
 }
 
 template<typename CharT>
-UXS_EXPORT void fmt_float_common(basic_membuffer<CharT>& s, std::uint64_t u64, const fmt_opts& fmt, unsigned bpm,
-                                 int exp_max, locale_ref loc);
+UXS_EXPORT void fmt_float_common(basic_membuffer<CharT>& s, std::uint64_t u64, fmt_opts fmt, unsigned bpm, int exp_max,
+                                 locale_ref loc);
 
 template<typename StrTy,
          typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
-void fmt_float_common(StrTy& s, std::uint64_t u64, const fmt_opts& fmt, unsigned bpm, int exp_max, locale_ref loc) {
+void fmt_float_common(StrTy& s, std::uint64_t u64, fmt_opts fmt, unsigned bpm, int exp_max, locale_ref loc) {
     inline_basic_dynbuffer<typename StrTy::value_type> buf;
     fmt_float_common(buf, u64, fmt, bpm, exp_max, loc);
     s.append(buf.data(), buf.data() + buf.size());
 }
 
 template<typename StrTy, typename Ty>
-void fmt_integer(StrTy& s, Ty val, const fmt_opts& fmt, locale_ref loc) {
+void fmt_integer(StrTy& s, Ty val, fmt_opts fmt, locale_ref loc) {
     using UTy = typename std::make_unsigned<Ty>::type;
     using ReducedTy = std::conditional_t<(sizeof(UTy) <= sizeof(std::uint32_t)), std::uint32_t, std::uint64_t>;
     const bool is_signed = std::is_signed<Ty>::value;
@@ -420,7 +414,7 @@ void fmt_integer(StrTy& s, Ty val, const fmt_opts& fmt, locale_ref loc) {
 }
 
 template<typename StrTy, typename Ty>
-void fmt_float(StrTy& s, Ty val, const fmt_opts& fmt, locale_ref loc) {
+void fmt_float(StrTy& s, Ty val, fmt_opts fmt, locale_ref loc) {
     using FpTy = std::conditional_t<(sizeof(Ty) <= sizeof(double)), Ty, double>;
     fmt_float_common(s, fp_traits<Ty>::to_u64(static_cast<FpTy>(val)), fmt, fp_traits<Ty>::bits_per_mantissa,
                      fp_traits<Ty>::exp_max, loc);
@@ -472,7 +466,7 @@ struct convertible_to_string : detail::has_to_string_converter<Ty, StrTy>::type 
             return last; \
         } \
         template<typename StrTy> \
-        void to_string(StrTy& s, ty val, const fmt_opts& fmt, locale_ref loc = locale_ref{}) const { \
+        void to_string(StrTy& s, ty val, fmt_opts fmt, locale_ref loc = locale_ref{}) const { \
             fmt_func(s, val, fmt, loc); \
         } \
     };

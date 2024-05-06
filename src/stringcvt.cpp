@@ -565,7 +565,7 @@ std::uint64_t fp10_to_fp2(fp10_t& fp10, unsigned bpm, int exp_max) noexcept {
 
 // --------------------------
 
-fp_hex_fmt_t::fp_hex_fmt_t(const fp_m64_t& fp2, const fmt_opts& fmt, unsigned bpm, int exp_bias) noexcept
+fp_hex_fmt_t::fp_hex_fmt_t(const fp_m64_t& fp2, fmt_opts fmt, unsigned bpm, int exp_bias) noexcept
     : significand_(fp2.m), exp_(fp2.exp), prec_(fmt.prec), n_zeroes_(0),
       alternate_(!!(fmt.flags & fmt_flags::alternate)) {
     if (significand_ == 0 && exp_ == 0) {  // real zero
@@ -623,7 +623,7 @@ UXS_SCVT_FORCE_INLINE int remove_trailing_zeros(std::uint64_t& n, int max_remove
     return max_remove - s;
 }
 
-fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, const fmt_opts& fmt, unsigned bpm, int exp_bias) noexcept
+fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, fmt_opts fmt, unsigned bpm, int exp_bias) noexcept
     : significand_(0), prec_(fmt.prec), n_zeroes_(0), alternate_(!!(fmt.flags & fmt_flags::alternate)) {
     const int default_prec = 6;
     const fmt_flags fp_fmt = fmt.flags & fmt_flags::float_field;
@@ -983,21 +983,19 @@ template UXS_EXPORT std::uint64_t to_float_common(const wchar_t*, const wchar_t*
                                                   const int) noexcept;
 template UXS_EXPORT bool to_boolean(const wchar_t*, const wchar_t*, const wchar_t*& last) noexcept;
 
-template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint32_t, bool, const fmt_opts&, locale_ref);
-template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint64_t, bool, const fmt_opts&, locale_ref);
-template UXS_EXPORT void fmt_float_common(membuffer&, std::uint64_t, const fmt_opts&, const unsigned, const int,
-                                          locale_ref);
-template UXS_EXPORT void fmt_boolean(membuffer&, bool, const fmt_opts&, locale_ref);
-template UXS_EXPORT void fmt_character(membuffer&, char, const fmt_opts&, locale_ref);
-template UXS_EXPORT void fmt_string(membuffer&, std::string_view, const fmt_opts&, locale_ref);
+template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint32_t, bool, fmt_opts, locale_ref);
+template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint64_t, bool, fmt_opts, locale_ref);
+template UXS_EXPORT void fmt_float_common(membuffer&, std::uint64_t, fmt_opts, const unsigned, const int, locale_ref);
+template UXS_EXPORT void fmt_boolean(membuffer&, bool, fmt_opts, locale_ref);
+template UXS_EXPORT void fmt_character(membuffer&, char, fmt_opts, locale_ref);
+template UXS_EXPORT void fmt_string(membuffer&, std::string_view, fmt_opts, locale_ref);
 
-template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint32_t, bool, const fmt_opts&, locale_ref);
-template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint64_t, bool, const fmt_opts&, locale_ref);
-template UXS_EXPORT void fmt_float_common(wmembuffer&, std::uint64_t, const fmt_opts&, const unsigned, const int,
-                                          locale_ref);
-template UXS_EXPORT void fmt_boolean(wmembuffer&, bool, const fmt_opts&, locale_ref);
-template UXS_EXPORT void fmt_character(wmembuffer&, wchar_t, const fmt_opts&, locale_ref);
-template UXS_EXPORT void fmt_string(wmembuffer&, std::wstring_view, const fmt_opts&, locale_ref);
+template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint32_t, bool, fmt_opts, locale_ref);
+template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint64_t, bool, fmt_opts, locale_ref);
+template UXS_EXPORT void fmt_float_common(wmembuffer&, std::uint64_t, fmt_opts, const unsigned, const int, locale_ref);
+template UXS_EXPORT void fmt_boolean(wmembuffer&, bool, fmt_opts, locale_ref);
+template UXS_EXPORT void fmt_character(wmembuffer&, wchar_t, fmt_opts, locale_ref);
+template UXS_EXPORT void fmt_string(wmembuffer&, std::wstring_view, fmt_opts, locale_ref);
 
 }  // namespace scvt
 
