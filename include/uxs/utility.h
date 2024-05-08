@@ -26,10 +26,8 @@ struct type_identity {
 };
 template<typename Ty, typename... Ts>
 using type_identity_t = typename type_identity<Ty, Ts...>::type;
-namespace detail {
 template<typename... Ts>
 struct always_true : std::true_type {};
-}  // namespace detail
 }  // namespace uxs
 
 #if __cplusplus < 201703L
@@ -94,6 +92,15 @@ using index_sequence_for = make_index_sequence<sizeof...(Ts)>;
 #    endif  // integer sequence
 }  // namespace std
 #endif  // __cplusplus < 201703L
+
+#if __cplusplus < 202002L && !defined(__cpp_lib_remove_cvref)
+namespace std {
+template<typename Ty>
+using remove_cvref = remove_cv<remove_reference_t<Ty>>;
+template<typename Ty>
+using remove_cvref_t = typename remove_cvref<Ty>::type;
+}  // namespace std
+#endif  // remove_cvref
 
 namespace uxs {
 

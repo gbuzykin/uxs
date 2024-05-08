@@ -30,20 +30,12 @@ template<typename Iter>
 using is_random_access_iterator =
     std::is_base_of<std::random_access_iterator_tag, typename std::iterator_traits<Iter>::iterator_category>;
 
-namespace detail {
-template<typename Iter, typename Ty>
-struct is_output_iterator {
-    template<typename U>
-    static auto test(U& s, const Ty& v) -> always_true<typename std::iterator_traits<U>::iterator_category,
-                                                       decltype(*std::declval<U>() = std::declval<Ty>())>;
-    template<typename U>
-    static auto test(...) -> std::false_type;
-    using type = decltype(test<Iter>(std::declval<Iter&>(), std::declval<Ty>()));
-};
-}  // namespace detail
+template<typename Iter, typename Ty, typename = void>
+struct is_output_iterator : std::false_type {};
 
 template<typename Iter, typename Ty>
-using is_output_iterator = typename detail::is_output_iterator<Iter, Ty>::type;
+struct is_output_iterator<Iter, Ty, std::void_t<decltype(*std::declval<Iter&>()++ = std::declval<Ty>())>>
+    : std::true_type {};
 
 //-----------------------------------------------------------------------------
 // Iterator range
@@ -53,6 +45,23 @@ const std::size_t dynamic_extent = ~std::size_t(0);
 #else   // __cplusplus < 201703L
 inline constexpr std::size_t dynamic_extent = std::numeric_limits<std::size_t>::max();
 #endif  // __cplusplus < 201703L
+
+template<typename Range, typename = void>
+struct range_element {};
+template<typename Range>
+struct range_element<Range, std::void_t<decltype(*std::end(std::declval<const Range&>()))>> {
+    using type = std::remove_cvref_t<decltype(*std::end(std::declval<const Range&>()))>;
+};
+template<typename Range>
+using range_element_t = typename range_element<Range>::type;
+
+template<typename Range, typename Ty, typename = void>
+struct is_contiguous_range : std::false_type {};
+template<typename Range, typename Ty>
+struct is_contiguous_range<Range, Ty,
+                           std::enable_if_t<std::is_convertible<
+                               decltype(std::declval<Range&>().data() + std::declval<Range&>().size()), Ty*>::value>>
+    : std::true_type {};
 
 template<typename Iter, typename = void>
 class iterator_range;
@@ -118,26 +127,12 @@ auto make_subrange(Range&& r, std::size_t offset, std::size_t count = dynamic_ex
 
 template<typename IterL, typename IterR>
 bool operator==(const iterator_range<IterL>& lhs, const iterator_range<IterR>& rhs) {
-    return lhs.begin() == rhs.begin() && lhs.end() == rhs.end();
+    return std::begin(lhs) == std::begin(rhs) && std::end(lhs) == std::end(rhs);
 }
 template<typename IterL, typename IterR>
 bool operator!=(const iterator_range<IterL>& lhs, const iterator_range<IterR>& rhs) {
     return !(lhs == rhs);
 }
-
-namespace detail {
-template<typename Range, typename Ty>
-struct is_contiguous_range {
-    template<typename Range_>
-    static auto test(Range_* r) -> std::is_convertible<decltype(r->data() + r->size()), Ty*>;
-    template<typename Range_>
-    static std::false_type test(...);
-    using type = decltype(test<Range>(nullptr));
-};
-}  // namespace detail
-
-template<typename Range, typename Ty>
-struct is_contiguous_range : detail::is_contiguous_range<Range, Ty>::type {};
 
 //-----------------------------------------------------------------------------
 // Iterator facade
