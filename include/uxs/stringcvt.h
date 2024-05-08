@@ -534,19 +534,19 @@ std::size_t wstoval(std::wstring_view s, Ty& val) {
 }
 
 template<typename Ty, typename CharT, typename Traits = std::char_traits<CharT>>
-UXS_NODISCARD Ty from_basic_string(std::basic_string_view<CharT, Traits> s) {
+Ty from_basic_string(std::basic_string_view<CharT, Traits> s) {
     Ty result{};
     basic_stoval(s, result);
     return result;
 }
 
 template<typename Ty>
-UXS_NODISCARD Ty from_string(std::string_view s) {
+Ty from_string(std::string_view s) {
     return from_basic_string<Ty>(s);
 }
 
 template<typename Ty>
-UXS_NODISCARD Ty from_wstring(std::wstring_view s) {
+Ty from_wstring(std::wstring_view s) {
     return from_basic_string<Ty>(s);
 }
 
@@ -563,28 +563,28 @@ StrTy& to_basic_string(StrTy& s, const std::locale& loc, const Ty& val, fmt_opts
 }
 
 template<typename Ty>
-UXS_NODISCARD std::string to_string(const Ty& val) {
+std::string to_string(const Ty& val) {
     inline_dynbuffer buf;
     to_basic_string(buf, val);
     return std::string(buf.data(), buf.size());
 }
 
 template<typename Ty, typename... Opts>
-UXS_NODISCARD std::string to_string(const Ty& val, const Opts&... opts) {
+std::string to_string(const Ty& val, const Opts&... opts) {
     inline_dynbuffer buf;
     to_basic_string(buf, val, fmt_opts{opts...});
     return std::string(buf.data(), buf.size());
 }
 
 template<typename Ty>
-UXS_NODISCARD std::wstring to_wstring(const Ty& val) {
+std::wstring to_wstring(const Ty& val) {
     inline_wdynbuffer buf;
     to_basic_string(buf, val);
     return std::wstring(buf.data(), buf.size());
 }
 
 template<typename Ty, typename... Opts>
-UXS_NODISCARD std::wstring to_wstring(const Ty& val, const Opts&... opts) {
+std::wstring to_wstring(const Ty& val, const Opts&... opts) {
     inline_wdynbuffer buf;
     to_basic_string(buf, val, fmt_opts{opts...});
     return std::wstring(buf.data(), buf.size());
