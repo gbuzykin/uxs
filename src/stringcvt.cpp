@@ -270,9 +270,9 @@ struct bignum_t {
     unsigned exp;
 };
 
-UXS_CONSTEXPR_DATA int bigpow10_tbl_size = 19;
+const UXS_CONSTEXPR int bigpow10_tbl_size = 19;
 UXS_FORCE_INLINE bignum_t get_bigpow10(unsigned index) noexcept {
-    static UXS_CONSTEXPR_DATA std::uint64_t bigpow10[] = {
+    static const UXS_CONSTEXPR std::uint64_t bigpow10[] = {
         0xde0b6b3a76400000, 0xc097ce7bc90715b3, 0x4b9f100000000000, 0xa70c3c40a64e6c51, 0x999090b65f67d924,
         0x90e40fbeea1d3a4a, 0xbc8955e946fe31cd, 0xcf66f634e1000000, 0xfb5878494ace3a5f, 0x04ab48a04065c723,
         0xe64cd7818d59b87f, 0xcddc800000000000, 0xda01ee641a708de9, 0xe80e6f4820cc9495, 0xd74baad03bc1d8d3,
@@ -300,9 +300,9 @@ UXS_FORCE_INLINE bignum_t get_bigpow10(unsigned index) noexcept {
         0x892179be91d43a43, 0x88083f8943a1148c, 0xd69283788730f71b, 0x5a7dd3dd4576e805, 0x981e98226ca211b8,
         0x75341fde13cd0ade, 0x7bdb2dc9c078d6e6, 0x17f150e1d35cf5e7, 0xda153ab760d85d36, 0x4d55f7b5df842d22,
         0xf5ed5e5a949d844e, 0x5023ac542102c3de, 0xb953b92000000000};
-    static UXS_CONSTEXPR_DATA unsigned bigpow10_offset[bigpow10_tbl_size + 1] = {
+    static const UXS_CONSTEXPR unsigned bigpow10_offset[bigpow10_tbl_size + 1] = {
         0, 1, 3, 5, 8, 12, 16, 21, 27, 33, 40, 48, 56, 65, 75, 85, 96, 108, 120, 133};
-    static UXS_CONSTEXPR_DATA unsigned bigpow10_exp[bigpow10_tbl_size] = {
+    static const UXS_CONSTEXPR unsigned bigpow10_exp[bigpow10_tbl_size] = {
         59, 119, 179, 239, 298, 358, 418, 478, 538, 597, 657, 717, 777, 837, 896, 956, 1016, 1076, 1136};
     assert(index < bigpow10_tbl_size);
     const unsigned* const offset = &bigpow10_offset[index];
@@ -345,10 +345,10 @@ inline std::uint64_t umul96x64_higher128(uint96_t x, std::uint64_t y, std::uint6
 #endif
 }
 
-UXS_CONSTEXPR_DATA int pow10_max = 344;
+const UXS_CONSTEXPR int pow10_max = 344;
 UXS_FORCE_INLINE uint96_t get_cached_pow10(int pow) noexcept {
     assert(pow >= -pow10_max && pow <= pow10_max);
-    static UXS_CONSTEXPR_DATA std::uint64_t higher64[] = {
+    static const UXS_CONSTEXPR std::uint64_t higher64[] = {
         0x98ee4a22ecf3188b, 0xe3e27a444d8d98b7, 0xa9c98d8ccb009506, 0xfd00b897478238d0, 0xbc807527ed3e12bc,
         0x8c71dcd9ba0b4925, 0xd1476e2c07286faa, 0x9becce62836ac577, 0xe858ad248f5c22c9, 0xad1c8eab5ee43b66,
         0x80fa687f881c7f8e, 0xc0314325637a1939, 0x8f31cc0937ae58d2, 0xd5605fcdcf32e1d6, 0x9efa548d26e5a6e1,
@@ -367,7 +367,7 @@ UXS_FORCE_INLINE uint96_t get_cached_pow10(int pow) noexcept {
         0xaa7eebfb9df9de8d, 0xfe0efb53d30dd4d7, 0xbd49d14aa79dbc82, 0x8d07e33455637eb2, 0xd226fc195c6a2f8c,
         0x9c935e00d4b9d8d2, 0xe950df20247c83fd, 0xadd57a27d29339f6, 0x81842f29f2cce375, 0xc0fe908895cf3b44,
         0x8fcac257558ee4e6, 0xd6444e39c3db9b09};
-    static UXS_CONSTEXPR_DATA std::uint32_t lower32[] = {
+    static const UXS_CONSTEXPR std::uint32_t lower32[] = {
         0x9028bed3, 0xfd1b1b23, 0x680efdaf, 0x8920b099, 0xc6050837, 0x9ff0c08b, 0x1af5af66, 0x4ee367f9, 0xd1b34010,
         0xda324365, 0x7ce66635, 0xfa911156, 0xd1b2ecb9, 0xfb1e4a9b, 0xc47bc501, 0xa4f8bf56, 0xbd8d794e, 0x4247cb9e,
         0xbedbfc44, 0x7b6306a3, 0x3badd625, 0xb8ada00e, 0xdc44e6c4, 0x59ed2167, 0xbd06742d, 0xfe64a52f, 0xa8c2a44f,
@@ -378,12 +378,12 @@ UXS_FORCE_INLINE uint96_t get_cached_pow10(int pow) noexcept {
         0x577b986b, 0x90fb44d3, 0x7d7b8f75, 0x9f644ae6, 0x85bbe254, 0xb428f8ac, 0xa7709a57, 0x6d953e2c, 0x82bd6b71,
         0x36251261, 0xacca6da2, 0x0fabaf40, 0xddbb901c, 0xed238cd4, 0x4b2d8645, 0xdb0b487b, 0x73832eec, 0x6ed1bf9a,
         0x47c6b82f, 0x79c5db9b, 0xe6a11583, 0x505f522e, 0x213a4f0b, 0x848ce346};
-    UXS_CONSTEXPR_DATA int step_pow = 3;
+    const UXS_CONSTEXPR int step_pow = 3;
     int n = (pow10_max + pow) >> step_pow, k = pow & ((1 << step_pow) - 1);
     uint96_t result{higher64[n], lower32[n]};
     if (!k) { return result; }
-    static UXS_CONSTEXPR_DATA std::uint32_t mul10[] = {0,          0xa0000000, 0xc8000000, 0xfa000000,
-                                                       0x9c400000, 0xc3500000, 0xf4240000, 0x98968000};
+    static const UXS_CONSTEXPR std::uint32_t mul10[] = {0,          0xa0000000, 0xc8000000, 0xfa000000,
+                                                        0x9c400000, 0xc3500000, 0xf4240000, 0x98968000};
     std::uint64_t t = umul96x32(result, mul10[k], result.hi);
     if (!(result.hi & msb64)) {
         result.hi = shl128(result.hi, t, 1);
@@ -396,7 +396,7 @@ UXS_FORCE_INLINE uint96_t get_cached_pow10(int pow) noexcept {
 // --------------------------
 
 inline int exp10to2(int exp) {
-    UXS_CONSTEXPR_DATA std::int64_t ln10_ln2 = 0x35269e12f;  // 2^32 * ln(10) / ln(2)
+    const UXS_CONSTEXPR std::int64_t ln10_ln2 = 0x35269e12f;  // 2^32 * ln(10) / ln(2)
     return static_cast<int>(hi32(ln10_ln2 * exp));
 }
 
@@ -598,7 +598,7 @@ fp_hex_fmt_t::fp_hex_fmt_t(const fp_m64_t& fp2, fmt_opts fmt, unsigned bpm, int 
 // --------------------------
 
 inline int exp2to10(int exp) {
-    UXS_CONSTEXPR_DATA std::int64_t ln2_ln10 = 0x4d104d42;  // 2^32 * ln(2) / ln(10)
+    const UXS_CONSTEXPR std::int64_t ln2_ln10 = 0x4d104d42;  // 2^32 * ln(2) / ln(10)
     return static_cast<int>(hi32(ln2_ln10 * exp));
 }
 
@@ -609,8 +609,8 @@ inline std::uint64_t rotr2(std::uint64_t n) { return (n >> 2) | (n << 62); }
 // Removes trailing zeros and returns the number of zeros removed
 UXS_FORCE_INLINE int remove_trailing_zeros(std::uint64_t& n, int max_remove) {
     int s = max_remove;
-    UXS_CONSTEXPR_DATA std::uint64_t mod_inv_5 = 0xcccccccccccccccd;
-    UXS_CONSTEXPR_DATA std::uint64_t mod_inv_25 = 0x8f5c28f5c28f5c29;
+    const UXS_CONSTEXPR std::uint64_t mod_inv_5 = 0xcccccccccccccccd;
+    const UXS_CONSTEXPR std::uint64_t mod_inv_25 = 0x8f5c28f5c28f5c29;
     while (s > 1) {
         const std::uint64_t q = rotr2(n * mod_inv_25);
         if (q > std::numeric_limits<std::uint64_t>::max() / 100u) { break; }

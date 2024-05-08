@@ -72,9 +72,9 @@ struct fp_m64_t {
     int exp;
 };
 
-UXS_CONSTEXPR_DATA std::uint64_t msb64 = 1ull << 63;
-UXS_CONSTEXPR std::uint64_t lo32(std::uint64_t x) { return x & 0xffffffff; }
-UXS_CONSTEXPR std::uint64_t hi32(std::uint64_t x) { return x >> 32; }
+const UXS_CONSTEXPR std::uint64_t msb64 = 1ull << 63;
+inline UXS_CONSTEXPR std::uint64_t lo32(std::uint64_t x) { return x & 0xffffffff; }
+inline UXS_CONSTEXPR std::uint64_t hi32(std::uint64_t x) { return x >> 32; }
 template<typename TyH, typename TyL>
 UXS_CONSTEXPR std::uint64_t make64(TyH hi, TyL lo) {
     return (static_cast<std::uint64_t>(hi) << 32) | static_cast<std::uint64_t>(lo);
@@ -181,9 +181,9 @@ Ty to_integer_common(const CharT* p, const CharT* end, const CharT*& last, Ty po
     return val;
 }
 
-UXS_CONSTEXPR_DATA int max_pow10_size = 13;
-UXS_CONSTEXPR_DATA int max_fp10_mantissa_size = 41;  // ceil(log2(10^(768 + 18)))
-UXS_CONSTEXPR_DATA int fp10_bits_size = max_fp10_mantissa_size + max_pow10_size;
+const UXS_CONSTEXPR int max_pow10_size = 13;
+const UXS_CONSTEXPR int max_fp10_mantissa_size = 41;  // ceil(log2(10^(768 + 18)))
+const UXS_CONSTEXPR int fp10_bits_size = max_fp10_mantissa_size + max_pow10_size;
 struct fp10_t {
     int exp = 0;
     unsigned bits_used = 1;
@@ -195,7 +195,7 @@ UXS_EXPORT std::uint64_t bignum_mul32(std::uint64_t* x, unsigned sz, std::uint32
 
 template<typename CharT>
 const CharT* accum_mantissa(const CharT* p, const CharT* end, fp10_t& fp10) noexcept {
-    UXS_CONSTEXPR_DATA std::uint64_t short_lim = 1000000000000000000ull;
+    const UXS_CONSTEXPR std::uint64_t short_lim = 1000000000000000000ull;
     std::uint64_t* m10 = &fp10.bits[max_fp10_mantissa_size - fp10.bits_used];
     if (fp10.bits_used == 1) {
         std::uint64_t m = *m10;
@@ -277,7 +277,7 @@ std::uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& la
 
 // minimal digit count for numbers 2^N <= x < 2^(N+1), N = 0, 1, 2, ...
 UXS_FORCE_INLINE unsigned get_exp2_dig_count(unsigned exp) noexcept {
-    static UXS_CONSTEXPR_DATA unsigned dig_count[] = {
+    static const UXS_CONSTEXPR unsigned dig_count[] = {
         1,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  4,  5,  5,  5,  6,  6,  6,  7,  7,
         7,  7,  8,  8,  8,  9,  9,  9,  10, 10, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 13, 13,
         14, 14, 14, 15, 15, 15, 16, 16, 16, 16, 17, 17, 17, 18, 18, 18, 19, 19, 19, 19, 20};
@@ -290,8 +290,8 @@ UXS_FORCE_INLINE std::uint64_t get_pow10(int pow) noexcept {
 #define UXS_SCVT_POWERS_OF_10(base) \
     base, (base)*10, (base)*100, (base)*1000, (base)*10000, (base)*100000, (base)*1000000, (base)*10000000, \
         (base)*100000000, (base)*1000000000
-    static UXS_CONSTEXPR_DATA std::uint64_t ten_pows[] = {UXS_SCVT_POWERS_OF_10(1ull),
-                                                          UXS_SCVT_POWERS_OF_10(10000000000ull)};
+    static const UXS_CONSTEXPR std::uint64_t ten_pows[] = {UXS_SCVT_POWERS_OF_10(1ull),
+                                                           UXS_SCVT_POWERS_OF_10(10000000000ull)};
 #undef UXS_SCVT_POWERS_OF_10
     assert(pow >= 0 && pow < static_cast<int>(sizeof(ten_pows) / sizeof(ten_pows[0])));
     return ten_pows[pow];
@@ -299,7 +299,7 @@ UXS_FORCE_INLINE std::uint64_t get_pow10(int pow) noexcept {
 
 // digit pairs
 UXS_FORCE_INLINE const char* get_digits(unsigned n) noexcept {
-    static UXS_CONSTEXPR_DATA char digs[][2] = {
+    static const UXS_CONSTEXPR char digs[][2] = {
         {'0', '0'}, {'0', '1'}, {'0', '2'}, {'0', '3'}, {'0', '4'}, {'0', '5'}, {'0', '6'}, {'0', '7'}, {'0', '8'},
         {'0', '9'}, {'1', '0'}, {'1', '1'}, {'1', '2'}, {'1', '3'}, {'1', '4'}, {'1', '5'}, {'1', '6'}, {'1', '7'},
         {'1', '8'}, {'1', '9'}, {'2', '0'}, {'2', '1'}, {'2', '2'}, {'2', '3'}, {'2', '4'}, {'2', '5'}, {'2', '6'},
@@ -718,8 +718,8 @@ void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, fm
 
 // ---- float
 
-UXS_CONSTEXPR_DATA int max_double_digits = 767;
-UXS_CONSTEXPR_DATA int digs_per_64 = 18;  // size of 64-bit digit pack
+const UXS_CONSTEXPR int max_double_digits = 767;
+const UXS_CONSTEXPR int digs_per_64 = 18;  // size of 64-bit digit pack
 
 class fp_hex_fmt_t {
  public:

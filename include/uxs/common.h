@@ -38,25 +38,17 @@
 #        define UXS_CONSTEVAL     consteval
 #        define UXS_HAS_CONSTEVAL 1
 #    else
-#        define UXS_CONSTEVAL inline
+#        define UXS_CONSTEVAL
 #    endif
 #endif  // !defined(UXS_CONSTEVAL)
 
 #if !defined(UXS_CONSTEXPR)
 #    if __cplusplus < 201703L
-#        define UXS_CONSTEXPR inline
+#        define UXS_CONSTEXPR
 #    else  // __cplusplus < 201703L
 #        define UXS_CONSTEXPR constexpr
 #    endif  // __cplusplus < 201703L
 #endif      // !defined(UXS_CONSTEXPR)
-
-#if !defined(UXS_CONSTEXPR_DATA)
-#    if __cplusplus < 201703L
-#        define UXS_CONSTEXPR_DATA const
-#    else  // __cplusplus < 201703L
-#        define UXS_CONSTEXPR_DATA constexpr
-#    endif  // __cplusplus < 201703L
-#endif      // !defined(UXS_CONSTEXPR_DATA)
 
 #if !defined(UXS_NODISCARD)
 #    if __cplusplus < 201703L
