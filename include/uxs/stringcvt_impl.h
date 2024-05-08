@@ -681,10 +681,10 @@ void fmt_character(basic_membuffer<CharT>& s, CharT val, fmt_opts fmt, locale_re
 
 template<typename CharT>
 void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, fmt_opts fmt, locale_ref) {
-    const CharT *first = val.data(), *last = first + val.size();
+    auto first = val.begin(), last = val.end();
     std::size_t len = 0;
     unsigned count = 0;
-    const CharT* p = first;
+    auto p = first;
     if (fmt.prec >= 0) {
         unsigned prec = fmt.prec;
         len = prec;
@@ -703,17 +703,8 @@ void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, fm
             count = count_utf_chars<CharT>{}(*p), ++len;
         }
     }
-    if (fmt.width > len) {
-        unsigned left = fmt.width - static_cast<unsigned>(len), right = left;
-        switch (fmt.flags & fmt_flags::adjust_field) {
-            case fmt_flags::right: right = 0; break;
-            case fmt_flags::internal: left >>= 1, right -= left; break;
-            default: left = 0; break;
-        }
-        s.append(left, fmt.fill).append(first, last).append(right, fmt.fill);
-    } else {
-        s.append(first, last);
-    }
+    const auto fn = [first, last](basic_membuffer<CharT>& s) { s.append(first, last); };
+    return fmt.width > len ? append_adjusted(s, fn, static_cast<unsigned>(len), fmt) : fn(s);
 }
 
 // ---- float

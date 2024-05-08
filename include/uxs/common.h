@@ -9,7 +9,7 @@
 #define UXS_TOKENPASTE2(x, y) UXS_TOKENPASTE(x, y)
 
 #if !defined(UXS_HAS_INCLUDE)
-#    if defined(__has_include) || _MSC_VER > 1900
+#    if defined(__has_include) || _MSC_VER >= 1900
 #        define UXS_HAS_INCLUDE(x) __has_include(x)
 #    else
 #        define UXS_HAS_INCLUDE(x) 0
@@ -34,7 +34,7 @@
 
 #if !defined(UXS_CONSTEVAL)
 #    if __cplusplus >= 202002L && \
-        (__GNUC__ >= 10 || __clang_major__ >= 12 || (_MSC_VER >= 1920 && defined(__cpp_consteval)))
+        (__GNUC__ >= 10 || __clang_major__ >= 12 || (_MSC_VER >= 1930 && defined(__cpp_consteval)))
 #        define UXS_CONSTEVAL     consteval
 #        define UXS_HAS_CONSTEVAL 1
 #    else

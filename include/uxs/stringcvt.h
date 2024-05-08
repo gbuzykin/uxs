@@ -335,14 +335,6 @@ struct fp_traits<long double> : fp_traits<double> {
 template<typename CharT>
 UXS_EXPORT bool to_boolean(const CharT* p, const CharT* end, const CharT*& last) noexcept;
 
-template<typename CharT>
-CharT to_character(const CharT* p, const CharT* end, const CharT*& last) noexcept {
-    last = p;
-    if (p == end) { return '\0'; }
-    ++last;
-    return *p;
-}
-
 template<typename Ty, typename CharT>
 UXS_EXPORT Ty to_integer_common(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) noexcept;
 
@@ -446,32 +438,21 @@ struct string_converter;
 template<typename Ty, typename CharT = char>
 struct formatter;
 
-namespace detail {
+template<typename Ty, typename CharT = char, typename = void>
+struct convertible_from_string : std::false_type {};
 template<typename Ty, typename CharT>
-struct has_from_string_converter {
-    template<typename U>
-    static auto test(const U* first, const U* last, Ty& v)
-        -> std::is_same<decltype(string_converter<Ty, U>{}.from_chars(first, last, v)), const U*>;
-    template<typename U>
-    static auto test(...) -> std::false_type;
-    using type = decltype(test<CharT>(nullptr, nullptr, std::declval<Ty&>()));
-};
+struct convertible_from_string<
+    Ty, CharT,
+    std::enable_if_t<std::is_same<
+        decltype(string_converter<Ty, CharT>{}.from_chars(nullptr, nullptr, std::declval<Ty&>())), const CharT*>::value>>
+    : std::true_type {};
+
+template<typename Ty, typename StrTy = membuffer, typename = void>
+struct convertible_to_string : std::false_type {};
 template<typename Ty, typename StrTy>
-struct has_to_string_converter {
-    template<typename U>
-    static auto test(U& s, const Ty& v)
-        -> always_true<decltype(string_converter<Ty, typename U::value_type>{}.to_string(s, v, fmt_opts{}))>;
-    template<typename U>
-    static auto test(...) -> std::false_type;
-    using type = decltype(test<StrTy>(std::declval<StrTy&>(), std::declval<const Ty&>()));
-};
-}  // namespace detail
-
-template<typename Ty, typename CharT = char>
-struct convertible_from_string : detail::has_from_string_converter<Ty, CharT>::type {};
-
-template<typename Ty, typename StrTy = membuffer>
-struct convertible_to_string : detail::has_to_string_converter<Ty, StrTy>::type {};
+struct convertible_to_string<Ty, StrTy,
+                             std::void_t<decltype(string_converter<Ty, typename StrTy::value_type>{}.to_string(
+                                 std::declval<StrTy&>(), std::declval<const Ty&>(), fmt_opts{}))>> : std::true_type {};
 
 #define UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(ty, from_func, fmt_func) \
     template<typename CharT> \
@@ -487,7 +468,6 @@ struct convertible_to_string : detail::has_to_string_converter<Ty, StrTy>::type 
         } \
     };
 UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(bool, scvt::to_boolean, scvt::fmt_boolean)
-UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(CharT, scvt::to_character, scvt::fmt_character)
 UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed char, scvt::to_integer<signed char>, scvt::fmt_integer)
 UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed short, scvt::to_integer<signed short>, scvt::fmt_integer)
 UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(signed, scvt::to_integer<signed>, scvt::fmt_integer)
