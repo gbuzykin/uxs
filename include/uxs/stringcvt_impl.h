@@ -7,22 +7,6 @@
 
 #define UXS_SCVT_USE_COMPILER_128BIT_EXTENSIONS 1
 
-#if defined(_MSC_VER)
-#    define UXS_SCVT_FORCE_INLINE __forceinline
-#elif defined(__GNUC__)
-#    define UXS_SCVT_FORCE_INLINE __attribute__((always_inline)) inline
-#else
-#    define UXS_SCVT_FORCE_INLINE inline
-#endif
-
-#if !defined(UXS_SCVT_CONSTEXPR_DATA)
-#    if __cplusplus < 201703L
-#        define UXS_SCVT_CONSTEXPR_DATA const
-#    else  // __cplusplus < 201703L
-#        define UXS_SCVT_CONSTEXPR_DATA constexpr
-#    endif  // __cplusplus < 201703L
-#endif      // !defined(UXS_SCVT_CONSTEXPR_DATA)
-
 #if UXS_SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0
 #    if defined(_MSC_VER) && defined(_M_X64)
 #        include <intrin.h>
@@ -32,12 +16,6 @@ __extension__ typedef unsigned __int128 uint128;
 }  // namespace gcc_ints
 #    endif
 #endif  // UXS_SCVT_USE_COMPILER_128BIT_EXTENSIONS
-
-#ifdef __has_builtin
-#    define UXS_SCVT_HAS_BUILTIN(x) __has_builtin(x)
-#else  // __has_builtin
-#    define UXS_SCVT_HAS_BUILTIN(x) 0
-#endif  // __has_builtin
 
 namespace uxs {
 namespace scvt {
@@ -94,7 +72,7 @@ struct fp_m64_t {
     int exp;
 };
 
-UXS_SCVT_CONSTEXPR_DATA std::uint64_t msb64 = 1ull << 63;
+UXS_CONSTEXPR_DATA std::uint64_t msb64 = 1ull << 63;
 UXS_CONSTEXPR std::uint64_t lo32(std::uint64_t x) { return x & 0xffffffff; }
 UXS_CONSTEXPR std::uint64_t hi32(std::uint64_t x) { return x >> 32; }
 template<typename TyH, typename TyL>
@@ -203,9 +181,9 @@ Ty to_integer_common(const CharT* p, const CharT* end, const CharT*& last, Ty po
     return val;
 }
 
-UXS_SCVT_CONSTEXPR_DATA int max_pow10_size = 13;
-UXS_SCVT_CONSTEXPR_DATA int max_fp10_mantissa_size = 41;  // ceil(log2(10^(768 + 18)))
-UXS_SCVT_CONSTEXPR_DATA int fp10_bits_size = max_fp10_mantissa_size + max_pow10_size;
+UXS_CONSTEXPR_DATA int max_pow10_size = 13;
+UXS_CONSTEXPR_DATA int max_fp10_mantissa_size = 41;  // ceil(log2(10^(768 + 18)))
+UXS_CONSTEXPR_DATA int fp10_bits_size = max_fp10_mantissa_size + max_pow10_size;
 struct fp10_t {
     int exp = 0;
     unsigned bits_used = 1;
@@ -217,7 +195,7 @@ UXS_EXPORT std::uint64_t bignum_mul32(std::uint64_t* x, unsigned sz, std::uint32
 
 template<typename CharT>
 const CharT* accum_mantissa(const CharT* p, const CharT* end, fp10_t& fp10) noexcept {
-    UXS_SCVT_CONSTEXPR_DATA std::uint64_t short_lim = 1000000000000000000ull;
+    UXS_CONSTEXPR_DATA std::uint64_t short_lim = 1000000000000000000ull;
     std::uint64_t* m10 = &fp10.bits[max_fp10_mantissa_size - fp10.bits_used];
     if (fp10.bits_used == 1) {
         std::uint64_t m = *m10;
@@ -298,8 +276,8 @@ std::uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& la
 // ---- from value to string
 
 // minimal digit count for numbers 2^N <= x < 2^(N+1), N = 0, 1, 2, ...
-UXS_SCVT_FORCE_INLINE unsigned get_exp2_dig_count(unsigned exp) noexcept {
-    static UXS_SCVT_CONSTEXPR_DATA unsigned dig_count[] = {
+UXS_FORCE_INLINE unsigned get_exp2_dig_count(unsigned exp) noexcept {
+    static UXS_CONSTEXPR_DATA unsigned dig_count[] = {
         1,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  4,  5,  5,  5,  6,  6,  6,  7,  7,
         7,  7,  8,  8,  8,  9,  9,  9,  10, 10, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 13, 13,
         14, 14, 14, 15, 15, 15, 16, 16, 16, 16, 17, 17, 17, 18, 18, 18, 19, 19, 19, 19, 20};
@@ -308,20 +286,20 @@ UXS_SCVT_FORCE_INLINE unsigned get_exp2_dig_count(unsigned exp) noexcept {
 }
 
 // powers of ten 10^N, N = 0, 1, 2, ...
-UXS_SCVT_FORCE_INLINE std::uint64_t get_pow10(int pow) noexcept {
+UXS_FORCE_INLINE std::uint64_t get_pow10(int pow) noexcept {
 #define UXS_SCVT_POWERS_OF_10(base) \
     base, (base)*10, (base)*100, (base)*1000, (base)*10000, (base)*100000, (base)*1000000, (base)*10000000, \
         (base)*100000000, (base)*1000000000
-    static UXS_SCVT_CONSTEXPR_DATA std::uint64_t ten_pows[] = {UXS_SCVT_POWERS_OF_10(1ull),
-                                                               UXS_SCVT_POWERS_OF_10(10000000000ull)};
+    static UXS_CONSTEXPR_DATA std::uint64_t ten_pows[] = {UXS_SCVT_POWERS_OF_10(1ull),
+                                                          UXS_SCVT_POWERS_OF_10(10000000000ull)};
 #undef UXS_SCVT_POWERS_OF_10
     assert(pow >= 0 && pow < static_cast<int>(sizeof(ten_pows) / sizeof(ten_pows[0])));
     return ten_pows[pow];
 }
 
 // digit pairs
-UXS_SCVT_FORCE_INLINE const char* get_digits(unsigned n) noexcept {
-    static UXS_SCVT_CONSTEXPR_DATA char digs[][2] = {
+UXS_FORCE_INLINE const char* get_digits(unsigned n) noexcept {
+    static UXS_CONSTEXPR_DATA char digs[][2] = {
         {'0', '0'}, {'0', '1'}, {'0', '2'}, {'0', '3'}, {'0', '4'}, {'0', '5'}, {'0', '6'}, {'0', '7'}, {'0', '8'},
         {'0', '9'}, {'1', '0'}, {'1', '1'}, {'1', '2'}, {'1', '3'}, {'1', '4'}, {'1', '5'}, {'1', '6'}, {'1', '7'},
         {'1', '8'}, {'1', '9'}, {'2', '0'}, {'2', '1'}, {'2', '2'}, {'2', '3'}, {'2', '4'}, {'2', '5'}, {'2', '6'},
@@ -381,7 +359,7 @@ struct print_functor {
     Ty val;
     PrintFn generate_fn;
     template<typename... Args>
-    UXS_SCVT_FORCE_INLINE void operator()(unsigned len, unsigned prefix, Args&&... args) const {
+    UXS_FORCE_INLINE void operator()(unsigned len, unsigned prefix, Args&&... args) const {
         len += prefix > 0xff ? (prefix > 0xffff ? 3 : 2) : (prefix ? 1 : 0);
         if (s.avail() >= len) {
             generate_fn(s.curr() + len, val, std::forward<Args>(args)...);
@@ -559,7 +537,7 @@ void fmt_hex(basic_membuffer<CharT>& s, Ty val, bool is_signed, fmt_opts fmt, lo
 // ---- decimal
 
 template<typename Ty>
-UXS_SCVT_FORCE_INLINE unsigned fmt_dec_unsigned_len(Ty val) noexcept {
+UXS_FORCE_INLINE unsigned fmt_dec_unsigned_len(Ty val) noexcept {
     const unsigned pow = get_exp2_dig_count(ulog2(val));
     return val >= get_pow10(pow) ? pow + 1 : pow;
 }
@@ -580,7 +558,7 @@ Ty divmod(Ty& v) {
 }
 
 template<typename CharT, typename Ty>
-UXS_SCVT_FORCE_INLINE CharT* gen_digits(CharT* p, Ty v) noexcept {
+UXS_FORCE_INLINE CharT* gen_digits(CharT* p, Ty v) noexcept {
     while (v >= 100u) { copy2(p -= 2, get_digits(static_cast<unsigned>(divmod<100u>(v)))); }
     if (v >= 10u) {
         copy2(p -= 2, get_digits(static_cast<unsigned>(v)));
@@ -591,7 +569,7 @@ UXS_SCVT_FORCE_INLINE CharT* gen_digits(CharT* p, Ty v) noexcept {
 }
 
 template<typename CharT, typename Ty>
-UXS_SCVT_FORCE_INLINE Ty gen_digits_n(CharT* p, Ty v, unsigned n) noexcept {
+UXS_FORCE_INLINE Ty gen_digits_n(CharT* p, Ty v, unsigned n) noexcept {
     CharT* p0 = p - (n & ~1);
     while (p != p0) { copy2(p -= 2, get_digits(static_cast<unsigned>(divmod<100u>(v)))); }
     if (!(n & 1)) { return v; }
@@ -740,8 +718,8 @@ void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, fm
 
 // ---- float
 
-UXS_SCVT_CONSTEXPR_DATA int max_double_digits = 767;
-UXS_SCVT_CONSTEXPR_DATA int digs_per_64 = 18;  // size of 64-bit digit pack
+UXS_CONSTEXPR_DATA int max_double_digits = 767;
+UXS_CONSTEXPR_DATA int digs_per_64 = 18;  // size of 64-bit digit pack
 
 class fp_hex_fmt_t {
  public:
@@ -946,7 +924,7 @@ struct print_float_functor {
     bool uppercase;
     CharT dec_point;
     template<typename... Args>
-    UXS_SCVT_FORCE_INLINE void operator()(unsigned len, unsigned sign, Args&&... args) const {
+    UXS_FORCE_INLINE void operator()(unsigned len, unsigned sign, Args&&... args) const {
         if (sign) { ++len; }
         if (s.avail() >= len) {
             fp.template generate<CharT>(s.curr() + len, uppercase, dec_point, std::forward<Args>(args)...);
