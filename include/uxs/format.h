@@ -700,15 +700,15 @@ class basic_format_arg {
 
     basic_format_arg(sfmt::type_index index, const void* data) noexcept : index_(index), data_(data) {}
 
-    UXS_NODISCARD sfmt::type_index index() const noexcept { return index_; }
+    sfmt::type_index index() const noexcept { return index_; }
 
     template<typename Ty>
-    UXS_NODISCARD const Ty& as() const {
+    const Ty& as() const {
         if (index_ != format_arg_type_index<FmtCtx, Ty>::value) { throw format_error("invalid value type"); }
         return *static_cast<const Ty*>(data_);
     }
 
-    UXS_NODISCARD unsigned get_unsigned(unsigned limit) const {
+    unsigned get_unsigned(unsigned limit) const {
         switch (index_) {
 #define UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE(ty) \
     case format_arg_type_index<FmtCtx, ty>::value: { \
@@ -769,7 +769,7 @@ class basic_format_args {
     basic_format_args(const sfmt::arg_store<FmtCtx, Args...>& store) noexcept
         : data_(store.data()), size_(sfmt::arg_store<FmtCtx, Args...>::arg_count) {}
 
-    UXS_NODISCARD basic_format_arg<FmtCtx> get(std::size_t id) const {
+    basic_format_arg<FmtCtx> get(std::size_t id) const {
         if (id >= size_) { throw format_error("out of argument list"); }
         const unsigned meta = static_cast<const unsigned*>(data_)[id];
         return basic_format_arg<FmtCtx>(static_cast<sfmt::type_index>(meta & 0xff),
@@ -795,8 +795,8 @@ class basic_format_parse_context : public sfmt::parse_context_utils {
 #endif  // __cplusplus >= 201703L
     basic_format_parse_context& operator=(const basic_format_parse_context&) = delete;
 
-    UXS_NODISCARD UXS_CONSTEXPR iterator begin() const noexcept { return fmt_.begin(); }
-    UXS_NODISCARD UXS_CONSTEXPR iterator end() const noexcept { return fmt_.end(); }
+    UXS_CONSTEXPR iterator begin() const noexcept { return fmt_.begin(); }
+    UXS_CONSTEXPR iterator end() const noexcept { return fmt_.end(); }
     UXS_CONSTEXPR void advance_to(iterator it) { fmt_.remove_prefix(static_cast<std::size_t>(it - fmt_.begin())); }
 
     UXS_NODISCARD UXS_CONSTEXPR std::size_t next_arg_id() {
@@ -871,9 +871,9 @@ class basic_format_context {
     basic_format_context(StrTy& s, format_args_type args) : s_(s), args_(args) {}
     basic_format_context(StrTy& s, const std::locale& loc, format_args_type args) : s_(s), loc_(loc), args_(args) {}
     basic_format_context& operator=(const basic_format_context&) = delete;
-    UXS_NODISCARD StrTy& out() { return s_; }
-    UXS_NODISCARD locale_ref locale() const { return loc_; }
-    UXS_NODISCARD format_arg_type arg(std::size_t id) const { return args_.get(id); }
+    StrTy& out() { return s_; }
+    locale_ref locale() const { return loc_; }
+    format_arg_type arg(std::size_t id) const { return args_.get(id); }
 
     template<typename Ty>
     void format_arg(parse_context& parse_ctx, const Ty& val) {
@@ -896,12 +896,12 @@ using format_args = basic_format_args<format_context>;
 using wformat_args = basic_format_args<wformat_context>;
 
 template<typename FmtCtx = format_context, typename... Args>
-UXS_NODISCARD UXS_CONSTEXPR sfmt::arg_store<FmtCtx, Args...> make_format_args(const Args&... args) noexcept {
+UXS_CONSTEXPR sfmt::arg_store<FmtCtx, Args...> make_format_args(const Args&... args) noexcept {
     return sfmt::arg_store<FmtCtx, Args...>{args...};
 }
 
 template<typename... Args>
-UXS_NODISCARD UXS_CONSTEXPR sfmt::arg_store<wformat_context, Args...> make_wformat_args(const Args&... args) noexcept {
+UXS_CONSTEXPR sfmt::arg_store<wformat_context, Args...> make_wformat_args(const Args&... args) noexcept {
     return sfmt::arg_store<wformat_context, Args...>{args...};
 }
 
@@ -923,7 +923,7 @@ class basic_format_string {
             ctx, [](auto&&...) {}, [&parsers](auto& ctx, std::size_t id) { parsers[id](ctx); });
 #endif  // defined(UXS_HAS_CONSTEVAL)
     }
-    UXS_NODISCARD UXS_CONSTEXPR std::basic_string_view<char_type> get() const noexcept { return fmt_; }
+    UXS_CONSTEXPR std::basic_string_view<char_type> get() const noexcept { return fmt_; }
 
  private:
     std::basic_string_view<char_type> fmt_;
@@ -966,25 +966,25 @@ StrTy& basic_format(StrTy& s, const std::locale& loc, basic_format_string<typena
 
 // ---- vformat
 
-UXS_NODISCARD inline std::string vformat(std::string_view fmt, format_args args) {
+inline std::string vformat(std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
     basic_vformat<membuffer>(buf, fmt, args);
     return std::string(buf.data(), buf.size());
 }
 
-UXS_NODISCARD inline std::wstring vformat(std::wstring_view fmt, wformat_args args) {
+inline std::wstring vformat(std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
     basic_vformat<wmembuffer>(buf, fmt, args);
     return std::wstring(buf.data(), buf.size());
 }
 
-UXS_NODISCARD inline std::string vformat(const std::locale& loc, std::string_view fmt, format_args args) {
+inline std::string vformat(const std::locale& loc, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
     basic_vformat<membuffer>(buf, loc, fmt, args);
     return std::string(buf.data(), buf.size());
 }
 
-UXS_NODISCARD inline std::wstring vformat(const std::locale& loc, std::wstring_view fmt, wformat_args args) {
+inline std::wstring vformat(const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
     basic_vformat<wmembuffer>(buf, loc, fmt, args);
     return std::wstring(buf.data(), buf.size());
@@ -993,22 +993,22 @@ UXS_NODISCARD inline std::wstring vformat(const std::locale& loc, std::wstring_v
 // ---- format
 
 template<typename... Args>
-UXS_NODISCARD std::string format(format_string<Args...> fmt, const Args&... args) {
+std::string format(format_string<Args...> fmt, const Args&... args) {
     return vformat(fmt.get(), make_format_args(args...));
 }
 
 template<typename... Args>
-UXS_NODISCARD std::wstring format(wformat_string<Args...> fmt, const Args&... args) {
+std::wstring format(wformat_string<Args...> fmt, const Args&... args) {
     return vformat(fmt.get(), make_wformat_args(args...));
 }
 
 template<typename... Args>
-UXS_NODISCARD std::string format(const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
+std::string format(const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
     return vformat(loc, fmt.get(), make_format_args(args...));
 }
 
 template<typename... Args>
-UXS_NODISCARD std::wstring format(const std::locale& loc, wformat_string<Args...> fmt, const Args&... args) {
+std::wstring format(const std::locale& loc, wformat_string<Args...> fmt, const Args&... args) {
     return vformat(loc, fmt.get(), make_wformat_args(args...));
 }
 
@@ -1236,7 +1236,7 @@ class basic_membuffer_for_iobuf final : public basic_membuffer<Ty> {
 
     std::size_t try_grow(std::size_t extra) override {
         out_.advance(this->curr() - out_.first_avail());
-        if (!out_.reserve().good()) { return false; }
+        if (!out_.reserve().good()) { return 0; }
         this->set(out_.first_avail(), out_.last_avail());
         return this->avail();
     }
