@@ -63,10 +63,10 @@ enum class variant_id : std::uint32_t {
     matrix4x4,
     custom0
 };
-UXS_CONSTEXPR variant_id operator+(variant_id lhs, std::uint32_t rhs) {
+inline UXS_CONSTEXPR variant_id operator+(variant_id lhs, std::uint32_t rhs) {
     return static_cast<variant_id>(static_cast<std::uint32_t>(lhs) + rhs);
 }
-UXS_CONSTEXPR variant_id operator+(std::uint32_t lhs, variant_id rhs) {
+inline UXS_CONSTEXPR variant_id operator+(std::uint32_t lhs, variant_id rhs) {
     return static_cast<variant_id>(lhs + static_cast<std::uint32_t>(rhs));
 }
 
