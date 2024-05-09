@@ -274,9 +274,9 @@ void print_text_with_margin(uxs::basic_iobuf<CharT>& out, std::basic_string_view
 
 template<typename CharT>
 std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const {
-    static const std::array<CharT, 7> color_br_white{'\033', '[', '1', ';', '3', '7', 'm'};
-    static const std::array<CharT, 7> color_green{'\033', '[', '0', ';', '3', '2', 'm'};
-    static const std::array<CharT, 4> color_normal{'\033', '[', '0', 'm'};
+    static const auto color_br_white = string_literal<CharT, '\033', '[', '1', ';', '3', '7', 'm'>{}();
+    static const auto color_green = string_literal<CharT, '\033', '[', '0', ';', '3', '2', 'm'>{}();
+    static const auto color_normal = string_literal<CharT, '\033', '[', '0', 'm'>{}();
     static const unsigned tab_size = 4, max_width = 100, max_margin = 24, gap = 2;
 
     basic_oflatbuf<CharT> osb;
@@ -285,7 +285,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
 
     auto print_usage = [this, &osb, start_with_nl, end_width_nl, colored]() {
         if (colored) { osb.write(color_br_white); }
-        static const std::array<CharT, 7> label_usage{'U', 'S', 'A', 'G', 'E', ':', ' '};
+        const auto label_usage = string_literal<CharT, 'U', 'S', 'A', 'G', 'E', ':', ' '>{}();
         osb.write(label_usage);
         if (colored) { osb.write(color_normal); }
         if (start_with_nl) { osb.put('\n').fill_n(tab_size, ' '); }
@@ -331,8 +331,8 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
         }
 
         if (!subcommands_.empty()) {
-            static const std::array<CharT, 16> label_subcommand{'{', 'S', 'U', 'B', 'C', 'O', 'M', 'M',
-                                                                'A', 'N', 'D', '}', ' ', '.', '.', '.'};
+            const auto label_subcommand = string_literal<CharT, '{', 'S', 'U', 'B', 'C', 'O', 'M', 'M', 'A', 'N', 'D',
+                                                         '}', ' ', '.', '.', '.'>{}();
             osb.put('\n').fill_n(left_margin, ' ');
             for (const auto& name : uxs::make_reverse_range(cmd_names)) { osb.write(name).put(' '); }
             osb.write(name_).put(' ').write(label_subcommand);
@@ -346,7 +346,8 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
         if (uxs::all_of(values_, [](decltype(*values_.cbegin()) val) { return val->get_doc().empty(); })) { return; }
 
         if (colored) { osb.write(color_br_white); }
-        static const std::array<CharT, 12> label_parameters{'P', 'A', 'R', 'A', 'M', 'E', 'T', 'E', 'R', 'S', ':', ' '};
+        const auto label_parameters =
+            string_literal<CharT, 'P', 'A', 'R', 'A', 'M', 'E', 'T', 'E', 'R', 'S', ':', ' '>{}();
         osb.write(label_parameters);
         if (colored) { osb.write(color_normal); }
 
@@ -385,7 +386,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
         if (opts_str.empty()) { return; }
 
         if (colored) { osb.write(color_br_white); }
-        static const std::array<CharT, 9> label_options{'O', 'P', 'T', 'I', 'O', 'N', 'S', ':', ' '};
+        const auto label_options = string_literal<CharT, 'O', 'P', 'T', 'I', 'O', 'N', 'S', ':', ' '>{}();
         osb.write(label_options);
         if (colored) { osb.write(color_normal); }
 
@@ -422,8 +423,8 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
         }
 
         if (colored) { osb.write(color_br_white); }
-        static const std::array<CharT, 13> label_subcommands{'S', 'U', 'B', 'C', 'O', 'M', 'M',
-                                                             'A', 'N', 'D', 'S', ':', ' '};
+        const auto label_subcommands =
+            string_literal<CharT, 'S', 'U', 'B', 'C', 'O', 'M', 'M', 'A', 'N', 'D', 'S', ':', ' '>{}();
         osb.write(label_subcommands);
         if (colored) { osb.write(color_normal); }
 
@@ -453,7 +454,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
 
     if (!overview_.empty()) {
         if (colored) { osb.write(color_br_white); }
-        static const std::array<CharT, 10> label_overview{'O', 'V', 'E', 'R', 'V', 'I', 'E', 'W', ':', ' '};
+        const auto label_overview = string_literal<CharT, 'O', 'V', 'E', 'R', 'V', 'I', 'E', 'W', ':', ' '>{}();
         osb.write(label_overview);
         if (colored) { osb.write(color_normal); }
         print_text_with_margin<CharT>(osb, overview_, start_with_nl ? tab_size : label_overview.size());
