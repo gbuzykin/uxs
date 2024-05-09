@@ -13,6 +13,20 @@
 
 namespace uxs {
 
+template<typename CharT, CharT... C>
+struct string_literal {
+#if __cplusplus < 201703L
+    operator std::basic_string_view<CharT>() const {
+        static const std::array<CharT, sizeof...(C)> value{C...};
+        return {value.data(), value.size()};
+    }
+#else   // __cplusplus < 201703L
+    static constexpr std::array<CharT, sizeof...(C)> value{C...};
+    constexpr operator std::basic_string_view<CharT>() const { return {value.data(), value.size()}; }
+#endif  // __cplusplus < 201703L
+    UXS_CONSTEXPR std::basic_string_view<CharT> operator()() const { return *this; }
+};
+
 // --------------------------
 
 template<typename InputIt, typename InputFn = nofunc>
