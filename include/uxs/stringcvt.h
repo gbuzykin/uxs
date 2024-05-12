@@ -3,6 +3,7 @@
 #include "chars.h"
 #include "iterator.h"
 #include "string_view.h"
+#include "utf.h"
 
 #include <algorithm>
 #include <array>
@@ -260,6 +261,7 @@ enum class fmt_flags : unsigned {
     alternate = 0x800,
     json_compat = 0x1000,
     localize = 0x2000,
+    debug_format = 0x4000,
 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(fmt_flags, unsigned);
 
@@ -293,6 +295,87 @@ class locale_ref {
 };
 
 // --------------------------
+
+template<typename StrTy, typename InputIt>
+std::size_t append_escaped_text(StrTy& s, InputIt first, InputIt last, bool single_quoted,
+                                std::size_t max_width = std::numeric_limits<std::size_t>::max()) {
+    using char_type = typename StrTy::value_type;
+    if (max_width == 0) { return 0; }
+    s.push_back(single_quoted ? '\'' : '\"');
+    std::size_t width = 1;
+    std::uint32_t code = 0;
+    unsigned count = 0;
+    auto first0 = first;
+    for (auto next = first; (count = utf_decoder<char_type>{}.decode(first, last, next, code)) != 0; first = next) {
+        char esc = '\0';
+        bool is_wellformed = true;
+        switch (code) {
+            case '\t': esc = 't'; break;
+            case '\n': esc = 'n'; break;
+            case '\r': esc = 'r'; break;
+            case '\\': esc = '\\'; break;
+            case '\"': {
+                if (single_quoted) {
+                    if (width == max_width) { goto finish; }
+                    ++width;
+                    continue;
+                }
+                esc = '\"';
+            } break;
+            case '\'': {
+                if (!single_quoted) {
+                    if (width == max_width) { goto finish; }
+                    ++width;
+                    continue;
+                }
+                esc = '\'';
+            } break;
+            default: {
+                if ((is_wellformed = count > 1 || utf_decoder<char_type>{}.is_wellformed(*first))) {
+                    if (is_utf_code_printable(code)) {
+                        const unsigned w = get_utf_code_width(code);
+                        if (max_width - width < w) { goto finish; }
+                        width += w;
+                        continue;
+                    }
+                }
+            } break;
+        }
+        s.append(first0, first);
+        if (esc) {
+            if (max_width - width < 2) { goto finish; }
+            width += 2;
+            s.push_back('\\');
+            s.push_back(esc);
+        } else {
+            std::array<char_type, 8> digs;
+            char_type* p = digs.data();
+            do { *p++ = "0123456789abcdef"[code & 0xf]; } while ((code >>= 4));
+            const unsigned count = 1 + static_cast<unsigned>(p - digs.data());
+            const unsigned w = 4 + count;
+            if (max_width - width < w) { goto finish; }
+            width += w;
+            s.append(is_wellformed ? string_literal<char_type, '\\', 'u', '{'>{}() :
+                                     string_literal<char_type, '\\', 'x', '{'>{}());
+            do { s.push_back(*--p); } while (p != digs.data());
+            s.push_back('}');
+        }
+        first0 = next;
+    }
+finish:
+    s.append(first0, first);
+    if (width == max_width) { return width; }
+    s.push_back(single_quoted ? '\'' : '\"');
+    return width + 1;
+}
+
+template<typename CharT, typename InputIt>
+std::size_t estimate_string_width(InputIt first, InputIt last) {
+    std::size_t width = 0;
+    for (std::uint32_t code = 0; utf_decoder<CharT>{}.decode(first, last, first, code) != 0;
+         width += get_utf_code_width(code)) {}
+    return width;
+}
 
 template<typename StrTy, typename Func>
 void append_adjusted(StrTy& s, Func fn, unsigned len, fmt_opts fmt, bool prefer_right = false) {

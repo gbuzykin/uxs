@@ -1,5 +1,4 @@
 #include "uxs/db/xml_impl.h"
-#include "uxs/utf.h"
 
 namespace lex_detail {
 #include "xml_lex_defs.h"

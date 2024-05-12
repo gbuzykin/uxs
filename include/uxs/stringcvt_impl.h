@@ -1,7 +1,6 @@
 #pragma once
 
 #include "stringcvt.h"
-#include "utf.h"
 
 #include <cstdlib>
 
@@ -650,8 +649,18 @@ void fmt_character(basic_membuffer<CharT>& s, CharT val, fmt_opts fmt, locale_re
         case fmt_flags::oct: return fmt_oct(s, code, false, fmt, loc);
         case fmt_flags::hex: return fmt_hex(s, code, false, fmt, loc);
         default: {
-            const auto fn = [val](basic_membuffer<CharT>& s) { s.push_back(val); };
-            return fmt.width > 1 ? append_adjusted(s, fn, 1, fmt) : fn(s);
+            if (!(fmt.flags & fmt_flags::debug_format)) {
+                const auto fn = [val](basic_membuffer<CharT>& s) { s.push_back(val); };
+                return fmt.width > 1 ? append_adjusted(s, fn, 1, fmt) : fn(s);
+            } else if (fmt.width == 0) {
+                append_escaped_text(s, &val, &val + 1, true);
+                return;
+            }
+            std::array<CharT, 16> buf;
+            basic_membuffer<CharT> membuf(buf.data());
+            const std::size_t width = append_escaped_text(membuf, &val, &val + 1, true);
+            const auto fn = [&buf, &membuf](basic_membuffer<CharT>& s) { s.append(buf.data(), membuf.curr()); };
+            return fmt.width > width ? append_adjusted(s, fn, static_cast<unsigned>(width), fmt) : fn(s);
         } break;
     }
 }
@@ -660,17 +669,31 @@ void fmt_character(basic_membuffer<CharT>& s, CharT val, fmt_opts fmt, locale_re
 
 template<typename CharT>
 void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, fmt_opts fmt, locale_ref) {
-    std::size_t len = 0;
-    std::uint32_t code = 0;
-    auto first = val.begin(), last = val.end();
-    if (fmt.prec >= 0 || fmt.width > 0) {
-        std::ptrdiff_t prec = fmt.prec;
-        for (last = first; prec != 0 && utf_decoder<CharT>{}.decode(last, val.end(), last, code) != 0;) {
-            ++len, --prec;
+    if (!(fmt.flags & fmt_flags::debug_format)) {
+        std::size_t width = 0;
+        std::uint32_t code = 0;
+        auto first = val.begin(), last = val.end();
+        if (fmt.prec >= 0 || fmt.width > 0) {
+            const std::size_t max_width = fmt.prec >= 0 ? fmt.prec : std::numeric_limits<std::size_t>::max();
+            last = first;
+            for (auto next = first; utf_decoder<CharT>{}.decode(last, val.end(), next, code) != 0; last = next) {
+                const unsigned w = get_utf_code_width(code);
+                if (max_width - width < w) { break; }
+                width += w;
+            }
         }
+        const auto fn = [first, last](basic_membuffer<CharT>& s) { s.append(first, last); };
+        return fmt.width > width ? append_adjusted(s, fn, static_cast<unsigned>(width), fmt) : fn(s);
+    } else if (fmt.width == 0) {
+        append_escaped_text(s, val.begin(), val.end(), false,
+                            fmt.prec >= 0 ? fmt.prec : std::numeric_limits<std::size_t>::max());
+        return;
     }
-    const auto fn = [first, last](basic_membuffer<CharT>& s) { s.append(first, last); };
-    return fmt.width > len ? append_adjusted(s, fn, static_cast<unsigned>(len), fmt) : fn(s);
+    inline_basic_dynbuffer<CharT> buf;
+    const std::size_t width = append_escaped_text<basic_membuffer<CharT>>(
+        buf, val.begin(), val.end(), false, fmt.prec >= 0 ? fmt.prec : std::numeric_limits<std::size_t>::max());
+    const auto fn = [&buf](basic_membuffer<CharT>& s) { s.append(buf.begin(), buf.end()); };
+    return fmt.width > width ? append_adjusted(s, fn, static_cast<unsigned>(width), fmt) : fn(s);
 }
 
 // ---- float

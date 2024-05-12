@@ -1,5 +1,4 @@
 #include "uxs/db/json_impl.h"
-#include "uxs/utf.h"
 
 namespace lex_detail {
 #include "json_lex_defs.h"

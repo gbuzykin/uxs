@@ -124,6 +124,7 @@ struct formatter<CharT, CharT> {
     std::size_t width_arg_id_ = dynamic_extent;
 
  public:
+    UXS_CONSTEXPR void set_debug_format() { specs_.flags |= fmt_flags::debug_format; }
     template<typename ParseCtx>
     UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) {
         auto it = ctx.begin();
@@ -132,10 +133,12 @@ struct formatter<CharT, CharT> {
         it = ParseCtx::parse_standard(ctx, it + 1, specs_, width_arg_id_, dummy_id);
         auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, specs_) : ParseCtx::type_spec::none;
         if (specs_.prec >= 0) { ParseCtx::unexpected_prec_error(); }
-        if (type == ParseCtx::type_spec::none || type == ParseCtx::type_spec::character) {
+        if (type == ParseCtx::type_spec::none || type == ParseCtx::type_spec::character ||
+            type == ParseCtx::type_spec::debug_string) {
             if (!!(specs_.flags & fmt_flags::sign_field)) { ParseCtx::unexpected_sign_error(); }
             if (!!(specs_.flags & fmt_flags::leading_zeroes)) { ParseCtx::unexpected_leading_zeroes_error(); }
             if (!!(specs_.flags & fmt_flags::alternate)) { ParseCtx::unexpected_alternate_error(); }
+            if (type == ParseCtx::type_spec::debug_string) { set_debug_format(); }
         } else if (type != ParseCtx::type_spec::integer) {
             ParseCtx::type_error();
         }
@@ -269,6 +272,7 @@ struct formatter<const void*, CharT> {
         std::size_t prec_arg_id_ = dynamic_extent; \
 \
      public: \
+        UXS_CONSTEXPR void set_debug_format() { specs_.flags |= fmt_flags::debug_format; } \
         template<typename ParseCtx> \
         UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) { \
             auto it = ctx.begin(); \
@@ -279,7 +283,11 @@ struct formatter<const void*, CharT> {
             if (!!(specs_.flags & fmt_flags::leading_zeroes)) { ParseCtx::unexpected_leading_zeroes_error(); } \
             if (!!(specs_.flags & fmt_flags::alternate)) { ParseCtx::unexpected_alternate_error(); } \
             if (!!(specs_.flags & fmt_flags::localize)) { ParseCtx::unexpected_local_specific_error(); } \
-            if (type != ParseCtx::type_spec::none && type != ParseCtx::type_spec::string) { ParseCtx::type_error(); } \
+            if (type == ParseCtx::type_spec::debug_string) { \
+                set_debug_format(); \
+            } else if (type != ParseCtx::type_spec::none && type != ParseCtx::type_spec::string) { \
+                ParseCtx::type_error(); \
+            } \
             return type == ParseCtx::type_spec::none ? it : it + 1; \
         } \
         template<typename FmtCtx> \
@@ -606,7 +614,7 @@ struct parse_context_utils {
         return it;
     }
 
-    enum class type_spec : unsigned { none = 0, integer, floating_point, pointer, character, string };
+    enum class type_spec : unsigned { none = 0, integer, floating_point, pointer, character, string, debug_string };
 
     template<typename CharT>
     static UXS_CONSTEXPR type_spec classify_standard_type(CharT ch, fmt_opts& specs) {
@@ -629,6 +637,7 @@ struct parse_context_utils {
             case 'p': return type_spec::pointer;
             case 'c': specs.flags |= fmt_flags::character; return type_spec::character;
             case 's': return type_spec::string;
+            case '?': return type_spec::debug_string;
             default: return type_spec::none;
         }
     }
