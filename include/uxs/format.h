@@ -468,8 +468,8 @@ class arg_store<FmtCtx> {
 // --------------------------
 
 struct parse_context_utils {
-    template<typename Iter, typename Ty>
-    static UXS_CONSTEXPR Iter parse_number(Iter first, Iter last, Ty& num) {
+    template<typename InputIt, typename Ty>
+    static UXS_CONSTEXPR InputIt parse_number(InputIt first, InputIt last, Ty& num) {
         for (unsigned dig = 0; first != last && (dig = dig_v(*first)) < 10; ++first) {
             Ty num0 = num;
             num = 10 * num + dig;
@@ -864,9 +864,12 @@ class basic_format_context {
     basic_format_context(output_type& s, format_args_type args) : s_(s), args_(args) {}
     basic_format_context(output_type& s, const std::locale& loc, format_args_type args)
         : s_(s), loc_(loc), args_(args) {}
+    basic_format_context(output_type& s, const basic_format_context& other)
+        : s_(s), loc_(other.locale()), args_(other.args()) {}
     basic_format_context& operator=(const basic_format_context&) = delete;
     output_type& out() { return s_; }
     locale_ref locale() const { return loc_; }
+    format_args_type args() const { return args_; }
     format_arg_type arg(std::size_t id) const { return args_.get(id); }
 
     template<typename Ty>

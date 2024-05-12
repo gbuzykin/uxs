@@ -441,7 +441,7 @@ UXS_EXPORT void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<Cha
 template<typename Ty, typename CharT = char>
 struct string_converter;
 
-template<typename Ty, typename CharT = char>
+template<typename Ty, typename CharT = char, typename = void>
 struct formatter;
 
 template<typename Ty, typename CharT = char, typename = void>
