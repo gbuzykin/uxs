@@ -171,7 +171,6 @@ struct formatter<CharT, CharT> {
                 if (!!(specs_.flags & fmt_flags::sign_field)) { ParseCtx::unexpected_sign_error(); } \
                 if (!!(specs_.flags & fmt_flags::leading_zeroes)) { ParseCtx::unexpected_leading_zeroes_error(); } \
                 if (!!(specs_.flags & fmt_flags::alternate)) { ParseCtx::unexpected_alternate_error(); } \
-                specs_.flags |= fmt_flags::character; \
             } else if (type != ParseCtx::type_spec::none && type != ParseCtx::type_spec::integer) { \
                 ParseCtx::type_error(); \
             } \
@@ -537,19 +536,22 @@ struct parse_context_utils {
                 // width
                 case '{':
                     UXS_FMT_SPECIFIER_CASE(state_t::precision, {
-                        if (++it == ctx.end()) { ParseCtx::syntax_error(); }
-                        specs.width = 1;  // width is specified
+                        auto it0 = it;
+                        if (++it == ctx.end()) { return it0; }
                         // obtain argument number for width
+                        std::size_t arg_id = 0;
                         if (*it == '}') {
                             width_arg_id = ctx.next_arg_id();
-                        } else if ((width_arg_id = dig_v(*it)) < 10) {
-                            it = ParseCtx::parse_number(it + 1, ctx.end(), width_arg_id);
-                            ctx.check_arg_id(width_arg_id);
-                            if (it == ctx.end() || *it != '}') { ParseCtx::syntax_error(); }
+                        } else if ((arg_id = dig_v(*it)) < 10) {
+                            it = ParseCtx::parse_number(it + 1, ctx.end(), arg_id);
+                            if (it == ctx.end() || *it != '}') { return it0; }
+                            ctx.check_arg_id(arg_id);
+                            width_arg_id = arg_id;
                         } else {
-                            ParseCtx::syntax_error();
+                            return it0;
                         }
                         ctx.check_dynamic_spec_integral(width_arg_id);
+                        specs.width = 1;  // width is specified
                         break;
                     });
                 case '1':
@@ -569,24 +571,29 @@ struct parse_context_utils {
                 // precision
                 case '.':
                     UXS_FMT_SPECIFIER_CASE(state_t::locale, {
-                        if (++it == ctx.end()) { syntax_error(); }
-                        if ((specs.prec = dig_v(*it)) < 10) {
+                        auto it0 = it;
+                        if (++it == ctx.end()) { return it0; }
+                        unsigned dig = 0;
+                        if ((dig = dig_v(*it)) < 10) {
+                            specs.prec = dig;
                             it = ParseCtx::parse_number(it + 1, ctx.end(), specs.prec) - 1;
                         } else if (*it == '{' && ++it != ctx.end()) {
-                            specs.prec = 0;  // precision is specified
                             // obtain argument number for precision
+                            std::size_t arg_id = 0;
                             if (*it == '}') {
                                 prec_arg_id = ctx.next_arg_id();
-                            } else if ((prec_arg_id = dig_v(*it)) < 10) {
-                                it = ParseCtx::parse_number(it + 1, ctx.end(), prec_arg_id);
-                                ctx.check_arg_id(prec_arg_id);
-                                if (it == ctx.end() || *it != '}') { ParseCtx::syntax_error(); }
+                            } else if ((arg_id = dig_v(*it)) < 10) {
+                                it = ParseCtx::parse_number(it + 1, ctx.end(), arg_id);
+                                if (it == ctx.end() || *it != '}') { return it0; }
+                                ctx.check_arg_id(arg_id);
+                                prec_arg_id = arg_id;
                             } else {
-                                ParseCtx::syntax_error();
+                                return it0;
                             }
                             ctx.check_dynamic_spec_integral(prec_arg_id);
+                            specs.prec = 0;  // precision is specified
                         } else {
-                            ParseCtx::syntax_error();
+                            return it0;
                         }
                         break;
                     });
@@ -620,7 +627,7 @@ struct parse_context_utils {
             case 'a': specs.flags |= fmt_flags::hex; return type_spec::floating_point;
             case 'P': specs.flags |= fmt_flags::uppercase; return type_spec::pointer;
             case 'p': return type_spec::pointer;
-            case 'c': return type_spec::character;
+            case 'c': specs.flags |= fmt_flags::character; return type_spec::character;
             case 's': return type_spec::string;
             default: return type_spec::none;
         }
