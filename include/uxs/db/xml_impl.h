@@ -3,7 +3,6 @@
 #include "value.h"
 #include "xml.h"
 
-#include "uxs/format.h"
 #include "uxs/stringalg.h"
 
 namespace uxs {
@@ -49,7 +48,7 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
             } break;
             case string_class::floating_point_number: return {from_string<double>(sval), al};
             case string_class::ws_with_nl: return make_record<CharT>(al);
-            case string_class::other: return {uxs::detail::utf8_string_converter<CharT>::from(sval), al};
+            case string_class::other: return {utf8_string_converter<CharT>::from(sval), al};
             default: UXS_UNREACHABLE_CODE;
         }
     };
@@ -73,7 +72,7 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
             } break;
             case token_t::start_element: {
                 txt.clear();
-                auto result = top->first->emplace_unique(uxs::detail::utf8_string_converter<CharT>::from(tk.second), al);
+                auto result = top->first->emplace_unique(utf8_string_converter<CharT>::from(tk.second), al);
                 stack.emplace_back(&result.first->second, tk.second);
                 if (!result.second) {
                     result.first->second.convert(dtype::array);
@@ -106,7 +105,7 @@ struct writer_stack_item_t {
     writer_stack_item_t(const value_t* p, std::string_view el, typename value_t::const_record_iterator it)
         : v(p), element(el), record_it(it) {}
     const value_t* v;
-    decltype(uxs::detail::utf8_string_converter<CharT>::to({})) element;
+    decltype(utf8_string_converter<CharT>::to({})) element;
     union {
         const value_t* array_it;
         typename value_t::const_record_iterator record_it;
@@ -114,7 +113,7 @@ struct writer_stack_item_t {
 };
 
 template<typename CharT>
-basic_iobuf<CharT>& print_xml_text(basic_iobuf<CharT>& out, std::basic_string_view<CharT> text) {
+basic_membuffer<CharT>& print_xml_text(basic_membuffer<CharT>& out, std::basic_string_view<CharT> text) {
     auto it0 = text.begin();
     for (auto it = it0; it != text.end(); ++it) {
         std::string_view esc;
@@ -126,48 +125,42 @@ basic_iobuf<CharT>& print_xml_text(basic_iobuf<CharT>& out, std::basic_string_vi
             case '\"': esc = std::string_view("&quot;", 6); break;
             default: continue;
         }
-        out.write(uxs::as_span(it0, it - it0));
-        for (char ch : esc) { out.put(ch); }
+        out.append(it0, it).append(esc);
         it0 = it + 1;
     }
-    out.write(uxs::as_span(it0, text.end() - it0));
+    out.append(it0, text.end());
     return out;
 }
 
 template<typename CharT, typename Alloc>
 void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_element, unsigned indent) {
     std::vector<writer_stack_item_t<CharT, Alloc>> stack;
-    decltype(uxs::detail::utf8_string_converter<CharT>::to({})) element(root_element);
+    decltype(utf8_string_converter<CharT>::to({})) element(root_element);
     stack.reserve(32);
 
     auto write_value = [this, &stack, &element, &indent](const basic_value<CharT, Alloc>& v) {
         switch (v.type_) {
-            case dtype::null: output_.write(std::string_view("null", 4)); break;
+            case dtype::null: output_.append("null", 4); break;
             case dtype::boolean: {
-                output_.write(v.value_.b ? std::string_view("true", 4) : std::string_view("false", 5));
+                output_.append(v.value_.b ? std::string_view("true", 4) : std::string_view("false", 5));
             } break;
             case dtype::integer: {
-                basic_membuffer_for_iobuf<char> buf(output_);
-                to_basic_string(buf, v.value_.i);
+                to_basic_string(output_, v.value_.i);
             } break;
             case dtype::unsigned_integer: {
-                basic_membuffer_for_iobuf<char> buf(output_);
-                to_basic_string(buf, v.value_.u);
+                to_basic_string(output_, v.value_.u);
             } break;
             case dtype::long_integer: {
-                basic_membuffer_for_iobuf<char> buf(output_);
-                to_basic_string(buf, v.value_.i64);
+                to_basic_string(output_, v.value_.i64);
             } break;
             case dtype::unsigned_long_integer: {
-                basic_membuffer_for_iobuf<char> buf(output_);
-                to_basic_string(buf, v.value_.u64);
+                to_basic_string(output_, v.value_.u64);
             } break;
             case dtype::double_precision: {
-                basic_membuffer_for_iobuf<char> buf(output_);
-                to_basic_string(buf, v.value_.dbl, fmt_opts{fmt_flags::json_compat});
+                to_basic_string(output_, v.value_.dbl, fmt_opts{fmt_flags::json_compat});
             } break;
             case dtype::string: {
-                print_xml_text<char>(output_, uxs::detail::utf8_string_converter<CharT>().to(v.str_view()));
+                print_xml_text<char>(output_, utf8_string_converter<CharT>().to(v.str_view()));
             } break;
             case dtype::array: {
                 stack.emplace_back(&v, element, v.as_array().data());
@@ -182,9 +175,10 @@ void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_ele
         return false;
     };
 
-    output_.put('<').write(element).put('>');
+    output_.push_back('<');
+    output_.append(element).push_back('>');
     if (!write_value(v)) {
-        output_.put('<').put('/').write(element).put('>');
+        output_.append("</", 2).append(element).push_back('>');
         return;
     }
 
@@ -195,9 +189,13 @@ loop:
         const auto* el = top->array_it;
         const auto* el_end = range.data() + range.size();
         while (true) {
-            if (el != range.data() && !(el - 1)->is_array()) { output_.put('<').put('/').write(element).put('>'); }
+            if (el != range.data() && !(el - 1)->is_array()) { output_.append("</", 2).append(element).push_back('>'); }
             if (el == el_end) { break; }
-            if (!el->is_array()) { output_.put('\n').fill_n(indent, indent_char_).put('<').write(element).put('>'); }
+            if (!el->is_array()) {
+                output_.push_back('\n');
+                output_.append(indent, indent_char_).push_back('<');
+                output_.append(element).push_back('>');
+            }
             if (write_value(*el++)) {
                 std::prev(stack.end(), 2)->array_it = el;
                 goto loop;
@@ -208,12 +206,14 @@ loop:
         auto el = top->record_it;
         while (true) {
             if (el != range.begin() && !std::prev(el)->second.is_array()) {
-                output_.put('<').put('/').write(element).put('>');
+                output_.append("</", 2).append(element).push_back('>');
             }
             if (el == range.end()) { break; }
-            element = uxs::detail::utf8_string_converter<CharT>::to(el->first);
+            element = utf8_string_converter<CharT>::to(el->first);
             if (!el->second.is_array()) {
-                output_.put('\n').fill_n(indent, indent_char_).put('<').write(element).put('>');
+                output_.push_back('\n');
+                output_.append(indent, indent_char_).push_back('<');
+                output_.append(element).push_back('>');
             }
             if (write_value((el++)->second)) {
                 std::prev(stack.end(), 2)->record_it = el;
@@ -221,13 +221,14 @@ loop:
             }
         }
         indent -= indent_size_;
-        output_.put('\n').fill_n(indent, indent_char_);
+        output_.push_back('\n');
+        output_.append(indent, indent_char_);
     }
 
     element = top->element;
     stack.pop_back();
     if (!stack.empty()) { goto loop; }
-    output_.put('<').put('/').write(element).put('>');
+    output_.append("</", 2).append(element).push_back('>');
 }
 
 }  // namespace xml

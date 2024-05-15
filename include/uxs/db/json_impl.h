@@ -45,7 +45,7 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
                 return {from_string<double>(lval), al};
             } break;
             case token_t::floating_point_number: return {from_string<double>(lval), al};
-            case token_t::string: return {uxs::detail::utf8_string_converter<CharT>::from(lval), al};
+            case token_t::string: return {utf8_string_converter<CharT>::from(lval), al};
             default: UXS_UNREACHABLE_CODE;
         }
     };
@@ -67,7 +67,7 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
         },
         [&al, &stack, &val]() { val = &stack.back()->emplace_back(al); },
         [&al, &stack, &val](std::string_view lval) {
-            val = &stack.back()->emplace(uxs::detail::utf8_string_converter<CharT>::from(lval), al)->second;
+            val = &stack.back()->emplace(utf8_string_converter<CharT>::from(lval), al)->second;
         },
         [&stack] { stack.pop_back(); }, tk_val);
     return result;
@@ -94,41 +94,35 @@ void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
 
     auto write_value = [this, &stack, &indent](const basic_value<CharT, Alloc>& v) {
         switch (v.type_) {
-            case dtype::null: output_.write(std::string_view("null", 4)); break;
+            case dtype::null: output_.append("null", 4); break;
             case dtype::boolean: {
-                output_.write(v.value_.b ? std::string_view("true", 4) : std::string_view("false", 5));
+                output_.append(v.value_.b ? std::string_view("true", 4) : std::string_view("false", 5));
             } break;
             case dtype::integer: {
-                basic_membuffer_for_iobuf<char> buf(output_);
-                to_basic_string(buf, v.value_.i);
+                to_basic_string(output_, v.value_.i);
             } break;
             case dtype::unsigned_integer: {
-                basic_membuffer_for_iobuf<char> buf(output_);
-                to_basic_string(buf, v.value_.u);
+                to_basic_string(output_, v.value_.u);
             } break;
             case dtype::long_integer: {
-                basic_membuffer_for_iobuf<char> buf(output_);
-                to_basic_string(buf, v.value_.i64);
+                to_basic_string(output_, v.value_.i64);
             } break;
             case dtype::unsigned_long_integer: {
-                basic_membuffer_for_iobuf<char> buf(output_);
-                to_basic_string(buf, v.value_.u64);
+                to_basic_string(output_, v.value_.u64);
             } break;
             case dtype::double_precision: {
-                basic_membuffer_for_iobuf<char> buf(output_);
-                to_basic_string(buf, v.value_.dbl, fmt_opts{fmt_flags::json_compat});
+                to_basic_string(output_, v.value_.dbl, fmt_opts{fmt_flags::json_compat});
             } break;
             case dtype::string: {
-                print_quoted_text(output_,
-                                  std::string_view{uxs::detail::utf8_string_converter<CharT>::to(v.str_view())});
+                print_quoted_text<char>(output_, utf8_string_converter<CharT>::to(v.str_view()));
             } break;
             case dtype::array: {
-                output_.put('[');
+                output_.push_back('[');
                 stack.emplace_back(&v, v.as_array().data());
                 return true;
             } break;
             case dtype::record: {
-                output_.put('{');
+                output_.push_back('{');
                 indent += indent_size_;
                 stack.emplace_back(&v, v.as_record().begin());
                 return true;
@@ -146,29 +140,33 @@ loop:
         const auto* el = top->array_it;
         const auto* el_end = range.data() + range.size();
         while (el != el_end) {
-            if (el != range.data()) { output_.put(',').put(' '); }
+            if (el != range.data()) { output_.append(", ", 2); }
             if (write_value(*el++)) {
                 (stack.curr() - 2)->array_it = el;
                 goto loop;
             }
         }
-        output_.put(']');
+        output_.push_back(']');
     } else {
         auto range = top->v->as_record();
         auto el = top->record_it;
         while (el != range.end()) {
-            if (el != range.begin()) { output_.put(','); }
-            output_.put('\n').fill_n(indent, indent_char_);
-            print_quoted_text(output_, std::string_view{uxs::detail::utf8_string_converter<CharT>::to(el->first)});
-            output_.put(':').put(' ');
+            if (el != range.begin()) { output_.push_back(','); }
+            output_.push_back('\n');
+            output_.append(indent, indent_char_);
+            print_quoted_text<char>(output_, utf8_string_converter<CharT>::to(el->first));
+            output_.append(": ", 2);
             if (write_value((el++)->second)) {
                 (stack.curr() - 2)->record_it = el;
                 goto loop;
             }
         }
         indent -= indent_size_;
-        if (!top->v->empty()) { output_.put('\n').fill_n(indent, indent_char_); }
-        output_.put('}');
+        if (!top->v->empty()) {
+            output_.push_back('\n');
+            output_.append(indent, indent_char_);
+        }
+        output_.push_back('}');
     }
 
     stack.pop_back();

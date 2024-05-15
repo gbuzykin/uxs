@@ -117,6 +117,13 @@ class basic_membuffer {
         return *this;
     }
 
+    basic_membuffer& append(const value_type* s, size_type count) { return append(s, s + count); }
+
+    template<typename Range, typename = std::void_t<decltype(std::declval<Range>().end())>>
+    basic_membuffer& append(const Range& r) {
+        return append(r.begin(), r.end());
+    }
+
     template<typename... Args>
     void emplace_back(Args&&... args) {
         if (curr_ != last_ || try_grow(1)) { new (curr_++) value_type(std::forward<Args>(args)...); }
@@ -383,28 +390,6 @@ void fmt_boolean(StrTy& s, bool val, fmt_opts fmt, locale_ref loc) {
     s.append(buf.begin(), buf.end());
 }
 
-template<typename CharT>
-UXS_EXPORT void fmt_character(basic_membuffer<CharT>& s, CharT val, fmt_opts fmt, locale_ref loc);
-
-template<typename StrTy,
-         typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
-void fmt_character(StrTy& s, typename StrTy::value_type val, fmt_opts fmt, locale_ref loc) {
-    inline_basic_dynbuffer<typename StrTy::value_type> buf;
-    fmt_character(buf, val, fmt, loc);
-    s.append(buf.begin(), buf.end());
-}
-
-template<typename CharT>
-UXS_EXPORT void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, fmt_opts fmt, locale_ref loc);
-
-template<typename StrTy,
-         typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
-void fmt_string(StrTy& s, std::basic_string_view<typename StrTy::value_type> val, fmt_opts fmt, locale_ref loc) {
-    inline_basic_dynbuffer<typename StrTy::value_type> buf;
-    fmt_string(buf, val, fmt, loc);
-    s.append(buf.begin(), buf.end());
-}
-
 template<typename CharT, typename Ty>
 UXS_EXPORT void fmt_integer_common(basic_membuffer<CharT>& s, Ty val, bool is_signed, fmt_opts fmt, locale_ref loc);
 
@@ -442,6 +427,12 @@ void fmt_float(StrTy& s, Ty val, fmt_opts fmt, locale_ref loc) {
     fmt_float_common(s, fp_traits<Ty>::to_u64(static_cast<FpTy>(val)), fmt, fp_traits<Ty>::bits_per_mantissa,
                      fp_traits<Ty>::exp_max, loc);
 }
+
+template<typename CharT>
+UXS_EXPORT void fmt_character(basic_membuffer<CharT>& s, CharT val, fmt_opts fmt, locale_ref loc);
+
+template<typename CharT>
+UXS_EXPORT void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, fmt_opts fmt, locale_ref loc);
 
 }  // namespace scvt
 

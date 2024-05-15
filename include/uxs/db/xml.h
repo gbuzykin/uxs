@@ -1,7 +1,6 @@
 #pragma once
 
-#include "uxs/io/iobuf.h"
-#include "uxs/stringcvt.h"
+#include "uxs/format.h"
 
 #include <forward_list>
 #include <map>
@@ -112,7 +111,7 @@ class writer {
     UXS_EXPORT void write(const basic_value<CharT, Alloc>& v, std::string_view root_element, unsigned indent = 0);
 
  private:
-    iobuf& output_;
+    basic_membuffer_for_iobuf<char> output_;
     unsigned indent_size_;
     char indent_char_;
 };
