@@ -8,15 +8,6 @@ namespace lex_detail {
 #include "xml_lex_analyzer.inl"
 }
 
-static std::uint8_t g_spec_chars[256] = {
-    1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
 namespace uxs {
 namespace db {
 
@@ -111,7 +102,10 @@ std::pair<xml::token_t, std::string_view> xml::reader::read_next() {
             return {token_t::entity, lval};
         } else if (*first != 0) {
             last = std::find_if(first, last, [this](char ch) {
-                if (ch != '\n') { return !!g_spec_chars[static_cast<unsigned char>(ch)]; }
+                if (ch != '\n') {
+                    return !!(uxs::detail::char_tbl_t{}.flags()[static_cast<std::uint8_t>(ch)] &
+                              uxs::detail::char_bits::is_xml_special);
+                }
                 ++n_ln_;
                 return false;
             });
@@ -275,7 +269,7 @@ xml::reader::lex_token_t xml::reader::parse_token(std::string_view& lval) {
                 switch (lexeme[0]) {
                     case '\"': state_stack_.push_back(lex_detail::sc_string_quot); break;
                     case '\'': state_stack_.push_back(lex_detail::sc_string_apos); break;
-                    default: return static_cast<lex_token_t>(static_cast<unsigned char>(*first));
+                    default: return static_cast<lex_token_t>(static_cast<std::uint8_t>(*first));
                 }
             } break;
             default: UXS_UNREACHABLE_CODE;
@@ -285,7 +279,7 @@ xml::reader::lex_token_t xml::reader::parse_token(std::string_view& lval) {
 
 /*static*/ xml::reader::string_class xml::reader::classify_string(const std::string_view& sval) {
     int state = lex_detail::sc_value;
-    for (unsigned char ch : sval) {
+    for (std::uint8_t ch : sval) {
         state = lex_detail::Dtran[lex_detail::dtran_width * state + lex_detail::symb2meta[ch]];
     }
     switch (lex_detail::accept[state]) {

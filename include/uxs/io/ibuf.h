@@ -7,7 +7,6 @@
 #include "uxs/span.h"
 
 #include <algorithm>
-#include <cassert>
 
 namespace uxs {
 

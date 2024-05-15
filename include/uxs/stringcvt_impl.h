@@ -21,26 +21,6 @@ namespace uxs {
 namespace scvt {
 
 template<typename CharT>
-struct count_utf_chars;
-
-template<>
-struct count_utf_chars<char> {
-    unsigned operator()(std::uint8_t ch) const { return get_utf8_byte_count(ch); }
-};
-
-#if defined(WCHAR_MAX) && WCHAR_MAX > 0xffff
-template<>
-struct count_utf_chars<wchar_t> {
-    unsigned operator()(std::uint32_t ch) const { return 1; }
-};
-#else   // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
-template<>
-struct count_utf_chars<wchar_t> {
-    unsigned operator()(std::uint16_t ch) const { return get_utf16_word_count(ch); }
-};
-#endif  // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
-
-template<typename CharT>
 struct default_numpunct;
 
 template<>
@@ -96,25 +76,24 @@ inline unsigned ulog2(std::uint32_t x) { return __builtin_clz(x | 1) ^ 31; }
 inline unsigned ulog2(std::uint64_t x) { return __builtin_clzll(x | 1) ^ 63; }
 #else
 struct ulog2_table_t {
-    std::array<unsigned, 256> n_bit;
-    UXS_CONSTEXPR ulog2_table_t() : n_bit() {
-        for (std::uint32_t n = 0; n < n_bit.size(); ++n) {
-            std::uint32_t u8 = n;
-            n_bit[n] = 0;
-            while (u8 >>= 1) { ++n_bit[n]; }
-        }
+    const std::uint8_t* operator()() const noexcept {
+        static const UXS_CONSTEXPR std::uint8_t v[] = {
+            0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+            6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7};
+        return v;
     }
 };
-#    if __cplusplus < 201703L
-extern UXS_EXPORT const ulog2_table_t g_ulog2_tbl;
-#    else   // __cplusplus < 201703L
-constexpr ulog2_table_t g_ulog2_tbl{};
-#    endif  // __cplusplus < 201703L
 inline unsigned ulog2(std::uint32_t x) {
     unsigned bias = 0;
     if (x >= 1u << 16) { x >>= 16, bias += 16; }
     if (x >= 1u << 8) { x >>= 8, bias += 8; }
-    return bias + g_ulog2_tbl.n_bit[x];
+    return bias + ulog2_table_t{}()[x];
 }
 inline unsigned ulog2(std::uint64_t x) {
     if (x >= 1ull << 32) { return 32 + ulog2(static_cast<std::uint32_t>(hi32(x))); }
@@ -366,10 +345,10 @@ struct print_functor {
             for (CharT* p = s.curr(); prefix; ++p, prefix >>= 8) { *p = static_cast<CharT>(prefix & 0xff); }
             s.advance(len);
         } else {
-            CharT buf[256];
-            generate_fn(buf + len, val, std::forward<Args>(args)...);
-            for (CharT* p = buf; prefix; ++p, prefix >>= 8) { *p = static_cast<CharT>(prefix & 0xff); }
-            s.append(buf, buf + len);
+            std::array<CharT, 256> buf;
+            generate_fn(buf.data() + len, val, std::forward<Args>(args)...);
+            for (CharT* p = buf.data(); prefix; ++p, prefix >>= 8) { *p = static_cast<CharT>(prefix & 0xff); }
+            s.append(buf.data(), buf.data() + len);
         }
     }
 };
@@ -681,26 +660,13 @@ void fmt_character(basic_membuffer<CharT>& s, CharT val, fmt_opts fmt, locale_re
 
 template<typename CharT>
 void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, fmt_opts fmt, locale_ref) {
-    auto first = val.begin(), last = val.end();
     std::size_t len = 0;
-    unsigned count = 0;
-    auto p = first;
-    if (fmt.prec >= 0) {
-        unsigned prec = fmt.prec;
-        len = prec;
-        while (prec > 0 && static_cast<std::size_t>(last - p) > count) {
-            p += count;
-            count = count_utf_chars<CharT>{}(*p), --prec;
-        }
-        if (prec > 0) {
-            len -= prec;
-        } else if (static_cast<std::size_t>(last - p) > count) {
-            last = p + count;
-        }
-    } else if (fmt.width > 0) {
-        while (static_cast<std::size_t>(last - p) > count) {
-            p += count;
-            count = count_utf_chars<CharT>{}(*p), ++len;
+    std::uint32_t code = 0;
+    auto first = val.begin(), last = val.end();
+    if (fmt.prec >= 0 || fmt.width > 0) {
+        std::ptrdiff_t prec = fmt.prec;
+        for (last = first; prec != 0 && utf_decoder<CharT>{}.decode(last, val.end(), last, code) != 0;) {
+            ++len, --prec;
         }
     }
     const auto fn = [first, last](basic_membuffer<CharT>& s) { s.append(first, last); };

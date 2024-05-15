@@ -1,23 +1,12 @@
 #include "uxs/stringcvt_impl.h"
 
 namespace uxs {
-#if __cplusplus < 201703L
-namespace detail {
-const char_tbl_t g_char_tbl;
-}
-#endif  // __cplusplus < 201703L
 
 format_error::format_error(const char* message) : std::runtime_error(message) {}
 format_error::format_error(const std::string& message) : std::runtime_error(message) {}
 const char* format_error::what() const noexcept { return std::runtime_error::what(); }
 
 namespace scvt {
-
-#if __cplusplus < 201703L && \
-    (UXS_SCVT_USE_COMPILER_128BIT_EXTENSIONS == 0 || \
-     (!(defined(_MSC_VER) && defined(_M_X64)) && !(defined(__GNUC__) && defined(__x86_64__))))
-const ulog2_table_t g_ulog2_tbl;
-#endif
 
 inline std::uint64_t umul128(std::uint64_t x, std::uint64_t y, std::uint64_t bias, std::uint64_t& result_hi) {
 #if UXS_SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
