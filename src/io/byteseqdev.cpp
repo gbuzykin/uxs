@@ -1,5 +1,6 @@
 #include "uxs/io/byteseqdev.h"
 
+#include <algorithm>
 #include <cstring>
 
 using namespace uxs;

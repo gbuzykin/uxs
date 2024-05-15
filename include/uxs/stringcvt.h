@@ -5,6 +5,7 @@
 #include "string_view.h"
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <locale>
 #include <memory>

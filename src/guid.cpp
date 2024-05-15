@@ -8,9 +8,9 @@ using namespace uxs;
 // Guid implementation
 
 namespace {
-static std::random_device g_rd;
-static std::seed_seq g_seed{g_rd(), g_rd(), g_rd(), g_rd(), g_rd()};
-static std::mt19937 g_generator(g_seed);
+std::random_device g_rd;
+std::seed_seq g_seed{g_rd(), g_rd(), g_rd(), g_rd(), g_rd()};
+std::mt19937 g_generator(g_seed);
 }  // namespace
 
 /*static*/ guid guid::generate() {

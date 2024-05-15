@@ -33,7 +33,7 @@ void byteseq::clear() noexcept {
 
 std::uint32_t byteseq::calc_crc32() const noexcept {
     std::uint32_t crc32 = 0xffffffff;
-    scan([&crc32](const std::uint8_t* p, std::size_t sz) { crc32 = crc32::calc(p, p + sz, crc32); });
+    scan([&crc32](const std::uint8_t* p, std::size_t sz) { crc32 = crc32_calc{}(p, p + sz, crc32); });
     return crc32;
 }
 

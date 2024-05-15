@@ -8,15 +8,6 @@ namespace lex_detail {
 #include "json_lex_analyzer.inl"
 }
 
-static std::uint8_t g_whitespaces[256] = {
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
 namespace uxs {
 namespace db {
 
@@ -31,7 +22,10 @@ int json::reader::parse_token(std::string_view& lval) {
         if (state_stack_.back() == lex_detail::sc_initial) {
             while (true) {  // skip whitespaces
                 first = std::find_if<const char*>(first, input_.last_avail(), [this](char ch) {
-                    if (ch != '\n') { return !g_whitespaces[static_cast<unsigned char>(ch)]; }
+                    if (ch != '\n') {
+                        return !(uxs::detail::char_tbl_t{}.flags()[static_cast<std::uint8_t>(ch)] &
+                                 uxs::detail::char_bits::is_json_space);
+                    }
                     ++n_ln_;
                     return false;
                 });
@@ -41,9 +35,9 @@ int json::reader::parse_token(std::string_view& lval) {
                 first = input_.first_avail();
             }
             // just process a single character if it can't be recognized with analyzer
-            if (lex_detail::Dtran[lex_detail::symb2meta[static_cast<unsigned char>(*first)]] < 0) {
+            if (lex_detail::Dtran[lex_detail::symb2meta[static_cast<std::uint8_t>(*first)]] < 0) {
                 input_.advance(1);
-                if (*first != '\"') { return static_cast<unsigned char>(*first); }
+                if (*first != '\"') { return static_cast<std::uint8_t>(*first); }
                 state_stack_.push_back(lex_detail::sc_string);
                 continue;
             }
@@ -104,9 +98,13 @@ int json::reader::parse_token(std::string_view& lval) {
                 unsigned unicode = (dig_v(lexeme[2]) << 12) | (dig_v(lexeme[3]) << 8) | (dig_v(lexeme[4]) << 4) |
                                    dig_v(lexeme[5]);
                 if (surrogate != 0) {
-                    unicode = 0x10000 + (((surrogate & 0x3ff) << 10) | (unicode & 0x3ff));
+                    if ((unicode & 0xfc00) == 0xdc00) {
+                        unicode = 0x10000 + (((surrogate & 0x3ff) << 10) | (unicode & 0x3ff));
+                    } else {
+                        to_utf8(surrogate, std::back_inserter(str_));
+                    }
                     surrogate = 0;
-                } else if ((unicode & 0xdc00) == 0xd800) {
+                } else if ((unicode & 0xfc00) == 0xd800) {
                     surrogate = unicode;
                     break;
                 }
@@ -166,7 +164,7 @@ int json::reader::parse_token(std::string_view& lval) {
                 } while (input_ && ch != '/');
             } break;
 
-            case lex_detail::predef_pat_default: return static_cast<unsigned char>(lexeme[0]);
+            case lex_detail::predef_pat_default: return static_cast<std::uint8_t>(lexeme[0]);
             default: UXS_UNREACHABLE_CODE;
         }
     }

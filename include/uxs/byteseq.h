@@ -2,6 +2,7 @@
 
 #include "span.h"
 
+#include <memory>
 #include <vector>
 
 namespace uxs {
