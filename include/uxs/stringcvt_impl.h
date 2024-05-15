@@ -295,8 +295,8 @@ UXS_FORCE_INLINE const char* get_digits(unsigned n) noexcept {
     return digs[n];
 }
 
-template<typename StrTy, typename Func, typename... Args>
-void adjust_numeric(StrTy& s, Func fn, unsigned len, unsigned prefix, fmt_opts fmt, Args&&... args) {
+template<typename CharT, typename Func, typename... Args>
+void adjust_numeric(basic_membuffer<CharT>& s, Func fn, unsigned len, unsigned prefix, fmt_opts fmt, Args&&... args) {
     const unsigned n_prefix = prefix > 0xff ? (prefix > 0xffff ? 3 : 2) : (prefix ? 1 : 0);
     unsigned left = fmt.width - len - n_prefix, right = left;
     if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::left) {
@@ -306,7 +306,7 @@ void adjust_numeric(StrTy& s, Func fn, unsigned len, unsigned prefix, fmt_opts f
     } else if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::right || !(fmt.flags & fmt_flags::leading_zeroes)) {
         right = 0;
     } else {
-        for (; prefix; prefix >>= 8) { s.push_back(static_cast<typename StrTy::value_type>(prefix & 0xff)); }
+        for (; prefix; prefix >>= 8) { s.push_back(static_cast<CharT>(prefix & 0xff)); }
         s.append(left, '0');
         return fn(len, 0, std::forward<Args>(args)...);
     }
@@ -626,14 +626,14 @@ void fmt_boolean(basic_membuffer<CharT>& s, bool val, fmt_opts fmt, locale_ref l
             if (!!(fmt.flags & fmt_flags::localize)) {
                 const auto& numpunct = std::use_facet<std::numpunct<CharT>>(*loc);
                 const auto sval = val ? numpunct.truename() : numpunct.falsename();
-                const auto fn = [&sval](basic_membuffer<CharT>& s) { s.append(sval.begin(), sval.end()); };
+                const auto fn = [&sval](basic_membuffer<CharT>& s) { s.append(sval); };
                 return fmt.width > sval.size() ? append_adjusted(s, fn, static_cast<unsigned>(sval.size()), fmt) :
                                                  fn(s);
             }
             const bool uppercase = !!(fmt.flags & fmt_flags::uppercase);
             const auto sval = val ? default_numpunct<CharT>().truename(uppercase) :
                                     default_numpunct<CharT>().falsename(uppercase);
-            const auto fn = [&sval](basic_membuffer<CharT>& s) { s.append(sval.begin(), sval.end()); };
+            const auto fn = [&sval](basic_membuffer<CharT>& s) { s.append(sval); };
             return fmt.width > sval.size() ? append_adjusted(s, fn, static_cast<unsigned>(sval.size()), fmt) : fn(s);
         } break;
     }
@@ -919,7 +919,7 @@ void fmt_float_common(basic_membuffer<CharT>& s, std::uint64_t u64, fmt_opts fmt
         const unsigned len = (sign ? 1 : 0) + static_cast<unsigned>(sval.size());
         const auto fn = [&sval, sign](basic_membuffer<CharT>& s) {
             if (sign) { s.push_back(static_cast<CharT>(sign)); }
-            s.append(sval.begin(), sval.end());
+            s.append(sval);
         };
         return fmt.width > len ? append_adjusted(s, fn, len, fmt, true) : fn(s);
     }

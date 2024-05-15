@@ -56,11 +56,11 @@ using reduce_type_t = typename detail::reduce_type<Ty, CharT>::type;
 
 // --------------------------
 
-template<typename StrTy>
+template<typename CharT>
 class basic_format_context;
 
-using format_context = basic_format_context<membuffer>;
-using wformat_context = basic_format_context<wmembuffer>;
+using format_context = basic_format_context<char>;
+using wformat_context = basic_format_context<wchar_t>;
 
 namespace detail {
 template<typename Ty, typename FmtCtx>
@@ -76,8 +76,7 @@ struct is_formattable {
 }  // namespace detail
 
 template<typename Ty, typename CharT = char>
-struct formattable
-    : detail::is_formattable<sfmt::reduce_type_t<Ty, CharT>, basic_format_context<basic_membuffer<CharT>>>::type {};
+struct formattable : detail::is_formattable<sfmt::reduce_type_t<Ty, CharT>, basic_format_context<CharT>>::type {};
 
 template<typename Ty, typename CharT = char>
 using formatter_t = formatter<sfmt::reduce_type_t<Ty, CharT>, CharT>;
@@ -851,21 +850,22 @@ class compile_parse_context : public basic_format_parse_context<CharT> {
 };
 #endif  // defined(UXS_HAS_CONSTEVAL)
 
-template<typename StrTy>
+template<typename CharT>
 class basic_format_context {
  public:
-    using output_type = StrTy;
-    using char_type = typename StrTy::value_type;
-    template<typename Ty>
-    using formatter_type = formatter<Ty, char_type>;
+    using char_type = CharT;
+    using output_type = basic_membuffer<CharT>;
     using parse_context = basic_format_parse_context<char_type>;
     using format_args_type = basic_format_args<basic_format_context>;
     using format_arg_type = basic_format_arg<basic_format_context>;
+    template<typename Ty>
+    using formatter_type = formatter<Ty, char_type>;
 
-    basic_format_context(StrTy& s, format_args_type args) : s_(s), args_(args) {}
-    basic_format_context(StrTy& s, const std::locale& loc, format_args_type args) : s_(s), loc_(loc), args_(args) {}
+    basic_format_context(output_type& s, format_args_type args) : s_(s), args_(args) {}
+    basic_format_context(output_type& s, const std::locale& loc, format_args_type args)
+        : s_(s), loc_(loc), args_(args) {}
     basic_format_context& operator=(const basic_format_context&) = delete;
-    StrTy& out() { return s_; }
+    output_type& out() { return s_; }
     locale_ref locale() const { return loc_; }
     format_arg_type arg(std::size_t id) const { return args_.get(id); }
 
@@ -879,7 +879,7 @@ class basic_format_context {
     void format_arg(parse_context& parse_ctx, const typename format_arg_type::handle& h) { h.format(*this, parse_ctx); }
 
  private:
-    StrTy& s_;
+    output_type& s_;
     locale_ref loc_;
     format_args_type args_;
 };
@@ -930,57 +930,79 @@ using wformat_string = basic_format_string<wchar_t, type_identity_t<Args>...>;
 
 // ---- basic_vformat
 
-template<typename StrTy>
-StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
-                     basic_format_args<basic_format_context<StrTy>> args) {
-    sfmt::vformat(basic_format_context<StrTy>{s, args}, basic_format_parse_context<typename StrTy::value_type>{fmt});
+template<typename CharT>
+basic_membuffer<CharT>& basic_vformat(basic_membuffer<CharT>& s, std::basic_string_view<CharT> fmt,
+                                      basic_format_args<basic_format_context<CharT>> args) {
+    sfmt::vformat(basic_format_context<CharT>{s, args}, basic_format_parse_context<CharT>{fmt});
     return s;
 }
 
-template<typename StrTy>
-StrTy& basic_vformat(StrTy& s, const std::locale& loc, std::basic_string_view<typename StrTy::value_type> fmt,
-                     basic_format_args<basic_format_context<StrTy>> args) {
-    sfmt::vformat(basic_format_context<StrTy>{s, loc, args},
-                  basic_format_parse_context<typename StrTy::value_type>{fmt});
+template<typename StrTy,
+         typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
+StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
+                     basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
+    using char_type = typename StrTy::value_type;
+    inline_basic_dynbuffer<char_type> buf;
+    sfmt::vformat(basic_format_context<char_type>{buf, args}, basic_format_parse_context<char_type>{fmt});
+    return s.append(buf.begin(), buf.end());
+}
+
+template<typename CharT>
+basic_membuffer<CharT>& basic_vformat(basic_membuffer<CharT>& s, const std::locale& loc,
+                                      std::basic_string_view<CharT> fmt,
+                                      basic_format_args<basic_format_context<CharT>> args) {
+    sfmt::vformat(basic_format_context<CharT>{s, loc, args}, basic_format_parse_context<CharT>{fmt});
     return s;
+}
+
+template<typename StrTy,
+         typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
+StrTy& basic_vformat(StrTy& s, const std::locale& loc, std::basic_string_view<typename StrTy::value_type> fmt,
+                     basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
+    using char_type = typename StrTy::value_type;
+    inline_basic_dynbuffer<char_type> buf;
+    sfmt::vformat(basic_format_context<char_type>{buf, loc, args}, basic_format_parse_context<char_type>{fmt});
+    return s.append(buf.begin(), buf.end());
 }
 
 // ---- basic_format
 
 template<typename StrTy, typename... Args>
-StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type, Args...> fmt, const Args&... args) {
-    return basic_vformat(s, fmt.get(), make_format_args<basic_format_context<StrTy>>(args...));
+StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type, type_identity_t<Args>...> fmt,
+                    const Args&... args) {
+    return basic_vformat(s, fmt.get(), make_format_args<basic_format_context<typename StrTy::value_type>>(args...));
 }
 
 template<typename StrTy, typename... Args>
-StrTy& basic_format(StrTy& s, const std::locale& loc, basic_format_string<typename StrTy::value_type, Args...> fmt,
+StrTy& basic_format(StrTy& s, const std::locale& loc,
+                    basic_format_string<typename StrTy::value_type, type_identity_t<Args>...> fmt,
                     const Args&... args) {
-    return basic_vformat(s, loc, fmt.get(), make_format_args<basic_format_context<StrTy>>(args...));
+    return basic_vformat(s, loc, fmt.get(), make_format_args<basic_format_context<typename StrTy::value_type>>(args...));
 }
 
 // ---- vformat
 
 inline std::string vformat(std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    basic_vformat<membuffer>(buf, fmt, args);
+    basic_vformat(buf, fmt, args);
     return std::string(buf.data(), buf.size());
 }
 
 inline std::wstring vformat(std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    basic_vformat<wmembuffer>(buf, fmt, args);
+    basic_vformat(buf, fmt, args);
     return std::wstring(buf.data(), buf.size());
 }
 
 inline std::string vformat(const std::locale& loc, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    basic_vformat<membuffer>(buf, loc, fmt, args);
+    basic_vformat(buf, loc, fmt, args);
     return std::string(buf.data(), buf.size());
 }
 
 inline std::wstring vformat(const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    basic_vformat<wmembuffer>(buf, loc, fmt, args);
+    basic_vformat(buf, loc, fmt, args);
     return std::wstring(buf.data(), buf.size());
 }
 
@@ -1010,49 +1032,49 @@ std::wstring format(const std::locale& loc, wformat_string<Args...> fmt, const A
 
 inline char* vformat_to(char* p, std::string_view fmt, format_args args) {
     membuffer buf(p);
-    return basic_vformat<membuffer>(buf, fmt, args).curr();
+    return basic_vformat(buf, fmt, args).curr();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
 OutputIt vformat_to(OutputIt out, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    basic_vformat<membuffer>(buf, fmt, args);
+    basic_vformat(buf, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
 inline wchar_t* vformat_to(wchar_t* p, std::wstring_view fmt, wformat_args args) {
     wmembuffer buf(p);
-    return basic_vformat<wmembuffer>(buf, fmt, args).curr();
+    return basic_vformat(buf, fmt, args).curr();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
 OutputIt vformat_to(OutputIt out, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    basic_vformat<wmembuffer>(buf, fmt, args);
+    basic_vformat(buf, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
 inline char* vformat_to(char* p, const std::locale& loc, std::string_view fmt, format_args args) {
     membuffer buf(p);
-    return basic_vformat<membuffer>(buf, loc, fmt, args).curr();
+    return basic_vformat(buf, loc, fmt, args).curr();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
 OutputIt vformat_to(OutputIt out, const std::locale& loc, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    basic_vformat<membuffer>(buf, loc, fmt, args);
+    basic_vformat(buf, loc, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
 inline wchar_t* vformat_to(wchar_t* p, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     wmembuffer buf(p);
-    return basic_vformat<wmembuffer>(buf, loc, fmt, args).curr();
+    return basic_vformat(buf, loc, fmt, args).curr();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
 OutputIt vformat_to(OutputIt out, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    basic_vformat<wmembuffer>(buf, loc, fmt, args);
+    basic_vformat(buf, loc, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
@@ -1111,53 +1133,53 @@ class basic_membuffer_with_size_counter final : public basic_membuffer<Ty> {
 
 inline format_to_n_result<char*> vformat_to_n(char* p, std::size_t n, std::string_view fmt, format_args args) {
     basic_membuffer_with_size_counter<char> buf(p, p + n);
-    return {basic_vformat<membuffer>(buf, fmt, args).curr(), buf.size()};
+    return {basic_vformat(buf, fmt, args).curr(), buf.size()};
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
 format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    basic_vformat<membuffer>(buf, fmt, args);
+    basic_vformat(buf, fmt, args);
     return {std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out)), buf.size()};
 }
 
 inline format_to_n_result<wchar_t*> vformat_to_n(wchar_t* p, std::size_t n, std::wstring_view fmt, wformat_args args) {
     basic_membuffer_with_size_counter<wchar_t> buf(p, p + n);
-    return {basic_vformat<wmembuffer>(buf, fmt, args).curr(), buf.size()};
+    return {basic_vformat(buf, fmt, args).curr(), buf.size()};
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
 format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    basic_vformat<wmembuffer>(buf, fmt, args);
+    basic_vformat(buf, fmt, args);
     return {std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out)), buf.size()};
 }
 
 inline format_to_n_result<char*> vformat_to_n(char* p, std::size_t n, const std::locale& loc, std::string_view fmt,
                                               format_args args) {
     basic_membuffer_with_size_counter<char> buf(p, p + n);
-    return {basic_vformat<membuffer>(buf, loc, fmt, args).curr(), buf.size()};
+    return {basic_vformat(buf, loc, fmt, args).curr(), buf.size()};
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
 format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, const std::locale& loc, std::string_view fmt,
                                           format_args args) {
     inline_dynbuffer buf;
-    basic_vformat<membuffer>(buf, loc, fmt, args);
+    basic_vformat(buf, loc, fmt, args);
     return {std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out)), buf.size()};
 }
 
 inline format_to_n_result<wchar_t*> vformat_to_n(wchar_t* p, std::size_t n, const std::locale& loc,
                                                  std::wstring_view fmt, wformat_args args) {
     basic_membuffer_with_size_counter<wchar_t> buf(p, p + n);
-    return {basic_vformat<wmembuffer>(buf, loc, fmt, args).curr(), buf.size()};
+    return {basic_vformat(buf, loc, fmt, args).curr(), buf.size()};
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
 format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, const std::locale& loc, std::wstring_view fmt,
                                           wformat_args args) {
     inline_wdynbuffer buf;
-    basic_vformat<wmembuffer>(buf, loc, fmt, args);
+    basic_vformat(buf, loc, fmt, args);
     return {std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out)), buf.size()};
 }
 
@@ -1191,10 +1213,10 @@ format_to_n_result<OutputIt> format_to_n(OutputIt out, std::size_t n, const std:
 
 // ---- vprint
 
-template<typename CharT, typename Traits = std::char_traits<CharT>>
-basic_iobuf<CharT>& print_quoted_text(basic_iobuf<CharT>& out, std::basic_string_view<CharT, Traits> text) {
-    auto it0 = text.data();
-    out.put('\"');
+template<typename CharT>
+basic_membuffer<CharT>& print_quoted_text(basic_membuffer<CharT>& out, std::basic_string_view<CharT> text) {
+    auto it0 = text.begin();
+    out.push_back('\"');
     for (auto it = it0; it != text.end(); ++it) {
         char esc = '\0';
         switch (*it) {
@@ -1209,12 +1231,11 @@ basic_iobuf<CharT>& print_quoted_text(basic_iobuf<CharT>& out, std::basic_string
             case '\v': esc = 'v'; break;
             default: continue;
         }
-        out.write(uxs::as_span(it0, it - it0));
-        out.put('\\'), out.put(esc);
+        out.append(it0, it).push_back('\\');
+        out.push_back(esc);
         it0 = it + 1;
     }
-    out.write(uxs::as_span(it0, text.end() - it0));
-    out.put('\"');
+    out.append(it0, text.end()).push_back('\"');
     return out;
 }
 
@@ -1238,25 +1259,25 @@ class basic_membuffer_for_iobuf final : public basic_membuffer<Ty> {
 
 inline iobuf& vprint(iobuf& out, std::string_view fmt, format_args args) {
     basic_membuffer_for_iobuf<char> buf(out);
-    basic_vformat<membuffer>(buf, fmt, args);
+    basic_vformat(buf, fmt, args);
     return out;
 }
 
 inline wiobuf& vprint(wiobuf& out, std::wstring_view fmt, wformat_args args) {
     basic_membuffer_for_iobuf<wchar_t> buf(out);
-    basic_vformat<wmembuffer>(buf, fmt, args);
+    basic_vformat(buf, fmt, args);
     return out;
 }
 
 inline iobuf& vprint(iobuf& out, const std::locale& loc, std::string_view fmt, format_args args) {
     basic_membuffer_for_iobuf<char> buf(out);
-    basic_vformat<membuffer>(buf, loc, fmt, args);
+    basic_vformat(buf, loc, fmt, args);
     return out;
 }
 
 inline wiobuf& vprint(wiobuf& out, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     basic_membuffer_for_iobuf<wchar_t> buf(out);
-    basic_vformat<wmembuffer>(buf, loc, fmt, args);
+    basic_vformat(buf, loc, fmt, args);
     return out;
 }
 
