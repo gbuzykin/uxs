@@ -52,21 +52,27 @@ class basic_membuffer {
 
  public:
     using value_type = Ty;
+    using pointer = Ty*;
+    using const_pointer = const Ty*;
+    using reference = Ty&;
+    using const_reference = const Ty&;
+    using size_type = std::size_t;
+    using difference_type = std::ptrdiff_t;
 
     explicit basic_membuffer(Ty* first, Ty* last = reinterpret_cast<Ty*>(0)) noexcept : curr_(first), last_(last) {}
     virtual ~basic_membuffer() = default;
     basic_membuffer(const basic_membuffer&) = delete;
     basic_membuffer& operator=(const basic_membuffer&) = delete;
 
-    std::size_t avail() const noexcept { return last_ - curr_; }
-    const Ty* curr() const noexcept { return curr_; }
-    Ty* curr() noexcept { return curr_; }
-    Ty** p_curr() noexcept { return &curr_; }
-    const Ty* last() const noexcept { return last_; }
-    Ty* last() noexcept { return last_; }
-    Ty& back() noexcept { return *(curr_ - 1); }
+    size_type avail() const noexcept { return last_ - curr_; }
+    const_pointer curr() const noexcept { return curr_; }
+    pointer curr() noexcept { return curr_; }
+    pointer* p_curr() noexcept { return &curr_; }
+    const_pointer last() const noexcept { return last_; }
+    pointer last() noexcept { return last_; }
+    reference back() noexcept { return *(curr_ - 1); }
 
-    basic_membuffer& advance(std::size_t n) noexcept {
+    basic_membuffer& advance(size_type n) noexcept {
         assert(n <= avail());
         curr_ += n;
         return *this;
@@ -75,7 +81,7 @@ class basic_membuffer {
     template<typename InputIt, typename = std::enable_if_t<is_random_access_iterator<InputIt>::value>>
     basic_membuffer& append(InputIt first, InputIt last) {
         assert(first <= last);
-        std::size_t count = static_cast<std::size_t>(last - first), n_avail = avail();
+        size_type count = static_cast<size_type>(last - first), n_avail = avail();
         while (count > n_avail) {
             curr_ = std::copy_n(first, n_avail, curr_);
             first += n_avail, count -= n_avail;
@@ -85,8 +91,8 @@ class basic_membuffer {
         return *this;
     }
 
-    basic_membuffer& append(std::size_t count, Ty val) {
-        std::size_t n_avail = avail();
+    basic_membuffer& append(size_type count, value_type val) {
+        size_type n_avail = avail();
         while (count > n_avail) {
             curr_ = std::fill_n(curr_, n_avail, val);
             count -= n_avail;
@@ -98,9 +104,9 @@ class basic_membuffer {
 
     template<typename... Args>
     void emplace_back(Args&&... args) {
-        if (curr_ != last_ || try_grow(1)) { new (curr_++) Ty(std::forward<Args>(args)...); }
+        if (curr_ != last_ || try_grow(1)) { new (curr_++) value_type(std::forward<Args>(args)...); }
     }
-    void push_back(Ty val) {
+    void push_back(value_type val) {
         if (curr_ != last_ || try_grow(1)) { *curr_++ = val; }
     }
     void pop_back() noexcept { --curr_; }
@@ -118,7 +124,7 @@ class basic_membuffer {
  protected:
     void set(Ty* curr) noexcept { curr_ = curr; }
     void set(Ty* curr, Ty* last) noexcept { curr_ = curr, last_ = last; }
-    virtual std::size_t try_grow(std::size_t extra) { return 0; }
+    virtual size_type try_grow(size_type extra) { return 0; }
 
  private:
     Ty* curr_;
@@ -135,19 +141,29 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
 
  public:
     using value_type = typename basic_membuffer<Ty>::value_type;
+    using pointer = typename basic_membuffer<Ty>::pointer;
+    using const_pointer = typename basic_membuffer<Ty>::const_pointer;
+    using reference = typename basic_membuffer<Ty>::reference;
+    using const_reference = typename basic_membuffer<Ty>::const_reference;
+    using const_iterator = uxs::array_iterator<basic_dynbuffer, true>;
+    using iterator = const_iterator;
+    using size_type = typename basic_membuffer<Ty>::size_type;
+    using difference_type = typename basic_membuffer<Ty>::difference_type;
 
     ~basic_dynbuffer() override {
         if (is_allocated_) { this->deallocate(first_, capacity()); }
     }
 
     bool empty() const noexcept { return first_ == this->curr(); }
-    std::size_t size() const noexcept { return this->curr() - first_; }
-    std::size_t capacity() const noexcept { return this->last() - first_; }
-    const Ty* data() const noexcept { return first_; }
-    Ty* data() noexcept { return first_; }
+    size_type size() const noexcept { return this->curr() - first_; }
+    size_type capacity() const noexcept { return this->last() - first_; }
+    const_pointer data() const noexcept { return first_; }
+    pointer data() noexcept { return first_; }
+    const_iterator begin() const noexcept { return const_iterator(first_, first_, this->curr()); }
+    const_iterator end() const noexcept { return const_iterator(this->curr(), first_, this->curr()); }
     void clear() noexcept { this->set(first_); }
 
-    void reserve(std::size_t extra) {
+    void reserve(size_type extra) {
         if (extra > this->avail()) { try_grow(extra); }
     }
 
@@ -155,9 +171,9 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
     basic_dynbuffer(Ty* first, Ty* last) noexcept
         : basic_membuffer<Ty>(first, last), first_(first), is_allocated_(false) {}
 
-    std::size_t try_grow(std::size_t extra) override {
-        std::size_t sz = size(), cap = capacity(), delta_sz = std::max(extra, sz >> 1);
-        const std::size_t max_avail = std::allocator_traits<alloc_type>::max_size(*this) - sz;
+    size_type try_grow(size_type extra) override {
+        size_type sz = size(), cap = capacity(), delta_sz = std::max(extra, sz >> 1);
+        const size_type max_avail = std::allocator_traits<alloc_type>::max_size(*this) - sz;
         if (delta_sz > max_avail) {
             if (extra > max_avail) { throw std::length_error("too much to reserve"); }
             delta_sz = std::max(extra, max_avail >> 1);
@@ -357,7 +373,7 @@ template<typename StrTy,
 void fmt_boolean(StrTy& s, bool val, fmt_opts fmt, locale_ref loc) {
     inline_basic_dynbuffer<typename StrTy::value_type> buf;
     fmt_boolean(buf, val, fmt, loc);
-    s.append(buf.data(), buf.data() + buf.size());
+    s.append(buf.begin(), buf.end());
 }
 
 template<typename CharT>
@@ -368,7 +384,7 @@ template<typename StrTy,
 void fmt_character(StrTy& s, typename StrTy::value_type val, fmt_opts fmt, locale_ref loc) {
     inline_basic_dynbuffer<typename StrTy::value_type> buf;
     fmt_character(buf, val, fmt, loc);
-    s.append(buf.data(), buf.data() + buf.size());
+    s.append(buf.begin(), buf.end());
 }
 
 template<typename CharT>
@@ -379,7 +395,7 @@ template<typename StrTy,
 void fmt_string(StrTy& s, std::basic_string_view<typename StrTy::value_type> val, fmt_opts fmt, locale_ref loc) {
     inline_basic_dynbuffer<typename StrTy::value_type> buf;
     fmt_string(buf, val, fmt, loc);
-    s.append(buf.data(), buf.data() + buf.size());
+    s.append(buf.begin(), buf.end());
 }
 
 template<typename CharT, typename Ty>
@@ -390,7 +406,7 @@ template<typename StrTy, typename Ty,
 void fmt_integer_common(StrTy& s, Ty val, bool is_signed, fmt_opts fmt, locale_ref loc) {
     inline_basic_dynbuffer<typename StrTy::value_type> buf;
     fmt_integer_common(buf, val, is_signed, fmt, loc);
-    s.append(buf.data(), buf.data() + buf.size());
+    s.append(buf.begin(), buf.end());
 }
 
 template<typename CharT>
@@ -402,7 +418,7 @@ template<typename StrTy,
 void fmt_float_common(StrTy& s, std::uint64_t u64, fmt_opts fmt, unsigned bpm, int exp_max, locale_ref loc) {
     inline_basic_dynbuffer<typename StrTy::value_type> buf;
     fmt_float_common(buf, u64, fmt, bpm, exp_max, loc);
-    s.append(buf.data(), buf.data() + buf.size());
+    s.append(buf.begin(), buf.end());
 }
 
 template<typename StrTy, typename Ty>

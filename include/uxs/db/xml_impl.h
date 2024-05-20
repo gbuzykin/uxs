@@ -115,10 +115,10 @@ struct writer_stack_item_t {
 
 template<typename CharT>
 basic_iobuf<CharT>& print_xml_text(basic_iobuf<CharT>& out, std::basic_string_view<CharT> text) {
-    const CharT *p1 = text.data(), *pend = text.data() + text.size();
-    for (const CharT* p2 = text.data(); p2 != pend; ++p2) {
+    auto it0 = text.begin();
+    for (auto it = it0; it != text.end(); ++it) {
         std::string_view esc;
-        switch (*p2) {
+        switch (*it) {
             case '&': esc = std::string_view("&amp;", 5); break;
             case '<': esc = std::string_view("&lt;", 4); break;
             case '>': esc = std::string_view("&gt;", 4); break;
@@ -126,11 +126,11 @@ basic_iobuf<CharT>& print_xml_text(basic_iobuf<CharT>& out, std::basic_string_vi
             case '\"': esc = std::string_view("&quot;", 6); break;
             default: continue;
         }
-        out.write(uxs::as_span(p1, p2 - p1));
+        out.write(uxs::as_span(it0, it - it0));
         for (char ch : esc) { out.put(ch); }
-        p1 = p2 + 1;
+        it0 = it + 1;
     }
-    out.write(uxs::as_span(p1, pend - p1));
+    out.write(uxs::as_span(it0, text.end() - it0));
     return out;
 }
 

@@ -132,7 +132,7 @@ struct string_converter<guid, CharT> {
         to_hex(val.data8(9), p + 22, 2, upper);
         p += 25;
         for (unsigned i = 10; i < 16; ++i, p += 2) { to_hex(val.data8(i), p, 2, upper); }
-        const auto fn = [&buf](StrTy& s) { s.append(buf.data(), buf.data() + buf.size()); };
+        const auto fn = [&buf](StrTy& s) { s.append(buf.begin(), buf.end()); };
         fmt.width > len ? append_adjusted(s, fn, len, fmt) : fn(s);
     }
 };

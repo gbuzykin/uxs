@@ -1199,11 +1199,11 @@ format_to_n_result<OutputIt> format_to_n(OutputIt out, std::size_t n, const std:
 
 template<typename CharT, typename Traits = std::char_traits<CharT>>
 basic_iobuf<CharT>& print_quoted_text(basic_iobuf<CharT>& out, std::basic_string_view<CharT, Traits> text) {
-    const CharT *p1 = text.data(), *pend = text.data() + text.size();
+    auto it0 = text.data();
     out.put('\"');
-    for (const CharT* p2 = text.data(); p2 != pend; ++p2) {
+    for (auto it = it0; it != text.end(); ++it) {
         char esc = '\0';
-        switch (*p2) {
+        switch (*it) {
             case '\"': esc = '\"'; break;
             case '\\': esc = '\\'; break;
             case '\a': esc = 'a'; break;
@@ -1215,11 +1215,11 @@ basic_iobuf<CharT>& print_quoted_text(basic_iobuf<CharT>& out, std::basic_string
             case '\v': esc = 'v'; break;
             default: continue;
         }
-        out.write(uxs::as_span(p1, p2 - p1));
+        out.write(uxs::as_span(it0, it - it0));
         out.put('\\'), out.put(esc);
-        p1 = p2 + 1;
+        it0 = it + 1;
     }
-    out.write(uxs::as_span(p1, pend - p1));
+    out.write(uxs::as_span(it0, text.end() - it0));
     out.put('\"');
     return out;
 }
