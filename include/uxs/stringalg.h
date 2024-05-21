@@ -423,45 +423,6 @@ std::size_t unpack_strings(std::wstring_view s, wchar_t sep, OutputFn fn, Output
 
 // --------------------------
 
-template<typename CharT, typename Traits, typename OutputIt>
-OutputIt make_quoted_basic_string(std::basic_string_view<CharT, Traits> s, OutputIt out) {
-    auto p1 = s.begin(), pend = s.end();
-    *out++ = '\"';
-    for (auto p2 = s.begin(); p2 != pend; ++p2) {
-        char esc = '\0';
-        switch (*p2) {
-            case '\"': esc = '\"'; break;
-            case '\\': esc = '\\'; break;
-            case '\a': esc = 'a'; break;
-            case '\b': esc = 'b'; break;
-            case '\f': esc = 'f'; break;
-            case '\n': esc = 'n'; break;
-            case '\r': esc = 'r'; break;
-            case '\t': esc = 't'; break;
-            case '\v': esc = 'v'; break;
-            default: continue;
-        }
-        std::copy(p1, p2, out);
-        *out++ = '\\', *out++ = esc;
-        p1 = p2 + 1;
-    }
-    std::copy(p1, pend, out);
-    *out++ = '\"';
-    return out;
-}
-
-template<typename OutputIt>
-OutputIt make_quoted_string(std::string_view s, OutputIt out) {
-    return make_quoted_basic_string(s, out);
-}
-
-template<typename OutputIt>
-OutputIt make_quoted_string(std::wstring_view s, OutputIt out) {
-    return make_quoted_basic_string(s, out);
-}
-
-// --------------------------
-
 UXS_EXPORT std::wstring from_utf8_to_wide(std::string_view s);
 UXS_EXPORT std::string from_wide_to_utf8(std::wstring_view s);
 
@@ -469,7 +430,6 @@ UXS_EXPORT std::string_view trim_string(std::string_view s);
 UXS_EXPORT std::vector<std::string> unpack_strings(std::string_view s, char sep);
 UXS_EXPORT std::string encode_escapes(std::string_view s, std::string_view symb, std::string_view code);
 UXS_EXPORT std::string decode_escapes(std::string_view s, std::string_view symb, std::string_view code);
-UXS_EXPORT std::string make_quoted_string(std::string_view s);
 UXS_EXPORT std::pair<unsigned, unsigned> parse_flag_string(
     std::string_view s, const std::vector<std::pair<std::string_view, unsigned>>& flag_tbl);
 UXS_EXPORT int compare_strings_nocase(std::string_view lhs, std::string_view rhs);
@@ -480,7 +440,6 @@ UXS_EXPORT std::wstring_view trim_string(std::wstring_view s);
 UXS_EXPORT std::vector<std::wstring> unpack_strings(std::wstring_view s, wchar_t sep);
 UXS_EXPORT std::wstring encode_escapes(std::wstring_view s, std::wstring_view symb, std::wstring_view code);
 UXS_EXPORT std::wstring decode_escapes(std::wstring_view s, std::wstring_view symb, std::wstring_view code);
-UXS_EXPORT std::wstring make_quoted_string(std::wstring_view s);
 UXS_EXPORT std::pair<unsigned, unsigned> parse_flag_string(
     std::wstring_view s, const std::vector<std::pair<std::wstring_view, unsigned>>& flag_tbl);
 UXS_EXPORT int compare_strings_nocase(std::wstring_view lhs, std::wstring_view rhs);

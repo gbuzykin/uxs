@@ -88,6 +88,32 @@ struct writer_stack_item_t {
     };
 };
 
+template<typename CharT>
+basic_membuffer<CharT>& print_json_text(basic_membuffer<CharT>& out, std::basic_string_view<CharT> text) {
+    auto it0 = text.begin();
+    out.push_back('\"');
+    for (auto it = it0; it != text.end(); ++it) {
+        char esc = '\0';
+        switch (*it) {
+            case '\"': esc = '\"'; break;
+            case '\\': esc = '\\'; break;
+            case '\a': esc = 'a'; break;
+            case '\b': esc = 'b'; break;
+            case '\f': esc = 'f'; break;
+            case '\n': esc = 'n'; break;
+            case '\r': esc = 'r'; break;
+            case '\t': esc = 't'; break;
+            case '\v': esc = 'v'; break;
+            default: continue;
+        }
+        out.append(it0, it).push_back('\\');
+        out.push_back(esc);
+        it0 = it + 1;
+    }
+    out.append(it0, text.end()).push_back('\"');
+    return out;
+}
+
 template<typename CharT, typename Alloc>
 void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
     inline_basic_dynbuffer<writer_stack_item_t<CharT, Alloc>, 32> stack;
@@ -114,7 +140,7 @@ void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
                 to_basic_string(output_, v.value_.dbl, fmt_opts{fmt_flags::json_compat});
             } break;
             case dtype::string: {
-                print_quoted_text<char>(output_, utf8_string_converter<CharT>::to(v.str_view()));
+                print_json_text<char>(output_, utf8_string_converter<CharT>::to(v.str_view()));
             } break;
             case dtype::array: {
                 output_.push_back('[');
@@ -154,7 +180,7 @@ loop:
             if (el != range.begin()) { output_.push_back(','); }
             output_.push_back('\n');
             output_.append(indent, indent_char_);
-            print_quoted_text<char>(output_, utf8_string_converter<CharT>::to(el->first));
+            print_json_text<char>(output_, utf8_string_converter<CharT>::to(el->first));
             output_.append(": ", 2);
             if (write_value((el++)->second)) {
                 (stack.curr() - 2)->record_it = el;
