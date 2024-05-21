@@ -1232,32 +1232,6 @@ format_to_n_result<OutputIt> format_to_n(OutputIt out, std::size_t n, const std:
 
 // ---- vprint
 
-template<typename CharT>
-basic_membuffer<CharT>& print_quoted_text(basic_membuffer<CharT>& out, std::basic_string_view<CharT> text) {
-    auto it0 = text.begin();
-    out.push_back('\"');
-    for (auto it = it0; it != text.end(); ++it) {
-        char esc = '\0';
-        switch (*it) {
-            case '\"': esc = '\"'; break;
-            case '\\': esc = '\\'; break;
-            case '\a': esc = 'a'; break;
-            case '\b': esc = 'b'; break;
-            case '\f': esc = 'f'; break;
-            case '\n': esc = 'n'; break;
-            case '\r': esc = 'r'; break;
-            case '\t': esc = 't'; break;
-            case '\v': esc = 'v'; break;
-            default: continue;
-        }
-        out.append(it0, it).push_back('\\');
-        out.push_back(esc);
-        it0 = it + 1;
-    }
-    out.append(it0, text.end()).push_back('\"');
-    return out;
-}
-
 template<typename Ty>
 class basic_membuffer_for_iobuf final : public basic_membuffer<Ty> {
  public:
