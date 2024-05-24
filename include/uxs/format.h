@@ -793,10 +793,6 @@ class basic_format_parse_context : public sfmt::parse_context_utils {
     using const_iterator = typename std::basic_string_view<char_type>::const_iterator;
 
     UXS_CONSTEXPR explicit basic_format_parse_context(std::basic_string_view<char_type> fmt) noexcept : fmt_(fmt) {}
-
-#if __cplusplus >= 201703L
-    basic_format_parse_context(const basic_format_parse_context&) = delete;
-#endif  // __cplusplus >= 201703L
     basic_format_parse_context& operator=(const basic_format_parse_context&) = delete;
 
     UXS_CONSTEXPR iterator begin() const noexcept { return fmt_.begin(); }
@@ -877,9 +873,7 @@ class basic_format_context {
     template<typename Ty>
     using formatter_type = formatter<Ty, char_type>;
 
-    basic_format_context(output_type& s, format_args_type args) : s_(s), args_(args) {}
-    basic_format_context(output_type& s, const std::locale& loc, format_args_type args)
-        : s_(s), loc_(loc), args_(args) {}
+    basic_format_context(output_type& s, locale_ref loc, format_args_type args) : s_(s), loc_(loc), args_(args) {}
     basic_format_context(output_type& s, const basic_format_context& other)
         : s_(s), loc_(other.locale()), args_(other.args()) {}
     basic_format_context& operator=(const basic_format_context&) = delete;
@@ -949,39 +943,38 @@ using wformat_string = basic_format_string<wchar_t, type_identity_t<Args>...>;
 
 // ---- basic_vformat
 
-template<typename CharT>
-basic_membuffer<CharT>& basic_vformat(basic_membuffer<CharT>& s, std::basic_string_view<CharT> fmt,
-                                      basic_format_args<basic_format_context<CharT>> args) {
-    sfmt::vformat(basic_format_context<CharT>{s, args}, basic_format_parse_context<CharT>{fmt});
-    return s;
-}
-
-template<typename StrTy,
-         typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
-StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
-                     basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
-    using char_type = typename StrTy::value_type;
-    inline_basic_dynbuffer<char_type> buf;
-    sfmt::vformat(basic_format_context<char_type>{buf, args}, basic_format_parse_context<char_type>{fmt});
-    return s.append(buf.begin(), buf.end());
-}
+namespace detail {
 
 template<typename CharT>
-basic_membuffer<CharT>& basic_vformat(basic_membuffer<CharT>& s, const std::locale& loc,
-                                      std::basic_string_view<CharT> fmt,
-                                      basic_format_args<basic_format_context<CharT>> args) {
+void basic_vformat(basic_membuffer<CharT>& s, locale_ref loc, std::basic_string_view<CharT> fmt,
+                   basic_format_args<basic_format_context<CharT>> args) {
     sfmt::vformat(basic_format_context<CharT>{s, loc, args}, basic_format_parse_context<CharT>{fmt});
-    return s;
 }
 
 template<typename StrTy,
          typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
-StrTy& basic_vformat(StrTy& s, const std::locale& loc, std::basic_string_view<typename StrTy::value_type> fmt,
-                     basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
+void basic_vformat(StrTy& s, locale_ref loc, std::basic_string_view<typename StrTy::value_type> fmt,
+                   basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
     using char_type = typename StrTy::value_type;
     inline_basic_dynbuffer<char_type> buf;
     sfmt::vformat(basic_format_context<char_type>{buf, loc, args}, basic_format_parse_context<char_type>{fmt});
-    return s.append(buf.begin(), buf.end());
+    s.append(buf.begin(), buf.end());
+}
+
+}  // namespace detail
+
+template<typename StrTy>
+StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
+                     basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
+    detail::basic_vformat(s, locale_ref{}, fmt, args);
+    return s;
+}
+
+template<typename StrTy>
+StrTy& basic_vformat(StrTy& s, const std::locale& loc, std::basic_string_view<typename StrTy::value_type> fmt,
+                     basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
+    detail::basic_vformat(s, locale_ref{loc}, fmt, args);
+    return s;
 }
 
 // ---- basic_format
