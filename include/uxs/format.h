@@ -912,6 +912,19 @@ UXS_CONSTEXPR sfmt::arg_store<wformat_context, Args...> make_wformat_args(const 
     return sfmt::arg_store<wformat_context, Args...>{args...};
 }
 
+template<typename CharT>
+struct basic_runtime_format {
+    std::basic_string_view<CharT> str;
+    UXS_CONSTEXPR basic_runtime_format(std::basic_string_view<CharT> s) noexcept : str(s) {}
+#if __cplusplus >= 201703L
+    basic_runtime_format(const basic_runtime_format&) = delete;
+#endif  // __cplusplus >= 201703L
+    basic_runtime_format& operator=(const basic_runtime_format&) = delete;
+};
+
+using runtime_format = basic_runtime_format<char>;
+using wruntime_format = basic_runtime_format<wchar_t>;
+
 template<typename CharT, typename... Args>
 class basic_format_string {
  public:
@@ -930,6 +943,7 @@ class basic_format_string {
             ctx, [](auto&&...) {}, [&parsers](auto& ctx, std::size_t id) { parsers[id](ctx); });
 #endif  // defined(UXS_HAS_CONSTEVAL)
     }
+    UXS_CONSTEXPR basic_format_string(basic_runtime_format<CharT> fmt) noexcept : fmt_(fmt.str) {}
     UXS_CONSTEXPR std::basic_string_view<char_type> get() const noexcept { return fmt_; }
 
  private:
