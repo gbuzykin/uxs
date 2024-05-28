@@ -213,8 +213,6 @@ class list : public list_enumerator<Ty, HookTraits> {
  public:
     using reference = typename list_enumerator<Ty, HookTraits>::reference;
     using const_reference = typename list_enumerator<Ty, HookTraits>::const_reference;
-    using pointer = typename list_enumerator<Ty, HookTraits>::reference;
-    using const_pointer = typename list_enumerator<Ty, HookTraits>::const_reference;
     using iterator = typename list_enumerator<Ty, HookTraits>::iterator;
     using const_iterator = typename list_enumerator<Ty, HookTraits>::const_iterator;
     using owning_pointer_t = typename HookTraits::owning_pointer_t;
