@@ -225,7 +225,7 @@ type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_finde
     if (fin < start) { fin = start; }
     std::size_t count = 0;
     auto p = s.begin(), from = s.end();
-    for (;;) {
+    while (true) {
         auto sub = finder(p, s.end());
         if (!(opts & split_opts::skip_empty) || p != sub.first) {
             if (count == start) { from = p; }
@@ -257,7 +257,7 @@ type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_rever
     if (fin > start) { fin = start; }
     std::size_t count = 0;
     auto p = s.end(), to = s.begin();
-    for (;;) {
+    while (true) {
         auto sub = finder(s.begin(), p);
         if (!(opts & split_opts::skip_empty) || sub.second != p) {
             if (count == fin) { to = p; }
