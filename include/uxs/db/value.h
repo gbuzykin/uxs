@@ -178,6 +178,7 @@ struct record_t {
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<record_t>;
     using node_traits = record_node_traits<CharT, Alloc>;
     using node_t = typename node_traits::node_t;
+    using hasher = std::hash<std::basic_string_view<CharT>>;
 
     mutable list_links_type head;
     std::size_t size;
@@ -219,7 +220,6 @@ struct record_t {
     template<typename... Args>
     list_links_type* new_node(alloc_type& rec_al, std::basic_string_view<CharT> name, Args&&... args);
     static void delete_node(alloc_type& rec_al, list_links_type* node);
-    UXS_EXPORT static std::size_t calc_hash_code(std::basic_string_view<CharT> name);
     void add_to_hash(list_links_type* node, std::size_t hash_code);
     UXS_EXPORT static record_t* insert(alloc_type& rec_al, record_t* rec, std::size_t hash_code, list_links_type* node);
     list_links_type* erase(alloc_type& rec_al, list_links_type* node);
@@ -809,7 +809,7 @@ auto basic_value<CharT, Alloc>::emplace(std::basic_string_view<char_type> name, 
         type_ = dtype::record;
     }
     detail::list_links_type* node = value_.rec->new_node(rec_al, name, std::forward<Args>(args)...);
-    value_.rec = record_t::insert(rec_al, value_.rec, record_t::calc_hash_code(name), node);
+    value_.rec = record_t::insert(rec_al, value_.rec, typename record_t::hasher{}(name), node);
     return record_iterator(node);
 }
 
@@ -823,7 +823,7 @@ auto basic_value<CharT, Alloc>::emplace_unique(std::basic_string_view<char_type>
         value_.rec = record_t::create(rec_al);
         type_ = dtype::record;
     }
-    const std::size_t hash_code = record_t::calc_hash_code(name);
+    const std::size_t hash_code = typename record_t::hasher{}(name);
     detail::list_links_type* node = value_.rec->find(name, hash_code);
     if (node == &value_.rec->head) {
         node = value_.rec->new_node(rec_al, name, std::forward<Args>(args)...);
@@ -859,7 +859,7 @@ void basic_value<CharT, Alloc>::insert(InputIt first, InputIt last) {
     } else {
         for (; first != last; ++first) {
             detail::list_links_type* node = value_.rec->new_node(rec_al, first->first, first->second);
-            value_.rec = record_t::insert(rec_al, value_.rec, record_t::calc_hash_code(first->first), node);
+            value_.rec = record_t::insert(rec_al, value_.rec, typename record_t::hasher{}(first->first), node);
         }
     }
 }
@@ -892,14 +892,14 @@ template<typename CharT, typename Alloc>
 typename basic_value<CharT, Alloc>::const_record_iterator basic_value<CharT, Alloc>::find(
     std::basic_string_view<char_type> name) const {
     if (type_ != dtype::record) { throw database_error("not a record"); }
-    return const_record_iterator(value_.rec->find(name, record_t::calc_hash_code(name)));
+    return const_record_iterator(value_.rec->find(name, typename record_t::hasher{}(name)));
 }
 
 template<typename CharT, typename Alloc>
 typename basic_value<CharT, Alloc>::record_iterator basic_value<CharT, Alloc>::find(
     std::basic_string_view<char_type> name) {
     if (type_ != dtype::record) { throw database_error("not a record"); }
-    return record_iterator(value_.rec->find(name, record_t::calc_hash_code(name)));
+    return record_iterator(value_.rec->find(name, typename record_t::hasher{}(name)));
 }
 
 template<typename CharT, typename Alloc>
@@ -1061,7 +1061,7 @@ void basic_value<CharT, Alloc>::assign_impl(InputIt first, InputIt last, std::tr
         value_.rec->clear(rec_al);
         for (; first != last; ++first) {
             detail::list_links_type* node = value_.rec->new_node(rec_al, first->first, first->second);
-            value_.rec = record_t::insert(rec_al, value_.rec, record_t::calc_hash_code(first->first), node);
+            value_.rec = record_t::insert(rec_al, value_.rec, typename record_t::hasher{}(first->first), node);
         }
     }
 }
@@ -1090,7 +1090,7 @@ template<typename InputIt>
     try {
         for (; first != last; ++first) {
             list_links_type* node = rec->new_node(rec_al, first->first, first->second);
-            rec = insert(rec_al, rec, calc_hash_code(first->first), node);
+            rec = insert(rec_al, rec, hasher{}(first->first), node);
         }
         return rec;
     } catch (...) {
