@@ -266,14 +266,12 @@ enum class fmt_flags : unsigned {
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(fmt_flags, unsigned);
 
 struct fmt_opts {
-#if __cplusplus < 201703L
-    explicit fmt_opts(fmt_flags fl = fmt_flags::none, int p = -1, unsigned w = 0, int f = ' ')
+    UXS_CONSTEXPR explicit fmt_opts(fmt_flags fl = fmt_flags::none, int p = -1, unsigned w = 0, int f = ' ')
         : flags(fl), prec(p), width(w), fill(f) {}
-#endif  // __cplusplus < 201703L
-    fmt_flags flags = fmt_flags::none;
-    int prec = -1;
-    unsigned width = 0;
-    int fill = ' ';
+    fmt_flags flags;
+    int prec;
+    unsigned width;
+    int fill;
 };
 
 class UXS_EXPORT_ALL_STUFF_FOR_GNUC format_error : public std::runtime_error {
@@ -631,25 +629,11 @@ StrTy& to_basic_string(StrTy& s, const std::locale& loc, const Ty& val, fmt_opts
     return s;
 }
 
-template<typename Ty>
-std::string to_string(const Ty& val) {
-    inline_dynbuffer buf;
-    to_basic_string(buf, val);
-    return std::string(buf.data(), buf.size());
-}
-
 template<typename Ty, typename... Opts>
 std::string to_string(const Ty& val, const Opts&... opts) {
     inline_dynbuffer buf;
     to_basic_string(buf, val, fmt_opts{opts...});
     return std::string(buf.data(), buf.size());
-}
-
-template<typename Ty>
-std::wstring to_wstring(const Ty& val) {
-    inline_wdynbuffer buf;
-    to_basic_string(buf, val);
-    return std::wstring(buf.data(), buf.size());
 }
 
 template<typename Ty, typename... Opts>
@@ -659,22 +643,10 @@ std::wstring to_wstring(const Ty& val, const Opts&... opts) {
     return std::wstring(buf.data(), buf.size());
 }
 
-template<typename Ty>
-char* to_chars(char* p, const Ty& val) {
-    membuffer buf(p);
-    return to_basic_string(buf, val).curr();
-}
-
 template<typename Ty, typename... Opts>
 char* to_chars(char* p, const Ty& val, const Opts&... opts) {
     membuffer buf(p);
     return to_basic_string(buf, val, fmt_opts{opts...}).curr();
-}
-
-template<typename Ty>
-wchar_t* to_wchars(wchar_t* p, const Ty& val) {
-    wmembuffer buf(p);
-    return to_basic_string(buf, val).curr();
 }
 
 template<typename Ty, typename... Opts>
@@ -683,22 +655,10 @@ wchar_t* to_wchars(wchar_t* p, const Ty& val, const Opts&... opts) {
     return to_basic_string(buf, val, fmt_opts{opts...}).curr();
 }
 
-template<typename Ty>
-char* to_chars_n(char* p, std::size_t n, const Ty& val) {
-    membuffer buf(p, p + n);
-    return to_basic_string(buf, val).curr();
-}
-
 template<typename Ty, typename... Opts>
 char* to_chars_n(char* p, std::size_t n, const Ty& val, const Opts&... opts) {
     membuffer buf(p, p + n);
     return to_basic_string(buf, val, fmt_opts{opts...}).curr();
-}
-
-template<typename Ty>
-wchar_t* to_wchars_n(wchar_t* p, std::size_t n, const Ty& val) {
-    wmembuffer buf(p, p + n);
-    return to_basic_string(buf, val).curr();
 }
 
 template<typename Ty, typename... Opts>
