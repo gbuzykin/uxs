@@ -54,7 +54,7 @@ class byteseq : public detail::byteseq_chunk_t::alloc_type {
 
     std::size_t size() const noexcept { return size_; }
     bool empty() const noexcept { return size_ == 0; }
-    void clear() noexcept;
+    UXS_EXPORT void clear() noexcept;
     UXS_EXPORT std::uint32_t calc_crc32() const noexcept;
 
     void swap(byteseq& other) {

@@ -632,39 +632,39 @@ StrTy& to_basic_string(StrTy& s, const std::locale& loc, const Ty& val, fmt_opts
 template<typename Ty, typename... Opts>
 std::string to_string(const Ty& val, const Opts&... opts) {
     inline_dynbuffer buf;
-    to_basic_string(buf, val, fmt_opts{opts...});
+    to_basic_string(buf, val, fmt_opts(opts...));
     return std::string(buf.data(), buf.size());
 }
 
 template<typename Ty, typename... Opts>
 std::wstring to_wstring(const Ty& val, const Opts&... opts) {
     inline_wdynbuffer buf;
-    to_basic_string(buf, val, fmt_opts{opts...});
+    to_basic_string(buf, val, fmt_opts(opts...));
     return std::wstring(buf.data(), buf.size());
 }
 
 template<typename Ty, typename... Opts>
 char* to_chars(char* p, const Ty& val, const Opts&... opts) {
     membuffer buf(p);
-    return to_basic_string(buf, val, fmt_opts{opts...}).curr();
+    return to_basic_string(buf, val, fmt_opts(opts...)).curr();
 }
 
 template<typename Ty, typename... Opts>
 wchar_t* to_wchars(wchar_t* p, const Ty& val, const Opts&... opts) {
     wmembuffer buf(p);
-    return to_basic_string(buf, val, fmt_opts{opts...}).curr();
+    return to_basic_string(buf, val, fmt_opts(opts...)).curr();
 }
 
 template<typename Ty, typename... Opts>
 char* to_chars_n(char* p, std::size_t n, const Ty& val, const Opts&... opts) {
     membuffer buf(p, p + n);
-    return to_basic_string(buf, val, fmt_opts{opts...}).curr();
+    return to_basic_string(buf, val, fmt_opts(opts...)).curr();
 }
 
 template<typename Ty, typename... Opts>
 wchar_t* to_wchars_n(wchar_t* p, std::size_t n, const Ty& val, const Opts&... opts) {
     wmembuffer buf(p, p + n);
-    return to_basic_string(buf, val, fmt_opts{opts...}).curr();
+    return to_basic_string(buf, val, fmt_opts(opts...)).curr();
 }
 
 }  // namespace uxs
