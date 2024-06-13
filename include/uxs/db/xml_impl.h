@@ -48,7 +48,7 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
             } break;
             case string_class::floating_point_number: return {from_string<double>(sval), al};
             case string_class::ws_with_nl: return make_record<CharT>(al);
-            case string_class::other: return {utf8_string_converter<CharT>::from(sval), al};
+            case string_class::other: return {utf_string_adapter<CharT>{}(sval), al};
             default: UXS_UNREACHABLE_CODE;
         }
     };
@@ -72,7 +72,7 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
             } break;
             case token_t::start_element: {
                 txt.clear();
-                auto result = top->first->emplace_unique(utf8_string_converter<CharT>::from(tk.second), al);
+                auto result = top->first->emplace_unique(utf_string_adapter<CharT>{}(tk.second), al);
                 stack.emplace_back(&result.first->second, tk.second);
                 if (!result.second) {
                     result.first->second.convert(dtype::array);
@@ -100,12 +100,13 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
 template<typename CharT, typename Alloc>
 struct writer_stack_item_t {
     using value_t = basic_value<CharT, Alloc>;
+    using string_type = std::conditional_t<std::is_same<CharT, char>::value, std::string_view, std::string>;
     writer_stack_item_t() {}
     writer_stack_item_t(const value_t* p, std::string_view el, const value_t* it) : v(p), element(el), array_it(it) {}
     writer_stack_item_t(const value_t* p, std::string_view el, typename value_t::const_record_iterator it)
         : v(p), element(el), record_it(it) {}
     const value_t* v;
-    decltype(utf8_string_converter<CharT>::to({})) element;
+    string_type element;
     union {
         const value_t* array_it;
         typename value_t::const_record_iterator record_it;
@@ -135,7 +136,7 @@ basic_membuffer<CharT>& print_xml_text(basic_membuffer<CharT>& out, std::basic_s
 template<typename CharT, typename Alloc>
 void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_element, unsigned indent) {
     std::vector<writer_stack_item_t<CharT, Alloc>> stack;
-    decltype(utf8_string_converter<CharT>::to({})) element(root_element);
+    typename writer_stack_item_t<CharT, Alloc>::string_type element(root_element);
     stack.reserve(32);
 
     auto write_value = [this, &stack, &element, &indent](const basic_value<CharT, Alloc>& v) {
@@ -160,7 +161,7 @@ void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_ele
                 to_basic_string(output_, v.value_.dbl, fmt_opts{fmt_flags::json_compat});
             } break;
             case dtype::string: {
-                print_xml_text<char>(output_, utf8_string_converter<CharT>().to(v.str_view()));
+                print_xml_text<char>(output_, utf_string_adapter<char>{}(v.str_view()));
             } break;
             case dtype::array: {
                 stack.emplace_back(&v, element, v.as_array().data());
@@ -209,7 +210,7 @@ loop:
                 output_.append("</", 2).append(element).push_back('>');
             }
             if (el == range.end()) { break; }
-            element = utf8_string_converter<CharT>::to(el->first);
+            element = utf_string_adapter<char>{}(el->first);
             if (!el->second.is_array()) {
                 output_.push_back('\n');
                 output_.append(indent, indent_char_).push_back('<');
