@@ -447,16 +447,16 @@ UXS_EXPORT std::string to_lower(std::string_view s);
 UXS_EXPORT std::wstring to_upper(std::wstring_view s);
 
 template<typename CharT>
-struct utf8_string_converter;
+struct utf_string_adapter;
 template<>
-struct utf8_string_converter<char> {
-    static std::string_view from(std::string_view s) { return s; }
-    static std::string_view to(std::string_view s) { return s; }
+struct utf_string_adapter<char> {
+    std::string_view operator()(std::string_view s) const { return s; }
+    std::string operator()(std::wstring_view s) const { return from_wide_to_utf8(s); }
 };
 template<>
-struct utf8_string_converter<wchar_t> {
-    static std::wstring from(std::string_view s) { return from_utf8_to_wide(s); }
-    static std::string to(std::wstring_view s) { return from_wide_to_utf8(s); }
+struct utf_string_adapter<wchar_t> {
+    std::wstring_view operator()(std::wstring_view s) const { return s; }
+    std::wstring operator()(std::string_view s) const { return from_utf8_to_wide(s); }
 };
 
 // --------------------------

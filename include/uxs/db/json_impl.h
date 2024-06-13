@@ -45,7 +45,7 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
                 return {from_string<double>(lval), al};
             } break;
             case token_t::floating_point_number: return {from_string<double>(lval), al};
-            case token_t::string: return {utf8_string_converter<CharT>::from(lval), al};
+            case token_t::string: return {utf_string_adapter<CharT>{}(lval), al};
             default: UXS_UNREACHABLE_CODE;
         }
     };
@@ -67,7 +67,7 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
         },
         [&al, &stack, &val]() { val = &stack.back()->emplace_back(al); },
         [&al, &stack, &val](std::string_view lval) {
-            val = &stack.back()->emplace(utf8_string_converter<CharT>::from(lval), al)->second;
+            val = &stack.back()->emplace(utf_string_adapter<CharT>{}(lval), al)->second;
         },
         [&stack] { stack.pop_back(); }, tk_val);
     return result;
@@ -140,7 +140,7 @@ void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
                 to_basic_string(output_, v.value_.dbl, fmt_opts{fmt_flags::json_compat});
             } break;
             case dtype::string: {
-                print_json_text<char>(output_, utf8_string_converter<CharT>::to(v.str_view()));
+                print_json_text<char>(output_, utf_string_adapter<char>{}(v.str_view()));
             } break;
             case dtype::array: {
                 output_.push_back('[');
@@ -180,7 +180,7 @@ loop:
             if (el != range.begin()) { output_.push_back(','); }
             output_.push_back('\n');
             output_.append(indent, indent_char_);
-            print_json_text<char>(output_, utf8_string_converter<CharT>::to(el->first));
+            print_json_text<char>(output_, utf_string_adapter<char>{}(el->first));
             output_.append(": ", 2);
             if (write_value((el++)->second)) {
                 (stack.curr() - 2)->record_it = el;
