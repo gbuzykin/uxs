@@ -24,9 +24,9 @@ struct reduce_type<Ty, CharT,
                                     !is_boolean<Ty>::value && !is_character<Ty>::value>> {
     using type = std::conditional_t<(sizeof(Ty) <= sizeof(std::int32_t)), std::int32_t, std::int64_t>;
 };
-template<typename Ty, typename CharT>
-struct reduce_type<Ty, CharT, std::enable_if_t<is_character<Ty>::value && sizeof(Ty) <= sizeof(CharT)>> {
-    using type = CharT;
+template<typename Ty>
+struct reduce_type<Ty, wchar_t, std::enable_if_t<std::is_same<std::remove_cv_t<Ty>, char>::value>> {
+    using type = wchar_t;
 };
 template<typename CharT, typename Traits>
 struct reduce_type<std::basic_string_view<CharT, Traits>, CharT> {
