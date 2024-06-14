@@ -46,9 +46,7 @@ struct is_range_formattable<Range, CharT,
                                              formattable<range_element_t<Range>>::value>> : std::true_type {};
 }  // namespace detail
 
-enum class range_format { disabled = 0, sequence, set, map, string };
-
-template<typename Range, typename CharT = char>
+template<typename Range, typename CharT>
 struct range_formattable
     : std::integral_constant<range_format, detail::is_range_formattable<Range, CharT>::value ?
                                                (detail::is_key_type_defined<Range>::value ?

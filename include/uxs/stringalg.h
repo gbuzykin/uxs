@@ -459,6 +459,8 @@ struct utf_string_adapter<wchar_t> {
     std::wstring operator()(std::string_view s) const { return from_utf8_to_wide(s); }
 };
 
+using utf8_string_adapter = utf_string_adapter<char>;
+
 // --------------------------
 
 template<typename Ty = void>

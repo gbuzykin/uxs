@@ -78,6 +78,11 @@ struct is_formattable {
 template<typename Ty, typename CharT = char>
 struct formattable : detail::is_formattable<sfmt::reduce_type_t<Ty, CharT>, basic_format_context<CharT>>::type {};
 
+enum class range_format { disabled = 0, sequence, set, map, string };
+
+template<typename Range, typename CharT = char>
+struct range_formattable;
+
 template<typename Ty, typename CharT = char>
 using formatter_t = formatter<sfmt::reduce_type_t<Ty, CharT>, CharT>;
 
