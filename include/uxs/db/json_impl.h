@@ -140,7 +140,7 @@ void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
                 to_basic_string(output_, v.value_.dbl, fmt_opts{fmt_flags::json_compat});
             } break;
             case dtype::string: {
-                print_json_text<char>(output_, utf_string_adapter<char>{}(v.str_view()));
+                print_json_text<char>(output_, utf8_string_adapter{}(v.str_view()));
             } break;
             case dtype::array: {
                 output_.push_back('[');
@@ -180,7 +180,7 @@ loop:
             if (el != range.begin()) { output_.push_back(','); }
             output_.push_back('\n');
             output_.append(indent, indent_char_);
-            print_json_text<char>(output_, utf_string_adapter<char>{}(el->first));
+            print_json_text<char>(output_, utf8_string_adapter{}(el->first));
             output_.append(": ", 2);
             if (write_value((el++)->second)) {
                 (stack.curr() - 2)->record_it = el;

@@ -161,7 +161,7 @@ void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_ele
                 to_basic_string(output_, v.value_.dbl, fmt_opts{fmt_flags::json_compat});
             } break;
             case dtype::string: {
-                print_xml_text<char>(output_, utf_string_adapter<char>{}(v.str_view()));
+                print_xml_text<char>(output_, utf8_string_adapter{}(v.str_view()));
             } break;
             case dtype::array: {
                 stack.emplace_back(&v, element, v.as_array().data());
@@ -210,7 +210,7 @@ loop:
                 output_.append("</", 2).append(element).push_back('>');
             }
             if (el == range.end()) { break; }
-            element = utf_string_adapter<char>{}(el->first);
+            element = utf8_string_adapter{}(el->first);
             if (!el->second.is_array()) {
                 output_.push_back('\n');
                 output_.append(indent, indent_char_).push_back('<');
