@@ -451,15 +451,24 @@ struct utf_string_adapter;
 template<>
 struct utf_string_adapter<char> {
     std::string_view operator()(std::string_view s) const { return s; }
+    std::string_view operator()(const std::string& s) const { return s; }
+    std::string_view operator()(const char* cstr) const { return cstr; }
     std::string operator()(std::wstring_view s) const { return from_wide_to_utf8(s); }
+    std::string operator()(const std::wstring& s) const { return from_wide_to_utf8(s); }
+    std::string operator()(const wchar_t* cstr) const { return from_wide_to_utf8(cstr); }
 };
 template<>
 struct utf_string_adapter<wchar_t> {
     std::wstring_view operator()(std::wstring_view s) const { return s; }
+    std::wstring_view operator()(const std::wstring& s) const { return s; }
+    std::wstring_view operator()(const wchar_t* cstr) const { return cstr; }
     std::wstring operator()(std::string_view s) const { return from_utf8_to_wide(s); }
+    std::wstring operator()(const std::string& s) const { return from_utf8_to_wide(s); }
+    std::wstring operator()(const char* cstr) const { return from_utf8_to_wide(cstr); }
 };
 
 using utf8_string_adapter = utf_string_adapter<char>;
+using wide_string_adapter = utf_string_adapter<wchar_t>;
 
 // --------------------------
 
