@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <functional>
 
 namespace uxs {
 namespace db {

@@ -1,8 +1,7 @@
 #include "uxs/io/filebuf.h"
 
+#include <stdio.h>
 #include <unistd.h>
-
-#include <cstdio>
 
 using namespace uxs;
 
