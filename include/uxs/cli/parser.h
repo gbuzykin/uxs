@@ -121,9 +121,7 @@ class basic_option_group : public basic_option_node<CharT> {
     explicit basic_option_group(bool is_exclusive) noexcept
         : basic_option_node<CharT>(node_type::option_group), is_exclusive_(is_exclusive) {}
     UXS_EXPORT basic_option_group(const basic_option_group&);
-    std::unique_ptr<basic_node<CharT>> clone() const override {
-        return detail::make_unique<basic_option_group>(*this);
-    };
+    std::unique_ptr<basic_node<CharT>> clone() const override { return detail::make_unique<basic_option_group>(*this); }
 
     const std::vector<std::unique_ptr<basic_option_node<CharT>>>& get_children() const noexcept { return children_; }
     void add_child(std::unique_ptr<basic_option_node<CharT>> child) {
@@ -150,7 +148,7 @@ class basic_option : public basic_option_node<CharT> {
     explicit basic_option(std::initializer_list<std::basic_string_view<CharT>> keys)
         : basic_option_node<CharT>(node_type::option), keys_(keys.begin(), keys.end()) {}
     UXS_EXPORT basic_option(const basic_option&);
-    std::unique_ptr<basic_node<CharT>> clone() const override { return detail::make_unique<basic_option>(*this); };
+    std::unique_ptr<basic_node<CharT>> clone() const override { return detail::make_unique<basic_option>(*this); }
 
     const std::vector<std::basic_string<CharT>>& get_keys() const noexcept { return keys_; }
 
@@ -207,7 +205,7 @@ class basic_command : public basic_node<CharT> {
         opts_->set_parent(this);
     }
     UXS_EXPORT basic_command(const basic_command&);
-    std::unique_ptr<basic_node<CharT>> clone() const override { return detail::make_unique<basic_command>(*this); };
+    std::unique_ptr<basic_node<CharT>> clone() const override { return detail::make_unique<basic_command>(*this); }
 
     const std::basic_string<CharT>& get_name() const noexcept { return name_; }
     const std::basic_string<CharT>& get_overview() const noexcept { return overview_; }

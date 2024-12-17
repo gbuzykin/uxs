@@ -12,9 +12,9 @@ namespace uxs {
 
 namespace detail {
 template<typename Container, typename Key>
-auto find(Container&& c, const Key& k)
-    -> std::enable_if_t<std::is_same<decltype(c.find(k)), decltype(std::end(c))>::value,
-                        std::pair<decltype(std::end(c)), bool>> {
+auto find(Container&& c,
+          const Key& k) -> std::enable_if_t<std::is_same<decltype(c.find(k)), decltype(std::end(c))>::value,
+                                            std::pair<decltype(std::end(c)), bool>> {
     auto it = c.find(k);
     return std::make_pair(it, it != std::end(c));
 }
@@ -230,8 +230,8 @@ auto upper_bound(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::b
 }
 
 template<typename Range, typename Key, typename KeyFn = key>
-auto equal_range(Range&& r, const Key& k, KeyFn fn = KeyFn{})
-    -> std::pair<decltype(std::begin(r) + 1), decltype(std::end(r))> {
+auto equal_range(Range&& r, const Key& k,
+                 KeyFn fn = KeyFn{}) -> std::pair<decltype(std::begin(r) + 1), decltype(std::end(r))> {
     auto first = std::begin(r);
     std::size_t count = static_cast<std::size_t>(std::end(r) - first);
     while (count > 0) {
@@ -276,8 +276,8 @@ auto binary_emplace_unique(Container& c, const Key& k, const std::tuple<Args...>
 }  // namespace detail
 
 template<typename Container, typename Key, typename... Args, typename KeyFn = key>
-auto binary_emplace_unique(Container& c, const Key& k, const std::tuple<Args...>& args = {}, KeyFn fn = KeyFn{})
-    -> std::pair<decltype(std::end(c)), bool> {
+auto binary_emplace_unique(Container& c, const Key& k, const std::tuple<Args...>& args = {},
+                           KeyFn fn = KeyFn{}) -> std::pair<decltype(std::end(c)), bool> {
     return detail::binary_emplace_unique(c, k, args, std::index_sequence_for<Args...>{}, fn);
 }
 
@@ -304,8 +304,8 @@ auto binary_emplace_new(Container& c, const Key& k, const std::tuple<Args...>& a
 }  // namespace detail
 
 template<typename Container, typename Key, typename... Args, typename KeyFn = key>
-auto binary_emplace_new(Container& c, const Key& k, const std::tuple<Args...>& args = {}, KeyFn fn = KeyFn{})
-    -> decltype(std::end(c)) {
+auto binary_emplace_new(Container& c, const Key& k, const std::tuple<Args...>& args = {},
+                        KeyFn fn = KeyFn{}) -> decltype(std::end(c)) {
     return detail::binary_emplace_new(c, k, args, std::index_sequence_for<Args...>{}, fn);
 }
 
@@ -354,7 +354,7 @@ OutputIt transform_if(const Range& r, OutputIt out, TransfFunc func, Pred p) {
 }
 
 template<typename Range, typename Comp = less<>>
-void sort(Range& r, Comp comp = Comp{}) {
+void sort(Range&& r, Comp comp = Comp{}) {
     std::sort(std::begin(r), std::end(r), comp);
 }
 

@@ -75,8 +75,8 @@ template<typename CharT, typename Alloc, bool store_values>
 }
 
 template<typename CharT, typename Alloc, bool store_values>
-/*static*/ auto flexarray_t<CharT, Alloc, store_values>::grow(alloc_type& arr_al, flexarray_t* arr, std::size_t extra)
-    -> flexarray_t* {
+/*static*/ auto flexarray_t<CharT, Alloc, store_values>::grow(alloc_type& arr_al, flexarray_t* arr,
+                                                              std::size_t extra) -> flexarray_t* {
     std::size_t delta_sz = std::max(extra, arr->size >> 1);
     const std::size_t max_sz = max_size(arr_al);
     if (delta_sz > max_sz - arr->size) {

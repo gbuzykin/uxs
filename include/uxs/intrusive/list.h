@@ -75,8 +75,8 @@ struct list_node_traits {
     }
 
     template<typename HookTraits_ = HookTraits>
-    static auto reset_pointer(hook_t* h, owning_pointer_t p)
-        -> decltype(HookTraits_{}.reset_pointer(h, std::move(p)), int{}) {
+    static auto reset_pointer(hook_t* h, owning_pointer_t p) -> decltype(HookTraits_{}.reset_pointer(h, std::move(p)),
+                                                                         int{}) {
         HookTraits{}.reset_pointer(h, std::move(p));
         return 0;
     }

@@ -122,8 +122,8 @@ class set : public detail::rbtree_unique<detail::set_node_traits<Key>, Alloc, Co
 template<typename InputIt, typename Comp = std::less<typename std::iterator_traits<InputIt>::value_type>,
          typename Alloc = std::allocator<typename std::iterator_traits<InputIt>::value_type>,
          typename = std::enable_if_t<!is_allocator<Comp>::value>, typename = std::enable_if_t<is_allocator<Alloc>::value>>
-set(InputIt, InputIt, Comp = Comp(), Alloc = Alloc())
-    -> set<typename std::iterator_traits<InputIt>::value_type, Comp, Alloc>;
+set(InputIt, InputIt, Comp = Comp(),
+    Alloc = Alloc()) -> set<typename std::iterator_traits<InputIt>::value_type, Comp, Alloc>;
 template<typename Key, typename Comp = std::less<Key>, typename Alloc = std::allocator<Key>,
          typename = std::enable_if_t<!is_allocator<Comp>::value>, typename = std::enable_if_t<is_allocator<Alloc>::value>>
 set(std::initializer_list<Key>, Comp = Comp(), Alloc = Alloc()) -> set<Key, Comp, Alloc>;

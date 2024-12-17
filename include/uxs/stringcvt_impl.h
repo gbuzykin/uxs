@@ -266,8 +266,8 @@ UXS_FORCE_INLINE unsigned get_exp2_dig_count(unsigned exp) noexcept {
 // powers of ten 10^N, N = 0, 1, 2, ...
 UXS_FORCE_INLINE std::uint64_t get_pow10(int pow) noexcept {
 #define UXS_SCVT_POWERS_OF_10(base) \
-    base, (base)*10, (base)*100, (base)*1000, (base)*10000, (base)*100000, (base)*1000000, (base)*10000000, \
-        (base)*100000000, (base)*1000000000
+    base, (base) * 10, (base) * 100, (base) * 1000, (base) * 10000, (base) * 100000, (base) * 1000000, \
+        (base) * 10000000, (base) * 100000000, (base) * 1000000000
     static const UXS_CONSTEXPR std::uint64_t ten_pows[] = {UXS_SCVT_POWERS_OF_10(1ull),
                                                            UXS_SCVT_POWERS_OF_10(10000000000ull)};
 #undef UXS_SCVT_POWERS_OF_10
