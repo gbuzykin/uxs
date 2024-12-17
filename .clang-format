@@ -161,3 +161,6 @@ StatementMacros:
   - QT_REQUIRE_VERSION
 TabWidth:        4
 UseTab:          Never
+InsertBraces: true
+InsertNewlineAtEOF: true
+RemoveSemicolon: true

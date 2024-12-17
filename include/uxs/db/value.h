@@ -816,8 +816,8 @@ auto basic_value<CharT, Alloc>::emplace(std::basic_string_view<char_type> name, 
 
 template<typename CharT, typename Alloc>
 template<typename... Args>
-auto basic_value<CharT, Alloc>::emplace_unique(std::basic_string_view<char_type> name, Args&&... args)
-    -> std::pair<record_iterator, bool> {
+auto basic_value<CharT, Alloc>::emplace_unique(std::basic_string_view<char_type> name,
+                                               Args&&... args) -> std::pair<record_iterator, bool> {
     typename record_t::alloc_type rec_al(*this);
     if (type_ != dtype::record) {
         if (type_ != dtype::null) { throw database_error("not a record"); }
@@ -944,8 +944,8 @@ auto basic_value<CharT, Alloc>::alloc_array(std::size_t sz, RandIt src) -> value
 
 template<typename CharT, typename Alloc>
 template<typename InputIt>
-auto basic_value<CharT, Alloc>::alloc_array(InputIt first, InputIt last, std::false_type /* random access iterator */)
-    -> value_flexarray_t* {
+auto basic_value<CharT, Alloc>::alloc_array(InputIt first, InputIt last,
+                                            std::false_type /* random access iterator */) -> value_flexarray_t* {
     if (first == last) { return nullptr; }
     typename value_flexarray_t::alloc_type arr_al(*this);
     value_flexarray_t* arr = value_flexarray_t::alloc(arr_al, value_flexarray_t::start_capacity);

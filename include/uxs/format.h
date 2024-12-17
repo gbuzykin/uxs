@@ -66,9 +66,10 @@ namespace detail {
 template<typename Ty, typename FmtCtx>
 struct is_formattable {
     template<typename U, typename V>
-    static auto test(U* ctx, V* parse_ctx, const Ty* val) -> always_true<
-        decltype(parse_ctx->advance_to(std::declval<formatter<Ty, typename V::char_type>&>().parse(*parse_ctx))),
-        decltype(formatter<Ty, typename U::char_type>().format(*ctx, *val))>;
+    static auto test(U* ctx, V* parse_ctx, const Ty* val)
+        -> always_true<
+            decltype(parse_ctx->advance_to(std::declval<formatter<Ty, typename V::char_type>&>().parse(*parse_ctx))),
+            decltype(formatter<Ty, typename U::char_type>().format(*ctx, *val))>;
     template<typename U, typename V>
     static std::false_type test(...);
     using type = decltype(test<FmtCtx, typename FmtCtx::parse_context>(nullptr, nullptr, nullptr));
@@ -656,12 +657,12 @@ struct parse_context_utils {
 #endif  // defined(UXS_HAS_CONSTEVAL)
 
     static void syntax_error() { throw format_error("invalid specifier syntax"); }
-    static void unexpected_prec_error() { throw format_error("unexpected precision specifier"); };
-    static void unexpected_sign_error() { throw format_error("unexpected sign specifier"); };
-    static void unexpected_alternate_error() { throw format_error("unexpected alternate specifier"); };
-    static void unexpected_leading_zeroes_error() { throw format_error("unexpected leading zeroes specifier"); };
-    static void unexpected_local_specific_error() { throw format_error("unexpected local-specific specifier"); };
-    static void type_error() { throw format_error("invalid type specifier"); };
+    static void unexpected_prec_error() { throw format_error("unexpected precision specifier"); }
+    static void unexpected_sign_error() { throw format_error("unexpected sign specifier"); }
+    static void unexpected_alternate_error() { throw format_error("unexpected alternate specifier"); }
+    static void unexpected_leading_zeroes_error() { throw format_error("unexpected leading zeroes specifier"); }
+    static void unexpected_local_specific_error() { throw format_error("unexpected local-specific specifier"); }
+    static void type_error() { throw format_error("invalid type specifier"); }
 };
 
 template<typename ParseCtx, typename OnTextFn, typename OnArgFn>
@@ -944,8 +945,7 @@ class basic_format_string {
         constexpr std::array<void (*)(parse_context&), sizeof...(Args)> parsers{
             sfmt::parse_context_utils::parse_arg<parse_context, sfmt::reduce_type_t<Args, char_type>>...};
         parse_context ctx{fmt_, arg_types};
-        sfmt::parse_format(
-            ctx, [](auto&&...) {}, [&parsers](auto& ctx, std::size_t id) { parsers[id](ctx); });
+        sfmt::parse_format(ctx, [](auto&&...) {}, [&parsers](auto& ctx, std::size_t id) { parsers[id](ctx); });
 #endif  // defined(UXS_HAS_CONSTEVAL)
     }
     UXS_CONSTEXPR basic_format_string(basic_runtime_format<CharT> fmt) noexcept : fmt_(fmt.str) {}
