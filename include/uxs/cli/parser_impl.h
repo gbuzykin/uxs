@@ -18,7 +18,7 @@ basic_option_group<CharT>::basic_option_group(const basic_option_group& group)
     : basic_option_node<CharT>(group), is_exclusive_(group.is_exclusive_) {
     children_.reserve(group.children_.size());
     for (const auto& child : group.children_) {
-        add_child(detail::unique_static_cast<basic_option_group<CharT>>(child->clone()));
+        add_child(detail::unique_static_cast<basic_option_node<CharT>>(child->clone()));
     }
 }
 
@@ -54,7 +54,7 @@ void basic_command<CharT>::add_option(std::unique_ptr<basic_option_node<CharT>> 
 template<typename CharT>
 void basic_command<CharT>::add_subcommand(std::unique_ptr<basic_command<CharT>> cmd) {
     auto result = subcommands_.emplace(cmd->name_, std::move(cmd));
-    if (result.second) { result.first->second->set_parent(this); }
+    if (result.second) { this->make_parent(*result.first->second); }
 }
 
 // --------------------------
@@ -222,14 +222,14 @@ template<typename CharT>
 // --------------------------
 
 template<typename CharT>
-std::basic_string<CharT> basic_option_node<CharT>::make_string(bool brief) const {
+std::basic_string<CharT> basic_option_node<CharT>::make_text(text_briefness briefness) const {
     if (this->get_type() == node_type::option) {
         const auto& opt = static_cast<const basic_option<CharT>&>(*this);
         const auto& keys = opt.get_keys();
         if (keys.empty()) { return {}; }
         std::basic_string<CharT> s(keys.front());
         bool no_space = !s.empty() && s.back() == '=';
-        if (!brief) {
+        if (briefness == text_briefness::full) {
             for (const auto& key : uxs::make_subrange(keys, 1)) { s += ',', s += ' ', s += key; }
             no_space = !keys.back().empty() && keys.back().back() == '=';
         }
@@ -243,13 +243,13 @@ std::basic_string<CharT> basic_option_node<CharT>::make_string(bool brief) const
     }
     assert(this->get_type() == node_type::option_group);
     const auto& group = static_cast<const basic_option_group<CharT>&>(*this);
-    auto make_child_string = [&group, brief](const basic_option_node<CharT>& opt) {
-        if (opt.is_optional()) { return static_cast<CharT>('[') + opt.make_string(brief) + static_cast<CharT>(']'); }
+    auto make_child_string = [&group, briefness](const basic_option_node<CharT>& opt) {
+        if (opt.is_optional()) { return static_cast<CharT>('[') + opt.make_text(briefness) + static_cast<CharT>(']'); }
         if (!group.is_exclusive() && opt.get_type() == node_type::option_group &&
             static_cast<const basic_option_group<CharT>&>(opt).is_exclusive()) {
-            return static_cast<CharT>('(') + opt.make_string(brief) + static_cast<CharT>(')');
+            return static_cast<CharT>('(') + opt.make_text(briefness) + static_cast<CharT>(')');
         }
-        return opt.make_string(brief);
+        return opt.make_text(briefness);
     };
     if (group.get_children().empty()) { return {}; }
     std::basic_string<CharT> s(make_child_string(*group.get_children().front()));
@@ -273,7 +273,7 @@ void print_text_with_margin(uxs::basic_iobuf<CharT>& out, std::basic_string_view
 }
 
 template<typename CharT>
-std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const {
+std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring coloring) const {
     static const auto color_br_white = string_literal<CharT, '\033', '[', '1', ';', '3', '7', 'm'>{}();
     static const auto color_green = string_literal<CharT, '\033', '[', '0', ';', '3', '2', 'm'>{}();
     static const auto color_normal = string_literal<CharT, '\033', '[', '0', 'm'>{}();
@@ -283,22 +283,22 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
     const bool start_with_nl = !overview_.empty() && overview_.front() == '\n';
     const bool end_width_nl = !overview_.empty() && overview_.back() == '\n';
 
-    auto print_usage = [this, &osb, start_with_nl, end_width_nl, colored]() {
-        if (colored) { osb.write(color_br_white); }
+    auto print_usage = [this, &osb, start_with_nl, end_width_nl, coloring]() {
+        if (coloring == text_coloring::colored) { osb.write(color_br_white); }
         const auto label_usage = string_literal<CharT, 'U', 'S', 'A', 'G', 'E', ':', ' '>{}();
         osb.write(label_usage);
-        if (colored) { osb.write(color_normal); }
+        if (coloring == text_coloring::colored) { osb.write(color_normal); }
         if (start_with_nl) { osb.put('\n').fill_n(tab_size, ' '); }
 
         const std::size_t left_margin = start_with_nl ? tab_size : label_usage.size();
         std::size_t width = left_margin + name_.size();
         std::vector<std::basic_string<CharT>> cmd_names;
         cmd_names.reserve(4);
-        for (const auto* p = this->get_parent(); p; p = p->get_parent()) {
-            cmd_names.emplace_back(static_cast<const basic_command<CharT>&>(*p).name_);
+        for (const auto* p = this->get_parent_command(); p; p = p->get_parent_command()) {
+            cmd_names.emplace_back(p->name_);
         }
 
-        if (colored) { osb.write(color_green); }
+        if (coloring == text_coloring::colored) { osb.write(color_green); }
         for (const auto& name : uxs::make_reverse_range(cmd_names)) {
             width += 1 + name.size();
             osb.write(name).put(' ');
@@ -316,9 +316,9 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
             opts_str.reserve(opts.size());
             uxs::transform(opts, std::back_inserter(opts_str), [](decltype(*opts.cbegin()) opt) {
                 if (opt->is_optional()) {
-                    return static_cast<CharT>('[') + opt->make_string(true) + static_cast<CharT>(']');
+                    return static_cast<CharT>('[') + opt->make_text(text_briefness::brief) + static_cast<CharT>(']');
                 }
-                return opt->make_string(true);
+                return opt->make_text(text_briefness::brief);
             });
             for (const auto& s : opts_str) {
                 if (width + s.size() + 1 > max_width) {
@@ -337,19 +337,19 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
             for (const auto& name : uxs::make_reverse_range(cmd_names)) { osb.write(name).put(' '); }
             osb.write(name_).put(' ').write(label_subcommand);
         }
-        if (colored) { osb.write(color_normal); }
+        if (coloring == text_coloring::colored) { osb.write(color_normal); }
         osb.put('\n');
         if (end_width_nl) { osb.put('\n'); }
     };
 
-    auto print_parameters = [this, &osb, end_width_nl, colored]() {
+    auto print_parameters = [this, &osb, end_width_nl, coloring]() {
         if (uxs::all_of(values_, [](decltype(*values_.cbegin()) val) { return val->get_doc().empty(); })) { return; }
 
-        if (colored) { osb.write(color_br_white); }
+        if (coloring == text_coloring::colored) { osb.write(color_br_white); }
         const auto label_parameters =
             string_literal<CharT, 'P', 'A', 'R', 'A', 'M', 'E', 'T', 'E', 'R', 'S', ':', ' '>{}();
         osb.write(label_parameters);
-        if (colored) { osb.write(color_normal); }
+        if (coloring == text_coloring::colored) { osb.write(color_normal); }
 
         const std::size_t width = std::min<std::size_t>(
             max_margin, std::accumulate(values_.begin(), values_.end(), static_cast<std::size_t>(0),
@@ -359,9 +359,9 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
         for (const auto& val : values_) {
             if (val->get_doc().empty()) { continue; }
             const bool start_from_new_line = val->get_label().size() > max_margin;
-            if (colored) { osb.write(color_green); }
+            if (coloring == text_coloring::colored) { osb.write(color_green); }
             osb.put('\n').fill_n(tab_size, ' ').write(val->get_label());
-            if (colored) { osb.write(color_normal); }
+            if (coloring == text_coloring::colored) { osb.write(color_normal); }
             if (start_from_new_line) {
                 osb.put('\n').fill_n(tab_size + gap + max_margin, ' ');
             } else {
@@ -375,33 +375,33 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
         if (end_width_nl) { osb.put('\n'); }
     };
 
-    auto print_options = [this, &osb, end_width_nl, colored]() {
+    auto print_options = [this, &osb, end_width_nl, coloring]() {
         std::vector<std::basic_string<CharT>> opts_str;
         opts_str.reserve(32);
         opts_->traverse_options([&opts_str](const basic_option_node<CharT>& node) {
-            if (!node.get_doc().empty()) { opts_str.emplace_back(node.make_string(false)); }
+            if (!node.get_doc().empty()) { opts_str.emplace_back(node.make_text(text_briefness::full)); }
             return true;
         });
 
         if (opts_str.empty()) { return; }
 
-        if (colored) { osb.write(color_br_white); }
+        if (coloring == text_coloring::colored) { osb.write(color_br_white); }
         const auto label_options = string_literal<CharT, 'O', 'P', 'T', 'I', 'O', 'N', 'S', ':', ' '>{}();
         osb.write(label_options);
-        if (colored) { osb.write(color_normal); }
+        if (coloring == text_coloring::colored) { osb.write(color_normal); }
 
         const std::size_t width = std::min<std::size_t>(
             max_margin,
             std::accumulate(opts_str.begin(), opts_str.end(), static_cast<std::size_t>(0),
                             [](std::size_t w, decltype(*opts_str.cbegin()) s) { return std::max(w, s.size()); }));
         auto opts_str_it = opts_str.begin();
-        opts_->traverse_options([&osb, &opts_str_it, width, colored](const basic_option_node<CharT>& node) {
+        opts_->traverse_options([&osb, &opts_str_it, width, coloring](const basic_option_node<CharT>& node) {
             if (node.get_doc().empty()) { return true; }
             const auto& s = *opts_str_it++;
             const bool start_from_new_line = s.size() > max_margin;
-            if (colored) { osb.write(color_green); }
+            if (coloring == text_coloring::colored) { osb.write(color_green); }
             osb.put('\n').fill_n(tab_size, ' ').write(s);
-            if (colored) { osb.write(color_normal); }
+            if (coloring == text_coloring::colored) { osb.write(color_normal); }
             if (start_from_new_line) {
                 osb.put('\n').fill_n(tab_size + gap + max_margin, ' ');
             } else {
@@ -416,17 +416,17 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
         if (end_width_nl) { osb.put('\n'); }
     };
 
-    auto print_subcommands = [this, &osb, end_width_nl, colored]() {
+    auto print_subcommands = [this, &osb, end_width_nl, coloring]() {
         if (uxs::all_of(subcommands_,
                         [](decltype(*subcommands_.cbegin()) item) { return item.second->get_doc().empty(); })) {
             return;
         }
 
-        if (colored) { osb.write(color_br_white); }
+        if (coloring == text_coloring::colored) { osb.write(color_br_white); }
         const auto label_subcommands =
             string_literal<CharT, 'S', 'U', 'B', 'C', 'O', 'M', 'M', 'A', 'N', 'D', 'S', ':', ' '>{}();
         osb.write(label_subcommands);
-        if (colored) { osb.write(color_normal); }
+        if (coloring == text_coloring::colored) { osb.write(color_normal); }
 
         const std::size_t width = std::min<std::size_t>(
             max_margin, std::accumulate(subcommands_.begin(), subcommands_.end(), static_cast<std::size_t>(0),
@@ -436,9 +436,9 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
         for (const auto& subcmd : subcommands_) {
             if (subcmd.second->get_doc().empty()) { continue; }
             const bool start_from_new_line = subcmd.first.size() > max_margin;
-            if (colored) { osb.write(color_green); }
+            if (coloring == text_coloring::colored) { osb.write(color_green); }
             osb.put('\n').fill_n(tab_size, ' ').write(subcmd.first);
-            if (colored) { osb.write(color_normal); }
+            if (coloring == text_coloring::colored) { osb.write(color_normal); }
             if (start_from_new_line) {
                 osb.put('\n').fill_n(tab_size + gap + max_margin, ' ');
             } else {
@@ -453,10 +453,10 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(bool colored) const
     };
 
     if (!overview_.empty()) {
-        if (colored) { osb.write(color_br_white); }
+        if (coloring == text_coloring::colored) { osb.write(color_br_white); }
         const auto label_overview = string_literal<CharT, 'O', 'V', 'E', 'R', 'V', 'I', 'E', 'W', ':', ' '>{}();
         osb.write(label_overview);
-        if (colored) { osb.write(color_normal); }
+        if (coloring == text_coloring::colored) { osb.write(color_normal); }
         print_text_with_margin<CharT>(osb, overview_, start_with_nl ? tab_size : label_overview.size());
         osb.put('\n');
     }
