@@ -13,8 +13,8 @@
 namespace uxs {
 
 namespace detail {
-enum class devbuf_impl_flags : unsigned { none = 0, z_in_finish, pending_cr };
-UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(devbuf_impl_flags, unsigned);
+enum class devbuf_impl_flags { none = 0, z_in_finish = 1, pending_cr = 2 };
+UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(devbuf_impl_flags);
 }  // namespace detail
 
 template<typename CharT, typename Alloc>
