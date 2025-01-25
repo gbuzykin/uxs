@@ -12,8 +12,8 @@
 
 namespace uxs {
 
-enum class split_opts : unsigned { no_opts = 0, skip_empty = 1 };
-UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(split_opts, unsigned);
+enum class split_opts { no_opts = 0, skip_empty = 1 };
+UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(split_opts);
 
 namespace detail {
 

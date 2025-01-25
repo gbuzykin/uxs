@@ -263,7 +263,7 @@ enum class fmt_flags : unsigned {
     localize = 0x2000,
     debug_format = 0x4000,
 };
-UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(fmt_flags, unsigned);
+UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(fmt_flags);
 
 struct fmt_opts {
     UXS_CONSTEXPR explicit fmt_opts(fmt_flags fl = fmt_flags::none, int p = -1, unsigned w = 0, int f = ' ')

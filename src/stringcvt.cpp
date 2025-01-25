@@ -90,7 +90,7 @@ struct uint128_t {
 };
 
 inline std::uint64_t udiv128(uint128_t x, std::uint64_t y) {
-#if UXS_SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && _MSC_VER >= 1920 && defined(_M_X64)
+#if UXS_SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && _MSC_VER >= 1920 && defined(_M_X64) && !defined(__clang__)
     std::uint64_t r;
     return _udiv128(x.hi, x.lo, y, &r);
 #elif UXS_SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
