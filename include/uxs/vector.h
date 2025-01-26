@@ -29,8 +29,8 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
     using const_pointer = typename alloc_traits::const_pointer;
     using reference = value_type&;
     using const_reference = const value_type&;
-    using iterator = array_iterator<vector, false>;
-    using const_iterator = array_iterator<vector, true>;
+    using iterator = array_iterator<vector, pointer, false>;
+    using const_iterator = array_iterator<vector, pointer, true>;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
@@ -307,8 +307,8 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
     bool is_same_alloc(const alloc_type& alloc) { return static_cast<alloc_type&>(*this) == alloc; }
 
     pointer to_ptr(const_iterator it) const {
-        auto p = std::addressof(const_cast<reference>(*it.ptr()));
-        uxs_iterator_assert(it.begin() == v_.begin && it.end() == v_.end);
+        auto p = it.ptr();
+        uxs_iterator_assert(it.debug_begin() == v_.begin && it.debug_end() == v_.end);
         assert(v_.begin <= p && p <= v_.end);
         return p;
     }

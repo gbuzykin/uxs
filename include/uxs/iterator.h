@@ -303,18 +303,18 @@ using array_iterator_tag = std::random_access_iterator_tag;
 #endif  // concepts
 }  // namespace detail
 
-template<typename Traits, bool Const>
-class array_iterator : public container_iterator_facade<Traits, array_iterator<Traits, Const>,  //
+template<typename Traits, typename UnderlyingPtrTy, bool Const>
+class array_iterator : public container_iterator_facade<Traits, array_iterator<Traits, UnderlyingPtrTy, Const>,
                                                         detail::array_iterator_tag, Const> {
  private:
     using super = container_iterator_facade<Traits, array_iterator, detail::array_iterator_tag, Const>;
 
  public:
     using reference = typename super::reference;
-    using pointer = typename super::pointer;
     using difference_type = typename super::difference_type;
+    using underlying_ptr = UnderlyingPtrTy;
 
-    template<typename, bool>
+    template<typename, typename, bool>
     friend class array_iterator;
 
     array_iterator() noexcept = default;
@@ -340,63 +340,69 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
     }
 
     template<bool Const2>
-    bool is_equal_to(const array_iterator<Traits, Const2>& it) const noexcept {
+    bool is_equal_to(const array_iterator<Traits, UnderlyingPtrTy, Const2>& it) const noexcept {
         uxs_iterator_assert(begin_ == it.begin_ && end_ == it.end_);
         return ptr_ == it.ptr_;
     }
 
     template<bool Const2>
-    bool is_less_than(const array_iterator<Traits, Const2>& it) const noexcept {
+    bool is_less_than(const array_iterator<Traits, UnderlyingPtrTy, Const2>& it) const noexcept {
         uxs_iterator_assert(begin_ == it.begin_ && end_ == it.end_);
         return ptr_ < it.ptr_;
     }
 
     template<bool Const2>
-    difference_type distance_to(const array_iterator<Traits, Const2>& it) const noexcept {
+    difference_type distance_to(const array_iterator<Traits, UnderlyingPtrTy, Const2>& it) const noexcept {
         uxs_iterator_assert(begin_ == it.begin_ && end_ == it.end_);
         return it.ptr_ - ptr_;
     }
 
-    pointer ptr() const noexcept { return ptr_; }
+    underlying_ptr ptr() const noexcept { return ptr_; }
 
     // explicit non-trivial copy operations are required by standard
 #if _ITERATOR_DEBUG_LEVEL != 0
-    explicit array_iterator(pointer ptr, pointer begin, pointer end) noexcept : ptr_(ptr), begin_(begin), end_(end) {}
+    explicit array_iterator(underlying_ptr ptr, underlying_ptr begin, underlying_ptr end) noexcept
+        : ptr_(ptr), begin_(begin), end_(end) {}
     array_iterator(const array_iterator& it) noexcept : ptr_(it.ptr_), begin_(it.begin_), end_(it.end_) {}
     array_iterator& operator=(const array_iterator& it) noexcept {
         ptr_ = it.ptr_, begin_ = it.begin_, end_ = it.end_;
         return *this;
     }
     template<bool Const_ = Const>
-    array_iterator(const std::enable_if_t<Const_, array_iterator<Traits, false>>& it) noexcept
+    array_iterator(const std::enable_if_t<Const_, array_iterator<Traits, UnderlyingPtrTy, false>>& it) noexcept
         : ptr_(it.ptr_), begin_(it.begin_), end_(it.end_) {}
     template<bool Const_ = Const>
-    array_iterator& operator=(const std::enable_if_t<Const_, array_iterator<Traits, false>>& it) noexcept {
+    array_iterator& operator=(
+        const std::enable_if_t<Const_, array_iterator<Traits, UnderlyingPtrTy, false>>& it) noexcept {
         ptr_ = it.ptr_, begin_ = it.begin_, end_ = it.end_;
         return *this;
     }
-    pointer begin() const { return begin_; }
-    pointer end() const { return end_; }
+    underlying_ptr debug_begin() const { return begin_; }
+    underlying_ptr debug_end() const { return end_; }
 
  private:
-    pointer ptr_{nullptr}, begin_{nullptr}, end_{nullptr};
+    underlying_ptr ptr_{nullptr}, begin_{nullptr}, end_{nullptr};
 #else   // _ITERATOR_DEBUG_LEVEL != 0
-    explicit array_iterator(pointer ptr, pointer begin, pointer end) noexcept : ptr_(ptr) { (void)begin, (void)end; }
+    explicit array_iterator(underlying_ptr ptr, underlying_ptr begin, underlying_ptr end) noexcept : ptr_(ptr) {
+        (void)begin, (void)end;
+    }
     array_iterator(const array_iterator& it) noexcept : ptr_(it.ptr_) {}
     array_iterator& operator=(const array_iterator& it) noexcept {
         ptr_ = it.ptr_;
         return *this;
     }
     template<bool Const_ = Const>
-    array_iterator(const std::enable_if_t<Const_, array_iterator<Traits, false>>& it) noexcept : ptr_(it.ptr_) {}
+    array_iterator(const std::enable_if_t<Const_, array_iterator<Traits, UnderlyingPtrTy, false>>& it) noexcept
+        : ptr_(it.ptr_) {}
     template<bool Const_ = Const>
-    array_iterator& operator=(const std::enable_if_t<Const_, array_iterator<Traits, false>>& it) noexcept {
+    array_iterator& operator=(
+        const std::enable_if_t<Const_, array_iterator<Traits, UnderlyingPtrTy, false>>& it) noexcept {
         ptr_ = it.ptr_;
         return *this;
     }
 
  private:
-    pointer ptr_{nullptr};
+    underlying_ptr ptr_{nullptr};
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
 };
 
@@ -570,13 +576,13 @@ limited_output_iterator<BaseIt> limit_output_iterator(const BaseIt& base, std::p
 
 namespace std {
 #if __cplusplus >= 202002L && defined(__cpp_concepts) && defined(__cpp_lib_addressof_constexpr)
-template<typename Traits, bool Const>
-struct pointer_traits<uxs::array_iterator<Traits, Const>> {
-    using pointer = uxs::array_iterator<Traits, Const>;
+template<typename Traits, typename UnderlyingPtrTy, bool Const>
+struct pointer_traits<uxs::array_iterator<Traits, UnderlyingPtrTy, Const>> {
+    using pointer = uxs::array_iterator<Traits, UnderlyingPtrTy, Const>;
     using element_type = std::conditional_t<Const, const typename pointer::value_type, typename pointer::value_type>;
     using difference_type = typename pointer::difference_type;
     [[nodiscard]] static constexpr element_type* to_address(const pointer iter) noexcept {
-        uxs_iterator_assert(iter.begin() <= iter.ptr() && iter.ptr() <= iter.end());
+        uxs_iterator_assert(iter.debug_begin() <= iter.ptr() && iter.ptr() <= iter.debug_end());
         return std::to_address(iter.ptr());
     }
 };

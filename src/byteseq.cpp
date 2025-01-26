@@ -8,6 +8,7 @@
 #    include <zlib.h>
 #endif
 
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <stdexcept>

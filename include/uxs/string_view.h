@@ -28,7 +28,7 @@ class basic_string_view {
     using const_pointer = const CharT*;
     using reference = CharT&;
     using const_reference = const CharT&;
-    using const_iterator = uxs::array_iterator<basic_string_view, true>;
+    using const_iterator = uxs::array_iterator<basic_string_view, const_pointer, true>;
     using iterator = const_iterator;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
     using reverse_iterator = const_reverse_iterator;

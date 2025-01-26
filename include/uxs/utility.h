@@ -6,29 +6,30 @@
 #include <type_traits>
 #include <utility>
 
-#define UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(ty, ...) \
-    __VA_ARGS__ inline UXS_CONSTEXPR ty operator|(ty lhs, ty rhs) { \
+#define UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM_(ty, modifiers) \
+    modifiers ty operator|(ty lhs, ty rhs) { \
         return static_cast<ty>(static_cast<typename std::underlying_type<ty>::type>(lhs) | \
                                static_cast<typename std::underlying_type<ty>::type>(rhs)); \
     } \
-    __VA_ARGS__ inline UXS_CONSTEXPR ty operator&(ty lhs, ty rhs) { \
+    modifiers ty operator&(ty lhs, ty rhs) { \
         return static_cast<ty>(static_cast<typename std::underlying_type<ty>::type>(lhs) & \
                                static_cast<typename std::underlying_type<ty>::type>(rhs)); \
     } \
-    __VA_ARGS__ inline UXS_CONSTEXPR ty operator^(ty lhs, ty rhs) { \
+    modifiers ty operator^(ty lhs, ty rhs) { \
         return static_cast<ty>(static_cast<typename std::underlying_type<ty>::type>(lhs) ^ \
                                static_cast<typename std::underlying_type<ty>::type>(rhs)); \
     } \
-    __VA_ARGS__ inline UXS_CONSTEXPR ty operator~(ty flags) { \
+    modifiers ty operator~(ty flags) { \
         return static_cast<ty>(~static_cast<typename std::underlying_type<ty>::type>(flags)); \
     } \
-    __VA_ARGS__ inline UXS_CONSTEXPR bool operator!(ty flags) { \
-        return static_cast<typename std::underlying_type<ty>::type>(flags) == 0; \
-    } \
-    __VA_ARGS__ inline UXS_CONSTEXPR ty& operator|=(ty& lhs, ty rhs) { return lhs = lhs | rhs; } \
-    __VA_ARGS__ inline UXS_CONSTEXPR ty& operator&=(ty& lhs, ty rhs) { return lhs = lhs & rhs; } \
-    __VA_ARGS__ inline UXS_CONSTEXPR ty& operator^=(ty& lhs, ty rhs) { return lhs = lhs ^ rhs; } \
+    modifiers bool operator!(ty flags) { return static_cast<typename std::underlying_type<ty>::type>(flags) == 0; } \
+    modifiers ty& operator|=(ty& lhs, ty rhs) { return lhs = lhs | rhs; } \
+    modifiers ty& operator&=(ty& lhs, ty rhs) { return lhs = lhs & rhs; } \
+    modifiers ty& operator^=(ty& lhs, ty rhs) { return lhs = lhs ^ rhs; } \
     static_assert(true, "")
+#define UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(ty) UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM_(ty, inline UXS_CONSTEXPR)
+#define UXS_IMPLEMENT_FRIEND_BITWISE_OPS_FOR_ENUM(ty) \
+    UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM_(ty, friend inline UXS_CONSTEXPR)
 
 namespace uxs {
 template<typename Ty, typename... Ts>
