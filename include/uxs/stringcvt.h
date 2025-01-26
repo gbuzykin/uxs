@@ -168,7 +168,7 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
     using const_pointer = typename basic_membuffer<Ty>::const_pointer;
     using reference = typename basic_membuffer<Ty>::reference;
     using const_reference = typename basic_membuffer<Ty>::const_reference;
-    using const_iterator = uxs::array_iterator<basic_dynbuffer, true>;
+    using const_iterator = uxs::array_iterator<basic_dynbuffer, const_pointer, true>;
     using iterator = const_iterator;
     using size_type = typename basic_membuffer<Ty>::size_type;
     using difference_type = typename basic_membuffer<Ty>::difference_type;

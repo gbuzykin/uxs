@@ -28,7 +28,7 @@ class span {
     using const_pointer = const Ty*;
     using reference = Ty&;
     using const_reference = const Ty&;
-    using iterator = uxs::array_iterator<span, false>;
+    using iterator = uxs::array_iterator<span, pointer, false>;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
