@@ -181,14 +181,14 @@ class iterator_facade {
     }
 
     template<typename Iter_ = Iter>
-    auto operator+=(difference_type j) noexcept(noexcept(std::declval<Iter>().advance(0)))
+    auto operator+=(difference_type j) noexcept(noexcept(std::declval<Iter>().advance(j)))
         -> uxs::type_identity_t<Iter&, decltype(std::declval<Iter_>().advance(j))> {
         static_cast<Iter&>(*this).advance(j);
         return static_cast<Iter&>(*this);
     }
 
     template<typename Iter_ = Iter>
-    auto operator+(difference_type j) const noexcept(noexcept(std::declval<Iter>().advance(0)))
+    auto operator+(difference_type j) const noexcept(noexcept(std::declval<Iter>().advance(j)))
         -> uxs::type_identity_t<Iter, decltype(std::declval<Iter_>().advance(j))> {
         auto it = static_cast<const Iter&>(*this);
         it.advance(j);
@@ -196,25 +196,36 @@ class iterator_facade {
     }
 
     template<typename Iter_ = Iter>
-    auto operator-=(difference_type j) noexcept(noexcept(std::declval<Iter>().advance(0)))
+    auto operator-=(difference_type j) noexcept(noexcept(std::declval<Iter>().advance(j)))
         -> uxs::type_identity_t<Iter&, decltype(std::declval<Iter_>().advance(j))> {
         static_cast<Iter&>(*this).advance(-j);
         return static_cast<Iter&>(*this);
     }
 
     template<typename Iter_ = Iter>
-    auto operator-(difference_type j) const noexcept(noexcept(std::declval<Iter>().advance(0)))
+    auto operator-(difference_type j) const noexcept(noexcept(std::declval<Iter>().advance(j)))
         -> uxs::type_identity_t<Iter, decltype(std::declval<Iter_>().advance(j))> {
         auto it = static_cast<const Iter&>(*this);
         it.advance(-j);
         return it;
     }
 
-    reference operator*() const noexcept { return static_cast<const Iter&>(*this).dereference(); }
-    pointer operator->() const noexcept { return detail::addressof(**this); }
     template<typename Iter_ = Iter>
-    auto operator[](difference_type j) const noexcept(noexcept(std::declval<Iter>().advance(0)))
-        -> uxs::type_identity_t<reference, decltype(std::declval<Iter_>().advance(j))> {
+    auto operator*() const
+        noexcept(noexcept(std::declval<Iter>().dereference())) -> decltype(std::declval<Iter_>().dereference()) {
+        return static_cast<const Iter&>(*this).dereference();
+    }
+
+    template<typename Iter_ = Iter>
+    auto operator->() const noexcept(noexcept(detail::addressof(std::declval<Iter>().dereference())))
+        -> decltype(detail::addressof(std::declval<Iter_>().dereference())) {
+        return detail::addressof(**this);
+    }
+
+    template<typename Iter_ = Iter>
+    auto operator[](difference_type j) const
+        noexcept(noexcept(std::declval<Iter>().dereference()) &&
+                 noexcept(std::declval<Iter>().advance(j))) -> decltype(std::declval<Iter_>().dereference()) {
         return *(*this + j);
     }
 };
@@ -319,18 +330,58 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
 
     array_iterator() noexcept = default;
 
+    // Explicit non-trivial copy operations are required by standard
+#if _ITERATOR_DEBUG_LEVEL != 0
+    explicit array_iterator(underlying_ptr ptr, underlying_ptr begin, underlying_ptr end) noexcept
+        : ptr_(ptr), begin_(begin), end_(end) {}
+    array_iterator(const array_iterator& it) noexcept : ptr_(it.ptr_), begin_(it.begin_), end_(it.end_) {}
+    array_iterator& operator=(const array_iterator& it) noexcept {
+        ptr_ = it.ptr_, begin_ = it.begin_, end_ = it.end_;
+        return *this;
+    }
+    template<bool Const_ = Const>
+    array_iterator(const std::enable_if_t<Const_, array_iterator<Traits, UnderlyingPtrTy, false>>& it) noexcept
+        : ptr_(it.ptr_), begin_(it.begin_), end_(it.end_) {}
+    template<bool Const_ = Const>
+    array_iterator& operator=(
+        const std::enable_if_t<Const_, array_iterator<Traits, UnderlyingPtrTy, false>>& it) noexcept {
+        ptr_ = it.ptr_, begin_ = it.begin_, end_ = it.end_;
+        return *this;
+    }
+    underlying_ptr debug_begin() const { return begin_; }
+    underlying_ptr debug_end() const { return end_; }
+#else   // _ITERATOR_DEBUG_LEVEL != 0
+    explicit array_iterator(underlying_ptr ptr, underlying_ptr begin, underlying_ptr end) noexcept : ptr_(ptr) {
+        (void)begin, (void)end;
+    }
+    array_iterator(const array_iterator& it) noexcept : ptr_(it.ptr_) {}
+    array_iterator& operator=(const array_iterator& it) noexcept {
+        ptr_ = it.ptr_;
+        return *this;
+    }
+    template<bool Const_ = Const>
+    array_iterator(const std::enable_if_t<Const_, array_iterator<Traits, UnderlyingPtrTy, false>>& it) noexcept
+        : ptr_(it.ptr_) {}
+    template<bool Const_ = Const>
+    array_iterator& operator=(
+        const std::enable_if_t<Const_, array_iterator<Traits, UnderlyingPtrTy, false>>& it) noexcept {
+        ptr_ = it.ptr_;
+        return *this;
+    }
+#endif  // _ITERATOR_DEBUG_LEVEL != 0
+
     void increment() noexcept {
-        uxs_iterator_assert(ptr_ < end_);
+        uxs_iterator_assert(begin_ <= ptr_ && ptr_ < end_);
         ++ptr_;
     }
 
     void decrement() noexcept {
-        uxs_iterator_assert(ptr_ > begin_);
+        uxs_iterator_assert(begin_ < ptr_ && ptr_ <= end_);
         --ptr_;
     }
 
     void advance(difference_type j) noexcept {
-        uxs_iterator_assert(j >= 0 ? end_ - ptr_ >= j : ptr_ - begin_ >= -j);
+        uxs_iterator_assert(j >= 0 ? begin_ <= ptr_ && end_ - ptr_ >= j : ptr_ - begin_ >= -j && ptr_ <= end_);
         ptr_ += j;
     }
 
@@ -359,50 +410,11 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
 
     underlying_ptr ptr() const noexcept { return ptr_; }
 
-    // explicit non-trivial copy operations are required by standard
-#if _ITERATOR_DEBUG_LEVEL != 0
-    explicit array_iterator(underlying_ptr ptr, underlying_ptr begin, underlying_ptr end) noexcept
-        : ptr_(ptr), begin_(begin), end_(end) {}
-    array_iterator(const array_iterator& it) noexcept : ptr_(it.ptr_), begin_(it.begin_), end_(it.end_) {}
-    array_iterator& operator=(const array_iterator& it) noexcept {
-        ptr_ = it.ptr_, begin_ = it.begin_, end_ = it.end_;
-        return *this;
-    }
-    template<bool Const_ = Const>
-    array_iterator(const std::enable_if_t<Const_, array_iterator<Traits, UnderlyingPtrTy, false>>& it) noexcept
-        : ptr_(it.ptr_), begin_(it.begin_), end_(it.end_) {}
-    template<bool Const_ = Const>
-    array_iterator& operator=(
-        const std::enable_if_t<Const_, array_iterator<Traits, UnderlyingPtrTy, false>>& it) noexcept {
-        ptr_ = it.ptr_, begin_ = it.begin_, end_ = it.end_;
-        return *this;
-    }
-    underlying_ptr debug_begin() const { return begin_; }
-    underlying_ptr debug_end() const { return end_; }
-
- private:
-    underlying_ptr ptr_{nullptr}, begin_{nullptr}, end_{nullptr};
-#else   // _ITERATOR_DEBUG_LEVEL != 0
-    explicit array_iterator(underlying_ptr ptr, underlying_ptr begin, underlying_ptr end) noexcept : ptr_(ptr) {
-        (void)begin, (void)end;
-    }
-    array_iterator(const array_iterator& it) noexcept : ptr_(it.ptr_) {}
-    array_iterator& operator=(const array_iterator& it) noexcept {
-        ptr_ = it.ptr_;
-        return *this;
-    }
-    template<bool Const_ = Const>
-    array_iterator(const std::enable_if_t<Const_, array_iterator<Traits, UnderlyingPtrTy, false>>& it) noexcept
-        : ptr_(it.ptr_) {}
-    template<bool Const_ = Const>
-    array_iterator& operator=(
-        const std::enable_if_t<Const_, array_iterator<Traits, UnderlyingPtrTy, false>>& it) noexcept {
-        ptr_ = it.ptr_;
-        return *this;
-    }
-
  private:
     underlying_ptr ptr_{nullptr};
+#if _ITERATOR_DEBUG_LEVEL != 0
+    underlying_ptr begin_{nullptr};
+    underlying_ptr end_{nullptr};
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
 };
 
@@ -425,7 +437,7 @@ class list_iterator : public container_iterator_facade<Traits, list_iterator<Tra
     list_iterator() noexcept = default;
     explicit list_iterator(node_type* node) noexcept : node_(node) {}
 
-    // this iterator consists of one natural pointer,
+    // This iterator consists of one natural pointer,
     // so explicit copy constructor and operator are not needed
 
     template<bool Const_ = Const>
@@ -438,7 +450,7 @@ class list_iterator : public container_iterator_facade<Traits, list_iterator<Tra
     }
 
     void increment() noexcept {
-        uxs_iterator_assert(node_ && (node_ != NodeTraits::get_head(node_)));
+        uxs_iterator_assert(node_ && node_ != NodeTraits::get_head(node_));
         node_ = NodeTraits::get_next(node_);
     }
 

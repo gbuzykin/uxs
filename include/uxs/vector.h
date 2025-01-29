@@ -105,19 +105,19 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
 
     iterator begin() noexcept { return iterator(v_.begin, v_.begin, v_.end); }
     const_iterator begin() const noexcept { return const_iterator(v_.begin, v_.begin, v_.end); }
-    const_iterator cbegin() const noexcept { return const_iterator(v_.begin, v_.begin, v_.end); }
+    const_iterator cbegin() const noexcept { return begin(); }
 
     iterator end() noexcept { return iterator(v_.end, v_.begin, v_.end); }
     const_iterator end() const noexcept { return const_iterator(v_.end, v_.begin, v_.end); }
-    const_iterator cend() const noexcept { return const_iterator(v_.end, v_.begin, v_.end); }
+    const_iterator cend() const noexcept { return end(); }
 
     reverse_iterator rbegin() noexcept { return reverse_iterator(end()); }
     const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
-    const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(end()); }
+    const_reverse_iterator crbegin() const noexcept { return rbegin(); }
 
     reverse_iterator rend() noexcept { return reverse_iterator(begin()); }
     const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
-    const_reverse_iterator crend() const noexcept { return const_reverse_iterator(begin()); }
+    const_reverse_iterator crend() const noexcept { return rend(); }
 
     pointer data() noexcept { return v_.begin; }
     const_pointer data() const noexcept { return v_.begin; }

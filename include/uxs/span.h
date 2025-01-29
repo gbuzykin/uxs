@@ -45,11 +45,11 @@ class span {
     UXS_CONSTEXPR bool empty() const noexcept { return size_ == 0; }
     UXS_CONSTEXPR pointer data() const noexcept { return begin_; }
 
-    UXS_CONSTEXPR iterator begin() const noexcept { return iterator{begin_, begin_, begin_ + size_}; }
-    UXS_CONSTEXPR iterator end() const noexcept { return iterator{begin_ + size_, begin_, begin_ + size_}; }
+    UXS_CONSTEXPR iterator begin() const noexcept { return iterator(begin_, begin_, begin_ + size_); }
+    UXS_CONSTEXPR iterator end() const noexcept { return iterator(begin_ + size_, begin_, begin_ + size_); }
 
-    UXS_CONSTEXPR reverse_iterator rbegin() const noexcept { return reverse_iterator{end()}; }
-    UXS_CONSTEXPR reverse_iterator rend() const noexcept { return reverse_iterator{begin()}; }
+    UXS_CONSTEXPR reverse_iterator rbegin() const noexcept { return reverse_iterator(end()); }
+    UXS_CONSTEXPR reverse_iterator rend() const noexcept { return reverse_iterator(begin()); }
 
     UXS_CONSTEXPR reference operator[](size_type pos) const {
         assert(pos < size_);

@@ -52,16 +52,16 @@ class basic_string_view {
     explicit operator basic_string<CharT, Traits>() const { return basic_string<CharT, Traits>(begin_, size_); }
 
     const_iterator begin() const noexcept { return const_iterator(begin_, begin_, begin_ + size_); }
-    const_iterator cbegin() const noexcept { return const_iterator(begin_, begin_, begin_ + size_); }
+    const_iterator cbegin() const noexcept { return begin(); }
 
     const_iterator end() const noexcept { return const_iterator(begin_ + size_, begin_, begin_ + size_); }
-    const_iterator cend() const noexcept { return const_iterator(begin_ + size_, begin_, begin_ + size_); }
+    const_iterator cend() const noexcept { return end(); }
 
-    const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator{end()}; }
-    const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator{end()}; }
+    const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
+    const_reverse_iterator crbegin() const noexcept { return rbegin(); }
 
-    const_reverse_iterator rend() const noexcept { return const_reverse_iterator{begin()}; }
-    const_reverse_iterator crend() const noexcept { return const_reverse_iterator{begin()}; }
+    const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
+    const_reverse_iterator crend() const noexcept { return rend(); }
 
     const_reference operator[](size_type pos) const {
         assert(pos < size_);

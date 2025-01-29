@@ -197,11 +197,10 @@ void byteseq::clear_and_reserve(std::size_t cap) {
     }
 }
 
-/*static*/ detail::byteseq_chunk_t* detail::byteseq_chunk_t::alloc(alloc_type& al, std::size_t cap) {
+/*static*/ detail::byteseq_chunk* detail::byteseq_chunk::alloc(alloc_type& al, std::size_t cap) {
     const std::size_t alloc_sz = get_alloc_sz(cap);
-    detail::byteseq_chunk_t* chunk = al.allocate(alloc_sz);
-    chunk->boundary = chunk->data + alloc_sz * sizeof(detail::byteseq_chunk_t) -
-                      offsetof(detail::byteseq_chunk_t, data);
+    detail::byteseq_chunk* chunk = al.allocate(alloc_sz);
+    chunk->boundary = chunk->data + alloc_sz * sizeof(detail::byteseq_chunk) - offsetof(detail::byteseq_chunk, data);
     assert(chunk->capacity() >= cap && get_alloc_sz(chunk->capacity()) == alloc_sz);
     return chunk;
 }

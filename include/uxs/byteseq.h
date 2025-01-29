@@ -10,31 +10,28 @@ namespace uxs {
 class byteseqdev;
 
 namespace detail {
-struct byteseq_chunk_t {
-    using alloc_type = std::allocator<byteseq_chunk_t>;
+struct byteseq_chunk {
+    using alloc_type = std::allocator<byteseq_chunk>;
     std::size_t size() const { return static_cast<std::size_t>(end - data); }
     std::size_t capacity() const { return static_cast<std::size_t>(boundary - data); }
     std::size_t avail() const { return static_cast<std::size_t>(boundary - end); }
     static std::size_t get_alloc_sz(std::size_t cap) {
-        return (offsetof(byteseq_chunk_t, data) + cap + sizeof(byteseq_chunk_t) - 1) / sizeof(byteseq_chunk_t);
+        return (offsetof(byteseq_chunk, data) + cap + sizeof(byteseq_chunk) - 1) / sizeof(byteseq_chunk);
     }
     static std::size_t max_size(const alloc_type& al) {
-        return (std::allocator_traits<alloc_type>::max_size(al) * sizeof(byteseq_chunk_t) -
-                offsetof(byteseq_chunk_t, data));
+        return (std::allocator_traits<alloc_type>::max_size(al) * sizeof(byteseq_chunk) - offsetof(byteseq_chunk, data));
     }
-    static void dealloc(alloc_type& al, byteseq_chunk_t* chunk) {
-        al.deallocate(chunk, get_alloc_sz(chunk->capacity()));
-    }
-    static byteseq_chunk_t* alloc(alloc_type& al, std::size_t cap);
-    byteseq_chunk_t* next;
-    byteseq_chunk_t* prev;
+    static void dealloc(alloc_type& al, byteseq_chunk* chunk) { al.deallocate(chunk, get_alloc_sz(chunk->capacity())); }
+    static byteseq_chunk* alloc(alloc_type& al, std::size_t cap);
+    byteseq_chunk* next;
+    byteseq_chunk* prev;
     std::uint8_t* end;
     std::uint8_t* boundary;
     alignas(std::alignment_of<max_align_t>::value) std::uint8_t data[1];
 };
 }  // namespace detail
 
-class byteseq : public detail::byteseq_chunk_t::alloc_type {
+class byteseq : public detail::byteseq_chunk::alloc_type {
  public:
     byteseq() noexcept = default;
     byteseq(const byteseq& other) { assign(other); }
@@ -92,7 +89,7 @@ class byteseq : public detail::byteseq_chunk_t::alloc_type {
     UXS_EXPORT bool uncompress();
 
  private:
-    using chunk_t = detail::byteseq_chunk_t;
+    using chunk_t = detail::byteseq_chunk;
 
     friend class byteseqdev;
 

@@ -1249,13 +1249,14 @@ class basic_membuffer_for_iobuf final : public basic_membuffer<Ty> {
  public:
     explicit basic_membuffer_for_iobuf(basic_iobuf<Ty>& out) noexcept
         : basic_membuffer<Ty>(out.first_avail(), out.last_avail()), out_(out) {}
-    ~basic_membuffer_for_iobuf() override { out_.advance(this->curr() - out_.first_avail()); }
+    ~basic_membuffer_for_iobuf() override { flush(); }
+    void flush() noexcept { out_.advance(this->curr() - out_.first_avail()); }
 
  private:
     basic_iobuf<Ty>& out_;
 
     std::size_t try_grow(std::size_t extra) override {
-        out_.advance(this->curr() - out_.first_avail());
+        flush();
         if (!out_.reserve().good()) { return 0; }
         this->set(out_.first_avail(), out_.last_avail());
         return this->avail();
