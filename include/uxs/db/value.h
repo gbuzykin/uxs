@@ -89,86 +89,91 @@ struct flexarray_t {
     }
 };
 
+#if _ITERATOR_DEBUG_LEVEL != 0
+struct list_links_t {
+    list_links_t* next;
+    list_links_t* prev;
+    list_links_t* head;
+};
+#else   // _ITERATOR_DEBUG_LEVEL != 0
+using list_links_t = dllist_node_t;
+#endif  // _ITERATOR_DEBUG_LEVEL != 0
+
 template<typename Ty>
 struct record_value {
     using char_type = typename Ty::char_type;
     alignas(std::alignment_of<Ty>::value) std::uint8_t x[sizeof(Ty)];
-    std::size_t name_sz;
-    char_type name_chars[1];
-    std::basic_string_view<char_type> name() const { return std::basic_string_view<char_type>(name_chars, name_sz); }
-    const Ty& val() const { return *reinterpret_cast<const Ty*>(&x); }
-    Ty& val() { return *reinterpret_cast<Ty*>(&x); }
+    std::size_t key_sz;
+    char_type key_chars[1];
+    std::basic_string_view<char_type> key() const { return std::basic_string_view<char_type>(key_chars, key_sz); }
+    const Ty& value() const { return *reinterpret_cast<const Ty*>(&x); }
+    Ty& value() { return *reinterpret_cast<Ty*>(&x); }
 };
 
 template<typename Ty>
 struct record_value_proxy : std::pair<std::basic_string_view<typename Ty::char_type>, Ty&> {
     record_value_proxy(record_value<std::remove_const_t<Ty>>& v)
-        : std::pair<std::basic_string_view<typename Ty::char_type>, Ty&>(v.name(), v.val()) {}
+        : std::pair<std::basic_string_view<typename Ty::char_type>, Ty&>(v.key(), v.value()) {}
     static record_value_proxy addressof(const record_value_proxy& proxy) { return proxy; }
     const record_value_proxy* operator->() const { return this; }
 };
-
-#if _ITERATOR_DEBUG_LEVEL != 0
-struct list_links_type {
-    list_links_type* next;
-    list_links_type* prev;
-    list_links_type* head;
-};
-#else   // _ITERATOR_DEBUG_LEVEL != 0
-using list_links_type = dllist_node_t;
-#endif  // _ITERATOR_DEBUG_LEVEL != 0
 
 template<typename CharT, typename Alloc>
 struct record_node_type {
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<record_node_type>;
 
-    list_links_type links;
-    list_links_type* next_bucket;
+    list_links_t links;
+    list_links_t* next_bucket;
     std::size_t hash_code;
     record_value<basic_value<CharT, Alloc>> v;
 
-    static record_node_type* from_links(list_links_type* links) {
+    static record_node_type* from_links(list_links_t* links) {
         return get_containing_record<record_node_type, offsetof(record_node_type, links)>(links);
     }
 
     static std::size_t max_name_size(const alloc_type& node_al) {
         return (std::allocator_traits<alloc_type>::max_size(node_al) * sizeof(record_node_type) -
-                offsetof(record_node_type, v.name_chars)) /
+                offsetof(record_node_type, v.key_chars)) /
                sizeof(CharT);
     }
 
-    static std::size_t get_alloc_sz(std::size_t name_sz) {
-        return (offsetof(record_node_type, v.name_chars) + name_sz * sizeof(CharT) + sizeof(record_node_type) - 1) /
+    static std::size_t get_alloc_sz(std::size_t key_sz) {
+        return (offsetof(record_node_type, v.key_chars) + key_sz * sizeof(CharT) + sizeof(record_node_type) - 1) /
                sizeof(record_node_type);
     }
 
-    UXS_EXPORT static record_node_type* alloc_checked(alloc_type& node_al, std::basic_string_view<CharT> name);
+    UXS_EXPORT static record_node_type* alloc_checked(alloc_type& node_al, std::basic_string_view<CharT> key);
 
     static void dealloc(alloc_type& node_al, record_node_type* node) {
-        node_al.deallocate(node, get_alloc_sz(node->v.name_sz));
+        node_al.deallocate(node, get_alloc_sz(node->v.key_sz));
     }
 };
 
 template<typename CharT, typename Alloc>
 struct record_node_traits {
-    using iterator_node_t = list_links_type;
+    using iterator_node_t = list_links_t;
     using node_t = record_node_type<CharT, Alloc>;
-    static list_links_type* get_next(list_links_type* node) { return node->next; }
-    static list_links_type* get_prev(list_links_type* node) { return node->prev; }
+    static list_links_t* get_next(list_links_t* node) { return node->next; }
+    static list_links_t* get_prev(list_links_t* node) { return node->prev; }
 #if _ITERATOR_DEBUG_LEVEL != 0
-    static void set_head(list_links_type* node, list_links_type* head) { node->head = head; }
-    static list_links_type* get_head(list_links_type* node) { return node->head; }
-    static list_links_type* get_front(list_links_type* head) { return head->next; }
+    static void set_head(list_links_t* node, list_links_t* head) { node->head = head; }
+    static list_links_t* get_head(list_links_t* node) { return node->head; }
+    static list_links_t* get_front(list_links_t* head) { return head->next; }
 #else   // _ITERATOR_DEBUG_LEVEL != 0
-    static void set_head(list_links_type* node, list_links_type* head) {}
+    static void set_head(list_links_t* node, list_links_t* head) {}
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
-    static record_value<basic_value<CharT, Alloc>>& get_value(list_links_type* node) {
+    static record_value<basic_value<CharT, Alloc>>& get_value(list_links_t* node) {
         return node_t::from_links(node)->v;
     }
 };
 
 template<typename CharT, typename Alloc>
 struct record_t {
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<record_t>;
+    using node_traits = record_node_traits<CharT, Alloc>;
+    using node_t = typename node_traits::node_t;
+    using hasher = std::hash<std::basic_string_view<CharT>>;
+
     using value_type = std::pair<std::basic_string_view<CharT>, basic_value<CharT, Alloc>>;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
@@ -176,15 +181,13 @@ struct record_t {
     using const_reference = record_value_proxy<const basic_value<CharT, Alloc>>;
     using pointer = reference;
     using const_pointer = const_reference;
-    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<record_t>;
-    using node_traits = record_node_traits<CharT, Alloc>;
-    using node_t = typename node_traits::node_t;
-    using hasher = std::hash<std::basic_string_view<CharT>>;
+    using iterator = list_iterator<record_t, node_traits, false>;
+    using const_iterator = list_iterator<record_t, node_traits, true>;
 
-    mutable list_links_type head;
+    mutable list_links_t head;
     std::size_t size;
     std::size_t bucket_count;
-    list_links_type* hashtbl[1];
+    list_links_t* hashtbl[1];
 
     enum : unsigned { min_bucket_count_inc = 12 };
 
@@ -192,10 +195,10 @@ struct record_t {
     record_t& operator=(const record_t&) = delete;
 
     UXS_EXPORT void init();
-    UXS_EXPORT void destroy(alloc_type& rec_al, list_links_type* node);
+    UXS_EXPORT void destroy(alloc_type& rec_al, list_links_t* node);
 
-    UXS_EXPORT list_links_type* find(std::basic_string_view<CharT> name, std::size_t hash_code) const;
-    UXS_EXPORT std::size_t count(std::basic_string_view<CharT> name) const;
+    UXS_EXPORT list_links_t* find(std::basic_string_view<CharT> key, std::size_t hash_code) const;
+    UXS_EXPORT std::size_t count(std::basic_string_view<CharT> key) const;
 
     static record_t* create(alloc_type& rec_al) {
         record_t* rec = alloc(rec_al, 1);
@@ -219,20 +222,20 @@ struct record_t {
     static record_t* assign(alloc_type& rec_al, record_t* rec, const record_t& src);
 
     template<typename... Args>
-    list_links_type* new_node(alloc_type& rec_al, std::basic_string_view<CharT> name, Args&&... args);
-    static void delete_node(alloc_type& rec_al, list_links_type* node);
-    void add_to_hash(list_links_type* node, std::size_t hash_code);
-    UXS_EXPORT static record_t* insert(alloc_type& rec_al, record_t* rec, std::size_t hash_code, list_links_type* node);
-    list_links_type* erase(alloc_type& rec_al, list_links_type* node);
-    std::size_t erase(alloc_type& rec_al, std::basic_string_view<CharT> name);
+    list_links_t* new_node(alloc_type& rec_al, std::basic_string_view<CharT> key, Args&&... args);
+    static void delete_node(alloc_type& rec_al, list_links_t* node);
+    void add_to_hash(list_links_t* node, std::size_t hash_code);
+    UXS_EXPORT static record_t* insert(alloc_type& rec_al, record_t* rec, std::size_t hash_code, list_links_t* node);
+    list_links_t* erase(alloc_type& rec_al, list_links_t* node);
+    std::size_t erase(alloc_type& rec_al, std::basic_string_view<CharT> key);
 
     static std::size_t max_size(const alloc_type& rec_al) {
         return (std::allocator_traits<alloc_type>::max_size(rec_al) * sizeof(record_t) - offsetof(record_t, hashtbl)) /
-               sizeof(list_links_type*);
+               sizeof(list_links_t*);
     }
 
     static std::size_t get_alloc_sz(std::size_t bckt_cnt) {
-        return (offsetof(record_t, hashtbl) + bckt_cnt * sizeof(list_links_type*) + sizeof(record_t) - 1) /
+        return (offsetof(record_t, hashtbl) + bckt_cnt * sizeof(list_links_t*) + sizeof(record_t) - 1) /
                sizeof(record_t);
     }
 
@@ -266,19 +269,17 @@ basic_value<CharT, Alloc> make_record(
 
 template<typename CharT, typename Alloc = std::allocator<CharT>>
 class basic_value : protected std::allocator_traits<Alloc>::template rebind_alloc<CharT> {
- public:
-    using char_type = CharT;
-    using allocator_type = Alloc;
-
  private:
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<CharT>;
-    using char_flexarray_t = detail::flexarray_t<char_type, Alloc, false>;
-    using value_flexarray_t = detail::flexarray_t<char_type, Alloc, true>;
+    using char_flexarray_t = detail::flexarray_t<CharT, Alloc, false>;
+    using value_flexarray_t = detail::flexarray_t<CharT, Alloc, true>;
     using record_t = detail::record_t<CharT, Alloc>;
 
  public:
-    using record_iterator = list_iterator<record_t, typename record_t::node_traits, false>;
-    using const_record_iterator = list_iterator<record_t, typename record_t::node_traits, true>;
+    using char_type = CharT;
+    using allocator_type = Alloc;
+    using record_iterator = typename record_t::iterator;
+    using const_record_iterator = typename record_t::const_iterator;
 
     basic_value() noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
         : alloc_type(), type_(dtype::null) {}
@@ -396,6 +397,9 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         std::swap(type_, other.type_);
     }
 
+    basic_value& append_string(std::basic_string_view<char_type> s);
+    basic_value& append_string(const char_type* cstr) { return append_string(std::basic_string_view<char_type>(cstr)); }
+
     template<typename CharT_, typename Alloc_>
     friend UXS_EXPORT bool operator==(const basic_value<CharT_, Alloc_>& lhs,
                                       const basic_value<CharT_, Alloc_>& rhs) noexcept;
@@ -421,8 +425,8 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     template<typename Ty, typename U>
-    Ty value_or(std::basic_string_view<char_type> name, U&& default_value) const {
-        auto it = find(name);
+    Ty value_or(std::basic_string_view<char_type> key, U&& default_value) const {
+        auto it = find(key);
         if (it != nil()) {
             auto result = it->second.template get<Ty>();
             if (result) { return *result; }
@@ -436,8 +440,8 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     template<typename Ty>
-    Ty value(std::basic_string_view<char_type> name) const {
-        return value_or<Ty>(name, Ty());
+    Ty value(std::basic_string_view<char_type> key) const {
+        return value_or<Ty>(key, Ty());
     }
 
     bool is_null() const noexcept { return type_ == dtype::null; }
@@ -476,12 +480,9 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     UXS_EXPORT bool convert(dtype type);
 
-    UXS_EXPORT bool empty() const noexcept;
+    bool empty() const noexcept { return size() == 0; }
     UXS_EXPORT std::size_t size() const noexcept;
     explicit operator bool() const { return !is_null(); }
-
-    basic_value& append_string(std::basic_string_view<char_type> s);
-    basic_value& append_string(const char_type* cstr) { return append_string(std::basic_string_view<char_type>(cstr)); }
 
     uxs::span<const basic_value> as_array() const noexcept;
     uxs::span<basic_value> as_array() noexcept;
@@ -504,15 +505,15 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         throw database_error("index out of range");
     }
 
-    UXS_EXPORT const basic_value& operator[](std::basic_string_view<char_type> name) const;
-    UXS_EXPORT basic_value& operator[](std::basic_string_view<char_type> name);
+    UXS_EXPORT const basic_value& operator[](std::basic_string_view<char_type> key) const;
+    UXS_EXPORT basic_value& operator[](std::basic_string_view<char_type> key);
 
-    const_record_iterator find(std::basic_string_view<char_type> name) const;
-    record_iterator find(std::basic_string_view<char_type> name);
+    const_record_iterator find(std::basic_string_view<char_type> key) const;
+    record_iterator find(std::basic_string_view<char_type> key);
     const_record_iterator nil() const noexcept;
     record_iterator nil() noexcept;
-    bool contains(std::basic_string_view<char_type> name) const;
-    std::size_t count(std::basic_string_view<char_type> name) const;
+    bool contains(std::basic_string_view<char_type> key) const;
+    std::size_t count(std::basic_string_view<char_type> key) const;
 
     UXS_EXPORT void clear() noexcept;
     UXS_EXPORT void reserve(std::size_t sz);
@@ -530,19 +531,19 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     basic_value* insert(std::size_t pos, basic_value&& v) { return emplace(pos, std::move(v)); }
 
     template<typename... Args>
-    record_iterator emplace(std::basic_string_view<char_type> name, Args&&... args);
-    record_iterator insert(std::basic_string_view<char_type> name, const basic_value& v) { return emplace(name, v); }
-    record_iterator insert(std::basic_string_view<char_type> name, basic_value&& v) {
-        return emplace(name, std::move(v));
+    record_iterator emplace(std::basic_string_view<char_type> key, Args&&... args);
+    record_iterator insert(std::basic_string_view<char_type> key, const basic_value& v) { return emplace(key, v); }
+    record_iterator insert(std::basic_string_view<char_type> key, basic_value&& v) {
+        return emplace(key, std::move(v));
     }
 
     template<typename... Args>
-    std::pair<record_iterator, bool> emplace_unique(std::basic_string_view<char_type> name, Args&&... args);
-    std::pair<record_iterator, bool> insert_unique(std::basic_string_view<char_type> name, const basic_value& v) {
-        return emplace_unique(name, v);
+    std::pair<record_iterator, bool> emplace_unique(std::basic_string_view<char_type> key, Args&&... args);
+    std::pair<record_iterator, bool> insert_unique(std::basic_string_view<char_type> key, const basic_value& v) {
+        return emplace_unique(key, v);
     }
-    std::pair<record_iterator, bool> insert_unique(std::basic_string_view<char_type> name, basic_value&& v) {
-        return emplace_unique(name, std::move(v));
+    std::pair<record_iterator, bool> insert_unique(std::basic_string_view<char_type> key, basic_value&& v) {
+        return emplace_unique(key, std::move(v));
     }
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
@@ -557,7 +558,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     UXS_EXPORT void erase(std::size_t pos);
     UXS_EXPORT record_iterator erase(const_record_iterator it);
-    UXS_EXPORT std::size_t erase(std::basic_string_view<char_type> name);
+    UXS_EXPORT std::size_t erase(std::basic_string_view<char_type> key);
 
  private:
     friend class json::writer;
@@ -631,7 +632,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     void append_array(std::size_t sz, RandIt src);
     template<typename RandIt>
     std::size_t append_array(RandIt first, RandIt last, std::true_type /* random access iterator */) {
-        std::size_t count = static_cast<std::size_t>(last - first);
+        const std::size_t count = static_cast<std::size_t>(last - first);
         append_array(count, first);
         return count;
     }
@@ -802,21 +803,21 @@ basic_value<CharT, Alloc>* basic_value<CharT, Alloc>::emplace(std::size_t pos, A
 
 template<typename CharT, typename Alloc>
 template<typename... Args>
-auto basic_value<CharT, Alloc>::emplace(std::basic_string_view<char_type> name, Args&&... args) -> record_iterator {
+auto basic_value<CharT, Alloc>::emplace(std::basic_string_view<char_type> key, Args&&... args) -> record_iterator {
     typename record_t::alloc_type rec_al(*this);
     if (type_ != dtype::record) {
         if (type_ != dtype::null) { throw database_error("not a record"); }
         value_.rec = record_t::create(rec_al);
         type_ = dtype::record;
     }
-    detail::list_links_type* node = value_.rec->new_node(rec_al, name, std::forward<Args>(args)...);
-    value_.rec = record_t::insert(rec_al, value_.rec, typename record_t::hasher{}(name), node);
+    detail::list_links_t* node = value_.rec->new_node(rec_al, key, std::forward<Args>(args)...);
+    value_.rec = record_t::insert(rec_al, value_.rec, typename record_t::hasher{}(key), node);
     return record_iterator(node);
 }
 
 template<typename CharT, typename Alloc>
 template<typename... Args>
-auto basic_value<CharT, Alloc>::emplace_unique(std::basic_string_view<char_type> name,
+auto basic_value<CharT, Alloc>::emplace_unique(std::basic_string_view<char_type> key,
                                                Args&&... args) -> std::pair<record_iterator, bool> {
     typename record_t::alloc_type rec_al(*this);
     if (type_ != dtype::record) {
@@ -824,10 +825,10 @@ auto basic_value<CharT, Alloc>::emplace_unique(std::basic_string_view<char_type>
         value_.rec = record_t::create(rec_al);
         type_ = dtype::record;
     }
-    const std::size_t hash_code = typename record_t::hasher{}(name);
-    detail::list_links_type* node = value_.rec->find(name, hash_code);
+    const std::size_t hash_code = typename record_t::hasher{}(key);
+    detail::list_links_t* node = value_.rec->find(key, hash_code);
     if (node == &value_.rec->head) {
-        node = value_.rec->new_node(rec_al, name, std::forward<Args>(args)...);
+        node = value_.rec->new_node(rec_al, key, std::forward<Args>(args)...);
         value_.rec = record_t::insert(rec_al, value_.rec, hash_code, node);
         return std::make_pair(record_iterator(node), true);
     }
@@ -842,7 +843,7 @@ void basic_value<CharT, Alloc>::insert(std::size_t pos, InputIt first, InputIt l
         value_.arr = alloc_array(first, last, is_random_access_iterator<InputIt>());
         type_ = dtype::array;
     } else if (first != last) {
-        std::size_t count = append_array(first, last, is_random_access_iterator<InputIt>());
+        const std::size_t count = append_array(first, last, is_random_access_iterator<InputIt>());
         if (pos < value_.arr->size - count) {
             std::rotate(&(*value_.arr)[pos], &(*value_.arr)[value_.arr->size - count], &(*value_.arr)[value_.arr->size]);
         }
@@ -859,7 +860,7 @@ void basic_value<CharT, Alloc>::insert(InputIt first, InputIt last) {
         type_ = dtype::record;
     } else {
         for (; first != last; ++first) {
-            detail::list_links_type* node = value_.rec->new_node(rec_al, first->first, first->second);
+            detail::list_links_t* node = value_.rec->new_node(rec_al, first->first, first->second);
             value_.rec = record_t::insert(rec_al, value_.rec, typename record_t::hasher{}(first->first), node);
         }
     }
@@ -878,50 +879,48 @@ uxs::span<basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() noexc
 }
 
 template<typename CharT, typename Alloc>
-iterator_range<typename basic_value<CharT, Alloc>::const_record_iterator> basic_value<CharT, Alloc>::as_record() const {
+auto basic_value<CharT, Alloc>::as_record() const -> iterator_range<const_record_iterator> {
     if (type_ != dtype::record) { throw database_error("not a record"); }
     return uxs::make_range(const_record_iterator(value_.rec->head.next), const_record_iterator(&value_.rec->head));
 }
 
 template<typename CharT, typename Alloc>
-iterator_range<typename basic_value<CharT, Alloc>::record_iterator> basic_value<CharT, Alloc>::as_record() {
+auto basic_value<CharT, Alloc>::as_record() -> iterator_range<record_iterator> {
     if (type_ != dtype::record) { throw database_error("not a record"); }
     return uxs::make_range(record_iterator(value_.rec->head.next), record_iterator(&value_.rec->head));
 }
 
 template<typename CharT, typename Alloc>
-typename basic_value<CharT, Alloc>::const_record_iterator basic_value<CharT, Alloc>::find(
-    std::basic_string_view<char_type> name) const {
+auto basic_value<CharT, Alloc>::find(std::basic_string_view<char_type> key) const -> const_record_iterator {
     if (type_ != dtype::record) { throw database_error("not a record"); }
-    return const_record_iterator(value_.rec->find(name, typename record_t::hasher{}(name)));
+    return const_record_iterator(value_.rec->find(key, typename record_t::hasher{}(key)));
 }
 
 template<typename CharT, typename Alloc>
-typename basic_value<CharT, Alloc>::record_iterator basic_value<CharT, Alloc>::find(
-    std::basic_string_view<char_type> name) {
+auto basic_value<CharT, Alloc>::find(std::basic_string_view<char_type> key) -> record_iterator {
     if (type_ != dtype::record) { throw database_error("not a record"); }
-    return record_iterator(value_.rec->find(name, typename record_t::hasher{}(name)));
+    return record_iterator(value_.rec->find(key, typename record_t::hasher{}(key)));
 }
 
 template<typename CharT, typename Alloc>
-typename basic_value<CharT, Alloc>::const_record_iterator basic_value<CharT, Alloc>::nil() const noexcept {
+auto basic_value<CharT, Alloc>::nil() const noexcept -> const_record_iterator {
     return const_record_iterator(type_ == dtype::record ? &value_.rec->head : nullptr);
 }
 
 template<typename CharT, typename Alloc>
-typename basic_value<CharT, Alloc>::record_iterator basic_value<CharT, Alloc>::nil() noexcept {
+auto basic_value<CharT, Alloc>::nil() noexcept -> record_iterator {
     return record_iterator(type_ == dtype::record ? &value_.rec->head : nullptr);
 }
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::contains(std::basic_string_view<char_type> name) const {
-    return find(name) != nil();
+bool basic_value<CharT, Alloc>::contains(std::basic_string_view<char_type> key) const {
+    return find(key) != nil();
 }
 
 template<typename CharT, typename Alloc>
-std::size_t basic_value<CharT, Alloc>::count(std::basic_string_view<char_type> name) const {
+std::size_t basic_value<CharT, Alloc>::count(std::basic_string_view<char_type> key) const {
     if (type_ != dtype::record) { throw database_error("not a record"); }
-    return value_.rec->count(name);
+    return value_.rec->count(key);
 }
 
 // --------------------------
@@ -1036,7 +1035,7 @@ std::size_t basic_value<CharT, Alloc>::append_array(InputIt first, InputIt last,
     if (first == last) { return 0; }
     if (value_.arr) {
         typename value_flexarray_t::alloc_type arr_al(*this);
-        std::size_t old_sz = value_.arr->size;
+        const std::size_t old_sz = value_.arr->size;
         for (; first != last; ++first) {
             if (value_.arr->size == value_.arr->capacity) {
                 value_.arr = value_flexarray_t::grow(arr_al, value_.arr, 1);
@@ -1061,7 +1060,7 @@ void basic_value<CharT, Alloc>::assign_impl(InputIt first, InputIt last, std::tr
     } else {
         value_.rec->clear(rec_al);
         for (; first != last; ++first) {
-            detail::list_links_type* node = value_.rec->new_node(rec_al, first->first, first->second);
+            detail::list_links_t* node = value_.rec->new_node(rec_al, first->first, first->second);
             value_.rec = record_t::insert(rec_al, value_.rec, typename record_t::hasher{}(first->first), node);
         }
     }
@@ -1090,7 +1089,7 @@ template<typename InputIt>
     record_t* rec = create(rec_al);
     try {
         for (; first != last; ++first) {
-            list_links_type* node = rec->new_node(rec_al, first->first, first->second);
+            list_links_t* node = rec->new_node(rec_al, first->first, first->second);
             rec = insert(rec_al, rec, hasher{}(first->first), node);
         }
         return rec;
@@ -1103,12 +1102,11 @@ template<typename InputIt>
 
 template<typename CharT, typename Alloc>
 template<typename... Args>
-list_links_type* record_t<CharT, Alloc>::new_node(alloc_type& rec_al, std::basic_string_view<CharT> name,
-                                                  Args&&... args) {
+list_links_t* record_t<CharT, Alloc>::new_node(alloc_type& rec_al, std::basic_string_view<CharT> key, Args&&... args) {
     typename node_t::alloc_type node_al(rec_al);
-    node_t* node = node_t::alloc_checked(node_al, name);
+    node_t* node = node_t::alloc_checked(node_al, key);
     try {
-        new (&node->v.val()) basic_value<CharT, Alloc>(std::forward<Args>(args)...);
+        new (&node->v.value()) basic_value<CharT, Alloc>(std::forward<Args>(args)...);
         return &node->links;
     } catch (...) {
         node_t::dealloc(node_al, node);
@@ -1117,9 +1115,9 @@ list_links_type* record_t<CharT, Alloc>::new_node(alloc_type& rec_al, std::basic
 }
 
 template<typename CharT, typename Alloc>
-/*static*/ void record_t<CharT, Alloc>::delete_node(alloc_type& rec_al, list_links_type* links) {
+/*static*/ void record_t<CharT, Alloc>::delete_node(alloc_type& rec_al, list_links_t* links) {
     node_t* node = node_t::from_links(links);
-    node->v.val().~basic_value<CharT, Alloc>();
+    node->v.value().~basic_value<CharT, Alloc>();
     typename node_t::alloc_type node_al(rec_al);
     node_t::dealloc(node_al, node);
 }
