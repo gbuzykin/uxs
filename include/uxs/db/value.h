@@ -99,60 +99,63 @@ struct list_links_t {
 using list_links_t = dllist_node_t;
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
 
-template<typename Ty>
-struct record_value {
-    using char_type = typename Ty::char_type;
-    alignas(std::alignment_of<Ty>::value) std::uint8_t x[sizeof(Ty)];
-    std::size_t key_sz;
-    char_type key_chars[1];
-    std::basic_string_view<char_type> key() const { return std::basic_string_view<char_type>(key_chars, key_sz); }
-    const Ty& value() const { return *reinterpret_cast<const Ty*>(&x); }
-    Ty& value() { return *reinterpret_cast<Ty*>(&x); }
-};
-
-template<typename Ty>
-struct record_value_proxy : std::pair<std::basic_string_view<typename Ty::char_type>, Ty&> {
-    record_value_proxy(record_value<std::remove_const_t<Ty>>& v)
-        : std::pair<std::basic_string_view<typename Ty::char_type>, Ty&>(v.key(), v.value()) {}
-    static record_value_proxy addressof(const record_value_proxy& proxy) { return proxy; }
-    const record_value_proxy* operator->() const { return this; }
-};
+template<typename CharT, typename Alloc>
+struct record_t;
 
 template<typename CharT, typename Alloc>
-struct record_node_type {
-    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<record_node_type>;
+class record_value {
+ private:
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<record_value>;
 
-    list_links_t links;
-    list_links_t* next_bucket;
-    std::size_t hash_code;
-    record_value<basic_value<CharT, Alloc>> v;
+ public:
+    using char_type = CharT;
+    using value_type = basic_value<CharT, Alloc>;
 
-    static record_node_type* from_links(list_links_t* links) {
-        return get_containing_record<record_node_type, offsetof(record_node_type, links)>(links);
+    std::basic_string_view<char_type> key() const { return std::basic_string_view<char_type>(key_chars_, key_sz_); }
+    const value_type& value() const { return *reinterpret_cast<const value_type*>(&x_); }
+    value_type& value() { return *reinterpret_cast<value_type*>(&x_); }
+
+    friend bool operator==(const record_value& lhs, const record_value& rhs) noexcept {
+        return lhs.key() == rhs.key() && lhs.value() == rhs.value();
+    }
+    friend bool operator!=(const record_value& lhs, const record_value& rhs) noexcept { return !(lhs == rhs); }
+
+    static record_value* from_links(list_links_t* links) {
+        return get_containing_record<record_value, offsetof(record_value, links_)>(links);
     }
 
+ private:
+    friend struct record_t<CharT, Alloc>;
+
+    list_links_t links_;
+    list_links_t* next_bucket_;
+    std::size_t hash_code_;
+    alignas(std::alignment_of<value_type>::value) std::uint8_t x_[sizeof(value_type)];
+    std::size_t key_sz_;
+    char_type key_chars_[1];
+
     static std::size_t max_name_size(const alloc_type& node_al) {
-        return (std::allocator_traits<alloc_type>::max_size(node_al) * sizeof(record_node_type) -
-                offsetof(record_node_type, v.key_chars)) /
+        return (std::allocator_traits<alloc_type>::max_size(node_al) * sizeof(record_value) -
+                offsetof(record_value, key_chars_)) /
                sizeof(CharT);
     }
 
     static std::size_t get_alloc_sz(std::size_t key_sz) {
-        return (offsetof(record_node_type, v.key_chars) + key_sz * sizeof(CharT) + sizeof(record_node_type) - 1) /
-               sizeof(record_node_type);
+        return (offsetof(record_value, key_chars_) + key_sz * sizeof(CharT) + sizeof(record_value) - 1) /
+               sizeof(record_value);
     }
 
-    UXS_EXPORT static record_node_type* alloc_checked(alloc_type& node_al, std::basic_string_view<CharT> key);
+    UXS_EXPORT static record_value* alloc_checked(alloc_type& node_al, std::basic_string_view<CharT> key);
 
-    static void dealloc(alloc_type& node_al, record_node_type* node) {
-        node_al.deallocate(node, get_alloc_sz(node->v.key_sz));
+    static void dealloc(alloc_type& node_al, record_value* node) {
+        node_al.deallocate(node, get_alloc_sz(node->key_sz_));
     }
 };
 
 template<typename CharT, typename Alloc>
 struct record_node_traits {
     using iterator_node_t = list_links_t;
-    using node_t = record_node_type<CharT, Alloc>;
+    using node_t = record_value<CharT, Alloc>;
     static list_links_t* get_next(list_links_t* node) { return node->next; }
     static list_links_t* get_prev(list_links_t* node) { return node->prev; }
 #if _ITERATOR_DEBUG_LEVEL != 0
@@ -162,9 +165,7 @@ struct record_node_traits {
 #else   // _ITERATOR_DEBUG_LEVEL != 0
     static void set_head(list_links_t* node, list_links_t* head) {}
 #endif  // _ITERATOR_DEBUG_LEVEL != 0
-    static record_value<basic_value<CharT, Alloc>>& get_value(list_links_t* node) {
-        return node_t::from_links(node)->v;
-    }
+    static record_value<CharT, Alloc>& get_value(list_links_t* node) { return *node_t::from_links(node); }
 };
 
 template<typename CharT, typename Alloc>
@@ -174,13 +175,13 @@ struct record_t {
     using node_t = typename node_traits::node_t;
     using hasher = std::hash<std::basic_string_view<CharT>>;
 
-    using value_type = std::pair<std::basic_string_view<CharT>, basic_value<CharT, Alloc>>;
+    using value_type = record_value<CharT, Alloc>;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
-    using reference = record_value_proxy<basic_value<CharT, Alloc>>;
-    using const_reference = record_value_proxy<const basic_value<CharT, Alloc>>;
-    using pointer = reference;
-    using const_pointer = const_reference;
+    using pointer = value_type*;
+    using const_pointer = const value_type*;
+    using reference = value_type&;
+    using const_reference = const value_type&;
     using iterator = list_iterator<record_t, node_traits, false>;
     using const_iterator = list_iterator<record_t, node_traits, true>;
 
@@ -428,7 +429,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     Ty value_or(std::basic_string_view<char_type> key, U&& default_value) const {
         auto it = find(key);
         if (it != nil()) {
-            auto result = it->second.template get<Ty>();
+            auto result = it->value().template get<Ty>();
             if (result) { return *result; }
         }
         return Ty(std::forward<U>(default_value));
@@ -1106,8 +1107,8 @@ list_links_t* record_t<CharT, Alloc>::new_node(alloc_type& rec_al, std::basic_st
     typename node_t::alloc_type node_al(rec_al);
     node_t* node = node_t::alloc_checked(node_al, key);
     try {
-        new (&node->v.value()) basic_value<CharT, Alloc>(std::forward<Args>(args)...);
-        return &node->links;
+        new (&node->value()) basic_value<CharT, Alloc>(std::forward<Args>(args)...);
+        return &node->links_;
     } catch (...) {
         node_t::dealloc(node_al, node);
         throw;
@@ -1117,7 +1118,7 @@ list_links_t* record_t<CharT, Alloc>::new_node(alloc_type& rec_al, std::basic_st
 template<typename CharT, typename Alloc>
 /*static*/ void record_t<CharT, Alloc>::delete_node(alloc_type& rec_al, list_links_t* links) {
     node_t* node = node_t::from_links(links);
-    node->v.value().~basic_value<CharT, Alloc>();
+    node->value().~basic_value<CharT, Alloc>();
     typename node_t::alloc_type node_al(rec_al);
     node_t::dealloc(node_al, node);
 }
@@ -1179,6 +1180,30 @@ using value = basic_value<char>;
 }  // namespace uxs
 
 namespace std {
+#if __cplusplus >= 201703L
+template<std::size_t N, typename CharT, typename Alloc, typename = std::enable_if_t<N == 0>>
+auto get(const uxs::db::detail::record_value<CharT, Alloc>& v) -> decltype(v.key()) {
+    return v.key();
+}
+template<std::size_t N, typename CharT, typename Alloc, typename = std::enable_if_t<N == 1>>
+auto get(const uxs::db::detail::record_value<CharT, Alloc>& v) -> decltype(v.value()) {
+    return v.value();
+}
+template<std::size_t N, typename CharT, typename Alloc, typename = std::enable_if_t<N == 1>>
+auto get(uxs::db::detail::record_value<CharT, Alloc>& v) -> decltype(v.value()) {
+    return v.value();
+}
+
+template<typename CharT, typename Alloc>
+class tuple_size<uxs::db::detail::record_value<CharT, Alloc>> : public std::integral_constant<std::size_t, 2> {};
+
+template<std::size_t N, typename CharT, typename Alloc>
+class tuple_element<N, uxs::db::detail::record_value<CharT, Alloc>> {
+ public:
+    using type = decltype(get<N>(std::declval<uxs::db::detail::record_value<CharT, Alloc>>()));
+};
+#endif  // __cplusplus >= 201703L
+
 template<typename CharT, typename Alloc>
 void swap(uxs::db::basic_value<CharT, Alloc>& v1, uxs::db::basic_value<CharT, Alloc>& v2) noexcept {
     v1.swap(v2);

@@ -137,17 +137,6 @@ bool operator!=(const iterator_range<IterL>& lhs, const iterator_range<IterR>& r
 //-----------------------------------------------------------------------------
 // Iterator facade
 
-namespace detail {
-template<typename RefTy>
-auto addressof(const RefTy&& r) -> decltype(RefTy::addressof(r)) {
-    return RefTy::addressof(r);  // special implementation for temporary objects
-}
-template<typename RefTy>
-auto addressof(RefTy& r) -> decltype(std::addressof(r)) {
-    return std::addressof(r);  // standard implementation
-}
-}  // namespace detail
-
 template<typename Iter, typename ValTy, typename Tag,  //
          typename RefTy, typename PtrTy, typename DiffTy = std::ptrdiff_t>
 class iterator_facade {
@@ -217,9 +206,9 @@ class iterator_facade {
     }
 
     template<typename Iter_ = Iter>
-    auto operator->() const noexcept(noexcept(detail::addressof(std::declval<Iter>().dereference())))
-        -> decltype(detail::addressof(std::declval<Iter_>().dereference())) {
-        return detail::addressof(**this);
+    auto operator->() const noexcept(noexcept(std::addressof(std::declval<Iter>().dereference())))
+        -> decltype(std::addressof(std::declval<Iter_>().dereference())) {
+        return std::addressof(**this);
     }
 
     template<typename Iter_ = Iter>

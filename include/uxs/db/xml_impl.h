@@ -73,10 +73,10 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
             case token_t::start_element: {
                 txt.clear();
                 auto result = top->first->emplace_unique(utf_string_adapter<CharT>{}(tk.second), al);
-                stack.emplace_back(&result.first->second, tk.second);
+                stack.emplace_back(&result.first->value(), tk.second);
                 if (!result.second) {
-                    result.first->second.convert(dtype::array);
-                    stack.back().first = &result.first->second.emplace_back(al);
+                    result.first->value().convert(dtype::array);
+                    stack.back().first = &result.first->value().emplace_back(al);
                 }
             } break;
             case token_t::end_element: {
@@ -206,17 +206,17 @@ loop:
         auto range = top->v->as_record();
         auto el = top->record_it;
         while (true) {
-            if (el != range.begin() && !std::prev(el)->second.is_array()) {
+            if (el != range.begin() && !std::prev(el)->value().is_array()) {
                 output_.append("</", 2).append(element).push_back('>');
             }
             if (el == range.end()) { break; }
-            element = utf8_string_adapter{}(el->first);
-            if (!el->second.is_array()) {
+            element = utf8_string_adapter{}(el->key());
+            if (!el->value().is_array()) {
                 output_.push_back('\n');
                 output_.append(indent, indent_char_).push_back('<');
                 output_.append(element).push_back('>');
             }
-            if (write_value((el++)->second)) {
+            if (write_value((el++)->value())) {
                 std::prev(stack.end(), 2)->record_it = el;
                 goto loop;
             }

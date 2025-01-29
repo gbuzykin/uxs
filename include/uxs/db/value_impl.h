@@ -114,11 +114,11 @@ template<typename CharT, typename Alloc>
 list_links_t* record_t<CharT, Alloc>::find(std::basic_string_view<CharT> key, std::size_t hash_code) const {
     list_links_t* next_bucket = hashtbl[hash_code % bucket_count];
     while (next_bucket) {
-        if (node_t::from_links(next_bucket)->hash_code == hash_code &&
+        if (node_t::from_links(next_bucket)->hash_code_ == hash_code &&
             node_traits::get_value(next_bucket).key() == key) {
             return next_bucket;
         }
-        next_bucket = node_t::from_links(next_bucket)->next_bucket;
+        next_bucket = node_t::from_links(next_bucket)->next_bucket_;
     }
     return &head;
 }
@@ -129,11 +129,11 @@ std::size_t record_t<CharT, Alloc>::count(std::basic_string_view<CharT> key) con
     const std::size_t hash_code = hasher{}(key);
     list_links_t* next_bucket = hashtbl[hash_code % bucket_count];
     while (next_bucket) {
-        if (node_t::from_links(next_bucket)->hash_code == hash_code &&
+        if (node_t::from_links(next_bucket)->hash_code_ == hash_code &&
             node_traits::get_value(next_bucket).key() == key) {
             ++count;
         }
-        next_bucket = node_t::from_links(next_bucket)->next_bucket;
+        next_bucket = node_t::from_links(next_bucket)->next_bucket_;
     }
     return count;
 }
@@ -185,7 +185,7 @@ template<typename CharT, typename Alloc>
         list_links_t* node = src.head.next;
         while (node != &src.head) {
             const auto& v = node_traits::get_value(node);
-            rec = insert(rec_al, rec, node_t::from_links(node)->hash_code, rec->new_node(rec_al, v.key(), v.value()));
+            rec = insert(rec_al, rec, node_t::from_links(node)->hash_code_, rec->new_node(rec_al, v.key(), v.value()));
             node = node->next;
         }
         return rec;
@@ -203,7 +203,7 @@ template<typename CharT, typename Alloc>
     list_links_t* node = src.head.next;
     while (node != &src.head) {
         const auto& v = node_traits::get_value(node);
-        rec = insert(rec_al, rec, node_t::from_links(node)->hash_code, rec->new_node(rec_al, v.key(), v.value()));
+        rec = insert(rec_al, rec, node_t::from_links(node)->hash_code_, rec->new_node(rec_al, v.key(), v.value()));
         node = node->next;
     }
     return rec;
@@ -212,7 +212,7 @@ template<typename CharT, typename Alloc>
 template<typename CharT, typename Alloc>
 void record_t<CharT, Alloc>::add_to_hash(list_links_t* node, std::size_t hash_code) {
     list_links_t** slot = &hashtbl[hash_code % bucket_count];
-    node_t::from_links(node)->next_bucket = *slot;
+    node_t::from_links(node)->next_bucket_ = *slot;
     *slot = node;
 }
 
@@ -225,7 +225,7 @@ template<typename CharT, typename Alloc>
         if (sz > rec->size) { rec = record_t::rehash(rec_al, rec, sz); }
     }
     node_traits::set_head(node, &rec->head);
-    node_t::from_links(node)->hash_code = hash_code;
+    node_t::from_links(node)->hash_code_ = hash_code;
     rec->add_to_hash(node, hash_code);
     dllist_insert_before(&rec->head, node);
     ++rec->size;
@@ -234,12 +234,12 @@ template<typename CharT, typename Alloc>
 
 template<typename CharT, typename Alloc>
 list_links_t* record_t<CharT, Alloc>::erase(alloc_type& rec_al, list_links_t* node) {
-    list_links_t** p_next_bucket = &hashtbl[node_t::from_links(node)->hash_code % bucket_count];
+    list_links_t** p_next_bucket = &hashtbl[node_t::from_links(node)->hash_code_ % bucket_count];
     while (*p_next_bucket != node) {
         assert(*p_next_bucket);
-        p_next_bucket = &node_t::from_links(*p_next_bucket)->next_bucket;
+        p_next_bucket = &node_t::from_links(*p_next_bucket)->next_bucket_;
     }
-    *p_next_bucket = node_t::from_links(*p_next_bucket)->next_bucket;
+    *p_next_bucket = node_t::from_links(*p_next_bucket)->next_bucket_;
     list_links_t* next = dllist_remove(node);
     delete_node(rec_al, node);
     --size;
@@ -252,15 +252,15 @@ std::size_t record_t<CharT, Alloc>::erase(alloc_type& rec_al, std::basic_string_
     const std::size_t hash_code = hasher{}(key);
     list_links_t** p_next_bucket = &hashtbl[hash_code % bucket_count];
     while (*p_next_bucket) {
-        if (node_t::from_links(*p_next_bucket)->hash_code == hash_code &&
+        if (node_t::from_links(*p_next_bucket)->hash_code_ == hash_code &&
             node_traits::get_value(*p_next_bucket).key() == key) {
             list_links_t* erased_node = *p_next_bucket;
-            *p_next_bucket = node_t::from_links(*p_next_bucket)->next_bucket;
+            *p_next_bucket = node_t::from_links(*p_next_bucket)->next_bucket_;
             --size;
             dllist_remove(erased_node);
             delete_node(rec_al, erased_node);
         } else {
-            p_next_bucket = &node_t::from_links(*p_next_bucket)->next_bucket;
+            p_next_bucket = &node_t::from_links(*p_next_bucket)->next_bucket_;
         }
     }
     return old_sz - size;
@@ -303,20 +303,20 @@ template<typename CharT, typename Alloc>
     new_rec->head.prev->next = &new_rec->head;
     while (node != &new_rec->head) {
         node_traits::set_head(node, &new_rec->head);
-        new_rec->add_to_hash(node, node_t::from_links(node)->hash_code);
+        new_rec->add_to_hash(node, node_t::from_links(node)->hash_code_);
         node = node->next;
     }
     return new_rec;
 }
 
 template<typename CharT, typename Alloc>
-/*static*/ record_node_type<CharT, Alloc>* record_node_type<CharT, Alloc>::alloc_checked(
-    alloc_type& node_al, std::basic_string_view<CharT> key) {
+/*static*/ record_value<CharT, Alloc>* record_value<CharT, Alloc>::alloc_checked(alloc_type& node_al,
+                                                                                 std::basic_string_view<CharT> key) {
     if (key.size() > max_name_size(node_al)) { throw std::length_error("too much to reserve"); }
     const std::size_t alloc_sz = get_alloc_sz(key.size());
-    record_node_type* node = node_al.allocate(alloc_sz);
-    node->v.key_sz = key.size();
-    std::copy_n(key.data(), key.size(), node->v.key_chars);
+    record_value* node = node_al.allocate(alloc_sz);
+    node->key_sz_ = key.size();
+    std::copy_n(key.data(), key.size(), node->key_chars_);
     return node;
 }
 

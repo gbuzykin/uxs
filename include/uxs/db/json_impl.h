@@ -67,7 +67,7 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
         },
         [&al, &stack, &val]() { val = &stack.back()->emplace_back(al); },
         [&al, &stack, &val](std::string_view lval) {
-            val = &stack.back()->emplace(utf_string_adapter<CharT>{}(lval), al)->second;
+            val = &stack.back()->emplace(utf_string_adapter<CharT>{}(lval), al)->value();
         },
         [&stack] { stack.pop_back(); }, tk_val);
     return result;
@@ -180,9 +180,9 @@ loop:
             if (el != range.begin()) { output_.push_back(','); }
             output_.push_back('\n');
             output_.append(indent, indent_char_);
-            print_json_text<char>(output_, utf8_string_adapter{}(el->first));
+            print_json_text<char>(output_, utf8_string_adapter{}(el->key()));
             output_.append(": ", 2);
-            if (write_value((el++)->second)) {
+            if (write_value((el++)->value())) {
                 (stack.curr() - 2)->record_it = el;
                 goto loop;
             }
