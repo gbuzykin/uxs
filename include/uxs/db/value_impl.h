@@ -852,13 +852,13 @@ void basic_value<CharT, Alloc>::erase(std::size_t pos) {
 }
 
 template<typename CharT, typename Alloc>
-auto basic_value<CharT, Alloc>::erase(const_record_iterator it) -> record_iterator {
+auto basic_value<CharT, Alloc>::erase(const_iterator it) -> iterator {
     if (type_ != dtype::record) { throw database_error("not a record"); }
-    detail::list_links_t* node = it.node();
+    detail::list_links_t* node = static_cast<detail::list_links_t*>(it.ptr_);
     uxs_iterator_assert(record_t::node_traits::get_head(node) == &value_.rec->head);
     assert(node != &value_.rec->head);
     typename record_t::alloc_type rec_al(*this);
-    return record_iterator(value_.rec->erase(rec_al, node));
+    return iterator(value_.rec->erase(rec_al, node));
 }
 
 template<typename CharT, typename Alloc>

@@ -73,10 +73,10 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
             case token_t::start_element: {
                 txt.clear();
                 auto result = top->first->emplace_unique(utf_string_adapter<CharT>{}(tk.second), al);
-                stack.emplace_back(&result.first->value(), tk.second);
+                stack.emplace_back(&result.first.value(), tk.second);
                 if (!result.second) {
-                    result.first->value().convert(dtype::array);
-                    stack.back().first = &result.first->value().emplace_back(al);
+                    result.first.value().convert(dtype::array);
+                    stack.back().first = &result.first.value().emplace_back(al);
                 }
             } break;
             case token_t::end_element: {

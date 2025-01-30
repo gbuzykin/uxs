@@ -67,7 +67,7 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
         },
         [&al, &stack, &val]() { val = &stack.back()->emplace_back(al); },
         [&al, &stack, &val](std::string_view lval) {
-            val = &stack.back()->emplace(utf_string_adapter<CharT>{}(lval), al)->value();
+            val = &stack.back()->emplace(utf_string_adapter<CharT>{}(lval), al).value();
         },
         [&stack] { stack.pop_back(); }, tk_val);
     return result;
