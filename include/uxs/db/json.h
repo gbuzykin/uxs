@@ -49,8 +49,10 @@ class reader {
 
 class writer {
  public:
-    explicit writer(iobuf& output, unsigned indent_sz = 4, char indent_ch = ' ')
-        : output_(output), indent_size_(indent_sz), indent_char_(indent_ch) {}
+    explicit writer(iobuf& output, unsigned indent_sz = 0, char record_ws_ch = ' ', char array_ws_ch = ' ',
+                    char indent_ch = ' ')
+        : output_(output), indent_size_(indent_sz), record_ws_char_(record_ws_ch), array_ws_char_(array_ws_ch),
+          indent_char_(indent_ch) {}
 
     template<typename CharT, typename Alloc>
     UXS_EXPORT void write(const basic_value<CharT, Alloc>& v, unsigned indent = 0);
@@ -58,6 +60,8 @@ class writer {
  private:
     basic_membuffer_for_iobuf<char> output_;
     unsigned indent_size_;
+    char record_ws_char_;
+    char array_ws_char_;
     char indent_char_;
 };
 

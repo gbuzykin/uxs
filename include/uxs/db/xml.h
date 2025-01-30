@@ -104,7 +104,7 @@ class reader {
 
 class writer {
  public:
-    explicit writer(iobuf& output, unsigned indent_sz = 4, char indent_ch = ' ')
+    explicit writer(iobuf& output, unsigned indent_sz = 0, char indent_ch = ' ')
         : output_(output), indent_size_(indent_sz), indent_char_(indent_ch) {}
 
     template<typename CharT, typename Alloc>

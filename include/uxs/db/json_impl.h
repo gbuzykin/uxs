@@ -78,14 +78,11 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
 template<typename CharT, typename Alloc>
 struct writer_stack_item_t {
     using value_t = basic_value<CharT, Alloc>;
-    writer_stack_item_t() {}
-    writer_stack_item_t(const value_t* p, const value_t* it) : v(p), array_it(it) {}
-    writer_stack_item_t(const value_t* p, typename value_t::const_record_iterator it) : v(p), record_it(it) {}
-    const value_t* v;
-    union {
-        const value_t* array_it;
-        typename value_t::const_record_iterator record_it;
-    };
+    using iterator = typename value_t::const_iterator;
+    writer_stack_item_t() = default;
+    writer_stack_item_t(iterator f, iterator l) : first(f), last(l) {}
+    iterator first;
+    iterator last;
 };
 
 template<typename CharT>
@@ -97,14 +94,20 @@ basic_membuffer<CharT>& print_json_text(basic_membuffer<CharT>& out, std::basic_
         switch (*it) {
             case '\"': esc = '\"'; break;
             case '\\': esc = '\\'; break;
-            case '\a': esc = 'a'; break;
             case '\b': esc = 'b'; break;
             case '\f': esc = 'f'; break;
             case '\n': esc = 'n'; break;
             case '\r': esc = 'r'; break;
             case '\t': esc = 't'; break;
-            case '\v': esc = 'v'; break;
-            default: continue;
+            default: {
+                if (static_cast<unsigned char>(*it) < 32) {
+                    out.append(it0, it).append("\\u00", 4);
+                    out.push_back('0' + (*it >> 4));
+                    out.push_back("0123456789ABCDEF"[*it & 15]);
+                    it0 = it + 1;
+                }
+                continue;
+            } break;
         }
         out.append(it0, it).push_back('\\');
         out.push_back(esc);
@@ -118,7 +121,7 @@ template<typename CharT, typename Alloc>
 void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
     inline_basic_dynbuffer<writer_stack_item_t<CharT, Alloc>, 32> stack;
 
-    auto write_value = [this, &stack, &indent](const basic_value<CharT, Alloc>& v) {
+    auto write_value = [this, &stack](const basic_value<CharT, Alloc>& v) {
         switch (v.type_) {
             case dtype::null: output_.append("null", 4); break;
             case dtype::boolean: {
@@ -142,61 +145,67 @@ void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
             case dtype::string: {
                 print_json_text<char>(output_, utf8_string_adapter{}(v.str_view()));
             } break;
-            case dtype::array: {
-                output_.push_back('[');
-                stack.emplace_back(&v, v.as_array().data());
-                return true;
-            } break;
+            case dtype::array:
             case dtype::record: {
-                output_.push_back('{');
-                indent += indent_size_;
-                stack.emplace_back(&v, v.as_record().begin());
-                return true;
+                writer_stack_item_t<CharT, Alloc> item(v.begin(), v.end());
+                if (item.first != item.last) {
+                    stack.emplace_back(item);
+                    return true;
+                }
+                output_.append(item.first.is_record() ? "{}" : "[]", 2);
             } break;
         }
         return false;
     };
 
-    if (!write_value(v)) { return; }
+    if (!write_value(v)) {
+        output_.flush();
+        return;
+    }
+
+    bool is_first_element = true;
 
 loop:
-    auto* top = &stack.back();
-    if (top->v->is_array()) {
-        auto range = top->v->as_array();
-        const auto* el = top->array_it;
-        const auto* el_end = range.data() + range.size();
-        while (el != el_end) {
-            if (el != range.data()) { output_.append(", ", 2); }
-            if (write_value(*el++)) {
-                (stack.curr() - 2)->array_it = el;
-                goto loop;
-            }
-        }
-        output_.push_back(']');
-    } else {
-        auto range = top->v->as_record();
-        auto el = top->record_it;
-        while (el != range.end()) {
-            if (el != range.begin()) { output_.push_back(','); }
-            output_.push_back('\n');
-            output_.append(indent, indent_char_);
-            print_json_text<char>(output_, utf8_string_adapter{}(el->key()));
-            output_.append(": ", 2);
-            if (write_value((el++)->value())) {
-                (stack.curr() - 2)->record_it = el;
-                goto loop;
-            }
-        }
-        indent -= indent_size_;
-        if (!top->v->empty()) {
+    auto& top = stack.back();
+    const char ws_char = top.first.is_record() ? record_ws_char_ : array_ws_char_;
+
+    if (is_first_element) {
+        output_.push_back(top.first.is_record() ? '{' : '[');
+        if (ws_char == '\n') {
+            indent += indent_size_;
             output_.push_back('\n');
             output_.append(indent, indent_char_);
         }
-        output_.push_back('}');
     }
+
+    while (top.first != top.last) {
+        if (!is_first_element) {
+            output_.push_back(',');
+            output_.push_back(ws_char);
+            if (ws_char == '\n') { output_.append(indent, indent_char_); }
+        }
+        if (top.first.is_record()) {
+            print_json_text<char>(output_, utf8_string_adapter{}(top.first.key()));
+            output_.append(": ", 2);
+        }
+        if (write_value((top.first++).value())) {
+            is_first_element = true;
+            goto loop;
+        }
+        is_first_element = false;
+    }
+
+    if (ws_char == '\n') {
+        indent -= indent_size_;
+        output_.push_back('\n');
+        output_.append(indent, indent_char_);
+    }
+    output_.push_back(top.first.is_record() ? '}' : ']');
 
     stack.pop_back();
     if (!stack.empty()) { goto loop; }
+
+    output_.flush();
 }
 
 }  // namespace json
