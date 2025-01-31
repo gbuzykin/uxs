@@ -706,43 +706,6 @@ bool basic_value<CharT, Alloc>::is_integral() const noexcept {
 // --------------------------
 
 template<typename CharT, typename Alloc>
-bool basic_value<CharT, Alloc>::convert(dtype type) {
-    if (type == type_) { return true; }
-    switch (type) {
-        case dtype::null: *this = std::nullptr_t{}; break;
-        case dtype::boolean: *this = as_bool(); break;
-        case dtype::integer: *this = as_int(); break;
-        case dtype::unsigned_integer: *this = as_uint(); break;
-        case dtype::long_integer: *this = as_int64(); break;
-        case dtype::unsigned_long_integer: *this = as_uint64(); break;
-        case dtype::double_precision: *this = as_double(); break;
-        case dtype::string: *this = as_string(); break;
-        case dtype::array: {
-            if (type_ != dtype::null) {
-                typename value_flexarray_t::alloc_type arr_al(*this);
-                value_flexarray_t* arr = value_flexarray_t::alloc(arr_al, 1);
-                basic_value* p = &(*arr)[0];
-                new (p) basic_value(static_cast<const Alloc&>(*this));
-                p->type_ = type_, p->value_ = value_;
-                arr->size = 1;
-                value_.arr = arr;
-            } else {
-                value_.arr = nullptr;
-            }
-            type_ = dtype::array;
-        } break;
-        case dtype::record: {
-            if (type_ != dtype::null) { return false; }
-            typename record_t::alloc_type rec_al(*this);
-            value_.rec = record_t::create(rec_al);
-            type_ = dtype::record;
-        } break;
-        default: UXS_UNREACHABLE_CODE;
-    }
-    return true;
-}
-
-template<typename CharT, typename Alloc>
 std::size_t basic_value<CharT, Alloc>::size() const noexcept {
     switch (type_) {
         case dtype::null: return 0;
@@ -930,9 +893,16 @@ template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::reserve_back() {
     typename value_flexarray_t::alloc_type arr_al(*this);
     if (type_ != dtype::array || !value_.arr) {
-        if (type_ != dtype::array && type_ != dtype::null) { throw database_error("not an array"); }
-        value_.arr = value_flexarray_t::alloc(arr_al, value_flexarray_t::start_capacity);
-        value_.arr->size = 0;
+        value_flexarray_t* arr = value_flexarray_t::alloc(arr_al, value_flexarray_t::start_capacity);
+        if (type_ != dtype::array && type_ != dtype::null) {
+            basic_value* p = &(*arr)[0];
+            new (p) basic_value(static_cast<const Alloc&>(*this));
+            p->type_ = type_, p->value_ = value_;
+            arr->size = 1;
+        } else {
+            arr->size = 0;
+        }
+        value_.arr = arr;
         type_ = dtype::array;
     } else {
         value_.arr = value_flexarray_t::grow(arr_al, value_.arr, 1);
