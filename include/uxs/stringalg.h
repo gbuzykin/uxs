@@ -1,11 +1,10 @@
 #pragma once
 
 #include "chars.h"
-#include "functional.h"
+#include "function_call_iterator.h"
 #include "string_view.h"
 
 #include <algorithm>
-#include <iterator>
 #include <limits>
 #include <string>
 #include <vector>
@@ -423,6 +422,27 @@ std::size_t unpack_strings(std::wstring_view s, wchar_t sep, OutputFn fn, Output
 
 // --------------------------
 
+template<typename CharT, typename FlagsTy>
+std::pair<FlagsTy, FlagsTy> parse_flag_string(
+    std::basic_string_view<CharT> s, const std::vector<std::pair<std::basic_string_view<CharT>, FlagsTy>>& flag_tbl) {
+    auto flags = std::make_pair(static_cast<FlagsTy>(0), static_cast<FlagsTy>(0));
+    string_to_words(s, ' ', nofunc(), function_caller([&](std::basic_string_view<CharT> flag) {
+                        bool add_flag = (flag[0] != '-');
+                        if (flag[0] == '+' || flag[0] == '-') { flag = flag.substr(1); }
+                        auto it = std::find_if(flag_tbl.begin(), flag_tbl.end(),
+                                               [flag](decltype(*flag_tbl.begin()) el) { return el.first == flag; });
+                        if (it == flag_tbl.end()) {
+                        } else if (add_flag) {
+                            flags.first |= it->second;
+                        } else {
+                            flags.second |= it->second;
+                        }
+                    }));
+    return flags;
+}
+
+// --------------------------
+
 UXS_EXPORT std::wstring from_utf8_to_wide(std::string_view s);
 UXS_EXPORT std::string from_wide_to_utf8(std::wstring_view s);
 
@@ -430,8 +450,6 @@ UXS_EXPORT std::string_view trim_string(std::string_view s);
 UXS_EXPORT std::vector<std::string> unpack_strings(std::string_view s, char sep);
 UXS_EXPORT std::string encode_escapes(std::string_view s, std::string_view symb, std::string_view code);
 UXS_EXPORT std::string decode_escapes(std::string_view s, std::string_view symb, std::string_view code);
-UXS_EXPORT std::pair<unsigned, unsigned> parse_flag_string(
-    std::string_view s, const std::vector<std::pair<std::string_view, unsigned>>& flag_tbl);
 UXS_EXPORT int compare_strings_nocase(std::string_view lhs, std::string_view rhs);
 UXS_EXPORT std::string to_lower(std::string_view s);
 UXS_EXPORT std::string to_upper(std::string_view s);
@@ -440,8 +458,6 @@ UXS_EXPORT std::wstring_view trim_string(std::wstring_view s);
 UXS_EXPORT std::vector<std::wstring> unpack_strings(std::wstring_view s, wchar_t sep);
 UXS_EXPORT std::wstring encode_escapes(std::wstring_view s, std::wstring_view symb, std::wstring_view code);
 UXS_EXPORT std::wstring decode_escapes(std::wstring_view s, std::wstring_view symb, std::wstring_view code);
-UXS_EXPORT std::pair<unsigned, unsigned> parse_flag_string(
-    std::wstring_view s, const std::vector<std::pair<std::wstring_view, unsigned>>& flag_tbl);
 UXS_EXPORT int compare_strings_nocase(std::wstring_view lhs, std::wstring_view rhs);
 UXS_EXPORT std::string to_lower(std::string_view s);
 UXS_EXPORT std::wstring to_upper(std::wstring_view s);

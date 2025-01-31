@@ -1,6 +1,5 @@
 #include "uxs/stringalg.h"
 
-#include "uxs/function_call_iterator.h"
 #include "uxs/utf.h"
 
 namespace uxs {
@@ -108,37 +107,6 @@ std::string decode_escapes(std::string_view s, std::string_view symb, std::strin
 
 std::wstring decode_escapes(std::wstring_view s, std::wstring_view symb, std::wstring_view code) {
     return basic_decode_escapes(s, symb, code);
-}
-
-// --------------------------
-
-template<typename CharT>
-std::pair<unsigned, unsigned> basic_parse_flag_string(
-    std::basic_string_view<CharT> s, const std::vector<std::pair<std::basic_string_view<CharT>, unsigned>>& flag_tbl) {
-    std::pair<unsigned, unsigned> flags(0, 0);
-    string_to_words(s, ' ', nofunc(), function_caller([&](std::basic_string_view<CharT> flag) {
-                        bool add_flag = (flag[0] != '-');
-                        if (flag[0] == '+' || flag[0] == '-') { flag = flag.substr(1); }
-                        auto it = std::find_if(flag_tbl.begin(), flag_tbl.end(),
-                                               [flag](decltype(*flag_tbl.begin()) el) { return el.first == flag; });
-                        if (it == flag_tbl.end()) {
-                        } else if (add_flag) {
-                            flags.first |= it->second;
-                        } else {
-                            flags.second |= it->second;
-                        }
-                    }));
-    return flags;
-}
-
-std::pair<unsigned, unsigned> parse_flag_string(std::string_view s,
-                                                const std::vector<std::pair<std::string_view, unsigned>>& flag_tbl) {
-    return basic_parse_flag_string(s, flag_tbl);
-}
-
-std::pair<unsigned, unsigned> parse_flag_string(std::wstring_view s,
-                                                const std::vector<std::pair<std::wstring_view, unsigned>>& flag_tbl) {
-    return basic_parse_flag_string(s, flag_tbl);
 }
 
 // --------------------------
