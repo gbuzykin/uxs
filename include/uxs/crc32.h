@@ -11,8 +11,8 @@ class crc32_calc {
         while (it != end) { crc32 = (crc32 >> 8) ^ table()[(crc32 & 0xff) ^ static_cast<std::uint8_t>(*it++)]; }
         return crc32;
     }
-    UXS_CONSTEXPR std::uint32_t operator()(const char* zstr, std::uint32_t crc32 = 0xffffffff) const noexcept {
-        while (*zstr) { crc32 = (crc32 >> 8) ^ table()[(crc32 & 0xff) ^ static_cast<std::uint8_t>(*zstr++)]; }
+    UXS_CONSTEXPR std::uint32_t operator()(const char* cstr, std::uint32_t crc32 = 0xffffffff) const noexcept {
+        while (*cstr) { crc32 = (crc32 >> 8) ^ table()[(crc32 & 0xff) ^ static_cast<std::uint8_t>(*cstr++)]; }
         return crc32;
     }
 
