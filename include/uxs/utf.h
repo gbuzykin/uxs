@@ -76,7 +76,7 @@ unsigned to_utf16(std::uint32_t code, OutputIt out, std::size_t n = std::numeric
     return 1;
 }
 
-#if defined(WCHAR_MAX) && WCHAR_MAX > 0xffff
+#if WCHAR_MAX > 0xffff
 template<typename InputIt>
 unsigned from_wchar(InputIt first, InputIt last, InputIt& next, std::uint32_t& code) {
     return from_utf16(first, last, next, code);
@@ -85,7 +85,7 @@ template<typename OutputIt>
 unsigned to_wchar(std::uint32_t code, OutputIt out, std::size_t n = std::numeric_limits<std::size_t>::max()) {
     return to_utf16(code, out, n);
 }
-#else   // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
+#else   // WCHAR_MAX > 0xffff
 template<typename InputIt>
 unsigned from_wchar(InputIt first, InputIt last, InputIt& next, std::uint32_t& code) {
     if (first == last) { return 0; }
@@ -99,7 +99,7 @@ unsigned to_wchar(std::uint32_t code, OutputIt out, std::size_t n = std::numeric
     *out++ = code;
     return 1;
 }
-#endif  // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
+#endif  // WCHAR_MAX > 0xffff
 
 template<typename CharT>
 struct utf_decoder;
@@ -115,11 +115,11 @@ struct utf_decoder<char> {
 
 template<>
 struct utf_decoder<wchar_t> {
-#if defined(WCHAR_MAX) && WCHAR_MAX > 0xffff
+#if WCHAR_MAX > 0xffff
     bool is_wellformed(wchar_t ch) const { return ch < 0x110000 && (ch & 0x1ff800) != 0xd800; }
-#else   // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
+#else   // WCHAR_MAX > 0xffff
     bool is_wellformed(wchar_t ch) const { return (ch & 0xf800) != 0xd800; }
-#endif  // define(WCHAR_MAX) && WCHAR_MAX > 0xffff
+#endif  // WCHAR_MAX > 0xffff
     template<typename InputIt>
     unsigned decode(InputIt first, InputIt last, InputIt& next, std::uint32_t& code) const {
         return from_wchar(first, last, next, code);

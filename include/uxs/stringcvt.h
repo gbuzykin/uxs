@@ -504,9 +504,7 @@ void fmt_integer(StrTy& s, Ty val, fmt_opts fmt, locale_ref loc) {
 
 template<typename StrTy, typename Ty>
 void fmt_float(StrTy& s, Ty val, fmt_opts fmt, locale_ref loc) {
-    using FpTy = std::conditional_t<(sizeof(Ty) <= sizeof(double)), Ty, double>;
-    fmt_float_common(s, fp_traits<Ty>::to_u64(static_cast<FpTy>(val)), fmt, fp_traits<Ty>::bits_per_mantissa,
-                     fp_traits<Ty>::exp_max, loc);
+    fmt_float_common(s, fp_traits<Ty>::to_u64(val), fmt, fp_traits<Ty>::bits_per_mantissa, fp_traits<Ty>::exp_max, loc);
 }
 
 template<typename CharT>

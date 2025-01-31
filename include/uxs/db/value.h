@@ -10,8 +10,10 @@
 #include "uxs/string_view.h"
 
 #include <algorithm>
+#include <climits>
 #include <cstring>
 #include <functional>
+#include <tuple>
 
 namespace uxs {
 namespace db {
@@ -386,44 +388,26 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     using const_pointer = void;
     using reference = iterator;
     using const_reference = const_iterator;
-    using record_iterator = typename record_t::iterator;
-    using const_record_iterator = typename record_t::const_iterator;
 
     basic_value() noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
         : alloc_type(), type_(dtype::null) {}
-    basic_value(bool b) : alloc_type(), type_(dtype::boolean) { value_.b = b; }
-    basic_value(std::int32_t i) : alloc_type(), type_(dtype::integer) { value_.i = i; }
-    basic_value(std::uint32_t u) : alloc_type(), type_(dtype::unsigned_integer) { value_.u = u; }
-    basic_value(std::int64_t i) : alloc_type(), type_(dtype::long_integer) { value_.i64 = i; }
-    basic_value(std::uint64_t u) : alloc_type(), type_(dtype::unsigned_long_integer) { value_.u64 = u; }
-    basic_value(float f) : alloc_type(), type_(dtype::double_precision) { value_.dbl = f; }
-    basic_value(double d) : alloc_type(), type_(dtype::double_precision) { value_.dbl = d; }
+    basic_value(std::nullptr_t) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
+        : alloc_type(), type_(dtype::null) {}
     basic_value(std::basic_string_view<char_type> s) : alloc_type(), type_(dtype::string) {
         value_.str = alloc_string(s);
     }
     basic_value(const char_type* cstr) : alloc_type(), type_(dtype::string) {
         value_.str = alloc_string(std::basic_string_view<char_type>(cstr));
     }
-    basic_value(std::nullptr_t) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
-        : alloc_type(), type_(dtype::null) {}
 
     explicit basic_value(const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) {}
-    basic_value(bool b, const Alloc& al) : alloc_type(al), type_(dtype::boolean) { value_.b = b; }
-    basic_value(std::int32_t i, const Alloc& al) : alloc_type(al), type_(dtype::integer) { value_.i = i; }
-    basic_value(std::uint32_t u, const Alloc& al) : alloc_type(al), type_(dtype::unsigned_integer) { value_.u = u; }
-    basic_value(std::int64_t i, const Alloc& al) : alloc_type(al), type_(dtype::long_integer) { value_.i64 = i; }
-    basic_value(std::uint64_t u, const Alloc& al) : alloc_type(al), type_(dtype::unsigned_long_integer) {
-        value_.u64 = u;
-    }
-    basic_value(float f, const Alloc& al) : alloc_type(al), type_(dtype::double_precision) { value_.dbl = f; }
-    basic_value(double d, const Alloc& al) : alloc_type(al), type_(dtype::double_precision) { value_.dbl = d; }
+    basic_value(std::nullptr_t, const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) {}
     basic_value(std::basic_string_view<char_type> s, const Alloc& al) : alloc_type(al), type_(dtype::string) {
         value_.str = alloc_string(s);
     }
     basic_value(const char_type* cstr, const Alloc& al) : alloc_type(al), type_(dtype::string) {
         value_.str = alloc_string(std::basic_string_view<char_type>(cstr));
     }
-    basic_value(std::nullptr_t, const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) {}
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     basic_value(InputIt first, InputIt last, const Alloc& al = Alloc()) : alloc_type(al) {
@@ -474,20 +458,32 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     UXS_EXPORT void assign(std::initializer_list<basic_value> init);
 
-#define UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(ty, id, field) \
+#define UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(ty, id, field) \
+    basic_value(ty v) : alloc_type(), type_(id) { value_.field = static_cast<decltype(value_.field)>(v); } \
+    basic_value(ty v, const Alloc& al) : alloc_type(al), type_(id) { \
+        value_.field = static_cast<decltype(value_.field)>(v); \
+    } \
     basic_value& operator=(ty v) { \
         if (type_ != dtype::null) { destroy(); } \
-        type_ = id, value_.field = v; \
+        type_ = id, value_.field = static_cast<decltype(value_.field)>(v); \
         return *this; \
     }
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(bool, dtype::boolean, b)
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(std::int32_t, dtype::integer, i)
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(std::uint32_t, dtype::unsigned_integer, u)
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(std::int64_t, dtype::long_integer, i64)
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(std::uint64_t, dtype::unsigned_long_integer, u64)
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(float, dtype::double_precision, dbl)
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT(double, dtype::double_precision, dbl)
-#undef UXS_DB_VALUE_IMPLEMENT_SCALAR_ASSIGNMENT
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(bool, dtype::boolean, b)
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(signed, dtype::integer, i)
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(unsigned, dtype::unsigned_integer, u)
+#if ULONG_MAX > 0xffffffff
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(signed long, dtype::long_integer, i64)
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(unsigned long, dtype::unsigned_long_integer, u64)
+#else   // ULONG_MAX > 0xffffffff
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(signed long, dtype::integer, i)
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(unsigned long, dtype::unsigned_integer, u)
+#endif  // ULONG_MAX > 0xffffffff
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(signed long long, dtype::long_integer, i64)
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(unsigned long long, dtype::unsigned_long_integer, u64)
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(float, dtype::double_precision, dbl)
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(double, dtype::double_precision, dbl)
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(long double, dtype::double_precision, dbl)
+#undef UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT
 
     basic_value& operator=(std::basic_string_view<char_type> s);
     basic_value& operator=(const char_type* cstr) { return (*this = std::basic_string_view<char_type>(cstr)); }
@@ -559,32 +555,30 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     UXS_EXPORT bool is_int64() const noexcept;
     UXS_EXPORT bool is_uint64() const noexcept;
     UXS_EXPORT bool is_integral() const noexcept;
-    bool is_float() const noexcept { return is_numeric(); }
     bool is_double() const noexcept { return is_numeric(); }
     bool is_numeric() const noexcept { return type_ >= dtype::integer && type_ <= dtype::double_precision; }
     bool is_string() const noexcept { return type_ == dtype::string; }
+    bool is_string_view() const noexcept { return type_ == dtype::string; }
     bool is_array() const noexcept { return type_ == dtype::array; }
     bool is_record() const noexcept { return type_ == dtype::record; }
-
-    UXS_EXPORT uxs::optional<bool> get_bool() const;
-    UXS_EXPORT uxs::optional<std::int32_t> get_int() const;
-    UXS_EXPORT uxs::optional<std::uint32_t> get_uint() const;
-    UXS_EXPORT uxs::optional<std::int64_t> get_int64() const;
-    UXS_EXPORT uxs::optional<std::uint64_t> get_uint64() const;
-    UXS_EXPORT uxs::optional<float> get_float() const;
-    UXS_EXPORT uxs::optional<double> get_double() const;
-    UXS_EXPORT uxs::optional<std::basic_string<char_type>> get_string() const;
-    UXS_EXPORT uxs::optional<std::basic_string_view<char_type>> get_string_view() const;
 
     bool as_bool() const;
     std::int32_t as_int() const;
     std::uint32_t as_uint() const;
     std::int64_t as_int64() const;
     std::uint64_t as_uint64() const;
-    float as_float() const;
     double as_double() const;
     std::basic_string<char_type> as_string() const;
     std::basic_string_view<char_type> as_string_view() const;
+
+    UXS_EXPORT uxs::optional<bool> get_bool() const;
+    UXS_EXPORT uxs::optional<std::int32_t> get_int() const;
+    UXS_EXPORT uxs::optional<std::uint32_t> get_uint() const;
+    UXS_EXPORT uxs::optional<std::int64_t> get_int64() const;
+    UXS_EXPORT uxs::optional<std::uint64_t> get_uint64() const;
+    UXS_EXPORT uxs::optional<double> get_double() const;
+    UXS_EXPORT uxs::optional<std::basic_string<char_type>> get_string() const;
+    UXS_EXPORT uxs::optional<std::basic_string_view<char_type>> get_string_view() const;
 
     UXS_EXPORT bool convert(dtype type);
 
@@ -633,8 +627,8 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     uxs::span<const basic_value> as_array() const noexcept;
     uxs::span<basic_value> as_array() noexcept;
 
-    iterator_range<const_record_iterator> as_record() const;
-    iterator_range<record_iterator> as_record();
+    iterator_range<typename record_t::const_iterator> as_record() const;
+    iterator_range<typename record_t::iterator> as_record();
 
     const basic_value& operator[](std::size_t i) const { return as_array()[i]; }
     basic_value& operator[](std::size_t i) { return as_array()[i]; }
@@ -651,7 +645,18 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         throw database_error("index out of range");
     }
 
-    UXS_EXPORT const basic_value& operator[](std::basic_string_view<char_type> key) const;
+    const basic_value& at(std::basic_string_view<char_type> key) const {
+        auto it = find(key);
+        if (it != end()) { return it.value(); }
+        throw database_error("invalid key");
+    }
+
+    basic_value& at(std::basic_string_view<char_type> key) {
+        auto it = find(key);
+        if (it != end()) { return it.value(); }
+        throw database_error("invalid key");
+    }
+
     UXS_EXPORT basic_value& operator[](std::basic_string_view<char_type> key);
 
     const_iterator find(std::basic_string_view<char_type> key) const;
@@ -1024,27 +1029,27 @@ uxs::span<basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() noexc
 }
 
 template<typename CharT, typename Alloc>
-auto basic_value<CharT, Alloc>::as_record() const -> iterator_range<const_record_iterator> {
+auto basic_value<CharT, Alloc>::as_record() const -> iterator_range<typename record_t::const_iterator> {
     if (type_ != dtype::record) { throw database_error("not a record"); }
-    return uxs::make_range(const_record_iterator(value_.rec->head.next), const_record_iterator(&value_.rec->head));
+    return uxs::make_range(typename record_t::const_iterator(value_.rec->head.next),
+                           typename record_t::const_iterator(&value_.rec->head));
 }
 
 template<typename CharT, typename Alloc>
-auto basic_value<CharT, Alloc>::as_record() -> iterator_range<record_iterator> {
+auto basic_value<CharT, Alloc>::as_record() -> iterator_range<typename record_t::iterator> {
     if (type_ != dtype::record) { throw database_error("not a record"); }
-    return uxs::make_range(record_iterator(value_.rec->head.next), record_iterator(&value_.rec->head));
+    return uxs::make_range(typename record_t::iterator(value_.rec->head.next),
+                           typename record_t::iterator(&value_.rec->head));
 }
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::find(std::basic_string_view<char_type> key) const -> const_iterator {
-    if (type_ != dtype::record) { throw database_error("not a record"); }
-    return const_iterator(value_.rec->find(key, typename record_t::hasher{}(key)));
+    return type_ == dtype::record ? const_iterator(value_.rec->find(key, typename record_t::hasher{}(key))) : end();
 }
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::find(std::basic_string_view<char_type> key) -> iterator {
-    if (type_ != dtype::record) { throw database_error("not a record"); }
-    return iterator(value_.rec->find(key, typename record_t::hasher{}(key)));
+    return type_ == dtype::record ? iterator(value_.rec->find(key, typename record_t::hasher{}(key))) : end();
 }
 
 template<typename CharT, typename Alloc>
@@ -1054,8 +1059,7 @@ bool basic_value<CharT, Alloc>::contains(std::basic_string_view<char_type> key) 
 
 template<typename CharT, typename Alloc>
 std::size_t basic_value<CharT, Alloc>::count(std::basic_string_view<char_type> key) const {
-    if (type_ != dtype::record) { throw database_error("not a record"); }
-    return value_.rec->count(key);
+    return type_ == dtype::record ? value_.rec->count(key) : 0;
 }
 
 // --------------------------
@@ -1213,10 +1217,24 @@ void basic_value<CharT, Alloc>::assign_impl(InputIt first, InputIt last, std::fa
     }
 }
 
-namespace detail {
+#define UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(ty, func) \
+    template<typename CharT, typename Alloc> \
+    ty basic_value<CharT, Alloc>::as##func() const { \
+        auto result = this->get##func(); \
+        if (result) { return *result; } \
+        throw database_error("bad value conversion"); \
+    }
+UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(bool, _bool)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::int32_t, _int)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::uint32_t, _uint)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::int64_t, _int64)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::uint64_t, _uint64)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(double, _double)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::basic_string<CharT>, _string)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::basic_string_view<CharT>, _string_view)
+#undef UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC
 
-template<typename, typename, typename>
-struct value_getters_specializer;
+namespace detail {
 
 template<typename CharT, typename Alloc>
 template<typename InputIt>
@@ -1257,33 +1275,38 @@ template<typename CharT, typename Alloc>
     node_t::dealloc(node_al, node);
 }
 
-}  // namespace detail
+template<typename, typename, typename>
+struct value_getters_specializer;
 
 #define UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(ty, func) \
     template<typename CharT, typename Alloc> \
-    ty basic_value<CharT, Alloc>::as##func() const { \
-        auto result = this->get##func(); \
-        if (result) { return *result; } \
-        throw database_error("bad value conversion"); \
-    } \
-    namespace detail { \
-    template<typename CharT, typename Alloc> \
     struct value_getters_specializer<CharT, Alloc, ty> { \
         static bool is(const basic_value<CharT, Alloc>& v) { return v.is##func(); } \
-        static ty as(const basic_value<CharT, Alloc>& v) { return v.as##func(); } \
-        static uxs::optional<ty> get(const basic_value<CharT, Alloc>& v) { return v.get##func(); } \
-    }; \
-    }
+        static ty as(const basic_value<CharT, Alloc>& v) { return static_cast<ty>(v.as##func()); } \
+        static uxs::optional<ty> get(const basic_value<CharT, Alloc>& v) { \
+            auto result = v.get##func(); \
+            return result ? uxs::make_optional(static_cast<ty>(*result)) : uxs::nullopt(); \
+        } \
+    };
 UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(bool, _bool)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::int32_t, _int)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::uint32_t, _uint)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::int64_t, _int64)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::uint64_t, _uint64)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(float, _float)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(signed, _int)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(unsigned, _uint)
+#if ULONG_MAX > 0xffffffff
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(signed long, _int64)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(unsigned long, _uint64)
+#else   // ULONG_MAX > 0xffffffff
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(signed long, _int)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(unsigned long, _uint)
+#endif  // ULONG_MAX > 0xffffffff
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(signed long long, _int64)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(unsigned long long, _uint64)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(float, _double)
 UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(double, _double)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(long double, _double)
 UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::basic_string<CharT>, _string)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::basic_string_view<CharT>, _string_view)
 #undef UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS
+
+}  // namespace detail
 
 template<typename CharT, typename Alloc>
 template<typename Ty>
@@ -1314,7 +1337,6 @@ using value = basic_value<char>;
 }  // namespace uxs
 
 namespace std {
-#if __cplusplus >= 201703L
 template<std::size_t N, typename CharT, typename Alloc, typename = std::enable_if_t<N == 0>>
 auto get(const uxs::db::detail::record_value<CharT, Alloc>& v) -> decltype(v.key()) {
     return v.key();
@@ -1359,7 +1381,6 @@ class tuple_element<N, uxs::db::detail::value_iterator<CharT, Alloc, Const>> {
  public:
     using type = decltype(get<N>(std::declval<uxs::db::detail::value_iterator<CharT, Alloc, Const>>()));
 };
-#endif  // __cplusplus >= 201703L
 
 template<typename CharT, typename Alloc, bool Const>
 void addressof(uxs::db::detail::value_iterator<CharT, Alloc, Const>&) = delete;

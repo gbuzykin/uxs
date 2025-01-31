@@ -547,26 +547,6 @@ uxs::optional<std::uint64_t> basic_value<CharT, Alloc>::get_uint64() const {
 }
 
 template<typename CharT, typename Alloc>
-uxs::optional<float> basic_value<CharT, Alloc>::get_float() const {
-    switch (type_) {
-        case dtype::null: return uxs::nullopt();
-        case dtype::boolean: return value_.b ? 1.f : 0.f;
-        case dtype::integer: return static_cast<float>(value_.i);
-        case dtype::unsigned_integer: return static_cast<float>(value_.u);
-        case dtype::long_integer: return static_cast<float>(value_.i64);
-        case dtype::unsigned_long_integer: return static_cast<float>(value_.u64);
-        case dtype::double_precision: return static_cast<float>(value_.dbl);
-        case dtype::string: {
-            uxs::optional<float> result(uxs::in_place());
-            return basic_stoval(str_view(), *result) ? result : uxs::nullopt();
-        } break;
-        case dtype::array: return uxs::nullopt();
-        case dtype::record: return uxs::nullopt();
-        default: UXS_UNREACHABLE_CODE;
-    }
-}
-
-template<typename CharT, typename Alloc>
 uxs::optional<double> basic_value<CharT, Alloc>::get_double() const {
     switch (type_) {
         case dtype::null: return uxs::nullopt();
@@ -774,14 +754,6 @@ std::size_t basic_value<CharT, Alloc>::size() const noexcept {
 }
 
 template<typename CharT, typename Alloc>
-const basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::operator[](std::basic_string_view<char_type> key) const {
-    static const basic_value null;
-    if (type_ != dtype::record) { throw database_error("not a record"); }
-    detail::list_links_t* node = value_.rec->find(key, typename record_t::hasher{}(key));
-    return node != &value_.rec->head ? record_t::node_traits::get_value(node).value() : null;
-}
-
-template<typename CharT, typename Alloc>
 basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::operator[](std::basic_string_view<char_type> key) {
     typename record_t::alloc_type rec_al(*this);
     if (type_ != dtype::record) {
@@ -854,6 +826,7 @@ void basic_value<CharT, Alloc>::erase(std::size_t pos) {
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::erase(const_iterator it) -> iterator {
     if (type_ != dtype::record) { throw database_error("not a record"); }
+    if (!it.is_record()) { throw database_error("non-record iterator"); }
     detail::list_links_t* node = static_cast<detail::list_links_t*>(it.ptr_);
     uxs_iterator_assert(record_t::node_traits::get_head(node) == &value_.rec->head);
     assert(node != &value_.rec->head);
