@@ -580,8 +580,6 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     UXS_EXPORT uxs::optional<std::basic_string<char_type>> get_string() const;
     UXS_EXPORT uxs::optional<std::basic_string_view<char_type>> get_string_view() const;
 
-    UXS_EXPORT bool convert(dtype type);
-
     bool empty() const noexcept { return size() == 0; }
     UXS_EXPORT std::size_t size() const noexcept;
     explicit operator bool() const { return !is_null(); }
