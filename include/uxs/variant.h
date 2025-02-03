@@ -266,7 +266,7 @@ class variant {
 
     template<typename Ty, typename U>
     Ty value_or(U&& default_value) const {
-        auto result = get_impl<Ty>();
+        auto result = get<Ty>();
         return result ? *result : Ty(std::forward<U>(default_value));
     }
 
