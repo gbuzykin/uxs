@@ -155,8 +155,8 @@ bool variant::is_equal_to(const variant& v) const {
 namespace uxs {
 u8ibuf& operator>>(u8ibuf& is, variant& v) {
     variant_id type = variant_id::invalid;
-    is >> read_enum(type);
-    auto* tgt_vtable = variant::get_vtable(static_cast<variant_id>(type));
+    if (!(is >> type)) { return is; }
+    auto* tgt_vtable = variant::get_vtable(type);
     if (v.vtable_ != tgt_vtable) {
         v.reset();
         if (tgt_vtable) { tgt_vtable->construct_default(&v.data_); }
@@ -167,12 +167,9 @@ u8ibuf& operator>>(u8ibuf& is, variant& v) {
 }
 
 u8iobuf& operator<<(u8iobuf& os, const variant& v) {
-    if (v.vtable_) {
-        os << write_enum(v.vtable_->type);
-        v.vtable_->serialize(os, &v.data_);
-    } else {
-        os << write_enum(variant_id::invalid);
-    }
+    if (!v.vtable_) { return os << variant_id::invalid; }
+    os << v.vtable_->type;
+    v.vtable_->serialize(os, &v.data_);
     return os;
 }
 }  // namespace uxs
