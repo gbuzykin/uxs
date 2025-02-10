@@ -2,9 +2,10 @@
 
 #include "utility.h"
 
-#include <cassert>
+#include <cassert>  // NOLINT
 #include <iterator>
 #include <limits>
+#include <memory>
 
 #if _ITERATOR_DEBUG_LEVEL != 0
 #    define uxs_iterator_assert(cond) assert(cond)

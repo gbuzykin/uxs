@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include <initializer_list>
+#include <initializer_list>  // NOLINT
 #include <type_traits>
 #include <utility>
 

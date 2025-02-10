@@ -2,7 +2,7 @@
 
 #include "database_error.h"
 
-#include "uxs/dllist.h"
+#include "uxs/dllist.h"  // NOLINT
 #include "uxs/iterator.h"
 #include "uxs/memory.h"
 #include "uxs/optional.h"
@@ -10,7 +10,6 @@
 #include "uxs/string_view.h"
 
 #include <algorithm>
-#include <climits>
 #include <cstring>
 #include <functional>
 #include <tuple>
