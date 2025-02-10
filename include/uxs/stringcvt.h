@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <cstring>
 #include <locale>
-#include <memory>
 #include <stdexcept>
 
 namespace uxs {

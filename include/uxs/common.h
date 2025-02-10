@@ -1,9 +1,10 @@
 #pragma once
 
-#include "uxs/config.h"
+#include "uxs/config.h"  // NOLINT
 
-#include <cstddef>
-#include <cstdint>
+#include <climits>  // NOLINT
+#include <cstddef>  // NOLINT
+#include <cstdint>  // NOLINT
 
 #define UXS_TOKENPASTE(x, y)  x##y
 #define UXS_TOKENPASTE2(x, y) UXS_TOKENPASTE(x, y)

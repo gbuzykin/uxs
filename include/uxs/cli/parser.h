@@ -223,7 +223,7 @@ class basic_command : public basic_node<CharT> {
 
 template<typename CharT>
 const basic_command<CharT>* basic_node<CharT>::get_command() const noexcept {
-    auto const* node = this;
+    const auto* node = this;
     do {
         if (node->get_type() == node_type::command) { return static_cast<const basic_command<CharT>*>(node); }
         node = node->parent_;
