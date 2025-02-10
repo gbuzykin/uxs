@@ -9,7 +9,6 @@
 #include <array>
 #include <cstring>
 #include <locale>
-#include <memory>
 #include <stdexcept>
 #include <string>
 

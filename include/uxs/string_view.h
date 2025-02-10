@@ -3,8 +3,8 @@
 #include "common.h"
 
 #if (__cplusplus >= 201703L || defined(_LIBCPP_VERSION)) && UXS_HAS_INCLUDE(<string_view>)
-#    include <string_view>
-#else  // string view
+#    include <string_view>  // NOLINT
+#else                       // string view
 
 #    include "iterator.h"
 
