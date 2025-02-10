@@ -1,7 +1,7 @@
 #pragma once
 
 #include "iterator.h"
-#include "metaprog_alg.h"
+#include "metaprog_alg.h"  // NOLINT
 
 #include <tuple>
 

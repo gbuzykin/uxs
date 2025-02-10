@@ -2,11 +2,9 @@
 
 #include "alignment.h"
 #include "cow_ptr.h"
-#include "io/stream.h"
+#include "io/stream.h"  // NOLINT
 #include "optional.h"
-#include "stringcvt.h"
-
-#include <climits>
+#include "stringcvt.h"  // NOLINT
 
 #define UXS_DECLARE_VARIANT_TYPE(ty, id) \
     template<> \

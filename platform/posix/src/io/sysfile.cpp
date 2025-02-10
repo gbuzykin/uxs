@@ -44,6 +44,13 @@ bool sysfile::open(const char* fname, iomode mode) {
             if (!!(mode & iomode::exclusive)) { oflag = (oflag & ~(O_TRUNC | O_APPEND)) | O_EXCL; }
         }
     }
+
+    struct stat sb;
+    if (::stat(fname, &sb) == 0 && S_ISDIR(sb.st_mode)) {
+        detach();
+        return false;
+    }
+
     attach(::open(fname, O_LARGEFILE | oflag, S_IREAD | S_IWRITE));
     return fd_ >= 0;
 }
