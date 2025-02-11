@@ -18,7 +18,7 @@ basic_option_group<CharT>::basic_option_group(const basic_option_group& group)
     : basic_option_node<CharT>(group), is_exclusive_(group.is_exclusive_) {
     children_.reserve(group.children_.size());
     for (const auto& child : group.children_) {
-        add_child(detail::unique_static_cast<basic_option_node<CharT>>(child->clone()));
+        add_child(uxs::static_pointer_cast<basic_option_node<CharT>>(child->clone()));
     }
 }
 
@@ -26,18 +26,16 @@ template<typename CharT>
 basic_option<CharT>::basic_option(const basic_option& opt)
     : basic_option_node<CharT>(opt), keys_(opt.keys_), handler_(opt.handler_) {
     values_.reserve(opt.values_.size());
-    for (const auto& val : opt.values_) { add_value(detail::make_unique<basic_value<CharT>>(*val)); }
+    for (const auto& val : opt.values_) { add_value(uxs::make_unique<basic_value<CharT>>(*val)); }
 }
 
 template<typename CharT>
 basic_command<CharT>::basic_command(const basic_command& cmd)
     : basic_node<CharT>(cmd), name_(cmd.name_), overview_(cmd.overview_),
-      opts_(detail::make_unique<basic_option_group<CharT>>(*cmd.opts_)) {
+      opts_(uxs::make_unique<basic_option_group<CharT>>(*cmd.opts_)) {
     values_.reserve(cmd.values_.size());
-    for (const auto& val : cmd.values_) { add_value(detail::make_unique<basic_value<CharT>>(*val)); }
-    for (const auto& item : cmd.subcommands_) {
-        add_subcommand(detail::make_unique<basic_command<CharT>>(*item.second));
-    }
+    for (const auto& val : cmd.values_) { add_value(uxs::make_unique<basic_value<CharT>>(*val)); }
+    for (const auto& item : cmd.subcommands_) { add_subcommand(uxs::make_unique<basic_command<CharT>>(*item.second)); }
 }
 
 template<typename CharT>
