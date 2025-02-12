@@ -163,7 +163,7 @@ struct formatter<Tuple, CharT, std::enable_if_t<tuple_formattable<Tuple, CharT>:
     }
 };
 
-template<typename Ty, typename CharT = char>
+template<typename Ty, typename CharT>
 struct range_formatter {
  private:
     static_assert(formattable<Ty, CharT>::value, "range_formatter<> template parameter must be formattable");
