@@ -1,4 +1,4 @@
-#include "uxs/stringalg.h"
+#include "uxs/string_alg.h"
 
 #include "uxs/utf.h"
 
@@ -59,13 +59,13 @@ std::basic_string<CharT, Traits> basic_encode_escapes(std::basic_string_view<Cha
     for (; p != s.end(); ++p) {
         auto pos = symb.find(*p);
         if (pos != std::basic_string_view<CharT, Traits>::npos) {
-            result.append(p0, p);
+            result += to_string_view(p0, p);
             result += '\\';
             result += code[pos];
             p0 = p + 1;
         }
     }
-    result.append(p0, p);
+    result += to_string_view(p0, p);
     return result;
 }
 
@@ -88,7 +88,7 @@ std::basic_string<CharT, Traits> basic_decode_escapes(std::basic_string_view<Cha
     auto p = s.begin(), p0 = p;
     for (; p != s.end(); ++p) {
         if (*p != '\\') { continue; }
-        result.append(p0, p);
+        result += to_string_view(p0, p);
         p0 = p + 1;
         if (++p == s.end()) { break; }
         auto pos = code.find(*p);
@@ -97,7 +97,7 @@ std::basic_string<CharT, Traits> basic_decode_escapes(std::basic_string_view<Cha
             p0 = p + 1;
         }
     }
-    result.append(p0, p);
+    result += to_string_view(p0, p);
     return result;
 }
 
