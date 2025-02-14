@@ -347,7 +347,7 @@ struct print_functor {
             std::array<CharT, 256> buf;
             generate_fn(buf.data() + len, val, std::forward<Args>(args)...);
             for (CharT* p = buf.data(); prefix; ++p, prefix >>= 8) { *p = static_cast<CharT>(prefix & 0xff); }
-            s.append(buf.data(), buf.data() + len);
+            s.append(buf.data(), len);
         }
     }
 };
@@ -625,14 +625,14 @@ void fmt_boolean(basic_membuffer<CharT>& s, bool val, fmt_opts fmt, locale_ref l
             if (!!(fmt.flags & fmt_flags::localize)) {
                 const auto& numpunct = std::use_facet<std::numpunct<CharT>>(*loc);
                 const auto sval = val ? numpunct.truename() : numpunct.falsename();
-                const auto fn = [&sval](basic_membuffer<CharT>& s) { s.append(sval); };
+                const auto fn = [&sval](basic_membuffer<CharT>& s) { s += sval; };
                 return fmt.width > sval.size() ? append_adjusted(s, fn, static_cast<unsigned>(sval.size()), fmt) :
                                                  fn(s);
             }
             const bool uppercase = !!(fmt.flags & fmt_flags::uppercase);
             const auto sval = val ? default_numpunct<CharT>().truename(uppercase) :
                                     default_numpunct<CharT>().falsename(uppercase);
-            const auto fn = [&sval](basic_membuffer<CharT>& s) { s.append(sval); };
+            const auto fn = [&sval](basic_membuffer<CharT>& s) { s += sval; };
             return fmt.width > sval.size() ? append_adjusted(s, fn, static_cast<unsigned>(sval.size()), fmt) : fn(s);
         } break;
     }
@@ -682,7 +682,7 @@ void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, fm
                 width += w;
             }
         }
-        const auto fn = [first, last](basic_membuffer<CharT>& s) { s.append(first, last); };
+        const auto fn = [first, last](basic_membuffer<CharT>& s) { s += to_string_view(first, last); };
         return fmt.width > width ? append_adjusted(s, fn, static_cast<unsigned>(width), fmt) : fn(s);
     } else if (fmt.width == 0) {
         append_escaped_text(s, val.begin(), val.end(), false,
@@ -692,7 +692,7 @@ void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, fm
     inline_basic_dynbuffer<CharT> buf;
     const std::size_t width = append_escaped_text<basic_membuffer<CharT>>(
         buf, val.begin(), val.end(), false, fmt.prec >= 0 ? fmt.prec : std::numeric_limits<std::size_t>::max());
-    const auto fn = [&buf](basic_membuffer<CharT>& s) { s.append(buf.begin(), buf.end()); };
+    const auto fn = [&buf](basic_membuffer<CharT>& s) { s.append(buf.data(), buf.size()); };
     return fmt.width > width ? append_adjusted(s, fn, static_cast<unsigned>(width), fmt) : fn(s);
 }
 
@@ -915,7 +915,7 @@ struct print_float_functor {
             buf.reserve(len);
             fp.template generate<CharT>(buf.data() + len, uppercase, dec_point, std::forward<Args>(args)...);
             if (sign) { *buf.data() = static_cast<CharT>(sign); }
-            s.append(buf.data(), buf.data() + len);
+            s.append(buf.data(), len);
         }
     }
 };
@@ -942,7 +942,7 @@ void fmt_float_common(basic_membuffer<CharT>& s, std::uint64_t u64, fmt_opts fmt
         const unsigned len = (sign ? 1 : 0) + static_cast<unsigned>(sval.size());
         const auto fn = [&sval, sign](basic_membuffer<CharT>& s) {
             if (sign) { s.push_back(static_cast<CharT>(sign)); }
-            s.append(sval);
+            s += sval;
         };
         return fmt.width > len ? append_adjusted(s, fn, len, fmt, true) : fn(s);
     }
