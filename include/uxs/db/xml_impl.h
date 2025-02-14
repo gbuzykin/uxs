@@ -109,19 +109,20 @@ template<typename CharT>
 basic_membuffer<CharT>& print_xml_text(basic_membuffer<CharT>& out, std::basic_string_view<CharT> text) {
     auto it0 = text.begin();
     for (auto it = it0; it != text.end(); ++it) {
-        std::string_view esc;
+        std::basic_string_view<CharT> esc;
         switch (*it) {
-            case '&': esc = std::string_view("&amp;", 5); break;
-            case '<': esc = std::string_view("&lt;", 4); break;
-            case '>': esc = std::string_view("&gt;", 4); break;
-            case '\'': esc = std::string_view("&apos;", 6); break;
-            case '\"': esc = std::string_view("&quot;", 6); break;
+            case '&': esc = string_literal<CharT, '&', 'a', 'm', 'p', ';'>{}(); break;
+            case '<': esc = string_literal<CharT, '&', 'l', 't', ';'>{}(); break;
+            case '>': esc = string_literal<CharT, '&', 'g', 't', ';'>{}(); break;
+            case '\'': esc = string_literal<CharT, '&', 'a', 'p', 'o', 's', ';'>{}(); break;
+            case '\"': esc = string_literal<CharT, '&', 'q', 'u', 'o', 't', ';'>{}(); break;
             default: continue;
         }
-        out.append(it0, it).append(esc);
+        out += to_string_view(it0, it);
+        out += esc;
         it0 = it + 1;
     }
-    out.append(it0, text.end());
+    out += to_string_view(it0, text.end());
     return out;
 }
 }  // namespace detail
@@ -134,9 +135,12 @@ void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_ele
 
     auto write_value = [this, &stack, &element](const basic_value<CharT, Alloc>& v) {
         switch (v.type_) {
-            case dtype::null: output_.append("null", 4); break;
+            case dtype::null: {
+                output_ += string_literal<char, 'n', 'u', 'l', 'l'>{}();
+            } break;
             case dtype::boolean: {
-                output_.append(v.value_.b ? std::string_view("true", 4) : std::string_view("false", 5));
+                output_ += v.value_.b ? string_literal<char, 't', 'r', 'u', 'e'>{}() :
+                                        string_literal<char, 'f', 'a', 'l', 's', 'e'>{}();
             } break;
             case dtype::integer: {
                 to_basic_string(output_, v.value_.i);
@@ -166,9 +170,12 @@ void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_ele
     };
 
     output_.push_back('<');
-    output_.append(element).push_back('>');
+    output_ += element;
+    output_.push_back('>');
     if (!write_value(v)) {
-        output_.append("</", 2).append(element).push_back('>');
+        output_ += string_literal<char, '<', '/'>{}();
+        output_ += element;
+        output_.push_back('>');
         output_.flush();
         return;
     }
@@ -182,7 +189,9 @@ loop:
 
     while (true) {
         if (!is_first_element && !std::prev(top.first).value().is_array()) {
-            output_.append("</", 2).append(element).push_back('>');
+            output_ += string_literal<char, '<', '/'>{}();
+            output_ += element;
+            output_.push_back('>');
         }
         if (top.first == top.last) { break; }
         if (top.first.is_record()) { element = utf8_string_adapter{}(top.first.key()); }
@@ -190,7 +199,8 @@ loop:
             output_.push_back('\n');
             output_.append(indent, indent_char_);
             output_.push_back('<');
-            output_.append(element).push_back('>');
+            output_ += element;
+            output_.push_back('>');
         }
         if (write_value((top.first++).value())) {
             is_first_element = true;
@@ -210,7 +220,9 @@ loop:
     stack.pop_back();
     if (!stack.empty()) { goto loop; }
 
-    output_.append("</", 2).append(element).push_back('>');
+    output_ += string_literal<char, '<', '/'>{}();
+    output_ += element;
+    output_.push_back('>');
     output_.flush();
 }
 

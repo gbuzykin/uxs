@@ -154,7 +154,7 @@ xml::reader::lex_token_t xml::reader::parse_token(std::string_view& lval) {
             if (llen >= stash_.size()) {  // all characters in stash buffer are used
                 // concatenate full lexeme in stash
                 std::size_t len_rest = llen - stash_.size();
-                stash_.append(input_.first_avail(), input_.first_avail() + len_rest);
+                stash_.append(input_.first_avail(), len_rest);
                 input_.advance(len_rest);
             } else {  // at least one character in stash is yet unused
                       // put unused chars back to `ibuf`
@@ -234,14 +234,14 @@ xml::reader::lex_token_t xml::reader::parse_token(std::string_view& lval) {
             case lex_detail::pat_string_other: return lex_token_t::eof;
             case lex_detail::pat_string_seq_quot:
             case lex_detail::pat_string_seq_apos: {
-                str_.append(lexeme, lexeme + llen);
+                str_.append(lexeme, llen);
             } break;
             case lex_detail::pat_string_close_quot:
             case lex_detail::pat_string_close_apos: {
                 if (str_.empty()) {
                     lval = std::string_view(lexeme, llen - 1);
                 } else {
-                    str_.append(lexeme, lexeme + llen - 1);
+                    str_.append(lexeme, llen - 1);
                     lval = std::string_view(str_.data(), str_.size());
                     str_.clear();  // it resets end pointer, but retains the contents
                 }
