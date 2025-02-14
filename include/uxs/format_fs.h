@@ -16,20 +16,20 @@ struct range_formattable<std::filesystem::path, CharT>  //
 template<typename CharT>
 struct formatter<std::filesystem::path, CharT> {
  private:
-    fmt_opts specs_;
+    fmt_opts opts_;
     std::size_t width_arg_id_ = dynamic_extent;
     bool use_generic_ = false;
 
  public:
-    UXS_CONSTEXPR void set_debug_format() { specs_.flags |= fmt_flags::debug_format; }
+    UXS_CONSTEXPR void set_debug_format() { opts_.flags |= fmt_flags::debug_format; }
 
     template<typename ParseCtx>
     UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) {
         auto it = ctx.begin();
         if (it == ctx.end() || *it != ':') { return it; }
         std::size_t dummy_id = dynamic_extent;
-        it = ParseCtx::parse_standard(ctx, it + 1, specs_, width_arg_id_, dummy_id);
-        if (specs_.prec >= 0 || !!(specs_.flags & ~fmt_flags::adjust_field)) { ParseCtx::syntax_error(); }
+        it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
+        if (opts_.prec >= 0 || !!(opts_.flags & ~fmt_flags::adjust_field)) { ParseCtx::syntax_error(); }
         if (it != ctx.end() && *it == '?') {
             set_debug_format();
             ++it;
@@ -41,15 +41,15 @@ struct formatter<std::filesystem::path, CharT> {
 
     template<typename FmtCtx>
     void format(FmtCtx& ctx, const std::filesystem::path& val) const {
-        fmt_opts specs = specs_;
+        fmt_opts opts = opts_;
         if (width_arg_id_ != dynamic_extent) {
-            specs.width = ctx.arg(width_arg_id_).get_unsigned(std::numeric_limits<decltype(specs.width)>::max());
+            opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>();
         }
         scvt::fmt_string<CharT>(
             ctx.out(),
             use_generic_ ? utf_string_adapter<CharT>{}(val.generic_string<std::filesystem::path::value_type>()) :
                            utf_string_adapter<CharT>{}(val.native()),
-            specs, ctx.locale());
+            opts, ctx.locale());
     }
 };
 

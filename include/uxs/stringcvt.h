@@ -240,12 +240,13 @@ enum class fmt_flags : unsigned {
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(fmt_flags);
 
 struct fmt_opts {
-    UXS_CONSTEXPR explicit fmt_opts(fmt_flags fl = fmt_flags::none, int p = -1, unsigned w = 0, int f = ' ')
+    UXS_CONSTEXPR fmt_opts() noexcept = default;
+    UXS_CONSTEXPR explicit fmt_opts(fmt_flags fl, int p = -1, unsigned w = 0, int f = ' ') noexcept
         : flags(fl), prec(p), width(w), fill(f) {}
-    fmt_flags flags;
-    int prec;
-    unsigned width;
-    int fill;
+    fmt_flags flags = fmt_flags::none;
+    int prec = -1;
+    unsigned width = 0;
+    int fill = ' ';
 };
 
 class UXS_EXPORT_ALL_STUFF_FOR_GNUC format_error : public std::runtime_error {
@@ -469,7 +470,7 @@ void fmt_float_common(StrTy& s, std::uint64_t u64, fmt_opts fmt, unsigned bpm, i
 }
 
 template<typename StrTy, typename Ty>
-void fmt_integer(StrTy& s, Ty val, fmt_opts fmt, locale_ref loc) {
+void fmt_integer(StrTy& s, Ty val, fmt_opts fmt = {}, locale_ref loc = {}) {
     using UTy = typename std::make_unsigned<Ty>::type;
     using ReducedTy = std::conditional_t<(sizeof(UTy) <= sizeof(std::uint32_t)), std::uint32_t, std::uint64_t>;
     const bool is_signed = std::is_signed<Ty>::value;
@@ -477,7 +478,7 @@ void fmt_integer(StrTy& s, Ty val, fmt_opts fmt, locale_ref loc) {
 }
 
 template<typename StrTy, typename Ty>
-void fmt_float(StrTy& s, Ty val, fmt_opts fmt, locale_ref loc) {
+void fmt_float(StrTy& s, Ty val, fmt_opts fmt = {}, locale_ref loc = {}) {
     fmt_float_common(s, fp_traits<Ty>::to_u64(val), fmt, fp_traits<Ty>::bits_per_mantissa, fp_traits<Ty>::exp_max, loc);
 }
 
@@ -511,7 +512,7 @@ struct convertible_to_string : std::false_type {};
 template<typename Ty, typename StrTy>
 struct convertible_to_string<Ty, StrTy,
                              std::void_t<decltype(string_converter<Ty, typename StrTy::value_type>{}.to_string(
-                                 std::declval<StrTy&>(), std::declval<const Ty&>(), fmt_opts{}))>> : std::true_type {};
+                                 std::declval<StrTy&>(), std::declval<const Ty&>(), {}))>> : std::true_type {};
 
 #define UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(ty, from_func, fmt_func) \
     template<typename CharT> \
@@ -522,7 +523,7 @@ struct convertible_to_string<Ty, StrTy,
             return last; \
         } \
         template<typename StrTy> \
-        void to_string(StrTy& s, ty val, fmt_opts fmt, locale_ref loc = locale_ref{}) const { \
+        void to_string(StrTy& s, ty val, fmt_opts fmt, locale_ref loc = {}) const { \
             fmt_func(s, val, fmt, loc); \
         } \
     };
@@ -590,53 +591,91 @@ Ty from_wstring(std::wstring_view s) {
 }
 
 template<typename StrTy, typename Ty>
-StrTy& to_basic_string(StrTy& s, const Ty& val, fmt_opts fmt = fmt_opts{}) {
+StrTy& to_basic_string(StrTy& s, const Ty& val, fmt_opts fmt = {}) {
     string_converter<Ty, typename StrTy::value_type>{}.to_string(s, val, fmt);
     return s;
 }
 
 template<typename StrTy, typename Ty>
-StrTy& to_basic_string(StrTy& s, const std::locale& loc, const Ty& val, fmt_opts fmt = fmt_opts{}) {
-    string_converter<Ty, typename StrTy::value_type>{}.to_string(s, val, fmt, loc);
+StrTy& to_basic_string(StrTy& s, const std::locale& loc, const Ty& val, fmt_opts fmt) {
+    string_converter<Ty, typename StrTy::value_type>{}.to_string(s, val, fmt, locale_ref{loc});
     return s;
 }
 
 template<typename Ty, typename... Opts>
 std::string to_string(const Ty& val, const Opts&... opts) {
     inline_dynbuffer buf;
-    to_basic_string(buf, val, fmt_opts(opts...));
+    to_basic_string(buf, val, fmt_opts{opts...});
+    return std::string(buf.data(), buf.size());
+}
+
+template<typename Ty, typename... Opts>
+std::string to_string(const std::locale& loc, const Ty& val, const Opts&... opts) {
+    inline_dynbuffer buf;
+    to_basic_string(buf, loc, val, fmt_opts{opts...});
     return std::string(buf.data(), buf.size());
 }
 
 template<typename Ty, typename... Opts>
 std::wstring to_wstring(const Ty& val, const Opts&... opts) {
     inline_wdynbuffer buf;
-    to_basic_string(buf, val, fmt_opts(opts...));
+    to_basic_string(buf, val, fmt_opts{opts...});
+    return std::wstring(buf.data(), buf.size());
+}
+
+template<typename Ty, typename... Opts>
+std::wstring to_wstring(const std::locale& loc, const Ty& val, const Opts&... opts) {
+    inline_wdynbuffer buf;
+    to_basic_string(buf, loc, val, fmt_opts{opts...});
     return std::wstring(buf.data(), buf.size());
 }
 
 template<typename Ty, typename... Opts>
 char* to_chars(char* p, const Ty& val, const Opts&... opts) {
     membuffer buf(p);
-    return to_basic_string(buf, val, fmt_opts(opts...)).curr();
+    return to_basic_string(buf, val, fmt_opts{opts...}).curr();
+}
+
+template<typename Ty, typename... Opts>
+char* to_chars(char* p, const std::locale& loc, const Ty& val, const Opts&... opts) {
+    membuffer buf(p);
+    return to_basic_string(buf, loc, val, fmt_opts{opts...}).curr();
 }
 
 template<typename Ty, typename... Opts>
 wchar_t* to_wchars(wchar_t* p, const Ty& val, const Opts&... opts) {
     wmembuffer buf(p);
-    return to_basic_string(buf, val, fmt_opts(opts...)).curr();
+    return to_basic_string(buf, val, fmt_opts{opts...}).curr();
+}
+
+template<typename Ty, typename... Opts>
+wchar_t* to_wchars(wchar_t* p, const std::locale& loc, const Ty& val, const Opts&... opts) {
+    wmembuffer buf(p);
+    return to_basic_string(buf, loc, val, fmt_opts{opts...}).curr();
 }
 
 template<typename Ty, typename... Opts>
 char* to_chars_n(char* p, std::size_t n, const Ty& val, const Opts&... opts) {
     membuffer buf(p, p + n);
-    return to_basic_string(buf, val, fmt_opts(opts...)).curr();
+    return to_basic_string(buf, val, fmt_opts{opts...}).curr();
+}
+
+template<typename Ty, typename... Opts>
+char* to_chars_n(char* p, std::size_t n, const std::locale& loc, const Ty& val, const Opts&... opts) {
+    membuffer buf(p, p + n);
+    return to_basic_string(buf, loc, val, fmt_opts{opts...}).curr();
 }
 
 template<typename Ty, typename... Opts>
 wchar_t* to_wchars_n(wchar_t* p, std::size_t n, const Ty& val, const Opts&... opts) {
     wmembuffer buf(p, p + n);
-    return to_basic_string(buf, val, fmt_opts(opts...)).curr();
+    return to_basic_string(buf, val, fmt_opts{opts...}).curr();
+}
+
+template<typename Ty, typename... Opts>
+wchar_t* to_wchars_n(wchar_t* p, std::size_t n, const std::locale& loc, const Ty& val, const Opts&... opts) {
+    wmembuffer buf(p, p + n);
+    return to_basic_string(buf, loc, val, fmt_opts{opts...}).curr();
 }
 
 }  // namespace uxs

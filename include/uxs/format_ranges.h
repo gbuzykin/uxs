@@ -68,7 +68,7 @@ struct range_formattable<std::basic_string<CharT, Traits, Alloc>, CharT>
 template<typename Tuple, typename CharT>
 struct formatter<Tuple, CharT, std::enable_if_t<tuple_formattable<Tuple, CharT>::value>> {
  private:
-    fmt_opts specs_;
+    fmt_opts opts_;
     std::size_t width_arg_id_ = dynamic_extent;
     typename tuple_formattable<Tuple, CharT>::underlying_type underlying_;
     std::basic_string_view<CharT> separator_;
@@ -92,13 +92,13 @@ struct formatter<Tuple, CharT, std::enable_if_t<tuple_formattable<Tuple, CharT>:
     }
 
     template<typename ParseCtx>
-    UXS_CONSTEXPR void parse(ParseCtx& ctx, typename std::tuple_size<Tuple>::type) {}
+    UXS_CONSTEXPR void parse_element(ParseCtx& ctx, typename std::tuple_size<Tuple>::type) {}
 
     template<typename ParseCtx, std::size_t I>
-    UXS_CONSTEXPR void parse(ParseCtx& ctx, std::integral_constant<std::size_t, I>) {
+    UXS_CONSTEXPR void parse_element(ParseCtx& ctx, std::integral_constant<std::size_t, I>) {
         if (ctx.begin() == ctx.end() || *ctx.begin() != ':') { call_set_debug_format(std::get<I>(underlying_)); }
         ctx.advance_to(std::get<I>(underlying_).parse(ctx));
-        parse(ctx, std::integral_constant<std::size_t, I + 1>{});
+        parse_element(ctx, std::integral_constant<std::size_t, I + 1>{});
     }
 
     template<typename FmtCtx>
@@ -134,8 +134,8 @@ struct formatter<Tuple, CharT, std::enable_if_t<tuple_formattable<Tuple, CharT>:
         auto it = ctx.begin();
         if (it != ctx.end() && *it == ':') {
             std::size_t dummy_id = dynamic_extent;
-            it = ParseCtx::parse_standard(ctx, it + 1, specs_, width_arg_id_, dummy_id);
-            if (specs_.prec >= 0 || !!(specs_.flags & ~fmt_flags::adjust_field)) { ParseCtx::syntax_error(); }
+            it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
+            if (opts_.prec >= 0 || !!(opts_.flags & ~fmt_flags::adjust_field)) { ParseCtx::syntax_error(); }
             if (it != ctx.end() && (*it == 'n' || *it == 'm')) {
                 if (*it == 'm') { switch_to_map_style(detail::is_pair_like<Tuple>{}); }
                 set_brackets({}, {});
@@ -143,23 +143,23 @@ struct formatter<Tuple, CharT, std::enable_if_t<tuple_formattable<Tuple, CharT>:
             }
             ctx.advance_to(it);
         }
-        parse(ctx, std::integral_constant<std::size_t, 0>{});
+        parse_element(ctx, std::integral_constant<std::size_t, 0>{});
         return ctx.begin();
     }
 
     template<typename FmtCtx>
     void format(FmtCtx& ctx, const Tuple& val) const {
-        unsigned width = specs_.width;
+        fmt_opts opts = opts_;
         if (width_arg_id_ != dynamic_extent) {
-            width = ctx.arg(width_arg_id_).get_unsigned(std::numeric_limits<decltype(width)>::max());
+            opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>();
         }
-        if (width == 0) { return format_impl(ctx, val); }
+        if (opts.width == 0) { return format_impl(ctx, val); }
         inline_basic_dynbuffer<CharT> buf;
         basic_format_context<CharT> buf_ctx{buf, ctx};
         format_impl(buf_ctx, val);
         const std::size_t len = estimate_string_width<CharT>(buf.begin(), buf.end());
         const auto fn = [&buf](basic_membuffer<CharT>& s) { s.append(buf.data(), buf.size()); };
-        return width > len ? append_adjusted(ctx.out(), fn, static_cast<unsigned>(len), specs_) : fn(ctx.out());
+        return opts.width > len ? append_adjusted(ctx.out(), fn, static_cast<unsigned>(len), opts) : fn(ctx.out());
     }
 };
 
@@ -168,8 +168,9 @@ struct range_formatter {
  private:
     static_assert(formattable<Ty, CharT>::value, "range_formatter<> template parameter must be formattable");
 
-    fmt_opts specs_;
+    fmt_opts opts_;
     std::size_t width_arg_id_ = dynamic_extent;
+    std::size_t prec_arg_id_ = dynamic_extent;
     formatter<Ty, CharT> underlying_;
     bool format_as_string_ = false;
     std::basic_string_view<CharT> separator_;
@@ -200,13 +201,13 @@ struct range_formatter {
     }
 
     template<typename StrTy, typename Range>
-    std::size_t format_as_string(StrTy& s, const Range& val, std::true_type) const {
-        if (!(specs_.flags & fmt_flags::debug_format)) {
+    static std::size_t format_as_string(StrTy& s, const Range& val, const fmt_opts& opts, std::true_type) {
+        if (!(opts.flags & fmt_flags::debug_format)) {
             std::size_t width = 0;
             std::uint32_t code = 0;
             auto first = std::begin(val), last = std::end(val);
-            if (specs_.prec >= 0 || specs_.width > 0) {
-                const std::size_t max_width = specs_.prec >= 0 ? specs_.prec : std::numeric_limits<std::size_t>::max();
+            if (opts.prec >= 0 || opts.width > 0) {
+                const std::size_t max_width = opts.prec >= 0 ? opts.prec : std::numeric_limits<std::size_t>::max();
                 last = first;
                 for (auto next = first; utf_decoder<CharT>{}.decode(last, std::end(val), next, code) != 0; last = next) {
                     const unsigned w = get_utf_code_width(code);
@@ -218,11 +219,11 @@ struct range_formatter {
             return width;
         }
         return append_escaped_text(s, std::begin(val), std::end(val), false,
-                                   specs_.prec >= 0 ? specs_.prec : std::numeric_limits<std::size_t>::max());
+                                   opts.prec >= 0 ? opts.prec : std::numeric_limits<std::size_t>::max());
     }
 
     template<typename StrTy, typename Range>
-    std::size_t format_as_string(StrTy&, const Range&, std::false_type) const {
+    static std::size_t format_as_string(StrTy&, const Range&, const fmt_opts&, std::false_type) {
         return 0;
     }
 
@@ -254,8 +255,8 @@ struct range_formatter {
         auto it = ctx.begin();
         if (it != ctx.end() && *it == ':') {
             std::size_t dummy_id = dynamic_extent;
-            it = ParseCtx::parse_standard(ctx, it + 1, specs_, width_arg_id_, dummy_id);
-            if (!!(specs_.flags & ~fmt_flags::adjust_field)) { ParseCtx::syntax_error(); }
+            it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
+            if (!!(opts_.flags & ~fmt_flags::adjust_field)) { ParseCtx::syntax_error(); }
             if (it != ctx.end()) {
                 switch (*it) {
                     case 'n': {
@@ -268,14 +269,14 @@ struct range_formatter {
                     } break;
                     case '?': {
                         if (it + 1 == ctx.end() || *(it + 1) != 's') { return it; }
-                        specs_.flags |= fmt_flags::debug_format;
+                        opts_.flags |= fmt_flags::debug_format;
                         switch_to_string_style(std::is_same<Ty, CharT>{});
                         return it + 2;
                     } break;
                     default: break;
                 }
             }
-            if (specs_.prec >= 0) { ParseCtx::unexpected_prec_error(); }
+            if (opts_.prec >= 0) { ParseCtx::unexpected_prec_error(); }
             if (it != ctx.end() && *it == 'm') {
                 switch_to_map_style(detail::is_pair_like<Ty>{});
                 if (*(it - 1) != 'n') { set_brackets(string_literal<CharT, '{'>{}, string_literal<CharT, '}'>{}); }
@@ -291,25 +292,29 @@ struct range_formatter {
     void format(FmtCtx& ctx, const Range& val) const {
         static_assert(std::is_same<sfmt::reduce_type_t<range_element_t<Range>, CharT>, Ty>::value,
                       "inconsistent template parameter and range types");
-        unsigned width = specs_.width;
+        fmt_opts opts = opts_;
         if (width_arg_id_ != dynamic_extent) {
-            width = ctx.arg(width_arg_id_).get_unsigned(std::numeric_limits<decltype(width)>::max());
+            opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>();
         }
-        if (width == 0) {
-            return format_as_string_ ? static_cast<void>(format_as_string(ctx.out(), val, std::is_same<Ty, CharT>{})) :
-                                       format_impl(ctx, val);
+        if (prec_arg_id_ != dynamic_extent) {
+            opts.prec = ctx.arg(prec_arg_id_).template get_unsigned<decltype(opts.prec)>();
+        }
+        if (opts.width == 0) {
+            return format_as_string_ ?
+                       static_cast<void>(format_as_string(ctx.out(), val, opts, std::is_same<Ty, CharT>{})) :
+                       format_impl(ctx, val);
         }
         inline_basic_dynbuffer<CharT> buf;
         basic_format_context<CharT> buf_ctx{buf, ctx};
         std::size_t len = 0;
         if (format_as_string_) {
-            len = format_as_string(buf, val, std::is_same<Ty, CharT>{});
+            len = format_as_string(buf, val, opts, std::is_same<Ty, CharT>{});
         } else {
             format_impl(buf_ctx, val);
             len = estimate_string_width<CharT>(buf.begin(), buf.end());
         }
         const auto fn = [&buf](basic_membuffer<CharT>& s) { s.append(buf.data(), buf.size()); };
-        return width > len ? append_adjusted(ctx.out(), fn, static_cast<unsigned>(len), specs_) : fn(ctx.out());
+        return opts.width > len ? append_adjusted(ctx.out(), fn, static_cast<unsigned>(len), opts) : fn(ctx.out());
     }
 };
 

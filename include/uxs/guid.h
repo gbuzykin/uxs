@@ -140,7 +140,7 @@ struct string_converter<guid, CharT> {
 template<typename CharT>
 struct formatter<guid, CharT> {
  private:
-    fmt_opts specs_;
+    fmt_opts opts_;
     std::size_t width_arg_id_ = dynamic_extent;
 
  public:
@@ -149,19 +149,19 @@ struct formatter<guid, CharT> {
         auto it = ctx.begin();
         if (it == ctx.end() || *it != ':') { return it; }
         std::size_t dummy_id = dynamic_extent;
-        it = ParseCtx::parse_standard(ctx, it + 1, specs_, width_arg_id_, dummy_id);
-        if (specs_.prec >= 0 || !!(specs_.flags & ~fmt_flags::adjust_field)) { ParseCtx::syntax_error(); }
+        it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
+        if (opts_.prec >= 0 || !!(opts_.flags & ~fmt_flags::adjust_field)) { ParseCtx::syntax_error(); }
         if (it == ctx.end() || (*it != 'X' && *it != 'x')) { return it; }
-        if (*it == 'X') { specs_.flags |= fmt_flags::uppercase; }
+        if (*it == 'X') { opts_.flags |= fmt_flags::uppercase; }
         return it + 1;
     }
     template<typename FmtCtx>
     void format(FmtCtx& ctx, const guid& val) const {
-        fmt_opts specs = specs_;
+        fmt_opts opts = opts_;
         if (width_arg_id_ != dynamic_extent) {
-            specs.width = ctx.arg(width_arg_id_).get_unsigned(std::numeric_limits<decltype(specs.width)>::max());
+            opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>();
         }
-        string_converter<guid, CharT>{}.to_string(ctx.out(), val, specs);
+        string_converter<guid, CharT>{}.to_string(ctx.out(), val, opts);
     }
 };
 
