@@ -102,7 +102,8 @@ basic_membuffer<CharT>& print_json_text(basic_membuffer<CharT>& out, std::basic_
             case '\t': esc = 't'; break;
             default: {
                 if (static_cast<unsigned char>(*it) < 32) {
-                    out.append(it0, it).append("\\u00", 4);
+                    out += to_string_view(it0, it);
+                    out += string_literal<CharT, '\\', 'u', '0', '0'>{}();
                     out.push_back('0' + (*it >> 4));
                     out.push_back("0123456789ABCDEF"[*it & 15]);
                     it0 = it + 1;
@@ -110,11 +111,13 @@ basic_membuffer<CharT>& print_json_text(basic_membuffer<CharT>& out, std::basic_
                 continue;
             } break;
         }
-        out.append(it0, it).push_back('\\');
+        out += to_string_view(it0, it);
+        out.push_back('\\');
         out.push_back(esc);
         it0 = it + 1;
     }
-    out.append(it0, text.end()).push_back('\"');
+    out += to_string_view(it0, text.end());
+    out.push_back('\"');
     return out;
 }
 }  // namespace detail
@@ -125,9 +128,12 @@ void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
 
     auto write_value = [this, &stack](const basic_value<CharT, Alloc>& v) {
         switch (v.type_) {
-            case dtype::null: output_.append("null", 4); break;
+            case dtype::null: {
+                output_ += string_literal<char, 'n', 'u', 'l', 'l'>{}();
+            } break;
             case dtype::boolean: {
-                output_.append(v.value_.b ? std::string_view("true", 4) : std::string_view("false", 5));
+                output_ += v.value_.b ? string_literal<char, 't', 'r', 'u', 'e'>{}() :
+                                        string_literal<char, 'f', 'a', 'l', 's', 'e'>{}();
             } break;
             case dtype::integer: {
                 to_basic_string(output_, v.value_.i);
@@ -154,7 +160,8 @@ void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
                     stack.emplace_back(item);
                     return true;
                 }
-                output_.append(item.first.is_record() ? "{}" : "[]", 2);
+                output_ += item.first.is_record() ? string_literal<char, '{', '}'>{}() :
+                                                    string_literal<char, '[', ']'>{}();
             } break;
         }
         return false;
@@ -188,7 +195,7 @@ loop:
         }
         if (top.first.is_record()) {
             detail::print_json_text<char>(output_, utf8_string_adapter{}(top.first.key()));
-            output_.append(": ", 2);
+            output_ += string_literal<char, ':', ' '>{}();
         }
         if (write_value((top.first++).value())) {
             is_first_element = true;

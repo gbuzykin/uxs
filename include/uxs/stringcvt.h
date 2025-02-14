@@ -75,7 +75,8 @@ class basic_membuffer {
         return *this;
     }
 
-    template<typename InputIt, typename = std::enable_if_t<is_random_access_iterator<InputIt>::value>>
+    template<typename InputIt, typename = std::enable_if_t<is_random_access_iterator<InputIt>::value &&
+                                                           std::is_same<iterator_value_t<InputIt>, Ty>::value>>
     basic_membuffer& append(InputIt first, InputIt last) {
         assert(first <= last);
         size_type count = static_cast<size_type>(last - first), n_avail = avail();
@@ -101,11 +102,6 @@ class basic_membuffer {
 
     basic_membuffer& append(const value_type* s, size_type count) { return append(s, s + count); }
 
-    template<typename Range, typename = std::void_t<decltype(std::declval<Range>().end())>>
-    basic_membuffer& append(const Range& r) {
-        return append(r.begin(), r.end());
-    }
-
     template<typename... Args>
     void emplace_back(Args&&... args) {
         if (curr_ != last_ || try_grow(1)) { new (curr_++) value_type(std::forward<Args>(args)...); }
@@ -115,10 +111,7 @@ class basic_membuffer {
     }
     void pop_back() noexcept { --curr_; }
 
-    template<typename Range, typename = std::void_t<decltype(std::declval<Range>().end())>>
-    basic_membuffer& operator+=(const Range& r) {
-        return append(r.begin(), r.end());
-    }
+    basic_membuffer& operator+=(std::basic_string_view<value_type> s) { return append(s.data(), s.size()); }
     basic_membuffer& operator+=(const value_type* s) { return *this += std::basic_string_view<value_type>(s); }
     basic_membuffer& operator+=(value_type ch) {
         push_back(ch);
@@ -334,8 +327,8 @@ std::size_t append_escaped_text(StrTy& s, InputIt first, InputIt last, bool sing
             const unsigned w = 4 + count;
             if (max_width - width < w) { goto finish; }
             width += w;
-            s.append(is_wellformed ? string_literal<char_type, '\\', 'u', '{'>{}() :
-                                     string_literal<char_type, '\\', 'x', '{'>{}());
+            s += is_wellformed ? string_literal<char_type, '\\', 'u', '{'>{}() :
+                                 string_literal<char_type, '\\', 'x', '{'>{}();
             do { s.push_back(*--p); } while (p != digs.data());
             s.push_back('}');
         }
@@ -449,7 +442,7 @@ template<typename StrTy,
 void fmt_boolean(StrTy& s, bool val, fmt_opts fmt, locale_ref loc) {
     inline_basic_dynbuffer<typename StrTy::value_type> buf;
     fmt_boolean(buf, val, fmt, loc);
-    s.append(buf.begin(), buf.end());
+    s.append(buf.data(), buf.size());
 }
 
 template<typename CharT, typename Ty>
@@ -460,7 +453,7 @@ template<typename StrTy, typename Ty,
 void fmt_integer_common(StrTy& s, Ty val, bool is_signed, fmt_opts fmt, locale_ref loc) {
     inline_basic_dynbuffer<typename StrTy::value_type> buf;
     fmt_integer_common(buf, val, is_signed, fmt, loc);
-    s.append(buf.begin(), buf.end());
+    s.append(buf.data(), buf.size());
 }
 
 template<typename CharT>
@@ -472,7 +465,7 @@ template<typename StrTy,
 void fmt_float_common(StrTy& s, std::uint64_t u64, fmt_opts fmt, unsigned bpm, int exp_max, locale_ref loc) {
     inline_basic_dynbuffer<typename StrTy::value_type> buf;
     fmt_float_common(buf, u64, fmt, bpm, exp_max, loc);
-    s.append(buf.begin(), buf.end());
+    s.append(buf.data(), buf.size());
 }
 
 template<typename StrTy, typename Ty>
