@@ -66,7 +66,7 @@ std::pair<xml::token_t, std::string_view> xml::reader::read_next() {
                 } break;
                 case lex_token_t::pi_open: {  // <?xml n1=v1 n2=v2...?>
                     attrs_.clear();
-                    if (uxs::compare_strings_nocase(lval, std::string_view("xml", 3)) != 0) {
+                    if (uxs::compare_strings_nocase(lval, string_literal<char, 'x', 'm', 'l'>{}()) != 0) {
                         throw database_error(format("{}: invalid document declaration", n_ln_));
                     }
                     name_cache_it->assign(lval.data(), lval.size());
@@ -109,7 +109,7 @@ std::pair<xml::token_t, std::string_view> xml::reader::read_next() {
                 return false;
             });
             input_.advance(last - first);
-            return {token_t::plain_text, std::string_view(first, last - first)};
+            return {token_t::plain_text, to_string_view(first, last)};
         } else {
             return {token_t::eof, {}};
         }
@@ -167,35 +167,35 @@ xml::reader::lex_token_t xml::reader::parse_token(std::string_view& lval) {
             // ------ specials
             case lex_detail::pat_amp: {
                 if (state_stack_.back() == lex_detail::sc_initial) {
-                    lval = std::string_view("&", 1);
+                    lval = string_literal<char, '&'>{}();
                     return lex_token_t::predef_entity;
                 }
                 str_.push_back('&');
             } break;
             case lex_detail::pat_lt: {
                 if (state_stack_.back() == lex_detail::sc_initial) {
-                    lval = std::string_view("<", 1);
+                    lval = string_literal<char, '<'>{}();
                     return lex_token_t::predef_entity;
                 }
                 str_.push_back('<');
             } break;
             case lex_detail::pat_gt: {
                 if (state_stack_.back() == lex_detail::sc_initial) {
-                    lval = std::string_view(">", 1);
+                    lval = string_literal<char, '>'>{}();
                     return lex_token_t::predef_entity;
                 }
                 str_.push_back('>');
             } break;
             case lex_detail::pat_apos: {
                 if (state_stack_.back() == lex_detail::sc_initial) {
-                    lval = std::string_view("\'", 1);
+                    lval = string_literal<char, '\''>{}();
                     return lex_token_t::predef_entity;
                 }
                 str_.push_back('\'');
             } break;
             case lex_detail::pat_quot: {
                 if (state_stack_.back() == lex_detail::sc_initial) {
-                    lval = std::string_view("\"", 1);
+                    lval = string_literal<char, '\"'>{}();
                     return lex_token_t::predef_entity;
                 }
                 str_.push_back('\"');

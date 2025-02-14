@@ -20,29 +20,20 @@ namespace uxs {
 namespace scvt {
 
 template<typename CharT>
-struct default_numpunct;
-
-template<>
-struct default_numpunct<char> {
-    UXS_CONSTEXPR char decimal_point() const { return '.'; }
-    UXS_CONSTEXPR std::string_view infname(bool upper) const { return std::string_view(upper ? "INF" : "inf", 3); }
-    UXS_CONSTEXPR std::string_view nanname(bool upper) const { return std::string_view(upper ? "NAN" : "nan", 3); }
-    UXS_CONSTEXPR std::string_view truename(bool upper) const { return std::string_view(upper ? "TRUE" : "true", 4); }
-    UXS_CONSTEXPR std::string_view falsename(bool upper) const {
-        return std::string_view(upper ? "FALSE" : "false", 5);
+struct default_numpunct {
+    UXS_CONSTEXPR CharT decimal_point() const { return '.'; }
+    UXS_CONSTEXPR std::basic_string_view<CharT> infname(bool upper) const {
+        return upper ? string_literal<CharT, 'I', 'N', 'F'>{}() : string_literal<CharT, 'i', 'n', 'f'>{}();
     }
-};
-
-template<>
-struct default_numpunct<wchar_t> {
-    UXS_CONSTEXPR wchar_t decimal_point() const { return '.'; }
-    UXS_CONSTEXPR std::wstring_view infname(bool upper) const { return std::wstring_view(upper ? L"INF" : L"inf", 3); }
-    UXS_CONSTEXPR std::wstring_view nanname(bool upper) const { return std::wstring_view(upper ? L"NAN" : L"nan", 3); }
-    UXS_CONSTEXPR std::wstring_view truename(bool upper) const {
-        return std::wstring_view(upper ? L"TRUE" : L"true", 4);
+    UXS_CONSTEXPR std::basic_string_view<CharT> nanname(bool upper) const {
+        return upper ? string_literal<CharT, 'N', 'A', 'N'>{}() : string_literal<CharT, 'n', 'a', 'n'>{}();
     }
-    UXS_CONSTEXPR std::wstring_view falsename(bool upper) const {
-        return std::wstring_view(upper ? L"FALSE" : L"false", 5);
+    UXS_CONSTEXPR std::basic_string_view<CharT> truename(bool upper) const {
+        return upper ? string_literal<CharT, 'T', 'R', 'U', 'E'>{}() : string_literal<CharT, 't', 'r', 'u', 'e'>{}();
+    }
+    UXS_CONSTEXPR std::basic_string_view<CharT> falsename(bool upper) const {
+        return upper ? string_literal<CharT, 'F', 'A', 'L', 'S', 'E'>{}() :
+                       string_literal<CharT, 'f', 'a', 'l', 's', 'e'>{}();
     }
 };
 
