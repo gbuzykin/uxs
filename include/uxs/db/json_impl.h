@@ -76,9 +76,9 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
 // --------------------------
 
 namespace detail {
-template<typename CharT, typename Alloc>
+template<typename ValueCharT, typename Alloc>
 struct writer_stack_item_t {
-    using value_t = basic_value<CharT, Alloc>;
+    using value_t = basic_value<ValueCharT, Alloc>;
     using iterator = typename value_t::const_iterator;
     writer_stack_item_t() = default;
     writer_stack_item_t(iterator f, iterator l) : first(f), last(l) {}
@@ -122,18 +122,20 @@ basic_membuffer<CharT>& print_json_text(basic_membuffer<CharT>& out, std::basic_
 }
 }  // namespace detail
 
-template<typename CharT, typename Alloc>
-void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
-    inline_basic_dynbuffer<detail::writer_stack_item_t<CharT, Alloc>, 32> stack;
+template<typename CharT>
+template<typename ValueCharT, typename Alloc>
+void writer<CharT>::write(const basic_value<ValueCharT, Alloc>& v, unsigned indent) {
+    using stack_item_t = detail::writer_stack_item_t<ValueCharT, Alloc>;
+    inline_basic_dynbuffer<stack_item_t, 32> stack;
 
-    auto write_value = [this, &stack](const basic_value<CharT, Alloc>& v) {
+    auto write_value = [this, &stack](const basic_value<ValueCharT, Alloc>& v) {
         switch (v.type_) {
             case dtype::null: {
-                output_ += string_literal<char, 'n', 'u', 'l', 'l'>{}();
+                output_ += string_literal<CharT, 'n', 'u', 'l', 'l'>{}();
             } break;
             case dtype::boolean: {
-                output_ += v.value_.b ? string_literal<char, 't', 'r', 'u', 'e'>{}() :
-                                        string_literal<char, 'f', 'a', 'l', 's', 'e'>{}();
+                output_ += v.value_.b ? string_literal<CharT, 't', 'r', 'u', 'e'>{}() :
+                                        string_literal<CharT, 'f', 'a', 'l', 's', 'e'>{}();
             } break;
             case dtype::integer: {
                 to_basic_string(output_, v.value_.i);
@@ -151,17 +153,17 @@ void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
                 to_basic_string(output_, v.value_.dbl, fmt_opts{fmt_flags::json_compat});
             } break;
             case dtype::string: {
-                detail::print_json_text<char>(output_, utf8_string_adapter{}(v.str_view()));
+                detail::print_json_text<CharT>(output_, utf_string_adapter<CharT>{}(v.str_view()));
             } break;
             case dtype::array:
             case dtype::record: {
-                detail::writer_stack_item_t<CharT, Alloc> item(v.begin(), v.end());
+                stack_item_t item(v.begin(), v.end());
                 if (item.first != item.last) {
                     stack.emplace_back(item);
                     return true;
                 }
-                output_ += item.first.is_record() ? string_literal<char, '{', '}'>{}() :
-                                                    string_literal<char, '[', ']'>{}();
+                output_ += item.first.is_record() ? string_literal<CharT, '{', '}'>{}() :
+                                                    string_literal<CharT, '[', ']'>{}();
             } break;
         }
         return false;
@@ -194,8 +196,8 @@ loop:
             if (ws_char == '\n') { output_.append(indent, indent_char_); }
         }
         if (top.first.is_record()) {
-            detail::print_json_text<char>(output_, utf8_string_adapter{}(top.first.key()));
-            output_ += string_literal<char, ':', ' '>{}();
+            detail::print_json_text<CharT>(output_, utf_string_adapter<CharT>{}(top.first.key()));
+            output_ += string_literal<CharT, ':', ' '>{}();
         }
         if (write_value((top.first++).value())) {
             is_first_element = true;

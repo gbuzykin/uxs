@@ -47,18 +47,19 @@ class reader {
     int parse_token(std::string_view& lval);
 };
 
+template<typename CharT = char>
 class writer {
  public:
-    explicit writer(iobuf& output, unsigned indent_sz = 0, char record_ws_ch = ' ', char array_ws_ch = ' ',
+    explicit writer(basic_iobuf<CharT>& output, unsigned indent_sz = 0, char record_ws_ch = ' ', char array_ws_ch = ' ',
                     char indent_ch = ' ')
         : output_(output), indent_size_(indent_sz), record_ws_char_(record_ws_ch), array_ws_char_(array_ws_ch),
           indent_char_(indent_ch) {}
 
-    template<typename CharT, typename Alloc>
-    UXS_EXPORT void write(const basic_value<CharT, Alloc>& v, unsigned indent = 0);
+    template<typename ValueCharT, typename Alloc>
+    UXS_EXPORT void write(const basic_value<ValueCharT, Alloc>& v, unsigned indent = 0);
 
  private:
-    basic_membuffer_for_iobuf<char> output_;
+    basic_membuffer_for_iobuf<CharT> output_;
     unsigned indent_size_;
     char record_ws_char_;
     char array_ws_char_;

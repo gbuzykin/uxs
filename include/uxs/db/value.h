@@ -17,9 +17,11 @@
 namespace uxs {
 namespace db {
 namespace json {
+template<typename CharT>
 class writer;
 }
 namespace xml {
+template<typename CharT>
 class writer;
 }
 
@@ -705,7 +707,9 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     UXS_EXPORT std::size_t erase(std::basic_string_view<char_type> key);
 
  private:
+    template<typename CharT_>
     friend class json::writer;
+    template<typename CharT_>
     friend class xml::writer;
     friend struct detail::record_t<CharT, Alloc>;
     template<typename CharT_, typename Alloc_>

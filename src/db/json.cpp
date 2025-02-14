@@ -172,8 +172,10 @@ int json::reader::parse_token(std::string_view& lval) {
 namespace json {
 template UXS_EXPORT basic_value<char> reader::read(token_t, const std::allocator<char>&);
 template UXS_EXPORT basic_value<wchar_t> reader::read(token_t, const std::allocator<wchar_t>&);
-template UXS_EXPORT void writer::write(const basic_value<char>&, unsigned);
-template UXS_EXPORT void writer::write(const basic_value<wchar_t>&, unsigned);
+template UXS_EXPORT void writer<char>::write(const basic_value<char>&, unsigned);
+template UXS_EXPORT void writer<char>::write(const basic_value<wchar_t>&, unsigned);
+template UXS_EXPORT void writer<wchar_t>::write(const basic_value<char>&, unsigned);
+template UXS_EXPORT void writer<wchar_t>::write(const basic_value<wchar_t>&, unsigned);
 }  // namespace json
 }  // namespace db
 }  // namespace uxs

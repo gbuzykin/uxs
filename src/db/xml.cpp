@@ -297,8 +297,10 @@ xml::reader::lex_token_t xml::reader::parse_token(std::string_view& lval) {
 namespace xml {
 template UXS_EXPORT basic_value<char> reader::read(std::string_view, const std::allocator<char>&);
 template UXS_EXPORT basic_value<wchar_t> reader::read(std::string_view, const std::allocator<wchar_t>&);
-template UXS_EXPORT void writer::write(const basic_value<char>&, std::string_view, unsigned);
-template UXS_EXPORT void writer::write(const basic_value<wchar_t>&, std::string_view, unsigned);
+template UXS_EXPORT void writer<char>::write(const basic_value<char>&, std::string_view, unsigned);
+template UXS_EXPORT void writer<char>::write(const basic_value<wchar_t>&, std::string_view, unsigned);
+template UXS_EXPORT void writer<wchar_t>::write(const basic_value<char>&, std::wstring_view, unsigned);
+template UXS_EXPORT void writer<wchar_t>::write(const basic_value<wchar_t>&, std::wstring_view, unsigned);
 }  // namespace xml
 }  // namespace db
 }  // namespace uxs
