@@ -76,6 +76,7 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
 // --------------------------
 
 namespace detail {
+
 template<typename ValueCharT, typename Alloc>
 struct writer_stack_item_t {
     using value_t = basic_value<ValueCharT, Alloc>;
@@ -87,7 +88,7 @@ struct writer_stack_item_t {
 };
 
 template<typename CharT>
-basic_membuffer<CharT>& print_json_text(basic_membuffer<CharT>& out, std::basic_string_view<CharT> text) {
+basic_membuffer<CharT>& write_text(basic_membuffer<CharT>& out, std::basic_string_view<CharT> text) {
     auto it0 = text.begin();
     out.push_back('\"');
     for (auto it = it0; it != text.end(); ++it) {
@@ -120,6 +121,56 @@ basic_membuffer<CharT>& print_json_text(basic_membuffer<CharT>& out, std::basic_
     out.push_back('\"');
     return out;
 }
+
+template<typename StrTy, typename StackTy>
+struct value_visitor {
+    using char_type = typename StrTy::value_type;
+
+    StrTy& out;
+    StackTy& stack;
+
+    value_visitor(StrTy& out, StackTy& stack) : out(out), stack(stack) {}
+
+    template<typename Ty>
+    bool operator()(Ty v) const {
+        to_basic_string(out, v, fmt_opts{fmt_flags::json_compat});
+        return false;
+    }
+
+    bool operator()(std::nullptr_t) const {
+        out += string_literal<char_type, 'n', 'u', 'l', 'l'>{}();
+        return false;
+    }
+
+    bool operator()(bool b) const {
+        out += b ? string_literal<char_type, 't', 'r', 'u', 'e'>{}() :
+                   string_literal<char_type, 'f', 'a', 'l', 's', 'e'>{}();
+        return false;
+    }
+
+    template<typename CharT>
+    bool operator()(std::basic_string_view<CharT> s) const {
+        detail::write_text<char_type>(out, utf_string_adapter<char_type>{}(s));
+        return false;
+    }
+
+    template<typename Iter>
+    bool operator()(iterator_range<Iter> r) const {
+        if (r.empty()) {
+            out += r.begin().is_record() ? string_literal<char_type, '{', '}'>{}() :
+                                           string_literal<char_type, '[', ']'>{}();
+            return false;
+        }
+        stack.emplace_back(r.begin(), r.end());
+        return true;
+    }
+};
+
+template<typename StrTy, typename StackTy>
+value_visitor<StrTy, StackTy> make_value_visitor(StrTy& out, StackTy& stack) {
+    return value_visitor{out, stack};
+}
+
 }  // namespace detail
 
 template<typename CharT>
@@ -128,48 +179,9 @@ void writer<CharT>::write(const basic_value<ValueCharT, Alloc>& v, unsigned inde
     using stack_item_t = detail::writer_stack_item_t<ValueCharT, Alloc>;
     inline_basic_dynbuffer<stack_item_t, 32> stack;
 
-    auto write_value = [this, &stack](const basic_value<ValueCharT, Alloc>& v) {
-        switch (v.type_) {
-            case dtype::null: {
-                output_ += string_literal<CharT, 'n', 'u', 'l', 'l'>{}();
-            } break;
-            case dtype::boolean: {
-                output_ += v.value_.b ? string_literal<CharT, 't', 'r', 'u', 'e'>{}() :
-                                        string_literal<CharT, 'f', 'a', 'l', 's', 'e'>{}();
-            } break;
-            case dtype::integer: {
-                to_basic_string(output_, v.value_.i);
-            } break;
-            case dtype::unsigned_integer: {
-                to_basic_string(output_, v.value_.u);
-            } break;
-            case dtype::long_integer: {
-                to_basic_string(output_, v.value_.i64);
-            } break;
-            case dtype::unsigned_long_integer: {
-                to_basic_string(output_, v.value_.u64);
-            } break;
-            case dtype::double_precision: {
-                to_basic_string(output_, v.value_.dbl, fmt_opts{fmt_flags::json_compat});
-            } break;
-            case dtype::string: {
-                detail::print_json_text<CharT>(output_, utf_string_adapter<CharT>{}(v.str_view()));
-            } break;
-            case dtype::array:
-            case dtype::record: {
-                stack_item_t item(v.begin(), v.end());
-                if (item.first != item.last) {
-                    stack.emplace_back(item);
-                    return true;
-                }
-                output_ += item.first.is_record() ? string_literal<CharT, '{', '}'>{}() :
-                                                    string_literal<CharT, '[', ']'>{}();
-            } break;
-        }
-        return false;
-    };
+    auto visitor = make_value_visitor(output_, stack);
 
-    if (!write_value(v)) {
+    if (!v.visit(visitor)) {
         output_.flush();
         return;
     }
@@ -196,10 +208,10 @@ loop:
             if (ws_char == '\n') { output_.append(indent, indent_char_); }
         }
         if (top.first.is_record()) {
-            detail::print_json_text<CharT>(output_, utf_string_adapter<CharT>{}(top.first.key()));
+            detail::write_text<CharT>(output_, utf_string_adapter<CharT>{}(top.first.key()));
             output_ += string_literal<CharT, ':', ' '>{}();
         }
-        if (write_value((top.first++).value())) {
+        if ((top.first++).value().visit(visitor)) {
             is_first_element = true;
             goto loop;
         }

@@ -885,13 +885,13 @@ class basic_format_context {
     format_arg_type arg(std::size_t id) const { return args_.get(id); }
 
     template<typename Ty>
-    void format_arg(parse_context& parse_ctx, const Ty& val) {
+    void format_arg(parse_context& parse_ctx, Ty val) {
         formatter_type<Ty> f;
         parse_ctx.advance_to(f.parse(parse_ctx));
         f.format(*this, val);
     }
 
-    void format_arg(parse_context& parse_ctx, const typename format_arg_type::handle& h) { h.format(*this, parse_ctx); }
+    void format_arg(parse_context& parse_ctx, typename format_arg_type::handle h) { h.format(*this, parse_ctx); }
 
  private:
     output_type& s_;
