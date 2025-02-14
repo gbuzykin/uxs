@@ -1,12 +1,9 @@
 #pragma once
 
-#include "chars.h"
 #include "function_call_iterator.h"
-#include "string_view.h"
+#include "string_util.h"
 
 #include <algorithm>
-#include <limits>
-#include <string>
 #include <vector>
 
 namespace uxs {
@@ -121,7 +118,7 @@ std::basic_string<CharT, Traits> replace_basic_strings(std::basic_string_view<Ch
     result.reserve(s.size());
     for (auto p = s.begin(); p != s.end();) {
         auto sub = finder(p, s.end());
-        result.append(p, sub.first);
+        result += to_string_view(p, sub.first);
         if (sub.first != sub.second) { result += with; }
         p = sub.second;
     }
@@ -352,12 +349,12 @@ StrTy& pack_basic_strings(StrTy& s, const Range& r, typename StrTy::value_type s
             auto p = std::begin(el), p0 = p;
             for (; p != std::end(el); ++p) {
                 if (*p == '\\' || *p == sep) {
-                    s.append(p0, p);
+                    s += to_string_view(p0, p);
                     s += '\\';
                     p0 = p;
                 }
             }
-            s.append(p0, p);
+            s += to_string_view(p0, p);
             if (++it != std::end(r)) {
                 s += sep;
             } else {
@@ -391,14 +388,14 @@ std::size_t unpack_basic_strings(std::basic_string_view<CharT, Traits> s, CharT 
         auto p0 = p;  // append chars till separator
         for (; p != s.end(); ++p) {
             if (*p == '\\') {
-                result.append(p0, p);
+                result += to_string_view(p0, p);
                 p0 = p + 1;
                 if (++p == s.end()) { break; }
             } else if (*p == sep) {
                 break;
             }
         }
-        result.append(p0, p);
+        result += to_string_view(p0, p);
         if (p != s.end() || !result.empty()) {
             *out++ = fn(std::move(result));
             if (++count == n) { break; }

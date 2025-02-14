@@ -1,32 +1,14 @@
 #pragma once
 
-#include "chars.h"
-#include "iterator.h"
-#include "string_view.h"
+#include "string_util.h"
 #include "utf.h"
 
 #include <algorithm>
-#include <array>
 #include <cstring>
 #include <locale>
 #include <stdexcept>
-#include <string>
 
 namespace uxs {
-
-template<typename CharT, CharT... C>
-struct string_literal {
-#if __cplusplus < 201703L
-    operator std::basic_string_view<CharT>() const {
-        static const std::array<CharT, sizeof...(C)> value{C...};
-        return {value.data(), value.size()};
-    }
-#else   // __cplusplus < 201703L
-    static constexpr std::array<CharT, sizeof...(C)> value{C...};
-    constexpr operator std::basic_string_view<CharT>() const { return {value.data(), value.size()}; }
-#endif  // __cplusplus < 201703L
-    UXS_CONSTEXPR std::basic_string_view<CharT> operator()() const { return *this; }
-};
 
 // --------------------------
 

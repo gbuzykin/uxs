@@ -1,10 +1,9 @@
 #include "uxs/io/sysfile.h"
 
-#include "uxs/stringalg.h"
+#include "uxs/string_alg.h"
 
 #include <windows.h>
 
-#include <array>
 #include <cstring>
 
 using namespace uxs;
