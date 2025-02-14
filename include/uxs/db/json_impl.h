@@ -75,6 +75,7 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
 
 // --------------------------
 
+namespace detail {
 template<typename CharT, typename Alloc>
 struct writer_stack_item_t {
     using value_t = basic_value<CharT, Alloc>;
@@ -116,10 +117,11 @@ basic_membuffer<CharT>& print_json_text(basic_membuffer<CharT>& out, std::basic_
     out.append(it0, text.end()).push_back('\"');
     return out;
 }
+}  // namespace detail
 
 template<typename CharT, typename Alloc>
 void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
-    inline_basic_dynbuffer<writer_stack_item_t<CharT, Alloc>, 32> stack;
+    inline_basic_dynbuffer<detail::writer_stack_item_t<CharT, Alloc>, 32> stack;
 
     auto write_value = [this, &stack](const basic_value<CharT, Alloc>& v) {
         switch (v.type_) {
@@ -143,11 +145,11 @@ void writer::write(const basic_value<CharT, Alloc>& v, unsigned indent) {
                 to_basic_string(output_, v.value_.dbl, fmt_opts{fmt_flags::json_compat});
             } break;
             case dtype::string: {
-                print_json_text<char>(output_, utf8_string_adapter{}(v.str_view()));
+                detail::print_json_text<char>(output_, utf8_string_adapter{}(v.str_view()));
             } break;
             case dtype::array:
             case dtype::record: {
-                writer_stack_item_t<CharT, Alloc> item(v.begin(), v.end());
+                detail::writer_stack_item_t<CharT, Alloc> item(v.begin(), v.end());
                 if (item.first != item.last) {
                     stack.emplace_back(item);
                     return true;
@@ -185,7 +187,7 @@ loop:
             if (ws_char == '\n') { output_.append(indent, indent_char_); }
         }
         if (top.first.is_record()) {
-            print_json_text<char>(output_, utf8_string_adapter{}(top.first.key()));
+            detail::print_json_text<char>(output_, utf8_string_adapter{}(top.first.key()));
             output_.append(": ", 2);
         }
         if (write_value((top.first++).value())) {

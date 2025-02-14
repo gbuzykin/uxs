@@ -7,7 +7,6 @@
 namespace uxs {
 
 namespace sfmt {
-namespace detail {
 template<typename Ty, typename CharT, typename = void>
 struct reduce_type {
     using type = std::remove_cv_t<Ty>;
@@ -49,9 +48,8 @@ template<typename CharT>
 struct reduce_type<std::nullptr_t, CharT> {
     using type = const void*;
 };
-}  // namespace detail
 template<typename Ty, typename CharT>
-using reduce_type_t = typename detail::reduce_type<Ty, CharT>::type;
+using reduce_type_t = typename reduce_type<Ty, CharT>::type;
 }  // namespace sfmt
 
 // --------------------------
@@ -316,7 +314,7 @@ UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::basic_string_view<CharT>)
 
 namespace sfmt {
 
-enum class type_index : std::uint8_t {
+enum class index_t : std::uint8_t {
     boolean = 0,
     character,
     integer,
@@ -332,26 +330,24 @@ enum class type_index : std::uint8_t {
     custom
 };
 
-namespace detail {
 template<typename Ty, typename CharT>
-struct arg_type_index;
+struct type_index;
 #define UXS_FMT_DECLARE_ARG_TYPE_INDEX(ty, index) \
     template<typename CharT> \
-    struct arg_type_index<ty, CharT> : std::integral_constant<type_index, index> {};
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(bool, type_index::boolean)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(CharT, type_index::character)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::int32_t, type_index::integer)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::int64_t, type_index::long_integer)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::uint32_t, type_index::unsigned_integer)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::uint64_t, type_index::unsigned_long_integer)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(float, type_index::single_precision)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(double, type_index::double_precision)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(long double, type_index::long_double_precision)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(const void*, type_index::pointer)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(const CharT*, type_index::z_string)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::basic_string_view<CharT>, type_index::string)
+    struct type_index<ty, CharT> : std::integral_constant<index_t, index> {};
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(bool, index_t::boolean)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(CharT, index_t::character)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::int32_t, index_t::integer)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::int64_t, index_t::long_integer)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::uint32_t, index_t::unsigned_integer)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::uint64_t, index_t::unsigned_long_integer)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(float, index_t::single_precision)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(double, index_t::double_precision)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(long double, index_t::long_double_precision)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(const void*, index_t::pointer)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(const CharT*, index_t::z_string)
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::basic_string_view<CharT>, index_t::string)
 #undef UXS_FMT_DECLARE_ARG_TYPE_INDEX
-}  // namespace detail
 
 // --------------------------
 
@@ -379,13 +375,13 @@ class custom_arg_handle {
 // --------------------------
 
 template<typename Ty, typename CharT, typename = void>
-struct arg_type_index : std::integral_constant<type_index, type_index::custom> {};
+struct arg_type_index : std::integral_constant<index_t, index_t::custom> {};
 template<typename Ty, typename CharT>
-struct arg_type_index<Ty, CharT, std::void_t<typename detail::arg_type_index<reduce_type_t<Ty, CharT>, CharT>::type>>
-    : std::integral_constant<type_index, detail::arg_type_index<reduce_type_t<Ty, CharT>, CharT>::value> {};
+struct arg_type_index<Ty, CharT, std::void_t<typename type_index<reduce_type_t<Ty, CharT>, CharT>::type>>
+    : std::integral_constant<index_t, type_index<reduce_type_t<Ty, CharT>, CharT>::value> {};
 
 template<typename FmtCtx, typename Ty>
-using arg_store_type = std::conditional<(arg_type_index<Ty, typename FmtCtx::char_type>::value) < type_index::custom,
+using arg_store_type = std::conditional<(arg_type_index<Ty, typename FmtCtx::char_type>::value) < index_t::custom,
                                         reduce_type_t<Ty, typename FmtCtx::char_type>, custom_arg_handle<FmtCtx>>;
 
 template<typename FmtCtx, typename Ty>
@@ -697,10 +693,10 @@ UXS_EXPORT void vformat(FmtCtx, typename FmtCtx::parse_context);
 }  // namespace sfmt
 
 template<typename FmtCtx, typename Ty>
-struct format_arg_type_index : sfmt::detail::arg_type_index<Ty, typename FmtCtx::char_type> {};
+struct format_arg_type_index : sfmt::type_index<Ty, typename FmtCtx::char_type> {};
 template<typename FmtCtx>
 struct format_arg_type_index<FmtCtx, sfmt::custom_arg_handle<FmtCtx>>
-    : std::integral_constant<sfmt::type_index, sfmt::type_index::custom> {};
+    : std::integral_constant<sfmt::index_t, sfmt::index_t::custom> {};
 
 template<typename FmtCtx>
 class basic_format_arg {
@@ -708,9 +704,9 @@ class basic_format_arg {
     using char_type = typename FmtCtx::char_type;
     using handle = sfmt::custom_arg_handle<FmtCtx>;
 
-    basic_format_arg(sfmt::type_index index, const void* data) noexcept : index_(index), data_(data) {}
+    basic_format_arg(sfmt::index_t index, const void* data) noexcept : index_(index), data_(data) {}
 
-    sfmt::type_index index() const noexcept { return index_; }
+    sfmt::index_t index() const noexcept { return index_; }
 
     template<typename Ty>
     const Ty& as() const {
@@ -768,7 +764,7 @@ class basic_format_arg {
     }
 
  private:
-    sfmt::type_index index_;
+    sfmt::index_t index_;
     const void* data_;
 };
 
@@ -782,7 +778,7 @@ class basic_format_args {
     basic_format_arg<FmtCtx> get(std::size_t id) const {
         if (id >= size_) { throw format_error("out of argument list"); }
         const unsigned meta = static_cast<const unsigned*>(data_)[id];
-        return basic_format_arg<FmtCtx>(static_cast<sfmt::type_index>(meta & 0xff),
+        return basic_format_arg<FmtCtx>(static_cast<sfmt::index_t>(meta & 0xff),
                                         static_cast<const std::uint8_t*>(data_) + (meta >> 8));
     }
 
@@ -834,7 +830,7 @@ class compile_parse_context : public basic_format_parse_context<CharT> {
     using char_type = CharT;
 
     constexpr compile_parse_context(std::basic_string_view<char_type> fmt,
-                                    uxs::span<const sfmt::type_index> arg_types) noexcept
+                                    uxs::span<const sfmt::index_t> arg_types) noexcept
         : basic_format_parse_context<CharT>(fmt), arg_types_(arg_types) {}
 
     [[nodiscard]] constexpr std::size_t next_arg_id() {
@@ -850,7 +846,7 @@ class compile_parse_context : public basic_format_parse_context<CharT> {
 
     template<typename... Ts>
     constexpr void check_dynamic_spec(std::size_t id) {
-        if (((arg_types_[id] != sfmt::detail::arg_type_index<Ts, char_type>::value) && ...)) {
+        if (((arg_types_[id] != sfmt::type_index<Ts, char_type>::value) && ...)) {
             throw format_error("argument is not of valid type");
         }
     }
@@ -864,7 +860,7 @@ class compile_parse_context : public basic_format_parse_context<CharT> {
     }
 
  private:
-    uxs::span<const sfmt::type_index> arg_types_;
+    uxs::span<const sfmt::index_t> arg_types_;
 };
 #endif  // defined(UXS_HAS_CONSTEVAL)
 
@@ -940,8 +936,7 @@ class basic_format_string {
     UXS_CONSTEVAL basic_format_string(const Ty& fmt) noexcept : fmt_(fmt) {
 #if defined(UXS_HAS_CONSTEVAL)
         using parse_context = compile_parse_context<char_type>;
-        constexpr std::array<sfmt::type_index, sizeof...(Args)> arg_types{
-            sfmt::arg_type_index<Args, char_type>::value...};
+        constexpr std::array<sfmt::index_t, sizeof...(Args)> arg_types{sfmt::arg_type_index<Args, char_type>::value...};
         constexpr std::array<void (*)(parse_context&), sizeof...(Args)> parsers{
             sfmt::parse_context_utils::parse_arg<parse_context, sfmt::reduce_type_t<Args, char_type>>...};
         parse_context ctx{fmt_, arg_types};
