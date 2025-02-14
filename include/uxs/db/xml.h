@@ -102,16 +102,18 @@ class reader {
     static string_class classify_string(const std::string_view& sval);
 };
 
+template<typename CharT = char>
 class writer {
  public:
-    explicit writer(iobuf& output, unsigned indent_sz = 0, char indent_ch = ' ')
+    explicit writer(basic_iobuf<CharT>& output, unsigned indent_sz = 0, char indent_ch = ' ')
         : output_(output), indent_size_(indent_sz), indent_char_(indent_ch) {}
 
-    template<typename CharT, typename Alloc>
-    UXS_EXPORT void write(const basic_value<CharT, Alloc>& v, std::string_view root_element, unsigned indent = 0);
+    template<typename ValueCharT, typename Alloc>
+    UXS_EXPORT void write(const basic_value<ValueCharT, Alloc>& v, std::basic_string_view<CharT> root_element,
+                          unsigned indent = 0);
 
  private:
-    basic_membuffer_for_iobuf<char> output_;
+    basic_membuffer_for_iobuf<CharT> output_;
     unsigned indent_size_;
     char indent_char_;
 };

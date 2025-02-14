@@ -93,13 +93,14 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
 // --------------------------
 
 namespace detail {
-template<typename CharT, typename Alloc>
+template<typename CharT, typename ValueCharT, typename Alloc>
 struct writer_stack_item_t {
-    using value_t = basic_value<CharT, Alloc>;
+    using value_t = basic_value<ValueCharT, Alloc>;
     using iterator = typename value_t::const_iterator;
-    using string_type = std::conditional_t<std::is_same<CharT, char>::value, std::string_view, std::string>;
+    using string_type = std::conditional_t<std::is_same<ValueCharT, CharT>::value, std::basic_string_view<CharT>,
+                                           std::basic_string<CharT>>;
     writer_stack_item_t() = default;
-    writer_stack_item_t(std::string_view el, iterator f, iterator l) : element(el), first(f), last(l) {}
+    writer_stack_item_t(std::basic_string_view<CharT> el, iterator f, iterator l) : element(el), first(f), last(l) {}
     string_type element;
     iterator first;
     iterator last;
@@ -127,20 +128,23 @@ basic_membuffer<CharT>& print_xml_text(basic_membuffer<CharT>& out, std::basic_s
 }
 }  // namespace detail
 
-template<typename CharT, typename Alloc>
-void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_element, unsigned indent) {
-    std::vector<detail::writer_stack_item_t<CharT, Alloc>> stack;
-    typename detail::writer_stack_item_t<CharT, Alloc>::string_type element(root_element);
+template<typename CharT>
+template<typename ValueCharT, typename Alloc>
+void writer<CharT>::write(const basic_value<ValueCharT, Alloc>& v, std::basic_string_view<CharT> root_element,
+                          unsigned indent) {
+    using stack_item_t = detail::writer_stack_item_t<CharT, ValueCharT, Alloc>;
+    std::vector<stack_item_t> stack;
+    typename stack_item_t::string_type element(root_element);
     stack.reserve(32);
 
-    auto write_value = [this, &stack, &element](const basic_value<CharT, Alloc>& v) {
+    auto write_value = [this, &stack, &element](const basic_value<ValueCharT, Alloc>& v) {
         switch (v.type_) {
             case dtype::null: {
-                output_ += string_literal<char, 'n', 'u', 'l', 'l'>{}();
+                output_ += string_literal<CharT, 'n', 'u', 'l', 'l'>{}();
             } break;
             case dtype::boolean: {
-                output_ += v.value_.b ? string_literal<char, 't', 'r', 'u', 'e'>{}() :
-                                        string_literal<char, 'f', 'a', 'l', 's', 'e'>{}();
+                output_ += v.value_.b ? string_literal<CharT, 't', 'r', 'u', 'e'>{}() :
+                                        string_literal<CharT, 'f', 'a', 'l', 's', 'e'>{}();
             } break;
             case dtype::integer: {
                 to_basic_string(output_, v.value_.i);
@@ -158,7 +162,7 @@ void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_ele
                 to_basic_string(output_, v.value_.dbl, fmt_opts{fmt_flags::json_compat});
             } break;
             case dtype::string: {
-                detail::print_xml_text<char>(output_, utf8_string_adapter{}(v.str_view()));
+                detail::print_xml_text<CharT>(output_, utf_string_adapter<CharT>{}(v.str_view()));
             } break;
             case dtype::array:
             case dtype::record: {
@@ -173,7 +177,7 @@ void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_ele
     output_ += element;
     output_.push_back('>');
     if (!write_value(v)) {
-        output_ += string_literal<char, '<', '/'>{}();
+        output_ += string_literal<CharT, '<', '/'>{}();
         output_ += element;
         output_.push_back('>');
         output_.flush();
@@ -189,12 +193,12 @@ loop:
 
     while (true) {
         if (!is_first_element && !std::prev(top.first).value().is_array()) {
-            output_ += string_literal<char, '<', '/'>{}();
+            output_ += string_literal<CharT, '<', '/'>{}();
             output_ += element;
             output_.push_back('>');
         }
         if (top.first == top.last) { break; }
-        if (top.first.is_record()) { element = utf8_string_adapter{}(top.first.key()); }
+        if (top.first.is_record()) { element = utf_string_adapter<CharT>{}(top.first.key()); }
         if (!top.first.value().is_array()) {
             output_.push_back('\n');
             output_.append(indent, indent_char_);
@@ -220,7 +224,7 @@ loop:
     stack.pop_back();
     if (!stack.empty()) { goto loop; }
 
-    output_ += string_literal<char, '<', '/'>{}();
+    output_ += string_literal<CharT, '<', '/'>{}();
     output_ += element;
     output_.push_back('>');
     output_.flush();

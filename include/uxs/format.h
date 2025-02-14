@@ -1258,26 +1258,29 @@ class basic_membuffer_for_iobuf final : public basic_membuffer<Ty> {
     }
 };
 
+using membuffer_for_iobuf = basic_membuffer_for_iobuf<char>;
+using wmembuffer_for_iobuf = basic_membuffer_for_iobuf<wchar_t>;
+
 inline iobuf& vprint(iobuf& out, std::string_view fmt, format_args args) {
-    basic_membuffer_for_iobuf<char> buf(out);
+    membuffer_for_iobuf buf(out);
     basic_vformat(buf, fmt, args);
     return out;
 }
 
 inline wiobuf& vprint(wiobuf& out, std::wstring_view fmt, wformat_args args) {
-    basic_membuffer_for_iobuf<wchar_t> buf(out);
+    wmembuffer_for_iobuf buf(out);
     basic_vformat(buf, fmt, args);
     return out;
 }
 
 inline iobuf& vprint(iobuf& out, const std::locale& loc, std::string_view fmt, format_args args) {
-    basic_membuffer_for_iobuf<char> buf(out);
+    membuffer_for_iobuf buf(out);
     basic_vformat(buf, loc, fmt, args);
     return out;
 }
 
 inline wiobuf& vprint(wiobuf& out, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
-    basic_membuffer_for_iobuf<wchar_t> buf(out);
+    wmembuffer_for_iobuf buf(out);
     basic_vformat(buf, loc, fmt, args);
     return out;
 }
