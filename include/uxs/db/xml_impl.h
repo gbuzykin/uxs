@@ -93,6 +93,7 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
 // --------------------------
 
 namespace detail {
+
 template<typename CharT, typename ValueCharT, typename Alloc>
 struct writer_stack_item_t {
     using value_t = basic_value<ValueCharT, Alloc>;
@@ -100,14 +101,14 @@ struct writer_stack_item_t {
     using string_type = std::conditional_t<std::is_same<ValueCharT, CharT>::value, std::basic_string_view<CharT>,
                                            std::basic_string<CharT>>;
     writer_stack_item_t() = default;
-    writer_stack_item_t(std::basic_string_view<CharT> el, iterator f, iterator l) : element(el), first(f), last(l) {}
+    writer_stack_item_t(iterator f, iterator l) : first(f), last(l) {}
     string_type element;
     iterator first;
     iterator last;
 };
 
 template<typename CharT>
-basic_membuffer<CharT>& print_xml_text(basic_membuffer<CharT>& out, std::basic_string_view<CharT> text) {
+basic_membuffer<CharT>& write_text(basic_membuffer<CharT>& out, std::basic_string_view<CharT> text) {
     auto it0 = text.begin();
     for (auto it = it0; it != text.end(); ++it) {
         std::basic_string_view<CharT> esc;
@@ -126,6 +127,51 @@ basic_membuffer<CharT>& print_xml_text(basic_membuffer<CharT>& out, std::basic_s
     out += to_string_view(it0, text.end());
     return out;
 }
+
+template<typename StrTy, typename StackTy>
+struct value_visitor {
+    using char_type = typename StrTy::value_type;
+
+    StrTy& out;
+    StackTy& stack;
+
+    value_visitor(StrTy& out, StackTy& stack) : out(out), stack(stack) {}
+
+    template<typename Ty>
+    bool operator()(Ty v) const {
+        to_basic_string(out, v, fmt_opts{fmt_flags::json_compat});
+        return false;
+    }
+
+    bool operator()(std::nullptr_t) const {
+        out += string_literal<char_type, 'n', 'u', 'l', 'l'>{}();
+        return false;
+    }
+
+    bool operator()(bool b) const {
+        out += b ? string_literal<char_type, 't', 'r', 'u', 'e'>{}() :
+                   string_literal<char_type, 'f', 'a', 'l', 's', 'e'>{}();
+        return false;
+    }
+
+    template<typename CharT>
+    bool operator()(std::basic_string_view<CharT> s) const {
+        detail::write_text<char_type>(out, utf_string_adapter<char_type>{}(s));
+        return false;
+    }
+
+    template<typename Iter>
+    bool operator()(iterator_range<Iter> r) const {
+        stack.emplace_back(r.begin(), r.end());
+        return true;
+    }
+};
+
+template<typename StrTy, typename StackTy>
+value_visitor<StrTy, StackTy> make_value_visitor(StrTy& out, StackTy& stack) {
+    return value_visitor{out, stack};
+}
+
 }  // namespace detail
 
 template<typename CharT>
@@ -137,46 +183,12 @@ void writer<CharT>::write(const basic_value<ValueCharT, Alloc>& v, std::basic_st
     typename stack_item_t::string_type element(root_element);
     stack.reserve(32);
 
-    auto write_value = [this, &stack, &element](const basic_value<ValueCharT, Alloc>& v) {
-        switch (v.type_) {
-            case dtype::null: {
-                output_ += string_literal<CharT, 'n', 'u', 'l', 'l'>{}();
-            } break;
-            case dtype::boolean: {
-                output_ += v.value_.b ? string_literal<CharT, 't', 'r', 'u', 'e'>{}() :
-                                        string_literal<CharT, 'f', 'a', 'l', 's', 'e'>{}();
-            } break;
-            case dtype::integer: {
-                to_basic_string(output_, v.value_.i);
-            } break;
-            case dtype::unsigned_integer: {
-                to_basic_string(output_, v.value_.u);
-            } break;
-            case dtype::long_integer: {
-                to_basic_string(output_, v.value_.i64);
-            } break;
-            case dtype::unsigned_long_integer: {
-                to_basic_string(output_, v.value_.u64);
-            } break;
-            case dtype::double_precision: {
-                to_basic_string(output_, v.value_.dbl, fmt_opts{fmt_flags::json_compat});
-            } break;
-            case dtype::string: {
-                detail::print_xml_text<CharT>(output_, utf_string_adapter<CharT>{}(v.str_view()));
-            } break;
-            case dtype::array:
-            case dtype::record: {
-                stack.emplace_back(element, v.begin(), v.end());
-                return true;
-            } break;
-        }
-        return false;
-    };
+    auto visitor = make_value_visitor(output_, stack);
 
     output_.push_back('<');
     output_ += element;
     output_.push_back('>');
-    if (!write_value(v)) {
+    if (!v.visit(visitor)) {
         output_ += string_literal<CharT, '<', '/'>{}();
         output_ += element;
         output_.push_back('>');
@@ -185,6 +197,7 @@ void writer<CharT>::write(const basic_value<ValueCharT, Alloc>& v, std::basic_st
     }
 
     bool is_first_element = true;
+    stack.back().element = element;
 
 loop:
     auto& top = stack.back();
@@ -206,8 +219,9 @@ loop:
             output_ += element;
             output_.push_back('>');
         }
-        if (write_value((top.first++).value())) {
+        if ((top.first++).value().visit(visitor)) {
             is_first_element = true;
+            stack.back().element = element;
             goto loop;
         }
         is_first_element = false;

@@ -357,14 +357,14 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
 
     size_type count(const key_type& key) const {
         size_type count = 0;
-        for (auto it : make_range(equal_range(key))) { ++count, (void)it; }
+        for (auto it : uxs::make_range(equal_range(key))) { ++count, (void)it; }
         return count;
     }
 
     template<typename Key, typename Comp_ = key_compare>
     type_identity_t<size_type, typename Comp_::is_transparent> count(const Key& key) const {
         size_type count = 0;
-        for (auto it : make_range(equal_range(key))) { ++count, (void)it; }
+        for (auto it : uxs::make_range(equal_range(key))) { ++count, (void)it; }
         return count;
     }
 

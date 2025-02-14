@@ -16,14 +16,6 @@
 
 namespace uxs {
 namespace db {
-namespace json {
-template<typename CharT>
-class writer;
-}
-namespace xml {
-template<typename CharT>
-class writer;
-}
 
 enum class dtype {
     null = 0,
@@ -658,6 +650,23 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     UXS_EXPORT basic_value& operator[](std::basic_string_view<char_type> key);
 
+    template<typename Func>
+    auto visit(const Func& func) const -> decltype(func(nullptr)) {
+        switch (type_) {
+            case dtype::null: return func(nullptr);
+            case dtype::boolean: return func(value_.b);
+            case dtype::integer: return func(value_.i);
+            case dtype::unsigned_integer: return func(value_.u);
+            case dtype::long_integer: return func(value_.i64);
+            case dtype::unsigned_long_integer: return func(value_.u64);
+            case dtype::double_precision: return func(value_.dbl);
+            case dtype::string: return func(str_view());
+            case dtype::array:
+            case dtype::record: return func(uxs::make_range(begin(), end()));
+            default: UXS_UNREACHABLE_CODE;
+        }
+    }
+
     const_iterator find(std::basic_string_view<char_type> key) const;
     iterator find(std::basic_string_view<char_type> key);
     bool contains(std::basic_string_view<char_type> key) const;
@@ -707,10 +716,6 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     UXS_EXPORT std::size_t erase(std::basic_string_view<char_type> key);
 
  private:
-    template<typename CharT_>
-    friend class json::writer;
-    template<typename CharT_>
-    friend class xml::writer;
     friend struct detail::record_t<CharT, Alloc>;
     template<typename CharT_, typename Alloc_>
     friend basic_value<CharT_, Alloc_> make_array();
