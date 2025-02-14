@@ -975,5 +975,4 @@ void fmt_float_common(basic_membuffer<CharT>& s, std::uint64_t u64, fmt_opts fmt
 }
 
 }  // namespace scvt
-
 }  // namespace uxs
