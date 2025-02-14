@@ -258,6 +258,7 @@ std::basic_string<CharT> basic_option_node<CharT>::make_text(text_briefness brie
     return s;
 }
 
+namespace detail {
 template<typename CharT>
 void print_text_with_margin(uxs::basic_iobuf<CharT>& out, std::basic_string_view<CharT> text, std::size_t left_margin) {
     auto it = text.begin();
@@ -269,6 +270,7 @@ void print_text_with_margin(uxs::basic_iobuf<CharT>& out, std::basic_string_view
         it = end_it;
     }
 }
+}  // namespace detail
 
 template<typename CharT>
 std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring coloring) const {
@@ -365,8 +367,8 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring color
             } else {
                 osb.fill_n(width + gap - val->get_label().size(), ' ');
             }
-            print_text_with_margin<CharT>(osb, val->get_doc(),
-                                          tab_size + gap + (start_from_new_line ? max_margin : width));
+            detail::print_text_with_margin<CharT>(osb, val->get_doc(),
+                                                  tab_size + gap + (start_from_new_line ? max_margin : width));
         }
 
         osb.put('\n');
@@ -405,8 +407,8 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring color
             } else {
                 osb.fill_n(width + gap - s.size(), ' ');
             }
-            print_text_with_margin<CharT>(osb, node.get_doc(),
-                                          tab_size + gap + (start_from_new_line ? max_margin : width));
+            detail::print_text_with_margin<CharT>(osb, node.get_doc(),
+                                                  tab_size + gap + (start_from_new_line ? max_margin : width));
             return true;
         });
 
@@ -442,8 +444,8 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring color
             } else {
                 osb.fill_n(width + gap - subcmd.first.size(), ' ');
             }
-            print_text_with_margin<CharT>(osb, subcmd.second->get_doc(),
-                                          tab_size + gap + (start_from_new_line ? max_margin : width));
+            detail::print_text_with_margin<CharT>(osb, subcmd.second->get_doc(),
+                                                  tab_size + gap + (start_from_new_line ? max_margin : width));
         }
 
         osb.put('\n');
@@ -455,7 +457,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring color
         const auto label_overview = string_literal<CharT, 'O', 'V', 'E', 'R', 'V', 'I', 'E', 'W', ':', ' '>{}();
         osb.write(label_overview);
         if (coloring == text_coloring::colored) { osb.write(color_normal); }
-        print_text_with_margin<CharT>(osb, overview_, start_with_nl ? tab_size : label_overview.size());
+        detail::print_text_with_margin<CharT>(osb, overview_, start_with_nl ? tab_size : label_overview.size());
         osb.put('\n');
     }
 

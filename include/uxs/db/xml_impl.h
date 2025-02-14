@@ -92,6 +92,7 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
 
 // --------------------------
 
+namespace detail {
 template<typename CharT, typename Alloc>
 struct writer_stack_item_t {
     using value_t = basic_value<CharT, Alloc>;
@@ -123,11 +124,12 @@ basic_membuffer<CharT>& print_xml_text(basic_membuffer<CharT>& out, std::basic_s
     out.append(it0, text.end());
     return out;
 }
+}  // namespace detail
 
 template<typename CharT, typename Alloc>
 void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_element, unsigned indent) {
-    std::vector<writer_stack_item_t<CharT, Alloc>> stack;
-    typename writer_stack_item_t<CharT, Alloc>::string_type element(root_element);
+    std::vector<detail::writer_stack_item_t<CharT, Alloc>> stack;
+    typename detail::writer_stack_item_t<CharT, Alloc>::string_type element(root_element);
     stack.reserve(32);
 
     auto write_value = [this, &stack, &element](const basic_value<CharT, Alloc>& v) {
@@ -152,7 +154,7 @@ void writer::write(const basic_value<CharT, Alloc>& v, std::string_view root_ele
                 to_basic_string(output_, v.value_.dbl, fmt_opts{fmt_flags::json_compat});
             } break;
             case dtype::string: {
-                print_xml_text<char>(output_, utf8_string_adapter{}(v.str_view()));
+                detail::print_xml_text<char>(output_, utf8_string_adapter{}(v.str_view()));
             } break;
             case dtype::array:
             case dtype::record: {
