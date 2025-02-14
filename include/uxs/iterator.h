@@ -38,6 +38,9 @@ template<typename Iter, typename Ty>
 struct is_output_iterator<Iter, Ty, std::void_t<decltype(*std::declval<Iter&>()++ = std::declval<Ty>())>>
     : std::true_type {};
 
+template<typename Iter>
+using iterator_value_t = std::decay_t<decltype(*std::declval<Iter>())>;
+
 //-----------------------------------------------------------------------------
 // Iterator range
 

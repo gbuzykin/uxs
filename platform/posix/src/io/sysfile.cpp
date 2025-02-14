@@ -1,6 +1,6 @@
 #include "uxs/io/sysfile.h"
 
-#include "uxs/stringalg.h"
+#include "uxs/string_alg.h"
 #include "uxs/stringcvt.h"
 
 #include <fcntl.h>
