@@ -972,7 +972,7 @@ void basic_vformat(StrTy& s, locale_ref loc, std::basic_string_view<typename Str
     using char_type = typename StrTy::value_type;
     inline_basic_dynbuffer<char_type> buf;
     sfmt::vformat(basic_format_context<char_type>{buf, loc, args}, basic_format_parse_context<char_type>{fmt});
-    s.append(buf.begin(), buf.end());
+    s.append(buf.data(), buf.size());
 }
 
 }  // namespace detail

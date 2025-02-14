@@ -106,16 +106,16 @@ struct formatter<Tuple, CharT, std::enable_if_t<tuple_formattable<Tuple, CharT>:
 
     template<typename FmtCtx, std::size_t I>
     void format_element(FmtCtx& ctx, const Tuple& val, std::integral_constant<std::size_t, I>) const {
-        if UXS_CONSTEXPR (I != 0) { ctx.out().append(separator_.begin(), separator_.end()); }
+        if UXS_CONSTEXPR (I != 0) { ctx.out() += separator_; }
         std::get<I>(underlying_).format(ctx, std::get<I>(val));
         format_element(ctx, val, std::integral_constant<std::size_t, I + 1>{});
     }
 
     template<typename FmtCtx>
     void format_impl(FmtCtx& ctx, const Tuple& val) const {
-        ctx.out().append(opening_bracket_.begin(), opening_bracket_.end());
+        ctx.out() += opening_bracket_;
         format_element(ctx, val, std::integral_constant<std::size_t, 0>{});
-        ctx.out().append(closing_bracket_.begin(), closing_bracket_.end());
+        ctx.out() += closing_bracket_;
     }
 
  public:
@@ -158,7 +158,7 @@ struct formatter<Tuple, CharT, std::enable_if_t<tuple_formattable<Tuple, CharT>:
         basic_format_context<CharT> buf_ctx{buf, ctx};
         format_impl(buf_ctx, val);
         const std::size_t len = estimate_string_width<CharT>(buf.begin(), buf.end());
-        const auto fn = [&buf](basic_membuffer<CharT>& s) { s.append(buf.begin(), buf.end()); };
+        const auto fn = [&buf](basic_membuffer<CharT>& s) { s.append(buf.data(), buf.size()); };
         return width > len ? append_adjusted(ctx.out(), fn, static_cast<unsigned>(len), specs_) : fn(ctx.out());
     }
 };
@@ -228,12 +228,12 @@ struct range_formatter {
 
     template<typename FmtCtx, typename Range>
     void format_impl(FmtCtx& ctx, const Range& val) const {
-        ctx.out().append(opening_bracket_.begin(), opening_bracket_.end());
+        ctx.out() += opening_bracket_;
         for (auto it = std::begin(val); it != std::end(val); ++it) {
-            if (it != std::begin(val)) { ctx.out().append(separator_.begin(), separator_.end()); }
+            if (it != std::begin(val)) { ctx.out() += separator_; }
             underlying_.format(ctx, *it);
         }
-        ctx.out().append(closing_bracket_.begin(), closing_bracket_.end());
+        ctx.out() += closing_bracket_;
     }
 
  public:
@@ -308,7 +308,7 @@ struct range_formatter {
             format_impl(buf_ctx, val);
             len = estimate_string_width<CharT>(buf.begin(), buf.end());
         }
-        const auto fn = [&buf](basic_membuffer<CharT>& s) { s.append(buf.begin(), buf.end()); };
+        const auto fn = [&buf](basic_membuffer<CharT>& s) { s.append(buf.data(), buf.size()); };
         return width > len ? append_adjusted(ctx.out(), fn, static_cast<unsigned>(len), specs_) : fn(ctx.out());
     }
 };

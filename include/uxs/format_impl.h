@@ -20,7 +20,7 @@ template<typename FmtCtx>
 void vformat(FmtCtx ctx, typename FmtCtx::parse_context parse_ctx) {
     using iterator = typename FmtCtx::parse_context::iterator;
     sfmt::parse_format(
-        parse_ctx, [&ctx](iterator first, iterator last) { ctx.out().append(first, last); },
+        parse_ctx, [&ctx](iterator first, iterator last) { ctx.out() += to_string_view(first, last); },
         [&ctx](typename FmtCtx::parse_context& parse_ctx, std::size_t id) {
             ctx.arg(id).visit(arg_visitor<FmtCtx>{ctx, parse_ctx});
         });
