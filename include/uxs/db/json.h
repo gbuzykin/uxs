@@ -2,7 +2,7 @@
 
 #include "database_error.h"
 
-#include "uxs/format.h"
+#include "uxs/format_base.h"
 
 namespace uxs {
 namespace db {

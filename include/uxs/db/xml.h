@@ -1,6 +1,6 @@
 #pragma once
 
-#include "uxs/format.h"
+#include "uxs/format_base.h"
 
 #include <forward_list>
 #include <map>
