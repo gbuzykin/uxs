@@ -12,9 +12,9 @@ namespace detail {
 // Red-black tree implementation
 
 struct rbtree_links_t : rbtree_node_t {
-#if _ITERATOR_DEBUG_LEVEL != 0
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
     rbtree_node_t* head;
-#endif  // _ITERATOR_DEBUG_LEVEL != 0
+#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
 };
 
 template<typename Key>
@@ -31,17 +31,17 @@ struct rbtree_node_traits {
     using iterator_node_t = rbtree_node_t;
     static rbtree_node_t* get_next(rbtree_node_t* node) { return rbtree_next(node); }
     static rbtree_node_t* get_prev(rbtree_node_t* node) { return rbtree_prev(node); }
-#if _ITERATOR_DEBUG_LEVEL != 0
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
     static void set_head(rbtree_node_t* node, rbtree_node_t* head) { static_cast<rbtree_links_t*>(node)->head = head; }
     static void set_head(rbtree_node_t* first, rbtree_node_t* last, rbtree_node_t* head) {
         for (auto* p = first; p != last; p = get_next(p)) { set_head(p, head); }
     }
     static rbtree_node_t* get_head(rbtree_node_t* node) { return static_cast<rbtree_links_t*>(node)->head; }
     static rbtree_node_t* get_front(rbtree_node_t* head) { return head->parent; }
-#else   // _ITERATOR_DEBUG_LEVEL != 0
+#else   // UXS_ITERATOR_DEBUG_LEVEL != 0
     static void set_head(rbtree_node_t* node, rbtree_node_t* head) {}
     static void set_head(rbtree_node_t* first, rbtree_node_t* last, rbtree_node_t* head) {}
-#endif  // _ITERATOR_DEBUG_LEVEL != 0
+#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
 };
 
 template<typename Key>

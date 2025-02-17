@@ -7,11 +7,11 @@
 #include <limits>
 #include <memory>
 
-#if _ITERATOR_DEBUG_LEVEL != 0
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
 #    define uxs_iterator_assert(cond) assert(cond)
-#else  // _ITERATOR_DEBUG_LEVEL != 0
+#else  // UXS_ITERATOR_DEBUG_LEVEL != 0
 #    define uxs_iterator_assert(cond) ((void)0)
-#endif  // _ITERATOR_DEBUG_LEVEL != 0
+#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
 
 namespace uxs {
 
@@ -324,7 +324,7 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
     array_iterator() noexcept = default;
 
     // Explicit non-trivial copy operations are required by standard
-#if _ITERATOR_DEBUG_LEVEL != 0
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
     explicit array_iterator(underlying_ptr ptr, underlying_ptr begin, underlying_ptr end) noexcept
         : ptr_(ptr), begin_(begin), end_(end) {}
     array_iterator(const array_iterator& it) noexcept : ptr_(it.ptr_), begin_(it.begin_), end_(it.end_) {}
@@ -343,7 +343,7 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
     }
     underlying_ptr debug_begin() const { return begin_; }
     underlying_ptr debug_end() const { return end_; }
-#else   // _ITERATOR_DEBUG_LEVEL != 0
+#else   // UXS_ITERATOR_DEBUG_LEVEL != 0
     explicit array_iterator(underlying_ptr ptr, underlying_ptr begin, underlying_ptr end) noexcept : ptr_(ptr) {
         (void)begin, (void)end;
     }
@@ -361,7 +361,7 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
         ptr_ = it.ptr_;
         return *this;
     }
-#endif  // _ITERATOR_DEBUG_LEVEL != 0
+#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
 
     void increment() noexcept {
         uxs_iterator_assert(begin_ <= ptr_ && ptr_ < end_);
@@ -405,10 +405,10 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
 
  private:
     underlying_ptr ptr_{nullptr};
-#if _ITERATOR_DEBUG_LEVEL != 0
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
     underlying_ptr begin_{nullptr};
     underlying_ptr end_{nullptr};
-#endif  // _ITERATOR_DEBUG_LEVEL != 0
+#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
 };
 
 //-----------------------------------------------------------------------------

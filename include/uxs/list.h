@@ -17,9 +17,9 @@ namespace detail {
 struct list_links_t {
     list_links_t* next;
     list_links_t* prev;
-#if _ITERATOR_DEBUG_LEVEL != 0
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
     list_links_t* head;
-#endif  // _ITERATOR_DEBUG_LEVEL != 0
+#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
 };
 
 template<typename Ty>
@@ -33,17 +33,17 @@ struct list_node_traits {
     using node_t = list_node_type<Ty>;
     static list_links_t* get_next(list_links_t* node) { return node->next; }
     static list_links_t* get_prev(list_links_t* node) { return node->prev; }
-#if _ITERATOR_DEBUG_LEVEL != 0
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
     static void set_head(list_links_t* node, list_links_t* head) { node->head = head; }
     static void set_head(list_links_t* first, list_links_t* last, list_links_t* head) {
         for (auto* p = first; p != last; p = get_next(p)) { set_head(p, head); }
     }
     static list_links_t* get_head(list_links_t* node) { return node->head; }
     static list_links_t* get_front(list_links_t* head) { return head->next; }
-#else   // _ITERATOR_DEBUG_LEVEL != 0
+#else   // UXS_ITERATOR_DEBUG_LEVEL != 0
     static void set_head(list_links_t* node, list_links_t* head) {}
     static void set_head(list_links_t* first, list_links_t* last, list_links_t* head) {}
-#endif  // _ITERATOR_DEBUG_LEVEL != 0
+#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
     static Ty& get_value(list_links_t* node) { return static_cast<node_t*>(node)->value; }
 };
 
