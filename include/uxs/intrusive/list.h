@@ -9,9 +9,9 @@ namespace intrusive {
 struct list_links_t {
     list_links_t* next;
     list_links_t* prev;
-#if _ITERATOR_DEBUG_LEVEL != 0
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
     list_links_t* head;
-#endif  // _ITERATOR_DEBUG_LEVEL != 0
+#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
 };
 
 template<typename Ty, typename HookTy, typename... Opts>
@@ -109,23 +109,23 @@ struct list_node_traits {
     }
     template<typename... Dummy>
     static void dispose_all(list_links_t* head, Dummy&&...) {
-#if _ITERATOR_DEBUG_LEVEL != 0
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
         auto* item = head->next;
         while (item != head) {
             auto* next = item->next;
             set_head(item, nullptr);
             item = next;
         }
-#endif  // _ITERATOR_DEBUG_LEVEL != 0
+#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
     }
 
-#if _ITERATOR_DEBUG_LEVEL != 0
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
     static void set_head(list_links_t* node, list_links_t* head) { node->head = head; }
     static list_links_t* get_head(list_links_t* node) { return node->head; }
     static list_links_t* get_front(list_links_t* head) { return head->next; }
-#else   // _ITERATOR_DEBUG_LEVEL != 0
+#else   // UXS_ITERATOR_DEBUG_LEVEL != 0
     static void set_head(list_links_t* node, list_links_t* head) {}
-#endif  // _ITERATOR_DEBUG_LEVEL != 0
+#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
 };
 
 }  // namespace detail

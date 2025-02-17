@@ -84,15 +84,15 @@ struct flexarray_t {
     }
 };
 
-#if _ITERATOR_DEBUG_LEVEL != 0
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
 struct list_links_t {
     list_links_t* next;
     list_links_t* prev;
     list_links_t* head;
 };
-#else   // _ITERATOR_DEBUG_LEVEL != 0
+#else   // UXS_ITERATOR_DEBUG_LEVEL != 0
 using list_links_t = dllist_node_t;
-#endif  // _ITERATOR_DEBUG_LEVEL != 0
+#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
 
 template<typename CharT, typename Alloc>
 struct record_t;
@@ -153,13 +153,13 @@ struct record_node_traits {
     using node_t = record_value<CharT, Alloc>;
     static list_links_t* get_next(list_links_t* node) { return node->next; }
     static list_links_t* get_prev(list_links_t* node) { return node->prev; }
-#if _ITERATOR_DEBUG_LEVEL != 0
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
     static void set_head(list_links_t* node, list_links_t* head) { node->head = head; }
     static list_links_t* get_head(list_links_t* node) { return node->head; }
     static list_links_t* get_front(list_links_t* head) { return head->next; }
-#else   // _ITERATOR_DEBUG_LEVEL != 0
+#else   // UXS_ITERATOR_DEBUG_LEVEL != 0
     static void set_head(list_links_t* node, list_links_t* head) {}
-#endif  // _ITERATOR_DEBUG_LEVEL != 0
+#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
     static record_value<CharT, Alloc>& get_value(list_links_t* node) { return *node_t::from_links(node); }
 };
 
@@ -253,7 +253,7 @@ class value_iterator : public container_iterator_facade<basic_value<CharT, Alloc
     friend class value_iterator;
 
     value_iterator() noexcept = default;
-#if _ITERATOR_DEBUG_LEVEL != 0
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
     explicit value_iterator(value_type* ptr, value_type* begin, value_type* end) noexcept
         : is_record_(false), ptr_(ptr), begin_(begin), end_(end) {}
     template<bool Const_ = Const>
@@ -264,7 +264,7 @@ class value_iterator : public container_iterator_facade<basic_value<CharT, Alloc
         is_record_ = it.is_record_, ptr_ = it.ptr_, begin_ = it.begin_, end_ = it.end_;
         return *this;
     }
-#else   // _ITERATOR_DEBUG_LEVEL != 0
+#else   // UXS_ITERATOR_DEBUG_LEVEL != 0
     explicit value_iterator(value_type* ptr, value_type* begin, value_type* end) noexcept
         : is_record_(false), ptr_(ptr) {
         (void)begin, (void)end;
@@ -277,7 +277,7 @@ class value_iterator : public container_iterator_facade<basic_value<CharT, Alloc
         is_record_ = it.is_record_, ptr_ = it.ptr_;
         return *this;
     }
-#endif  // _ITERATOR_DEBUG_LEVEL != 0
+#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
     explicit value_iterator(list_links_t* node) noexcept : is_record_(true), ptr_(node) {}
 
     void increment() noexcept {
@@ -323,11 +323,11 @@ class value_iterator : public container_iterator_facade<basic_value<CharT, Alloc
 
     bool is_record_ = false;
     void* ptr_ = nullptr;
-#if _ITERATOR_DEBUG_LEVEL != 0
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
     void* begin_ = nullptr;
     void* end_ = nullptr;
     list_links_t* head() const noexcept { return static_cast<list_links_t*>(ptr_)->head; }
-#endif  // _ITERATOR_DEBUG_LEVEL != 0
+#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
 };
 
 template<typename Iter>
