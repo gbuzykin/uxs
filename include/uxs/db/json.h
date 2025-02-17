@@ -47,7 +47,7 @@ class reader {
     int parse_token(std::string_view& lval);
 };
 
-template<typename CharT = char>
+template<typename CharT>
 class writer {
  public:
     explicit writer(basic_iobuf<CharT>& output, unsigned indent_sz = 0, char record_ws_ch = ' ', char array_ws_ch = ' ',
@@ -98,7 +98,7 @@ loop:
                 next_action_type ret = fn_value_checked(tt, lval);
                 if (ret == next_action_type::step_into) {
                     if ((tk_val = static_cast<token_t>(tt)) < token_t::null) {
-                        stack.push_back('[');
+                        stack += '[';
                         comma = false;
                         goto loop;
                     }
@@ -121,7 +121,7 @@ loop:
             next_action_type ret = fn_value_checked(tt, lval);
             if (ret == next_action_type::step_into) {
                 if ((tk_val = static_cast<token_t>(tt)) < token_t::null) {
-                    stack.push_back('{');
+                    stack += '{';
                     comma = false;
                     goto loop;
                 }

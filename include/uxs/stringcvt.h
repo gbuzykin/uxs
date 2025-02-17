@@ -100,8 +100,6 @@ class basic_membuffer {
         return *this;
     }
 
-    basic_membuffer& append(const value_type* s, size_type count) { return append(s, s + count); }
-
     template<typename... Args>
     void emplace_back(Args&&... args) {
         if (curr_ != last_ || try_grow(1)) { new (curr_++) value_type(std::forward<Args>(args)...); }
@@ -111,9 +109,20 @@ class basic_membuffer {
     }
     void pop_back() noexcept { --curr_; }
 
-    basic_membuffer& operator+=(std::basic_string_view<value_type> s) { return append(s.data(), s.size()); }
-    basic_membuffer& operator+=(const value_type* s) { return *this += std::basic_string_view<value_type>(s); }
-    basic_membuffer& operator+=(value_type ch) {
+    template<typename CharT = value_type>
+    std::enable_if_t<is_character<CharT>::value, basic_membuffer&> append(const value_type* s, size_type count) {
+        return append(s, s + count);
+    }
+    template<typename CharT = value_type>
+    std::enable_if_t<is_character<CharT>::value, basic_membuffer&> operator+=(std::basic_string_view<value_type> s) {
+        return append(s.data(), s.size());
+    }
+    template<typename CharT = value_type>
+    std::enable_if_t<is_character<CharT>::value, basic_membuffer&> operator+=(const value_type* s) {
+        return *this += std::basic_string_view<value_type>(s);
+    }
+    template<typename CharT = value_type>
+    std::enable_if_t<is_character<CharT>::value, basic_membuffer&> operator+=(value_type ch) {
         push_back(ch);
         return *this;
     }
@@ -274,7 +283,7 @@ std::size_t append_escaped_text(StrTy& s, InputIt first, InputIt last, bool sing
                                 std::size_t max_width = std::numeric_limits<std::size_t>::max()) {
     using char_type = typename StrTy::value_type;
     if (max_width == 0) { return 0; }
-    s.push_back(single_quoted ? '\'' : '\"');
+    s += single_quoted ? '\'' : '\"';
     std::size_t width = 1;
     std::uint32_t code = 0;
     unsigned count = 0;
@@ -318,8 +327,8 @@ std::size_t append_escaped_text(StrTy& s, InputIt first, InputIt last, bool sing
         if (esc) {
             if (max_width - width < 2) { goto finish; }
             width += 2;
-            s.push_back('\\');
-            s.push_back(esc);
+            s += '\\';
+            s += esc;
         } else {
             std::array<char_type, 8> digs;
             char_type* p = digs.data();
@@ -330,15 +339,15 @@ std::size_t append_escaped_text(StrTy& s, InputIt first, InputIt last, bool sing
             width += w;
             s += is_wellformed ? string_literal<char_type, '\\', 'u', '{'>{}() :
                                  string_literal<char_type, '\\', 'x', '{'>{}();
-            do { s.push_back(*--p); } while (p != digs.data());
-            s.push_back('}');
+            do { s += *--p; } while (p != digs.data());
+            s += '}';
         }
         first0 = next;
     }
 finish:
     s.append(first0, first);
     if (width == max_width) { return width; }
-    s.push_back(single_quoted ? '\'' : '\"');
+    s += single_quoted ? '\'' : '\"';
     return width + 1;
 }
 

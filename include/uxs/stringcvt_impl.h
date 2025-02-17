@@ -296,7 +296,7 @@ void adjust_numeric(basic_membuffer<CharT>& s, Func fn, unsigned len, unsigned p
     } else if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::right || !(fmt.flags & fmt_flags::leading_zeroes)) {
         right = 0;
     } else {
-        for (; prefix; prefix >>= 8) { s.push_back(static_cast<CharT>(prefix & 0xff)); }
+        for (; prefix; prefix >>= 8) { s += static_cast<CharT>(prefix & 0xff); }
         s.append(left, '0');
         return fn(len, 0, std::forward<Args>(args)...);
     }
@@ -596,7 +596,7 @@ void fmt_integer_common(basic_membuffer<CharT>& s, Ty val, bool is_signed, fmt_o
             if ((val & char_mask) != val && (~val & char_mask) != val) {
                 throw format_error("integral cannot be represented as a character");
             }
-            const auto fn = [val](basic_membuffer<CharT>& s) { s.push_back(static_cast<CharT>(val)); };
+            const auto fn = [val](basic_membuffer<CharT>& s) { s += static_cast<CharT>(val); };
             return fmt.width > 1 ? append_adjusted(s, fn, 1, fmt) : fn(s);
         } break;
         default: return fmt_dec(s, val, is_signed, fmt, loc);
@@ -641,7 +641,7 @@ void fmt_character(basic_membuffer<CharT>& s, CharT val, fmt_opts fmt, locale_re
         case fmt_flags::hex: return fmt_hex(s, code, false, fmt, loc);
         default: {
             if (!(fmt.flags & fmt_flags::debug_format)) {
-                const auto fn = [val](basic_membuffer<CharT>& s) { s.push_back(val); };
+                const auto fn = [val](basic_membuffer<CharT>& s) { s += val; };
                 return fmt.width > 1 ? append_adjusted(s, fn, 1, fmt) : fn(s);
             } else if (fmt.width == 0) {
                 append_escaped_text(s, &val, &val + 1, true);
@@ -932,7 +932,7 @@ void fmt_float_common(basic_membuffer<CharT>& s, std::uint64_t u64, fmt_opts fmt
                                        default_numpunct<CharT>().nanname(uppercase);
         const unsigned len = (sign ? 1 : 0) + static_cast<unsigned>(sval.size());
         const auto fn = [&sval, sign](basic_membuffer<CharT>& s) {
-            if (sign) { s.push_back(static_cast<CharT>(sign)); }
+            if (sign) { s += static_cast<CharT>(sign); }
             s += sval;
         };
         return fmt.width > len ? append_adjusted(s, fn, len, fmt, true) : fn(s);

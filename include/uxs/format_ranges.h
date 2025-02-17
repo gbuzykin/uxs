@@ -215,7 +215,7 @@ struct range_formatter {
                     width += w;
                 }
             }
-            while (first != last) { s.push_back(*first++); }
+            while (first != last) { s += *first++; }
             return width;
         }
         return append_escaped_text(s, std::begin(val), std::end(val), false,

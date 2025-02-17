@@ -84,14 +84,14 @@ int json::reader::parse_token(std::string_view& lval) {
         }
         switch (pat) {
             // ------ escape sequences
-            case lex_detail::pat_escape_quot: str_.push_back('\"'); break;
-            case lex_detail::pat_escape_rev_sol: str_.push_back('\\'); break;
-            case lex_detail::pat_escape_sol: str_.push_back('/'); break;
-            case lex_detail::pat_escape_b: str_.push_back('\b'); break;
-            case lex_detail::pat_escape_f: str_.push_back('\f'); break;
-            case lex_detail::pat_escape_n: str_.push_back('\n'); break;
-            case lex_detail::pat_escape_r: str_.push_back('\r'); break;
-            case lex_detail::pat_escape_t: str_.push_back('\t'); break;
+            case lex_detail::pat_escape_quot: str_ += '\"'; break;
+            case lex_detail::pat_escape_rev_sol: str_ += '\\'; break;
+            case lex_detail::pat_escape_sol: str_ += '/'; break;
+            case lex_detail::pat_escape_b: str_ += '\b'; break;
+            case lex_detail::pat_escape_f: str_ += '\f'; break;
+            case lex_detail::pat_escape_n: str_ += '\n'; break;
+            case lex_detail::pat_escape_r: str_ += '\r'; break;
+            case lex_detail::pat_escape_t: str_ += '\t'; break;
             case lex_detail::pat_escape_other: return static_cast<int>(token_t::eof);
             case lex_detail::pat_escape_unicode: {
                 unsigned unicode = (dig_v(lexeme[2]) << 12) | (dig_v(lexeme[3]) << 8) | (dig_v(lexeme[4]) << 4) |
