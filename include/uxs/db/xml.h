@@ -102,7 +102,7 @@ class reader {
     static string_class classify_string(const std::string_view& sval);
 };
 
-template<typename CharT = char>
+template<typename CharT>
 class writer {
  public:
     explicit writer(basic_iobuf<CharT>& output, unsigned indent_sz = 0, char indent_ch = ' ')

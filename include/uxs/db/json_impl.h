@@ -90,7 +90,7 @@ struct writer_stack_item_t {
 template<typename CharT>
 basic_membuffer<CharT>& write_text(basic_membuffer<CharT>& out, std::basic_string_view<CharT> text) {
     auto it0 = text.begin();
-    out.push_back('\"');
+    out += '\"';
     for (auto it = it0; it != text.end(); ++it) {
         char esc = '\0';
         switch (*it) {
@@ -105,20 +105,20 @@ basic_membuffer<CharT>& write_text(basic_membuffer<CharT>& out, std::basic_strin
                 if (static_cast<unsigned char>(*it) < 32) {
                     out += to_string_view(it0, it);
                     out += string_literal<CharT, '\\', 'u', '0', '0'>{}();
-                    out.push_back('0' + (*it >> 4));
-                    out.push_back("0123456789ABCDEF"[*it & 15]);
+                    out += '0' + (*it >> 4);
+                    out += "0123456789ABCDEF"[*it & 15];
                     it0 = it + 1;
                 }
                 continue;
             } break;
         }
         out += to_string_view(it0, it);
-        out.push_back('\\');
-        out.push_back(esc);
+        out += '\\';
+        out += esc;
         it0 = it + 1;
     }
     out += to_string_view(it0, text.end());
-    out.push_back('\"');
+    out += '\"';
     return out;
 }
 
@@ -168,7 +168,7 @@ struct value_visitor {
 
 template<typename StrTy, typename StackTy>
 value_visitor<StrTy, StackTy> make_value_visitor(StrTy& out, StackTy& stack) {
-    return value_visitor{out, stack};
+    return {out, stack};
 }
 
 }  // namespace detail
@@ -193,18 +193,18 @@ loop:
     const char ws_char = top.first.is_record() ? record_ws_char_ : array_ws_char_;
 
     if (is_first_element) {
-        output_.push_back(top.first.is_record() ? '{' : '[');
+        output_ += top.first.is_record() ? '{' : '[';
         if (ws_char == '\n') {
             indent += indent_size_;
-            output_.push_back('\n');
+            output_ += '\n';
             output_.append(indent, indent_char_);
         }
     }
 
     while (top.first != top.last) {
         if (!is_first_element) {
-            output_.push_back(',');
-            output_.push_back(ws_char);
+            output_ += ',';
+            output_ += ws_char;
             if (ws_char == '\n') { output_.append(indent, indent_char_); }
         }
         if (top.first.is_record()) {
@@ -220,10 +220,10 @@ loop:
 
     if (ws_char == '\n') {
         indent -= indent_size_;
-        output_.push_back('\n');
+        output_ += '\n';
         output_.append(indent, indent_char_);
     }
-    output_.push_back(top.first.is_record() ? '}' : ']');
+    output_ += top.first.is_record() ? '}' : ']';
 
     stack.pop_back();
     if (!stack.empty()) { goto loop; }

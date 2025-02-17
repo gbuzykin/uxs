@@ -169,7 +169,7 @@ struct value_visitor {
 
 template<typename StrTy, typename StackTy>
 value_visitor<StrTy, StackTy> make_value_visitor(StrTy& out, StackTy& stack) {
-    return value_visitor{out, stack};
+    return {out, stack};
 }
 
 }  // namespace detail
@@ -185,13 +185,13 @@ void writer<CharT>::write(const basic_value<ValueCharT, Alloc>& v, std::basic_st
 
     auto visitor = make_value_visitor(output_, stack);
 
-    output_.push_back('<');
+    output_ += '<';
     output_ += element;
-    output_.push_back('>');
+    output_ += '>';
     if (!v.visit(visitor)) {
         output_ += string_literal<CharT, '<', '/'>{}();
         output_ += element;
-        output_.push_back('>');
+        output_ += '>';
         output_.flush();
         return;
     }
@@ -208,16 +208,16 @@ loop:
         if (!is_first_element && !std::prev(top.first).value().is_array()) {
             output_ += string_literal<CharT, '<', '/'>{}();
             output_ += element;
-            output_.push_back('>');
+            output_ += '>';
         }
         if (top.first == top.last) { break; }
         if (top.first.is_record()) { element = utf_string_adapter<CharT>{}(top.first.key()); }
         if (!top.first.value().is_array()) {
-            output_.push_back('\n');
+            output_ += '\n';
             output_.append(indent, indent_char_);
-            output_.push_back('<');
+            output_ += '<';
             output_ += element;
-            output_.push_back('>');
+            output_ += '>';
         }
         if ((top.first++).value().visit(visitor)) {
             is_first_element = true;
@@ -229,7 +229,7 @@ loop:
 
     if (top.first.is_record()) {
         indent -= indent_size_;
-        output_.push_back('\n');
+        output_ += '\n';
         output_.append(indent, indent_char_);
     }
 
@@ -240,7 +240,7 @@ loop:
 
     output_ += string_literal<CharT, '<', '/'>{}();
     output_ += element;
-    output_.push_back('>');
+    output_ += '>';
     output_.flush();
 }
 
