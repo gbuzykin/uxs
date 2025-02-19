@@ -9,90 +9,91 @@ namespace lex_detail {
 
 namespace uxs {
 namespace db {
+namespace json {
 
-json::reader::reader(ibuf& input) : input_(input) { state_stack_.push_back(lex_detail::sc_initial); }
+detail::parser::parser(ibuf& in) : in(in) { stack.push_back(lex_detail::sc_initial); }
 
-int json::reader::parse_token(std::string_view& lval) {
+token_t detail::parser::lex(std::string_view& lval) {
     unsigned surrogate = 0;
     while (true) {
         int pat = 0;
         unsigned llen = 0;
-        const char* first = input_.first_avail();
-        if (state_stack_.back() == lex_detail::sc_initial) {
+        const char* first = in.first_avail();
+        if (stack.back() == lex_detail::sc_initial) {
             while (true) {  // skip whitespaces
-                first = std::find_if<const char*>(first, input_.last_avail(), [this](char ch) {
+                first = std::find_if<const char*>(first, in.last_avail(), [this](char ch) {
                     if (ch != '\n') {
                         return !(uxs::detail::char_tbl_t{}.flags()[static_cast<std::uint8_t>(ch)] &
-                                 uxs::detail::char_bits::is_json_space);
+                                 uxs::detail::char_bits::is_json_ws);
                     }
-                    ++n_ln_;
+                    ++ln;
                     return false;
                 });
-                input_.advance(first - input_.first_avail());
-                if (first != input_.last_avail()) { break; }
-                if (input_.peek() == ibuf::traits_type::eof()) { return static_cast<int>(token_t::eof); }
-                first = input_.first_avail();
+                in.advance(first - in.first_avail());
+                if (first != in.last_avail()) { break; }
+                if (in.peek() == ibuf::traits_type::eof()) { return token_t::eof; }
+                first = in.first_avail();
             }
             // just process a single character if it can't be recognized with analyzer
             if (lex_detail::Dtran[lex_detail::symb2meta[static_cast<std::uint8_t>(*first)]] < 0) {
-                input_.advance(1);
-                if (*first != '\"') { return static_cast<std::uint8_t>(*first); }
-                state_stack_.push_back(lex_detail::sc_string);
+                in.advance(1);
+                if (*first != '\"') { return token_t(static_cast<std::uint8_t>(*first)); }
+                stack.push_back(lex_detail::sc_string);
                 continue;
             }
         }
         while (true) {
             bool stack_limitation = false;
-            const char* last = input_.last_avail();
-            if (state_stack_.avail() < static_cast<std::size_t>(last - first)) {
-                last = first + state_stack_.avail();
+            const char* last = in.last_avail();
+            if (stack.avail() < static_cast<std::size_t>(last - first)) {
+                last = first + stack.avail();
                 stack_limitation = true;
             }
-            pat = lex_detail::lex(first, last, state_stack_.p_curr(), &llen, stack_limitation || input_);
+            pat = lex_detail::lex(first, last, stack.p_curr(), &llen, stack_limitation || in);
             if (pat >= lex_detail::predef_pat_default) {
                 break;
             } else if (stack_limitation) {  // enlarge state stack and continue analysis
-                state_stack_.reserve(llen);
+                stack.reserve(llen);
                 first = last;
                 continue;
-            } else if (!input_) {
-                return static_cast<int>(token_t::eof);  // end of sequence, first_ == last_
+            } else if (!in) {
+                return token_t::eof;  // end of sequence, first_ == last_
             }
-            if (input_.avail()) {  // append read buffer to stash
-                stash_.append(input_.first_avail(), input_.last_avail());
-                input_.advance(input_.avail());
+            if (in.avail()) {  // append read buffer to stash
+                stash.append(in.first_avail(), in.last_avail());
+                in.advance(in.avail());
             }
-            // read more characters from input
-            input_.peek();
-            first = input_.first_avail();
+            // read more characters from in
+            in.peek();
+            first = in.first_avail();
         }
-        const char* lexeme = input_.first_avail();
-        if (stash_.empty()) {  // the stash is empty
-            input_.advance(llen);
+        const char* lexeme = in.first_avail();
+        if (stash.empty()) {  // the stash is empty
+            in.advance(llen);
         } else {
-            if (llen >= stash_.size()) {  // all characters in stash buffer are used
+            if (llen >= stash.size()) {  // all characters in stash buffer are used
                 // concatenate full lexeme in stash
-                std::size_t len_rest = llen - stash_.size();
-                stash_.append(input_.first_avail(), len_rest);
-                input_.advance(len_rest);
+                std::size_t len_rest = llen - stash.size();
+                stash.append(in.first_avail(), len_rest);
+                in.advance(len_rest);
             } else {  // at least one character in stash is yet unused
                       // put unused chars back to `ibuf`
-                for (const char* p = stash_.curr(); p != stash_.last(); ++p) { input_.unget(); }
+                for (const char* p = stash.curr(); p != stash.last(); ++p) { in.unget(); }
             }
-            lexeme = stash_.data();
-            stash_.clear();  // it resets end pointer, but retains the contents
+            lexeme = stash.data();
+            stash.clear();  // it resets end pointer, but retains the contents
         }
         switch (pat) {
             // ------ escape sequences
-            case lex_detail::pat_escape_quot: str_ += '\"'; break;
-            case lex_detail::pat_escape_rev_sol: str_ += '\\'; break;
-            case lex_detail::pat_escape_sol: str_ += '/'; break;
-            case lex_detail::pat_escape_b: str_ += '\b'; break;
-            case lex_detail::pat_escape_f: str_ += '\f'; break;
-            case lex_detail::pat_escape_n: str_ += '\n'; break;
-            case lex_detail::pat_escape_r: str_ += '\r'; break;
-            case lex_detail::pat_escape_t: str_ += '\t'; break;
-            case lex_detail::pat_escape_other: return static_cast<int>(token_t::eof);
+            case lex_detail::pat_escape_quot: str += '\"'; break;
+            case lex_detail::pat_escape_rev_sol: str += '\\'; break;
+            case lex_detail::pat_escape_sol: str += '/'; break;
+            case lex_detail::pat_escape_b: str += '\b'; break;
+            case lex_detail::pat_escape_f: str += '\f'; break;
+            case lex_detail::pat_escape_n: str += '\n'; break;
+            case lex_detail::pat_escape_r: str += '\r'; break;
+            case lex_detail::pat_escape_t: str += '\t'; break;
+            case lex_detail::pat_escape_other: return token_t::eof;
             case lex_detail::pat_escape_unicode: {
                 unsigned unicode = (dig_v(lexeme[2]) << 12) | (dig_v(lexeme[3]) << 8) | (dig_v(lexeme[4]) << 4) |
                                    dig_v(lexeme[5]);
@@ -100,82 +101,83 @@ int json::reader::parse_token(std::string_view& lval) {
                     if ((unicode & 0xfc00) == 0xdc00) {
                         unicode = 0x10000 + (((surrogate & 0x3ff) << 10) | (unicode & 0x3ff));
                     } else {
-                        to_utf8(surrogate, std::back_inserter(str_));
+                        to_utf8(surrogate, std::back_inserter(str));
                     }
                     surrogate = 0;
                 } else if ((unicode & 0xfc00) == 0xd800) {
                     surrogate = unicode;
                     break;
                 }
-                to_utf8(unicode, std::back_inserter(str_));
+                to_utf8(unicode, std::back_inserter(str));
             } break;
 
             // ------ strings
-            case lex_detail::pat_string_nl: return static_cast<int>(token_t::eof);
+            case lex_detail::pat_string_nl: return token_t::eof;
             case lex_detail::pat_string_seq: {
-                str_.append(lexeme, llen);
+                str.append(lexeme, llen);
             } break;
             case lex_detail::pat_string_close: {
-                if (str_.empty()) {
+                if (str.empty()) {
                     lval = std::string_view(lexeme, llen - 1);
                 } else {
-                    str_.append(lexeme, llen - 1);
-                    lval = std::string_view(str_.data(), str_.size());
-                    str_.clear();  // it resets end pointer, but retains the contents
+                    str.append(lexeme, llen - 1);
+                    lval = std::string_view(str.data(), str.size());
+                    str.clear();  // it resets end pointer, but retains the contents
                 }
-                state_stack_.pop_back();
-                return static_cast<int>(token_t::string);
+                stack.pop_back();
+                return token_t::string;
             } break;
 
-            case lex_detail::pat_null: return static_cast<int>(token_t::null);
-            case lex_detail::pat_true: return static_cast<int>(token_t::true_value);
-            case lex_detail::pat_false: return static_cast<int>(token_t::false_value);
+            case lex_detail::pat_null: return token_t::null_value;
+            case lex_detail::pat_true: return token_t::true_value;
+            case lex_detail::pat_false: return token_t::false_value;
             case lex_detail::pat_decimal: {
                 lval = std::string_view(lexeme, llen);
-                return static_cast<int>(token_t::integer_number);
+                return token_t::integer_number;
             } break;
             case lex_detail::pat_neg_decimal: {
                 lval = std::string_view(lexeme, llen);
-                return static_cast<int>(token_t::negative_integer_number);
+                return token_t::negative_integer_number;
             } break;
             case lex_detail::pat_real: {
                 lval = std::string_view(lexeme, llen);
-                return static_cast<int>(token_t::floating_point_number);
+                return token_t::floating_point_number;
             } break;
 
-            case lex_detail::pat_comment: {  // skip till end of line or stream
-                int ch = input_.get();
-                while (input_ && ch != '\n') {
-                    if (ch == '\0') { return static_cast<int>(token_t::eof); }
-                    ch = input_.get();
+            case lex_detail::pat_comment: {  // skip till end of line or out
+                int ch = in.get();
+                while (in && ch != '\n') {
+                    if (ch == '\0') { return token_t::eof; }
+                    ch = in.get();
                 }
-                ++n_ln_;
+                ++ln;
             } break;
             case lex_detail::pat_c_comment: {  // skip till `*/`
-                int ch = input_.get();
+                int ch = in.get();
                 do {
-                    while (input_ && ch != '*') {
-                        if (ch == '\0') { return static_cast<int>(token_t::eof); }
-                        if (ch == '\n') { ++n_ln_; }
-                        ch = input_.get();
+                    while (in && ch != '*') {
+                        if (ch == '\0') { return token_t::eof; }
+                        if (ch == '\n') { ++ln; }
+                        ch = in.get();
                     }
-                    ch = input_.get();
-                } while (input_ && ch != '/');
+                    ch = in.get();
+                } while (in && ch != '/');
             } break;
 
-            case lex_detail::predef_pat_default: return static_cast<std::uint8_t>(lexeme[0]);
+            case lex_detail::predef_pat_default: {
+                return token_t(static_cast<std::uint8_t>(lexeme[0]));
+            } break;
             default: UXS_UNREACHABLE_CODE;
         }
     }
 }
 
-namespace json {
-template UXS_EXPORT basic_value<char> reader::read(token_t, const std::allocator<char>&);
-template UXS_EXPORT basic_value<wchar_t> reader::read(token_t, const std::allocator<wchar_t>&);
-template UXS_EXPORT void writer<char>::write(const basic_value<char>&, unsigned);
-template UXS_EXPORT void writer<char>::write(const basic_value<wchar_t>&, unsigned);
-template UXS_EXPORT void writer<wchar_t>::write(const basic_value<char>&, unsigned);
-template UXS_EXPORT void writer<wchar_t>::write(const basic_value<wchar_t>&, unsigned);
+template UXS_EXPORT basic_value<char> read(ibuf&, const std::allocator<char>&);
+template UXS_EXPORT basic_value<wchar_t> read(ibuf&, const std::allocator<wchar_t>&);
+template UXS_EXPORT void detail::writer<char>::do_write(const basic_value<char>&, unsigned);
+template UXS_EXPORT void detail::writer<char>::do_write(const basic_value<wchar_t>&, unsigned);
+template UXS_EXPORT void detail::writer<wchar_t>::do_write(const basic_value<char>&, unsigned);
+template UXS_EXPORT void detail::writer<wchar_t>::do_write(const basic_value<wchar_t>&, unsigned);
 }  // namespace json
 }  // namespace db
 }  // namespace uxs

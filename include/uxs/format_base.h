@@ -1,8 +1,7 @@
 #pragma once
 
 #include "alignment.h"
-#include "io/iobuf.h"
-#include "stringcvt.h"
+#include "io/iomembuffer.h"
 
 namespace uxs {
 
@@ -327,7 +326,7 @@ enum class index_t : std::uint8_t {
     pointer,
     z_string,
     string,
-    custom
+    custom,
 };
 
 template<typename Ty, typename CharT>
@@ -488,6 +487,44 @@ struct parse_context_utils {
     }
 
     template<typename ParseCtx>
+    static UXS_CONSTEXPR bool parse_dynamic_parameter(ParseCtx& ctx, typename ParseCtx::iterator& it,
+                                                      std::size_t& arg_id) {
+        std::size_t tmp = 0;
+        if (it == ctx.end()) {
+            return false;
+        } else if (*it == '}') {
+            arg_id = ctx.next_arg_id();
+        } else if ((tmp = dig_v(*it)) < 10) {
+            it = parse_number(it + 1, ctx.end(), tmp);
+            if (it == ctx.end() || *it != '}') { return false; }
+            ctx.check_arg_id(tmp);
+            arg_id = tmp;
+        } else {
+            return false;
+        }
+        ctx.check_dynamic_spec_integral(arg_id);
+        return true;
+    }
+
+    template<typename ParseCtx, typename Ty>
+    static UXS_CONSTEXPR bool parse_integral_parameter(ParseCtx& ctx, typename ParseCtx::iterator& it, Ty& num,
+                                                       std::size_t& arg_id) {
+        unsigned dig = 0;
+        if (it == ctx.end()) {
+            return false;
+        } else if ((dig = dig_v(*it)) < 10) {
+            num = static_cast<Ty>(dig);
+            it = parse_number(it + 1, ctx.end(), num) - 1;
+        } else if (*it == '{') {
+            if (!parse_dynamic_parameter(ctx, ++it, arg_id)) { return false; }
+            num = 1;  // specified
+        } else {
+            return false;
+        }
+        return true;
+    }
+
+    template<typename ParseCtx>
     static UXS_CONSTEXPR typename ParseCtx::iterator parse_standard(ParseCtx& ctx, typename ParseCtx::iterator it,
                                                                     fmt_opts& opts, std::size_t& width_arg_id,
                                                                     std::size_t& prec_arg_id) {
@@ -546,23 +583,9 @@ struct parse_context_utils {
                 // width
                 case '{':
                     UXS_FMT_SPECIFIER_CASE(state_t::precision, {
-                        auto it0 = it;
-                        if (++it == ctx.end()) { return it0; }
-                        // obtain argument number for width
-                        std::size_t arg_id = 0;
-                        if (*it == '}') {
-                            width_arg_id = ctx.next_arg_id();
-                        } else if ((arg_id = dig_v(*it)) < 10) {
-                            it = ParseCtx::parse_number(it + 1, ctx.end(), arg_id);
-                            if (it == ctx.end() || *it != '}') { return it0; }
-                            ctx.check_arg_id(arg_id);
-                            width_arg_id = arg_id;
-                        } else {
-                            return it0;
-                        }
-                        ctx.check_dynamic_spec_integral(width_arg_id);
-                        opts.width = 1;  // width is specified
-                        break;
+                        auto it0 = it++;
+                        if (!parse_dynamic_parameter(ctx, it, width_arg_id)) { return it0; }
+                        opts.width = 1;
                     });
                 case '1':
                 case '2':
@@ -575,36 +598,14 @@ struct parse_context_utils {
                 case '9':
                     UXS_FMT_SPECIFIER_CASE(state_t::precision, {
                         opts.width = static_cast<unsigned>(*it - '0');
-                        it = ParseCtx::parse_number(it + 1, ctx.end(), opts.width) - 1;
+                        it = parse_number(it + 1, ctx.end(), opts.width) - 1;
                     });
 
                 // precision
                 case '.':
                     UXS_FMT_SPECIFIER_CASE(state_t::locale, {
-                        auto it0 = it;
-                        if (++it == ctx.end()) { return it0; }
-                        unsigned dig = 0;
-                        if ((dig = dig_v(*it)) < 10) {
-                            opts.prec = dig;
-                            it = ParseCtx::parse_number(it + 1, ctx.end(), opts.prec) - 1;
-                        } else if (*it == '{' && ++it != ctx.end()) {
-                            // obtain argument number for precision
-                            std::size_t arg_id = 0;
-                            if (*it == '}') {
-                                prec_arg_id = ctx.next_arg_id();
-                            } else if ((arg_id = dig_v(*it)) < 10) {
-                                it = ParseCtx::parse_number(it + 1, ctx.end(), arg_id);
-                                if (it == ctx.end() || *it != '}') { return it0; }
-                                ctx.check_arg_id(arg_id);
-                                prec_arg_id = arg_id;
-                            } else {
-                                return it0;
-                            }
-                            ctx.check_dynamic_spec_integral(prec_arg_id);
-                            opts.prec = 0;  // precision is specified
-                        } else {
-                            return it0;
-                        }
+                        auto it0 = it++;
+                        if (!parse_integral_parameter(ctx, it, opts.prec, prec_arg_id)) { return it0; }
                         break;
                     });
 #undef UXS_FMT_SPECIFIER_CASE
@@ -616,7 +617,15 @@ struct parse_context_utils {
         return it;
     }
 
-    enum class type_spec : unsigned { none = 0, integer, floating_point, pointer, character, string, debug_string };
+    enum class type_spec {
+        none = 0,
+        integer,
+        floating_point,
+        pointer,
+        character,
+        string,
+        debug_string,
+    };
 
     template<typename CharT>
     static UXS_CONSTEXPR type_spec classify_standard_type(CharT ch, fmt_opts& opts) {
@@ -1244,48 +1253,26 @@ format_to_n_result<OutputIt> format_to_n(OutputIt out, std::size_t n, const std:
 
 // ---- vprint
 
-template<typename Ty>
-class basic_membuffer_for_iobuf final : public basic_membuffer<Ty> {
- public:
-    explicit basic_membuffer_for_iobuf(basic_iobuf<Ty>& out) noexcept
-        : basic_membuffer<Ty>(out.first_avail(), out.last_avail()), out_(out) {}
-    ~basic_membuffer_for_iobuf() override { flush(); }
-    void flush() noexcept { out_.advance(this->curr() - out_.first_avail()); }
-
- private:
-    basic_iobuf<Ty>& out_;
-
-    std::size_t try_grow(std::size_t extra) override {
-        flush();
-        if (!out_.reserve().good()) { return 0; }
-        this->set(out_.first_avail(), out_.last_avail());
-        return this->avail();
-    }
-};
-
-using membuffer_for_iobuf = basic_membuffer_for_iobuf<char>;
-using wmembuffer_for_iobuf = basic_membuffer_for_iobuf<wchar_t>;
-
 inline iobuf& vprint(iobuf& out, std::string_view fmt, format_args args) {
-    membuffer_for_iobuf buf(out);
+    iomembuffer buf(out);
     basic_vformat(buf, fmt, args);
     return out;
 }
 
 inline wiobuf& vprint(wiobuf& out, std::wstring_view fmt, wformat_args args) {
-    wmembuffer_for_iobuf buf(out);
+    wiomembuffer buf(out);
     basic_vformat(buf, fmt, args);
     return out;
 }
 
 inline iobuf& vprint(iobuf& out, const std::locale& loc, std::string_view fmt, format_args args) {
-    membuffer_for_iobuf buf(out);
+    iomembuffer buf(out);
     basic_vformat(buf, loc, fmt, args);
     return out;
 }
 
 inline wiobuf& vprint(wiobuf& out, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
-    wmembuffer_for_iobuf buf(out);
+    wiomembuffer buf(out);
     basic_vformat(buf, loc, fmt, args);
     return out;
 }

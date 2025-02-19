@@ -220,7 +220,7 @@ template<typename InputIt, typename Comp = std::less<detail::iter_key_t<InputIt>
          typename = std::enable_if_t<!is_allocator<Comp>::value>, typename = std::enable_if_t<is_allocator<Alloc>::value>>
 map(InputIt, InputIt, Comp = Comp(),
     Alloc = Alloc()) -> map<detail::iter_key_t<InputIt>, detail::iter_val_t<InputIt>, Comp, Alloc>;
-template<typename Key, typename Ty, typename Comp = std::less<remove_const_t<Key>>,
+template<typename Key, typename Ty, typename Comp = std::less<est::remove_const_t<Key>>,
          typename Alloc = std::allocator<std::pair<const Key, Ty>>,
          typename = std::enable_if_t<!is_allocator<Comp>::value>, typename = std::enable_if_t<is_allocator<Alloc>::value>>
 map(std::initializer_list<std::pair<Key, Ty>>, Comp = Comp(),

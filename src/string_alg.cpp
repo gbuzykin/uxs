@@ -1,22 +1,18 @@
 #include "uxs/string_alg.h"
 
-#include "uxs/utf.h"
-
 namespace uxs {
 
 std::wstring from_utf8_to_wide(std::string_view s) {
-    std::uint32_t code;
     std::wstring result;
     result.reserve(s.size());
-    for (auto p = s.begin(); from_utf8(p, s.end(), p, code) != 0;) { to_wchar(code, std::back_inserter(result)); }
+    utf_string_adapter<wchar_t>{}.append(result, s);
     return result;
 }
 
 std::string from_wide_to_utf8(std::wstring_view s) {
     std::string result;
     result.reserve(s.size());
-    std::uint32_t code;
-    for (auto p = s.begin(); from_wchar(p, s.end(), p, code) != 0;) { to_utf8(code, std::back_inserter(result)); }
+    utf_string_adapter<char>{}.append(result, s);
     return result;
 }
 

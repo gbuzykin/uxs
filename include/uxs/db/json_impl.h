@@ -12,10 +12,10 @@ namespace json {
 // --------------------------
 
 template<typename CharT, typename Alloc>
-basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
+basic_value<CharT, Alloc> read(ibuf& in, const Alloc& al) {
     auto token_to_value = [](token_t tt, std::string_view lval, const Alloc& al) -> basic_value<CharT, Alloc> {
         switch (tt) {
-            case token_t::null: return {nullptr, al};
+            case token_t::null_value: return {nullptr, al};
             case token_t::true_value: return {true, al};
             case token_t::false_value: return {false, al};
             case token_t::integer_number: {
@@ -56,20 +56,21 @@ basic_value<CharT, Alloc> reader::read(token_t tk_val, const Alloc& al) {
     auto* val = &result;
     stack.push_back(val);
     read(
+        in,
         [&al, &stack, &val, &token_to_value](token_t tt, std::string_view lval) {
-            if (tt >= token_t::null) {
+            if (tt >= token_t::null_value) {
                 *val = token_to_value(tt, lval, al);
             } else {
                 *val = tt == token_t::array ? make_array<CharT>(al) : make_record<CharT>(al);
                 stack.push_back(val);
             }
-            return next_action_type::step_into;
+            return parse_step::into;
         },
         [&al, &stack, &val]() { val = &stack.back()->emplace_back(al); },
         [&al, &stack, &val](std::string_view lval) {
             val = &stack.back()->emplace(utf_string_adapter<CharT>{}(lval), al).value();
         },
-        [&stack] { stack.pop_back(); }, tk_val);
+        [&stack] { stack.pop_back(); });
     return result;
 }
 
@@ -171,45 +172,39 @@ value_visitor<StrTy, StackTy> make_value_visitor(StrTy& out, StackTy& stack) {
     return {out, stack};
 }
 
-}  // namespace detail
-
 template<typename CharT>
 template<typename ValueCharT, typename Alloc>
-void writer<CharT>::write(const basic_value<ValueCharT, Alloc>& v, unsigned indent) {
+void writer<CharT>::do_write(const basic_value<ValueCharT, Alloc>& v, unsigned indent) {
     using stack_item_t = detail::writer_stack_item_t<ValueCharT, Alloc>;
     inline_basic_dynbuffer<stack_item_t, 32> stack;
 
-    auto visitor = make_value_visitor(output_, stack);
-
-    if (!v.visit(visitor)) {
-        output_.flush();
-        return;
-    }
+    auto visitor = make_value_visitor(out, stack);
+    if (!v.visit(visitor)) { return; }
 
     bool is_first_element = true;
 
 loop:
     auto& top = stack.back();
-    const char ws_char = top.first.is_record() ? record_ws_char_ : array_ws_char_;
+    const char ws_char = top.first.is_record() ? object_ws_char : array_ws_char;
 
     if (is_first_element) {
-        output_ += top.first.is_record() ? '{' : '[';
+        out += top.first.is_record() ? '{' : '[';
         if (ws_char == '\n') {
-            indent += indent_size_;
-            output_ += '\n';
-            output_.append(indent, indent_char_);
+            indent += indent_size;
+            out += '\n';
+            out.append(indent, indent_char);
         }
     }
 
     while (top.first != top.last) {
         if (!is_first_element) {
-            output_ += ',';
-            output_ += ws_char;
-            if (ws_char == '\n') { output_.append(indent, indent_char_); }
+            out += ',';
+            out += ws_char;
+            if (ws_char == '\n') { out.append(indent, indent_char); }
         }
         if (top.first.is_record()) {
-            detail::write_text<CharT>(output_, utf_string_adapter<CharT>{}(top.first.key()));
-            output_ += string_literal<CharT, ':', ' '>{}();
+            detail::write_text<CharT>(out, utf_string_adapter<CharT>{}(top.first.key()));
+            out += string_literal<CharT, ':', ' '>{}();
         }
         if ((top.first++).value().visit(visitor)) {
             is_first_element = true;
@@ -219,17 +214,17 @@ loop:
     }
 
     if (ws_char == '\n') {
-        indent -= indent_size_;
-        output_ += '\n';
-        output_.append(indent, indent_char_);
+        indent -= indent_size;
+        out += '\n';
+        out.append(indent, indent_char);
     }
-    output_ += top.first.is_record() ? '}' : ']';
+    out += top.first.is_record() ? '}' : ']';
 
     stack.pop_back();
     if (!stack.empty()) { goto loop; }
-
-    output_.flush();
 }
+
+}  // namespace detail
 
 }  // namespace json
 }  // namespace db

@@ -128,7 +128,7 @@ template<typename InputIt, typename Comp = std::less<detail::iter_key_t<InputIt>
          typename = std::enable_if_t<!is_allocator<Comp>::value>, typename = std::enable_if_t<is_allocator<Alloc>::value>>
 multimap(InputIt, InputIt, Comp = Comp(),
          Alloc = Alloc()) -> multimap<detail::iter_key_t<InputIt>, detail::iter_val_t<InputIt>, Comp, Alloc>;
-template<typename Key, typename Ty, typename Comp = std::less<remove_const_t<Key>>,
+template<typename Key, typename Ty, typename Comp = std::less<est::remove_const_t<Key>>,
          typename Alloc = std::allocator<std::pair<const Key, Ty>>,
          typename = std::enable_if_t<!is_allocator<Comp>::value>, typename = std::enable_if_t<is_allocator<Alloc>::value>>
 multimap(std::initializer_list<std::pair<Key, Ty>>, Comp = Comp(),
