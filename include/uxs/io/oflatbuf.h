@@ -26,7 +26,7 @@ class basic_oflatbuf : protected std::allocator_traits<Alloc>::template rebind_a
 
     const char_type* data() const noexcept { return this->first(); }
     size_type size() const noexcept { return std::max(top_, this->curr()) - this->first(); }
-    uxs::span<const char_type> view() const noexcept { return uxs::as_span(this->first(), size()); }
+    est::span<const char_type> view() const noexcept { return est::as_span(this->first(), size()); }
     allocator_type get_allocator() const noexcept { return allocator_type(*this); }
 
     void truncate(size_type sz) noexcept {

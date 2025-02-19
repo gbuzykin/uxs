@@ -47,7 +47,7 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC sysfile : public iodevice {
     UXS_EXPORT int read(void* buf, std::size_t sz, std::size_t& n_read) override;
     UXS_EXPORT int write(const void* buf, std::size_t sz, std::size_t& n_written) override;
     UXS_EXPORT std::int64_t seek(std::int64_t off, seekdir dir) override;
-    UXS_EXPORT int ctrlesc_color(uxs::span<const std::uint8_t> v) override;
+    UXS_EXPORT int ctrlesc_color(est::span<const std::uint8_t> v) override;
     UXS_EXPORT int flush() override;
 
     UXS_EXPORT static bool remove(const char* fname);

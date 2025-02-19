@@ -21,6 +21,25 @@ struct is_allocator<Alloc, std::void_t<typename Alloc::value_type, decltype(std:
     : std::true_type {};
 #endif  // __cplusplus < 201703L
 
+template<typename ToTy, typename FromTy>
+std::unique_ptr<ToTy> static_pointer_cast(std::unique_ptr<FromTy> p) {
+    return std::unique_ptr<ToTy>(static_cast<ToTy*>(p.release()));
+}
+
+template<typename ToTy, typename FromTy>
+std::unique_ptr<ToTy> dynamic_pointer_cast(std::unique_ptr<FromTy> p) {
+    return std::unique_ptr<ToTy>(dynamic_cast<ToTy*>(p.release()));
+}
+
+template<typename ToTy, typename FromTy>
+std::unique_ptr<ToTy> const_pointer_cast(std::unique_ptr<FromTy> p) {
+    return std::unique_ptr<ToTy>(const_cast<ToTy*>(p.release()));
+}
+
+}  // namespace uxs
+
+namespace est {
+
 #if __cplusplus < 201402L
 template<typename Ty, typename... Args>
 std::enable_if_t<!std::is_array<Ty>::value, std::unique_ptr<Ty>> make_unique(Args&&... args) {
@@ -42,19 +61,4 @@ std::unique_ptr<Ty> make_unique(Args&&... args) {
 }
 #endif  // __cplusplus < 201402L
 
-template<typename ToTy, typename FromTy>
-std::unique_ptr<ToTy> static_pointer_cast(std::unique_ptr<FromTy> p) {
-    return std::unique_ptr<ToTy>(static_cast<ToTy*>(p.release()));
-}
-
-template<typename ToTy, typename FromTy>
-std::unique_ptr<ToTy> dynamic_pointer_cast(std::unique_ptr<FromTy> p) {
-    return std::unique_ptr<ToTy>(dynamic_cast<ToTy*>(p.release()));
-}
-
-template<typename ToTy, typename FromTy>
-std::unique_ptr<ToTy> const_pointer_cast(std::unique_ptr<FromTy> p) {
-    return std::unique_ptr<ToTy>(const_cast<ToTy*>(p.release()));
-}
-
-}  // namespace uxs
+}  // namespace est

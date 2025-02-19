@@ -58,10 +58,10 @@ bool ziparch::stat_crc(const char* fname, std::uint32_t& crc) { return false; }
 #endif  // defined(UXS_USE_LIBZIP)
 
 bool ziparch::stat_size(const wchar_t* fname, std::uint64_t& sz) {
-    return stat_size(uxs::from_wide_to_utf8(fname).c_str(), sz);
+    return stat_size(from_wide_to_utf8(fname).c_str(), sz);
 }
 bool ziparch::stat_crc(const wchar_t* fname, std::uint32_t& crc) {
-    return stat_crc(uxs::from_wide_to_utf8(fname).c_str(), crc);
+    return stat_crc(from_wide_to_utf8(fname).c_str(), crc);
 }
 
-bool ziparch::open(const wchar_t* name, iomode mode) { return open(uxs::from_wide_to_utf8(name).c_str(), mode); }
+bool ziparch::open(const wchar_t* name, iomode mode) { return open(from_wide_to_utf8(name).c_str(), mode); }

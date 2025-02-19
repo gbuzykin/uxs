@@ -84,11 +84,10 @@ std::int64_t sysfile::seek(std::int64_t off, seekdir dir) {
     return result < 0 ? -1 : result;
 }
 
-int sysfile::ctrlesc_color(uxs::span<const std::uint8_t> v) {
+int sysfile::ctrlesc_color(est::span<const std::uint8_t> v) {
     inline_dynbuffer buf;
     buf += "\033[";
-    uxs::join_basic_strings(buf, v, ';',
-                            [](membuffer& s, std::uint8_t x) -> membuffer& { return uxs::to_basic_string(s, x); });
+    join_basic_strings(buf, v, ';', [](membuffer& s, std::uint8_t x) -> membuffer& { return to_basic_string(s, x); });
     buf += 'm';
     return ::write(fd_, buf.data(), buf.size()) < 0 ? -1 : 0;
 }

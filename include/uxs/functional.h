@@ -63,11 +63,11 @@ struct lock {
 
 namespace detail {
 template<typename Ty, std::size_t n, typename Func1, typename Func2>
-auto get_n(Ty&& v) -> decltype(Func1{}(std::get<n>(Func2{}(std::forward<Ty>(v))))) {
+auto get_n_impl(Ty&& v) -> decltype(Func1{}(std::get<n>(Func2{}(std::forward<Ty>(v))))) {
     return Func1{}(std::get<n>(Func2{}(std::forward<Ty>(v))));
 }
 template<typename Ty, std::size_t n, typename Func1, typename Func2, typename... Dummy>
-auto get_n(Ty&& v, Dummy&&...) -> decltype(Func1{}(Func2{}(std::forward<Ty>(v)))) {
+auto get_n_impl(Ty&& v, Dummy&&...) -> decltype(Func1{}(Func2{}(std::forward<Ty>(v)))) {
     static_assert(n == 0, "template parameter `n` must be 0");
     return Func1{}(Func2{}(std::forward<Ty>(v)));
 }
@@ -76,26 +76,26 @@ auto get_n(Ty&& v, Dummy&&...) -> decltype(Func1{}(Func2{}(std::forward<Ty>(v)))
 template<std::size_t n, typename Func1 = nofunc, typename Func2 = nofunc>
 struct get_n {
     template<typename Ty>
-    auto operator()(Ty&& v) const -> decltype(detail::get_n<Ty, n, Func1, Func2>(std::forward<Ty>(v))) {
-        return detail::get_n<Ty, n, Func1, Func2>(std::forward<Ty>(v));
+    auto operator()(Ty&& v) const -> decltype(detail::get_n_impl<Ty, n, Func1, Func2>(std::forward<Ty>(v))) {
+        return detail::get_n_impl<Ty, n, Func1, Func2>(std::forward<Ty>(v));
     }
 };
 
 namespace detail {
 template<typename Ty>
-auto get_key(Ty&& v) -> decltype(v.key()) {
+auto get_key_impl(Ty&& v) -> decltype(v.key()) {
     return v.key();
 }
 template<typename Ty, typename... Dummy>
-auto get_key(Ty&& v, Dummy&&...) -> decltype(uxs::get_n<0>{}(std::forward<Ty>(v))) {
-    return uxs::get_n<0>{}(std::forward<Ty>(v));
+auto get_key_impl(Ty&& v, Dummy&&...) -> decltype(get_n<0>{}(std::forward<Ty>(v))) {
+    return get_n<0>{}(std::forward<Ty>(v));
 }
 }  // namespace detail
 
 struct key {
     template<typename Ty>
-    auto operator()(Ty&& v) const -> decltype(detail::get_key(std::forward<Ty>(v))) {
-        return detail::get_key(std::forward<Ty>(v));
+    auto operator()(Ty&& v) const -> decltype(detail::get_key_impl(std::forward<Ty>(v))) {
+        return detail::get_key_impl(std::forward<Ty>(v));
     }
 };
 

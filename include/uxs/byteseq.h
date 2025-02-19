@@ -81,7 +81,7 @@ class byteseq : public detail::byteseq_chunk::alloc_type {
 
     UXS_EXPORT byteseq& assign(const byteseq& other);
     UXS_NODISCARD UXS_EXPORT std::vector<std::uint8_t> make_vector() const;
-    UXS_EXPORT static byteseq from_vector(uxs::span<const std::uint8_t> v);
+    UXS_EXPORT static byteseq from_vector(est::span<const std::uint8_t> v);
 
     UXS_NODISCARD UXS_EXPORT byteseq make_compressed() const;
     UXS_NODISCARD UXS_EXPORT byteseq make_uncompressed() const;

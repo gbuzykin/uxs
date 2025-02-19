@@ -37,4 +37,4 @@ int zipfile::read(void* buf, std::size_t sz, std::size_t& n_read) { return -1; }
 
 #endif  // defined(UXS_USE_LIBZIP)
 
-bool zipfile::open(ziparch& arch, const wchar_t* fname) { return open(arch, uxs::from_wide_to_utf8(fname).c_str()); }
+bool zipfile::open(ziparch& arch, const wchar_t* fname) { return open(arch, from_wide_to_utf8(fname).c_str()); }

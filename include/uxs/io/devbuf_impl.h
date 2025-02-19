@@ -299,7 +299,7 @@ void basic_devbuf<CharT, Alloc>::parse_ctrlesc(const char_type* first, const cha
             break;
         }
     }
-    dev_->ctrlesc_color(uxs::as_span(v.data(), n + 1));
+    dev_->ctrlesc_color(est::as_span(v.data(), n + 1));
 }
 
 template<typename CharT, typename Alloc>

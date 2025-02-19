@@ -19,7 +19,7 @@ class function_call_iterator : private func_ptr_holder<Func> {
 
     template<typename Ty>
     auto operator=(Ty&& v)
-        -> uxs::type_identity_t<function_call_iterator&, decltype(std::declval<Func>()(std::forward<Ty>(v)))> {
+        -> est::type_identity_t<function_call_iterator&, decltype(std::declval<Func>()(std::forward<Ty>(v)))> {
         this->get_func()(std::forward<Ty>(v));
         return *this;
     }

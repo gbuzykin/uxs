@@ -2,7 +2,7 @@
 
 #include "metaprog_alg.h"
 
-namespace uxs {
+namespace est {
 
 template<typename... Ts>
 struct size_of : maximum<size_of<Ts>...> {};
@@ -18,4 +18,4 @@ struct align_up {
     static std::size_t value(std::size_t sz) { return (sz + Alignment - 1) & ~(Alignment - 1); }
 };
 
-}  // namespace uxs
+}  // namespace est

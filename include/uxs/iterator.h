@@ -175,14 +175,14 @@ class iterator_facade {
 
     template<typename Iter_ = Iter>
     auto operator+=(difference_type j) noexcept(noexcept(std::declval<Iter>().advance(j)))
-        -> uxs::type_identity_t<Iter&, decltype(std::declval<Iter_>().advance(j))> {
+        -> est::type_identity_t<Iter&, decltype(std::declval<Iter_>().advance(j))> {
         static_cast<Iter&>(*this).advance(j);
         return static_cast<Iter&>(*this);
     }
 
     template<typename Iter_ = Iter>
     auto operator+(difference_type j) const noexcept(noexcept(std::declval<Iter>().advance(j)))
-        -> uxs::type_identity_t<Iter, decltype(std::declval<Iter_>().advance(j))> {
+        -> est::type_identity_t<Iter, decltype(std::declval<Iter_>().advance(j))> {
         auto it = static_cast<const Iter&>(*this);
         it.advance(j);
         return it;
@@ -190,14 +190,14 @@ class iterator_facade {
 
     template<typename Iter_ = Iter>
     auto operator-=(difference_type j) noexcept(noexcept(std::declval<Iter>().advance(j)))
-        -> uxs::type_identity_t<Iter&, decltype(std::declval<Iter_>().advance(j))> {
+        -> est::type_identity_t<Iter&, decltype(std::declval<Iter_>().advance(j))> {
         static_cast<Iter&>(*this).advance(-j);
         return static_cast<Iter&>(*this);
     }
 
     template<typename Iter_ = Iter>
     auto operator-(difference_type j) const noexcept(noexcept(std::declval<Iter>().advance(j)))
-        -> uxs::type_identity_t<Iter, decltype(std::declval<Iter_>().advance(j))> {
+        -> est::type_identity_t<Iter, decltype(std::declval<Iter_>().advance(j))> {
         auto it = static_cast<const Iter&>(*this);
         it.advance(-j);
         return it;
@@ -283,7 +283,7 @@ template<typename Iter, typename ValTy, typename Tag, typename RefTy, typename P
 auto operator+(typename iterator_facade<Iter, ValTy, Tag, RefTy, PtrTy, DiffTy>::difference_type j,
                const iterator_facade<Iter, ValTy, Tag, RefTy, PtrTy, DiffTy>& it) noexcept(noexcept(std::declval<Iter>()
                                                                                                         .advance(0)))
-    -> uxs::type_identity_t<Iter, decltype(std::declval<Iter>().advance(j))> {
+    -> est::type_identity_t<Iter, decltype(std::declval<Iter>().advance(j))> {
     auto result = static_cast<const Iter&>(it);
     result.advance(j);
     return result;

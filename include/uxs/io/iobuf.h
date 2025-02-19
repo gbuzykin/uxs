@@ -20,7 +20,7 @@ class basic_iobuf : public basic_ibuf<CharT> {
 
     char_type* first_avail() const noexcept { return this->curr(); }
     char_type* last_avail() const noexcept { return this->last(); }
-    uxs::span<char_type> view_avail() const noexcept { return uxs::as_span(this->curr(), this->avail()); }
+    est::span<char_type> view_avail() const noexcept { return est::as_span(this->curr(), this->avail()); }
 
     basic_iobuf& reserve() {
         if (this->curr() != this->last() || (this->good() && overflow() >= 0)) { return *this; }
@@ -56,8 +56,8 @@ class basic_iobuf : public basic_ibuf<CharT> {
         return *this;
     }
 
-    UXS_EXPORT basic_iobuf& write(uxs::span<const char_type> s);
-    UXS_EXPORT basic_iobuf& write_with_endian(uxs::span<const char_type> s, size_type element_sz);
+    UXS_EXPORT basic_iobuf& write(est::span<const char_type> s);
+    UXS_EXPORT basic_iobuf& write_with_endian(est::span<const char_type> s, size_type element_sz);
     template<typename Ty, std::size_t N>
     basic_iobuf& write(Ty (&)[N]) = delete;
     UXS_EXPORT basic_iobuf& fill_n(size_type count, char_type ch);
