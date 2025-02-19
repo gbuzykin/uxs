@@ -21,7 +21,7 @@ struct negation : bool_constant<!Ty::value> {};
 }  // namespace std
 #endif  // logical traits
 
-namespace uxs {
+namespace est {
 
 template<typename...>
 struct sum;
@@ -56,7 +56,7 @@ struct maximum<Ty1, Ty2, Rest...> : maximum<std::conditional_t<(Ty1::value < Ty2
 #else   // __cplusplus < 201402L
 namespace detail {
 template<typename Ty>
-constexpr Ty min(std::initializer_list<Ty> l) {
+constexpr Ty min_impl(std::initializer_list<Ty> l) {
     auto it0 = l.begin();
     for (auto it = l.begin() + 1; it != l.end(); ++it) {
         if (*it < *it0) { it0 = it; }
@@ -64,7 +64,7 @@ constexpr Ty min(std::initializer_list<Ty> l) {
     return *it0;
 }
 template<typename Ty>
-constexpr Ty max(std::initializer_list<Ty> l) {
+constexpr Ty max_impl(std::initializer_list<Ty> l) {
     auto it0 = l.begin();
     for (auto it = l.begin() + 1; it != l.end(); ++it) {
         if (*it > *it0) { it0 = it; }
@@ -73,9 +73,9 @@ constexpr Ty max(std::initializer_list<Ty> l) {
 }
 }  // namespace detail
 template<typename Ty1, typename... Ts>
-struct minimum : std::integral_constant<typename Ty1::value_type, detail::min({Ty1::value, Ts::value...})> {};
+struct minimum : std::integral_constant<typename Ty1::value_type, detail::min_impl({Ty1::value, Ts::value...})> {};
 template<typename Ty1, typename... Ts>
-struct maximum : std::integral_constant<typename Ty1::value_type, detail::max({Ty1::value, Ts::value...})> {};
+struct maximum : std::integral_constant<typename Ty1::value_type, detail::max_impl({Ty1::value, Ts::value...})> {};
 #endif  // __cplusplus < 201402L
 
-}  // namespace uxs
+}  // namespace est

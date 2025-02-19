@@ -20,12 +20,12 @@ basic_ibuf<CharT>& basic_ibuf<CharT>::operator=(basic_ibuf&& other) noexcept {
 }
 
 template<typename CharT>
-typename basic_ibuf<CharT>::size_type basic_ibuf<CharT>::read(uxs::span<char_type> s) {
+typename basic_ibuf<CharT>::size_type basic_ibuf<CharT>::read(est::span<char_type> s) {
     return read(s.begin(), s.end());
 }
 
 template<typename CharT>
-typename basic_ibuf<CharT>::size_type basic_ibuf<CharT>::read_with_endian(uxs::span<char_type> s, size_type element_sz) {
+typename basic_ibuf<CharT>::size_type basic_ibuf<CharT>::read_with_endian(est::span<char_type> s, size_type element_sz) {
     if (!(this->mode() & iomode::invert_endian) || element_sz <= 1) { return read(s.begin(), s.end()); }
     size_type count = 0;
     auto p = s.begin();

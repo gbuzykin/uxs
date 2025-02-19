@@ -131,7 +131,8 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
     }
 
     template<typename Key2, typename Comp_ = key_compare, typename... Args>
-    type_identity_t<std::pair<iterator, bool>, typename Comp_::is_transparent> try_emplace(Key2&& key, Args&&... args) {
+    est::type_identity_t<std::pair<iterator, bool>, typename Comp_::is_transparent> try_emplace(Key2&& key,
+                                                                                                Args&&... args) {
         return this->try_emplace_impl(std::forward<Key2>(key), std::forward<Args>(args)...);
     }
 
@@ -146,8 +147,8 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
     }
 
     template<typename Key2, typename Comp_ = key_compare, typename... Args>
-    type_identity_t<iterator, typename Comp_::is_transparent> try_emplace_hint(const_iterator hint, Key2&& key,
-                                                                               Args&&... args) {
+    est::type_identity_t<iterator, typename Comp_::is_transparent> try_emplace_hint(const_iterator hint, Key2&& key,
+                                                                                    Args&&... args) {
         return this->try_emplace_hint_impl(hint, std::forward<Key2>(key), std::forward<Args>(args)...).first;
     }
 
@@ -166,7 +167,8 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
     }
 
     template<typename Key2, typename Ty2, typename Comp_ = key_compare>
-    type_identity_t<std::pair<iterator, bool>, typename Comp_::is_transparent> insert_or_assign(Key2&& key, Ty2&& obj) {
+    est::type_identity_t<std::pair<iterator, bool>, typename Comp_::is_transparent> insert_or_assign(Key2&& key,
+                                                                                                     Ty2&& obj) {
         auto result = this->try_emplace_impl(std::forward<Key2>(key), std::forward<Ty2>(obj));
         if (!result.second) { result.first->second = std::forward<Ty2>(obj); }
         return result;
@@ -187,8 +189,8 @@ class map : public detail::rbtree_unique<detail::map_node_traits<Key, Ty>, Alloc
     }
 
     template<typename Key2, typename Ty2, typename Comp_ = key_compare>
-    type_identity_t<iterator, typename Comp_::is_transparent> insert_or_assign(const_iterator hint, Key2&& key,
-                                                                               Ty2&& obj) {
+    est::type_identity_t<iterator, typename Comp_::is_transparent> insert_or_assign(const_iterator hint, Key2&& key,
+                                                                                    Ty2&& obj) {
         auto result = this->try_emplace_hint_impl(hint, std::forward<Key2>(key), std::forward<Ty2>(obj));
         if (!result.second) { result.first->second = std::forward<Ty2>(obj); }
         return result.first;
@@ -222,13 +224,13 @@ template<typename Key, typename Ty, typename Comp = std::less<remove_const_t<Key
          typename Alloc = std::allocator<std::pair<const Key, Ty>>,
          typename = std::enable_if_t<!is_allocator<Comp>::value>, typename = std::enable_if_t<is_allocator<Alloc>::value>>
 map(std::initializer_list<std::pair<Key, Ty>>, Comp = Comp(),
-    Alloc = Alloc()) -> map<remove_const_t<Key>, Ty, Comp, Alloc>;
+    Alloc = Alloc()) -> map<est::remove_const_t<Key>, Ty, Comp, Alloc>;
 template<typename InputIt, typename Alloc, typename = std::enable_if_t<is_allocator<Alloc>::value>>
 map(InputIt, InputIt, Alloc)
     -> map<detail::iter_key_t<InputIt>, detail::iter_val_t<InputIt>, std::less<detail::iter_key_t<InputIt>>, Alloc>;
 template<typename Key, typename Ty, typename Alloc, typename = std::enable_if_t<is_allocator<Alloc>::value>>
 map(std::initializer_list<std::pair<Key, Ty>>,
-    Alloc) -> map<remove_const_t<Key>, Ty, std::less<remove_const_t<Key>>, Alloc>;
+    Alloc) -> map<est::remove_const_t<Key>, Ty, std::less<est::remove_const_t<Key>>, Alloc>;
 #endif  // __cplusplus >= 201703L
 
 template<typename Key, typename Ty, typename Comp, typename Alloc>

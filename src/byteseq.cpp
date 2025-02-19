@@ -70,7 +70,7 @@ std::vector<std::uint8_t> byteseq::make_vector() const {
     return result;
 }
 
-/*static*/ byteseq byteseq::from_vector(uxs::span<const std::uint8_t> v) {
+/*static*/ byteseq byteseq::from_vector(est::span<const std::uint8_t> v) {
     byteseq seq;
     return seq.assign(v.size(), [&v](std::uint8_t* dst, std::size_t dst_sz) {
         std::memcpy(dst, v.data(), dst_sz);

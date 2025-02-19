@@ -26,11 +26,11 @@ UXS_EXPORT bool operator==(const basic_value<CharT, Alloc>& lhs, const basic_val
         case dtype::string: return lhs.str_view() == rhs.str_view();
         case dtype::array: {
             auto range1 = lhs.as_array(), range2 = rhs.as_array();
-            return range1.size() == range2.size() && uxs::equal(range1, range2.begin());
+            return range1.size() == range2.size() && equal(range1, range2.begin());
         } break;
         case dtype::record: {
             if (lhs.value_.rec->size != rhs.value_.rec->size) { return false; }
-            return uxs::equal(lhs.as_record(), rhs.as_record().begin());
+            return equal(lhs.as_record(), rhs.as_record().begin());
         } break;
         default: break;
     }
@@ -97,7 +97,7 @@ template<typename CharT, typename Alloc>
 void record_t<CharT, Alloc>::init() {
     dllist_make_cycle(&head);
     node_traits::set_head(&head, &head);
-    for (auto& item : uxs::as_span(hashtbl, bucket_count)) { item = nullptr; }
+    for (auto& item : est::as_span(hashtbl, bucket_count)) { item = nullptr; }
     size = 0;
 }
 
@@ -144,7 +144,7 @@ template<typename CharT, typename Alloc>
     record_t* rec = alloc(rec_al, init.size() ? std::min(init.size(), max_size(rec_al)) : 1);
     rec->init();
     try {
-        uxs::for_each(init, [&rec_al, &rec](const basic_value<CharT, Alloc>& v) {
+        for_each(init, [&rec_al, &rec](const basic_value<CharT, Alloc>& v) {
             std::basic_string_view<CharT> key = (*v.value_.arr)[0].str_view();
             list_links_t* node = rec->new_node(rec_al, key, (*v.value_.arr)[1]);
             rec = insert(rec_al, rec, hasher{}(key), node);
@@ -164,11 +164,10 @@ template<typename CharT, typename Alloc>
     record_t* rec = alloc(rec_al, init.size() ? std::min(init.size(), max_size(rec_al)) : 1);
     rec->init();
     try {
-        uxs::for_each(init,
-                      [&rec_al, &rec](const std::pair<std::basic_string_view<CharT>, basic_value<CharT, Alloc>>& v) {
-                          list_links_t* node = rec->new_node(rec_al, v.first, v.second);
-                          rec = insert(rec_al, rec, hasher{}(v.first), node);
-                      });
+        for_each(init, [&rec_al, &rec](const std::pair<std::basic_string_view<CharT>, basic_value<CharT, Alloc>>& v) {
+            list_links_t* node = rec->new_node(rec_al, v.first, v.second);
+            rec = insert(rec_al, rec, hasher{}(v.first), node);
+        });
         return rec;
     } catch (...) {
         rec->destroy(rec_al, rec->head.next);
@@ -297,7 +296,7 @@ template<typename CharT, typename Alloc>
     new_rec->size = rec->size;
     dealloc(rec_al, rec);
     node_traits::set_head(&new_rec->head, &new_rec->head);
-    for (auto& item : uxs::as_span(new_rec->hashtbl, new_rec->bucket_count)) { item = nullptr; }
+    for (auto& item : est::as_span(new_rec->hashtbl, new_rec->bucket_count)) { item = nullptr; }
     list_links_t* node = new_rec->head.next;
     node->prev = &new_rec->head;
     new_rec->head.prev->next = &new_rec->head;
@@ -324,8 +323,8 @@ template<typename CharT, typename Alloc>
 
 template<typename CharT, typename Alloc>
 bool is_record(const std::initializer_list<basic_value<CharT, Alloc>>& init) {
-    return uxs::all_of(
-        init, [](const basic_value<CharT, Alloc>& v) { return v.is_array() && v.size() == 2 && v[0].is_string(); });
+    return all_of(init,
+                  [](const basic_value<CharT, Alloc>& v) { return v.is_array() && v.size() == 2 && v[0].is_string(); });
 }
 
 }  // namespace detail
@@ -352,7 +351,7 @@ void basic_value<CharT, Alloc>::assign(std::initializer_list<basic_value> init) 
             type_ = dtype::record;
         } else {
             value_.rec->clear(rec_al);
-            uxs::for_each(init, [this, &rec_al](const basic_value& v) {
+            for_each(init, [this, &rec_al](const basic_value& v) {
                 std::basic_string_view<char_type> key = (*v.value_.arr)[0].str_view();
                 detail::list_links_t* node = value_.rec->new_node(rec_al, key, (*v.value_.arr)[1]);
                 value_.rec = record_t::insert(rec_al, value_.rec, typename record_t::hasher{}(key), node);
@@ -391,7 +390,7 @@ void basic_value<CharT, Alloc>::insert(
         value_.rec = record_t::create(rec_al, init);
         type_ = dtype::record;
     } else {
-        uxs::for_each(init, [this, &rec_al](const std::pair<std::basic_string_view<char_type>, basic_value>& v) {
+        for_each(init, [this, &rec_al](const std::pair<std::basic_string_view<char_type>, basic_value>& v) {
             detail::list_links_t* node = value_.rec->new_node(rec_al, v.first, v.second);
             value_.rec = record_t::insert(rec_al, value_.rec, typename record_t::hasher{}(v.first), node);
         });
@@ -408,9 +407,9 @@ inline bool is_integral(double d) {
 }  // namespace detail
 
 template<typename CharT, typename Alloc>
-uxs::optional<bool> basic_value<CharT, Alloc>::get_bool() const {
+est::optional<bool> basic_value<CharT, Alloc>::get_bool() const {
     switch (type_) {
-        case dtype::null: return uxs::nullopt();
+        case dtype::null: return est::nullopt();
         case dtype::boolean: return value_.b;
         case dtype::integer: return value_.i != 0;
         case dtype::unsigned_integer: return value_.u != 0;
@@ -418,138 +417,138 @@ uxs::optional<bool> basic_value<CharT, Alloc>::get_bool() const {
         case dtype::unsigned_long_integer: return value_.u64 != 0;
         case dtype::double_precision: return value_.dbl != 0;
         case dtype::string: {
-            uxs::optional<bool> result(uxs::in_place());
-            return basic_stoval(str_view(), *result) ? result : uxs::nullopt();
+            est::optional<bool> result(est::in_place());
+            return basic_stoval(str_view(), *result) ? result : est::nullopt();
         } break;
-        case dtype::array: return uxs::nullopt();
-        case dtype::record: return uxs::nullopt();
+        case dtype::array: return est::nullopt();
+        case dtype::record: return est::nullopt();
         default: UXS_UNREACHABLE_CODE;
     }
 }
 
 template<typename CharT, typename Alloc>
-uxs::optional<std::int32_t> basic_value<CharT, Alloc>::get_int() const {
+est::optional<std::int32_t> basic_value<CharT, Alloc>::get_int() const {
     switch (type_) {
-        case dtype::null: return uxs::nullopt();
+        case dtype::null: return est::nullopt();
         case dtype::boolean: return value_.b ? 1 : 0;
         case dtype::integer: return value_.i;
         case dtype::unsigned_integer:
             return value_.u <= static_cast<std::uint32_t>(std::numeric_limits<std::int32_t>::max()) ?
-                       uxs::make_optional(static_cast<std::int32_t>(value_.u)) :
-                       uxs::nullopt();
+                       est::make_optional(static_cast<std::int32_t>(value_.u)) :
+                       est::nullopt();
         case dtype::long_integer:
             return value_.i64 >= std::numeric_limits<std::int32_t>::min() &&
                            value_.i64 <= std::numeric_limits<std::int32_t>::max() ?
-                       uxs::make_optional(static_cast<std::int32_t>(value_.i64)) :
-                       uxs::nullopt();
+                       est::make_optional(static_cast<std::int32_t>(value_.i64)) :
+                       est::nullopt();
         case dtype::unsigned_long_integer:
             return value_.u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max()) ?
-                       uxs::make_optional(static_cast<std::int32_t>(value_.u64)) :
-                       uxs::nullopt();
+                       est::make_optional(static_cast<std::int32_t>(value_.u64)) :
+                       est::nullopt();
         case dtype::double_precision:
             return value_.dbl >= std::numeric_limits<std::int32_t>::min() &&
                            value_.dbl <= std::numeric_limits<std::int32_t>::max() ?
-                       uxs::make_optional(static_cast<std::int32_t>(value_.dbl)) :
-                       uxs::nullopt();
+                       est::make_optional(static_cast<std::int32_t>(value_.dbl)) :
+                       est::nullopt();
         case dtype::string: {
-            uxs::optional<std::int32_t> result(uxs::in_place());
-            return basic_stoval(str_view(), *result) ? result : uxs::nullopt();
+            est::optional<std::int32_t> result(est::in_place());
+            return basic_stoval(str_view(), *result) ? result : est::nullopt();
         } break;
-        case dtype::array: return uxs::nullopt();
-        case dtype::record: return uxs::nullopt();
+        case dtype::array: return est::nullopt();
+        case dtype::record: return est::nullopt();
         default: UXS_UNREACHABLE_CODE;
     }
 }
 
 template<typename CharT, typename Alloc>
-uxs::optional<std::uint32_t> basic_value<CharT, Alloc>::get_uint() const {
+est::optional<std::uint32_t> basic_value<CharT, Alloc>::get_uint() const {
     switch (type_) {
-        case dtype::null: return uxs::nullopt();
+        case dtype::null: return est::nullopt();
         case dtype::boolean: return value_.b ? 1 : 0;
         case dtype::integer:
-            return value_.i >= 0 ? uxs::make_optional(static_cast<std::uint32_t>(value_.i)) : uxs::nullopt();
+            return value_.i >= 0 ? est::make_optional(static_cast<std::uint32_t>(value_.i)) : est::nullopt();
         case dtype::unsigned_integer: return value_.u;
         case dtype::long_integer:
             return value_.i64 >= 0 &&
                            value_.i64 <= static_cast<std::int64_t>(std::numeric_limits<std::uint32_t>::max()) ?
-                       uxs::make_optional(static_cast<std::uint32_t>(value_.i64)) :
-                       uxs::nullopt();
+                       est::make_optional(static_cast<std::uint32_t>(value_.i64)) :
+                       est::nullopt();
         case dtype::unsigned_long_integer:
             return value_.u64 <= std::numeric_limits<std::uint32_t>::max() ?
-                       uxs::make_optional(static_cast<std::uint32_t>(value_.u64)) :
-                       uxs::nullopt();
+                       est::make_optional(static_cast<std::uint32_t>(value_.u64)) :
+                       est::nullopt();
         case dtype::double_precision:
             return value_.dbl >= 0 && value_.dbl <= std::numeric_limits<std::uint32_t>::max() ?
-                       uxs::make_optional(static_cast<std::uint32_t>(value_.dbl)) :
-                       uxs::nullopt();
+                       est::make_optional(static_cast<std::uint32_t>(value_.dbl)) :
+                       est::nullopt();
         case dtype::string: {
-            uxs::optional<std::uint32_t> result(uxs::in_place());
-            return basic_stoval(str_view(), *result) ? result : uxs::nullopt();
+            est::optional<std::uint32_t> result(est::in_place());
+            return basic_stoval(str_view(), *result) ? result : est::nullopt();
         } break;
-        case dtype::array: return uxs::nullopt();
-        case dtype::record: return uxs::nullopt();
+        case dtype::array: return est::nullopt();
+        case dtype::record: return est::nullopt();
         default: UXS_UNREACHABLE_CODE;
     }
 }
 
 template<typename CharT, typename Alloc>
-uxs::optional<std::int64_t> basic_value<CharT, Alloc>::get_int64() const {
+est::optional<std::int64_t> basic_value<CharT, Alloc>::get_int64() const {
     switch (type_) {
-        case dtype::null: return uxs::nullopt();
+        case dtype::null: return est::nullopt();
         case dtype::boolean: return value_.b ? 1 : 0;
         case dtype::integer: return value_.i;
         case dtype::unsigned_integer: return static_cast<std::int64_t>(value_.u);
         case dtype::long_integer: return value_.i64;
         case dtype::unsigned_long_integer:
             return value_.u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) ?
-                       uxs::make_optional(static_cast<std::int64_t>(value_.u64)) :
-                       uxs::nullopt();
+                       est::make_optional(static_cast<std::int64_t>(value_.u64)) :
+                       est::nullopt();
         case dtype::double_precision:
             // Note that double(2^63 - 1) will be rounded up to 2^63, so maximum is excluded
             return value_.dbl >= static_cast<double>(std::numeric_limits<std::int64_t>::min()) &&
                            value_.dbl < static_cast<double>(std::numeric_limits<std::int64_t>::max()) ?
-                       uxs::make_optional(static_cast<std::int64_t>(value_.dbl)) :
-                       uxs::nullopt();
+                       est::make_optional(static_cast<std::int64_t>(value_.dbl)) :
+                       est::nullopt();
         case dtype::string: {
-            uxs::optional<std::int64_t> result(uxs::in_place());
-            return basic_stoval(str_view(), *result) ? result : uxs::nullopt();
+            est::optional<std::int64_t> result(est::in_place());
+            return basic_stoval(str_view(), *result) ? result : est::nullopt();
         } break;
-        case dtype::array: return uxs::nullopt();
-        case dtype::record: return uxs::nullopt();
+        case dtype::array: return est::nullopt();
+        case dtype::record: return est::nullopt();
         default: UXS_UNREACHABLE_CODE;
     }
 }
 
 template<typename CharT, typename Alloc>
-uxs::optional<std::uint64_t> basic_value<CharT, Alloc>::get_uint64() const {
+est::optional<std::uint64_t> basic_value<CharT, Alloc>::get_uint64() const {
     switch (type_) {
-        case dtype::null: return uxs::nullopt();
+        case dtype::null: return est::nullopt();
         case dtype::boolean: return value_.b ? 1 : 0;
         case dtype::integer:
-            return value_.i >= 0 ? uxs::make_optional(static_cast<std::uint64_t>(value_.i)) : uxs::nullopt();
+            return value_.i >= 0 ? est::make_optional(static_cast<std::uint64_t>(value_.i)) : est::nullopt();
         case dtype::unsigned_integer: return value_.u;
         case dtype::long_integer:
-            return value_.i64 >= 0 ? uxs::make_optional(static_cast<std::uint64_t>(value_.i64)) : uxs::nullopt();
+            return value_.i64 >= 0 ? est::make_optional(static_cast<std::uint64_t>(value_.i64)) : est::nullopt();
         case dtype::unsigned_long_integer: return value_.u64;
         case dtype::double_precision:
             // Note that double(2^64 - 1) will be rounded up to 2^64, so maximum is excluded
             return value_.dbl >= 0 && value_.dbl < static_cast<double>(std::numeric_limits<std::uint64_t>::max()) ?
-                       uxs::make_optional(static_cast<std::uint64_t>(value_.dbl)) :
-                       uxs::nullopt();
+                       est::make_optional(static_cast<std::uint64_t>(value_.dbl)) :
+                       est::nullopt();
         case dtype::string: {
-            uxs::optional<std::uint64_t> result(uxs::in_place());
-            return basic_stoval(str_view(), *result) ? result : uxs::nullopt();
+            est::optional<std::uint64_t> result(est::in_place());
+            return basic_stoval(str_view(), *result) ? result : est::nullopt();
         } break;
-        case dtype::array: return uxs::nullopt();
-        case dtype::record: return uxs::nullopt();
+        case dtype::array: return est::nullopt();
+        case dtype::record: return est::nullopt();
         default: UXS_UNREACHABLE_CODE;
     }
 }
 
 template<typename CharT, typename Alloc>
-uxs::optional<double> basic_value<CharT, Alloc>::get_double() const {
+est::optional<double> basic_value<CharT, Alloc>::get_double() const {
     switch (type_) {
-        case dtype::null: return uxs::nullopt();
+        case dtype::null: return est::nullopt();
         case dtype::boolean: return value_.b ? 1. : 0.;
         case dtype::integer: return value_.i;
         case dtype::unsigned_integer: return value_.u;
@@ -557,61 +556,61 @@ uxs::optional<double> basic_value<CharT, Alloc>::get_double() const {
         case dtype::unsigned_long_integer: return static_cast<double>(value_.u64);
         case dtype::double_precision: return value_.dbl;
         case dtype::string: {
-            uxs::optional<double> result(uxs::in_place());
-            return basic_stoval(str_view(), *result) ? result : uxs::nullopt();
+            est::optional<double> result(est::in_place());
+            return basic_stoval(str_view(), *result) ? result : est::nullopt();
         } break;
-        case dtype::array: return uxs::nullopt();
-        case dtype::record: return uxs::nullopt();
+        case dtype::array: return est::nullopt();
+        case dtype::record: return est::nullopt();
         default: UXS_UNREACHABLE_CODE;
     }
 }
 
 template<typename CharT, typename Alloc>
-uxs::optional<std::basic_string<CharT>> basic_value<CharT, Alloc>::get_string() const {
+est::optional<std::basic_string<CharT>> basic_value<CharT, Alloc>::get_string() const {
     switch (type_) {
         case dtype::null: {
-            return uxs::make_optional<std::basic_string<CharT>>(string_literal<CharT, 'n', 'u', 'l', 'l'>{}());
+            return est::make_optional<std::basic_string<CharT>>(string_literal<CharT, 'n', 'u', 'l', 'l'>{}());
         } break;
         case dtype::boolean: {
-            return uxs::make_optional<std::basic_string<CharT>>(value_.b ?
+            return est::make_optional<std::basic_string<CharT>>(value_.b ?
                                                                     string_literal<CharT, 't', 'r', 'u', 'e'>{}() :
                                                                     string_literal<CharT, 'f', 'a', 'l', 's', 'e'>{}());
         } break;
         case dtype::integer: {
             inline_basic_dynbuffer<CharT> buf;
             to_basic_string(buf, value_.i);
-            return uxs::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
+            return est::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::unsigned_integer: {
             inline_basic_dynbuffer<CharT> buf;
             to_basic_string(buf, value_.u);
-            return uxs::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
+            return est::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::long_integer: {
             inline_basic_dynbuffer<CharT> buf;
             to_basic_string(buf, value_.i64);
-            return uxs::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
+            return est::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::unsigned_long_integer: {
             inline_basic_dynbuffer<CharT> buf;
             to_basic_string(buf, value_.u64);
-            return uxs::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
+            return est::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::double_precision: {
             inline_basic_dynbuffer<CharT> buf;
             to_basic_string(buf, value_.dbl, fmt_opts{fmt_flags::json_compat});
-            return uxs::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
+            return est::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
-        case dtype::string: return uxs::make_optional<std::basic_string<CharT>>(str_view());
-        case dtype::array: return uxs::nullopt();
-        case dtype::record: return uxs::nullopt();
+        case dtype::string: return est::make_optional<std::basic_string<CharT>>(str_view());
+        case dtype::array: return est::nullopt();
+        case dtype::record: return est::nullopt();
         default: UXS_UNREACHABLE_CODE;
     }
 }
 
 template<typename CharT, typename Alloc>
-uxs::optional<std::basic_string_view<CharT>> basic_value<CharT, Alloc>::get_string_view() const {
-    return type_ == dtype::string ? uxs::make_optional(str_view()) : uxs::nullopt();
+est::optional<std::basic_string_view<CharT>> basic_value<CharT, Alloc>::get_string_view() const {
+    return type_ == dtype::string ? est::make_optional(str_view()) : est::nullopt();
 }
 
 // --------------------------
@@ -739,7 +738,7 @@ void basic_value<CharT, Alloc>::clear() noexcept {
         typename record_t::alloc_type rec_al(*this);
         value_.rec->clear(rec_al);
     } else if (type_ == dtype::array && value_.arr) {
-        uxs::for_each(value_.arr->view(), [](basic_value& v) { v.~basic_value(); });
+        for_each(value_.arr->view(), [](basic_value& v) { v.~basic_value(); });
         value_.arr->size = 0;
     }
 }
@@ -875,7 +874,7 @@ void basic_value<CharT, Alloc>::destroy() {
         case dtype::array: {
             if (value_.arr) {
                 typename value_flexarray_t::alloc_type arr_al(*this);
-                uxs::for_each(value_.arr->view(), [](basic_value& v) { v.~basic_value(); });
+                for_each(value_.arr->view(), [](basic_value& v) { v.~basic_value(); });
                 value_flexarray_t::dealloc(arr_al, value_.arr);
             }
         } break;

@@ -77,7 +77,7 @@ int sysfile::write(const void* data, std::size_t sz, std::size_t& n_written) {
     return 0;
 }
 
-int sysfile::ctrlesc_color(uxs::span<const std::uint8_t> v) {
+int sysfile::ctrlesc_color(est::span<const std::uint8_t> v) {
     CONSOLE_SCREEN_BUFFER_INFO info;
     std::memset(&info, 0, sizeof(info));
     if (!::GetConsoleScreenBufferInfo(fd_, &info)) { return -1; }

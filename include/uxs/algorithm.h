@@ -12,14 +12,14 @@ namespace uxs {
 
 namespace detail {
 template<typename Container, typename Key>
-auto find(Container&& c,
-          const Key& k) -> std::enable_if_t<std::is_same<decltype(c.find(k)), decltype(std::end(c))>::value,
-                                            std::pair<decltype(std::end(c)), bool>> {
+auto find_impl(Container&& c,
+               const Key& k) -> std::enable_if_t<std::is_same<decltype(c.find(k)), decltype(std::end(c))>::value,
+                                                 std::pair<decltype(std::end(c)), bool>> {
     auto it = c.find(k);
     return std::make_pair(it, it != std::end(c));
 }
 template<typename Range, typename Val, typename... Dummy>
-auto find(Range&& r, const Val& v, Dummy&&...) -> std::pair<decltype(std::end(r)), bool> {
+auto find_impl(Range&& r, const Val& v, Dummy&&...) -> std::pair<decltype(std::end(r)), bool> {
     auto it = std::find(std::begin(r), std::end(r), v);
     return std::make_pair(it, it != std::end(r));
 }
@@ -27,7 +27,7 @@ auto find(Range&& r, const Val& v, Dummy&&...) -> std::pair<decltype(std::end(r)
 
 template<typename Range, typename Key>
 auto find(Range&& r, const Key& k) -> std::pair<decltype(std::end(r)), bool> {
-    return detail::find(std::forward<Range>(r), k);
+    return detail::find_impl(std::forward<Range>(r), k);
 }
 
 template<typename Range, typename Pred>
@@ -38,7 +38,7 @@ auto find_if(Range&& r, Pred p) -> std::pair<decltype(std::end(r)), bool> {
 
 template<typename Range, typename Key>
 bool contains(const Range& r, const Key& k) {
-    return detail::find(r, k).second;
+    return detail::find_impl(r, k).second;
 }
 
 template<typename Range, typename Pred>
@@ -50,13 +50,13 @@ bool contains_if(const Range& r, Pred p) {
 
 namespace detail {
 template<typename Container, typename Range, typename Val>
-auto erase(Container& c, Range&& r, const Val& v) -> decltype(std::begin(c) + 1 == std::end(r), c.size()) {
+auto erase_impl(Container& c, Range&& r, const Val& v) -> decltype(std::begin(c) + 1 == std::end(r), c.size()) {
     auto old_sz = c.size();
     c.erase(std::remove(std::begin(r), std::end(r), v), std::end(r));
     return old_sz - c.size();
 }
 template<typename Container, typename Range, typename Val, typename... Dummy>
-auto erase(Container& c, Range&& r, const Val& v, Dummy&&...) -> decltype(std::end(c) == std::end(r), c.size()) {
+auto erase_impl(Container& c, Range&& r, const Val& v, Dummy&&...) -> decltype(std::end(c) == std::end(r), c.size()) {
     auto old_sz = c.size();
     for (auto first = std::begin(r), last = std::end(r); first != last;) {
         if (*first == v) {
@@ -77,13 +77,13 @@ auto erase_val(Container& c, const Val& v)
 }
 template<typename Container, typename Val, typename... Dummy>
 auto erase_val(Container& c, const Val& v, Dummy&&...) -> decltype(c.size()) {
-    return detail::erase(c, c, v);
+    return detail::erase_impl(c, c, v);
 }
 }  // namespace detail
 
 template<typename Container, typename Range, typename Val>
 auto erase(Container& c, Range&& r, const Val& v) -> decltype(c.size()) {
-    return detail::erase(c, std::forward<Range>(r), v);
+    return detail::erase_impl(c, std::forward<Range>(r), v);
 }
 
 template<typename Container, typename Val>
@@ -93,21 +93,21 @@ auto erase(Container& c, const Val& v) -> decltype(c.size()) {
 
 template<typename Container, typename Key>
 auto erase_one(Container& c, const Key& k) -> decltype(std::end(c)) {
-    auto result = detail::find(c, k);
+    auto result = detail::find_impl(c, k);
     if (result.second) { return c.erase(result.first); }
     return result.first;
 }
 
 namespace detail {
 template<typename Container, typename Range, typename Pred>
-auto erase_if(Container& c, Range&& r, Pred p)  //
+auto erase_if_impl(Container& c, Range&& r, Pred p)  //
     -> decltype(std::begin(c) + 1 == std::end(r), c.size()) {
     auto old_sz = c.size();
     c.erase(std::remove_if(std::begin(r), std::end(r), p), std::end(r));
     return old_sz - c.size();
 }
 template<typename Container, typename Range, typename Pred, typename... Dummy>
-auto erase_if(Container& c, Range&& r, Pred p, Dummy&&...)  //
+auto erase_if_impl(Container& c, Range&& r, Pred p, Dummy&&...)  //
     -> decltype(std::end(c) == std::end(r), c.size()) {
     auto old_sz = c.size();
     for (auto first = std::begin(r), last = std::end(r); first != last;) {
@@ -123,12 +123,12 @@ auto erase_if(Container& c, Range&& r, Pred p, Dummy&&...)  //
 
 template<typename Container, typename Range, typename Pred>
 auto erase_if(Container& c, Range&& r, Pred p) -> decltype(c.size()) {
-    return detail::erase_if(c, std::forward<Range>(r), p);
+    return detail::erase_if_impl(c, std::forward<Range>(r), p);
 }
 
 template<typename Container, typename Pred>
 auto erase_if(Container& c, Pred p) -> decltype(c.size()) {
-    return detail::erase_if(c, c, p);
+    return detail::erase_if_impl(c, c, p);
 }
 
 template<typename Container, typename Range>
@@ -142,14 +142,14 @@ auto erase_range(Container& c, Range&& r) -> decltype(std::end(c) == std::end(r)
 
 namespace detail {
 template<typename Container, typename Range, typename Pred>
-auto unique(Container& c, Range&& r, Pred p)  //
+auto unique_impl(Container& c, Range&& r, Pred p)  //
     -> decltype(std::begin(c) + 1 == std::end(r), c.size()) {
     auto old_sz = c.size();
     c.erase(std::unique(std::begin(r), std::end(r), p), std::end(r));
     return old_sz - c.size();
 }
 template<typename Container, typename Range, typename Pred, typename... Dummy>
-auto unique(Container& c, Range&& r, Pred p, Dummy&&...)  //
+auto unique_impl(Container& c, Range&& r, Pred p, Dummy&&...)  //
     -> decltype(std::end(c) == std::end(r), c.size()) {
     auto old_sz = c.size();
     if (old_sz == 0) { return 0; }
@@ -166,12 +166,12 @@ auto unique(Container& c, Range&& r, Pred p, Dummy&&...)  //
 
 template<typename Container, typename Range, typename Pred>
 auto unique(Container& c, Range&& r, Pred p) -> decltype(c.size()) {
-    return detail::unique(c, std::forward<Range>(r), p);
+    return detail::unique_impl(c, std::forward<Range>(r), p);
 }
 
 template<typename Container, typename Pred = equal_to<>>
 auto unique(Container& c, Pred p = Pred{}) -> decltype(c.size()) {
-    return detail::unique(c, c, p);
+    return detail::unique_impl(c, c, p);
 }
 
 // ---- emplace & erase for random access containers
@@ -190,7 +190,7 @@ auto erase_at(Container& c, std::size_t i) -> std::void_t<decltype(std::begin(c)
 
 namespace detail {
 template<typename Iter, typename Key, typename KeyFn = key>
-Iter lower_bound(Iter first, std::size_t count, const Key& k, KeyFn fn = KeyFn{}) {
+Iter lower_bound_impl(Iter first, std::size_t count, const Key& k, KeyFn fn = KeyFn{}) {
     while (count > 0) {
         std::size_t count2 = count / 2;
         auto mid = std::next(first, count2);
@@ -204,7 +204,7 @@ Iter lower_bound(Iter first, std::size_t count, const Key& k, KeyFn fn = KeyFn{}
     return first;
 }
 template<typename Iter, typename Key, typename KeyFn = key>
-Iter upper_bound(Iter first, std::size_t count, const Key& k, KeyFn fn = KeyFn{}) {
+Iter upper_bound_impl(Iter first, std::size_t count, const Key& k, KeyFn fn = KeyFn{}) {
     while (count > 0) {
         std::size_t count2 = count / 2;
         auto mid = std::next(first, count2);
@@ -221,12 +221,12 @@ Iter upper_bound(Iter first, std::size_t count, const Key& k, KeyFn fn = KeyFn{}
 
 template<typename Range, typename Key, typename KeyFn = key>
 auto lower_bound(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::begin(r) + 1) {
-    return detail::lower_bound(std::begin(r), static_cast<std::size_t>(std::end(r) - std::begin(r)), k, fn);
+    return detail::lower_bound_impl(std::begin(r), static_cast<std::size_t>(std::end(r) - std::begin(r)), k, fn);
 }
 
 template<typename Range, typename Key, typename KeyFn = key>
 auto upper_bound(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::begin(r) + 1) {
-    return detail::upper_bound(std::begin(r), static_cast<std::size_t>(std::end(r) - std::begin(r)), k, fn);
+    return detail::upper_bound_impl(std::begin(r), static_cast<std::size_t>(std::end(r) - std::begin(r)), k, fn);
 }
 
 template<typename Range, typename Key, typename KeyFn = key>
@@ -243,8 +243,8 @@ auto equal_range(Range&& r, const Key& k,
         } else if (k < fn(*mid)) {
             count = count2;
         } else {
-            return std::make_pair(detail::lower_bound(first, count2, k, fn),
-                                  detail::upper_bound(++mid, count - count2 - 1, k, fn));
+            return std::make_pair(detail::lower_bound_impl(first, count2, k, fn),
+                                  detail::upper_bound_impl(++mid, count - count2 - 1, k, fn));
         }
     }
     return std::make_pair(first, first);
@@ -254,22 +254,22 @@ auto equal_range(Range&& r, const Key& k,
 
 template<typename Range, typename Key, typename KeyFn = key>
 auto binary_find(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> std::pair<decltype(std::end(r)), bool> {
-    auto it = uxs::lower_bound(r, k, fn);
+    auto it = lower_bound(r, k, fn);
     return std::make_pair(it, (it != std::end(r)) && !(k < fn(*it)));
 }
 
 template<typename Range, typename Key, typename KeyFn = key>
 bool binary_contains(const Range& r, const Key& k, KeyFn fn = KeyFn{}) {
-    return uxs::binary_find(r, k, fn).second;
+    return binary_find(r, k, fn).second;
 }
 
 // ---- sorted container insert & remove
 
 namespace detail {
 template<typename Container, typename Key, typename... Args, std::size_t... Indices, typename KeyFn>
-auto binary_emplace_unique(Container& c, const Key& k, const std::tuple<Args...>& args, std::index_sequence<Indices...>,
-                           KeyFn fn) -> std::pair<decltype(std::end(c)), bool> {
-    auto result = uxs::binary_find(c, k, fn);
+auto binary_emplace_unique_impl(Container& c, const Key& k, const std::tuple<Args...>& args,
+                                std::index_sequence<Indices...>, KeyFn fn) -> std::pair<decltype(std::end(c)), bool> {
+    auto result = binary_find(c, k, fn);
     if (result.second) { return std::make_pair(result.first, false); }
     return std::make_pair(c.emplace(result.first, std::forward<Args>(std::get<Indices>(args))...), true);
 }
@@ -278,17 +278,17 @@ auto binary_emplace_unique(Container& c, const Key& k, const std::tuple<Args...>
 template<typename Container, typename Key, typename... Args, typename KeyFn = key>
 auto binary_emplace_unique(Container& c, const Key& k, const std::tuple<Args...>& args = {},
                            KeyFn fn = KeyFn{}) -> std::pair<decltype(std::end(c)), bool> {
-    return detail::binary_emplace_unique(c, k, args, std::index_sequence_for<Args...>{}, fn);
+    return detail::binary_emplace_unique_impl(c, k, args, std::index_sequence_for<Args...>{}, fn);
 }
 
 template<typename Container, typename Val, typename KeyFn = key>
 auto binary_insert_unique(Container& c, Val&& v, KeyFn fn = KeyFn{}) -> std::pair<decltype(std::end(c)), bool> {
-    return uxs::binary_emplace_unique(c, fn(v), std::forward_as_tuple(std::forward<Val>(v)), fn);
+    return binary_emplace_unique(c, fn(v), std::forward_as_tuple(std::forward<Val>(v)), fn);
 }
 
 template<typename Container, typename Key, typename KeyFn = key>
 auto binary_access_unique(Container& c, Key&& k, KeyFn fn = KeyFn{}) -> decltype(*std::begin(c)) {
-    auto result = uxs::binary_find(c, k, fn);
+    auto result = binary_find(c, k, fn);
     if (result.second) { return *result.first; }
     result.first = c.emplace(result.first);
     fn(*result.first) = std::forward<Key>(k);
@@ -297,33 +297,33 @@ auto binary_access_unique(Container& c, Key&& k, KeyFn fn = KeyFn{}) -> decltype
 
 namespace detail {
 template<typename Container, typename Key, typename... Args, std::size_t... Indices, typename KeyFn>
-auto binary_emplace_new(Container& c, const Key& k, const std::tuple<Args...>& args, std::index_sequence<Indices...>,
-                        KeyFn fn) -> decltype(std::end(c)) {
-    return c.emplace(uxs::lower_bound(c, k, fn), std::forward<Args>(std::get<Indices>(args))...);
+auto binary_emplace_new_impl(Container& c, const Key& k, const std::tuple<Args...>& args,
+                             std::index_sequence<Indices...>, KeyFn fn) -> decltype(std::end(c)) {
+    return c.emplace(lower_bound(c, k, fn), std::forward<Args>(std::get<Indices>(args))...);
 }
 }  // namespace detail
 
 template<typename Container, typename Key, typename... Args, typename KeyFn = key>
 auto binary_emplace_new(Container& c, const Key& k, const std::tuple<Args...>& args = {},
                         KeyFn fn = KeyFn{}) -> decltype(std::end(c)) {
-    return detail::binary_emplace_new(c, k, args, std::index_sequence_for<Args...>{}, fn);
+    return detail::binary_emplace_new_impl(c, k, args, std::index_sequence_for<Args...>{}, fn);
 }
 
 template<typename Container, typename Val, typename KeyFn = key>
 auto binary_insert_new(Container& c, Val&& v, KeyFn fn = KeyFn{}) -> decltype(std::end(c)) {
-    return uxs::binary_emplace_new(c, fn(v), std::forward_as_tuple(std::forward<Val>(v)), fn);
+    return binary_emplace_new(c, fn(v), std::forward_as_tuple(std::forward<Val>(v)), fn);
 }
 
 template<typename Container, typename Key, typename KeyFn = key>
 auto binary_access_new(Container& c, Key&& k, KeyFn fn = KeyFn{}) -> decltype(*std::begin(c)) {
-    auto it = c.emplace(uxs::lower_bound(c, k, fn));
+    auto it = c.emplace(lower_bound(c, k, fn));
     fn(*it) = std::forward<Key>(k);
     return *it;
 }
 
 template<typename Container, typename Key, typename KeyFn = key>
 auto binary_erase_one(Container& c, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::end(c)) {
-    auto result = uxs::binary_find(c, k, fn);
+    auto result = binary_find(c, k, fn);
     if (result.second) { return c.erase(result.first); }
     return result.first;
 }

@@ -57,10 +57,10 @@ struct flexarray_t {
 
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<flexarray_t>;
 
-    uxs::span<const array_value_t> view() const {
-        return uxs::as_span(reinterpret_cast<const array_value_t*>(&x), size);
+    est::span<const array_value_t> view() const {
+        return est::as_span(reinterpret_cast<const array_value_t*>(&x), size);
     }
-    uxs::span<array_value_t> view() { return uxs::as_span(reinterpret_cast<array_value_t*>(&x), size); }
+    est::span<array_value_t> view() { return est::as_span(reinterpret_cast<array_value_t*>(&x), size); }
     const array_value_t& operator[](std::size_t i) const { return reinterpret_cast<const array_value_t*>(&x)[i]; }
     array_value_t& operator[](std::size_t i) { return reinterpret_cast<array_value_t*>(&x)[i]; }
 
@@ -513,7 +513,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     Ty as() const;
 
     template<typename Ty>
-    uxs::optional<Ty> get() const;
+    est::optional<Ty> get() const;
 
     template<typename Ty, typename U>
     Ty value_or(U&& default_value) const {
@@ -564,14 +564,14 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     std::basic_string<char_type> as_string() const;
     std::basic_string_view<char_type> as_string_view() const;
 
-    UXS_EXPORT uxs::optional<bool> get_bool() const;
-    UXS_EXPORT uxs::optional<std::int32_t> get_int() const;
-    UXS_EXPORT uxs::optional<std::uint32_t> get_uint() const;
-    UXS_EXPORT uxs::optional<std::int64_t> get_int64() const;
-    UXS_EXPORT uxs::optional<std::uint64_t> get_uint64() const;
-    UXS_EXPORT uxs::optional<double> get_double() const;
-    UXS_EXPORT uxs::optional<std::basic_string<char_type>> get_string() const;
-    UXS_EXPORT uxs::optional<std::basic_string_view<char_type>> get_string_view() const;
+    UXS_EXPORT est::optional<bool> get_bool() const;
+    UXS_EXPORT est::optional<std::int32_t> get_int() const;
+    UXS_EXPORT est::optional<std::uint32_t> get_uint() const;
+    UXS_EXPORT est::optional<std::int64_t> get_int64() const;
+    UXS_EXPORT est::optional<std::uint64_t> get_uint64() const;
+    UXS_EXPORT est::optional<double> get_double() const;
+    UXS_EXPORT est::optional<std::basic_string<char_type>> get_string() const;
+    UXS_EXPORT est::optional<std::basic_string_view<char_type>> get_string_view() const;
 
     bool empty() const noexcept { return size() == 0; }
     UXS_EXPORT std::size_t size() const noexcept;
@@ -615,8 +615,8 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     reference back() { return std::prev(end()); }
     const_reference back() const { return std::prev(end()); }
 
-    uxs::span<const basic_value> as_array() const noexcept;
-    uxs::span<basic_value> as_array() noexcept;
+    est::span<const basic_value> as_array() const noexcept;
+    est::span<basic_value> as_array() noexcept;
 
     iterator_range<typename record_t::const_iterator> as_record() const;
     iterator_range<typename record_t::iterator> as_record();
@@ -662,7 +662,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
             case dtype::double_precision: return func(value_.dbl);
             case dtype::string: return func(str_view());
             case dtype::array:
-            case dtype::record: return func(uxs::make_range(begin(), end()));
+            case dtype::record: return func(make_range(begin(), end()));
             default: UXS_UNREACHABLE_CODE;
         }
     }
@@ -753,10 +753,10 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         return value_.str ? std::basic_string_view<char_type>(&(*value_.str)[0], value_.str->size) :
                             std::basic_string_view<char_type>();
     }
-    uxs::span<const basic_value> array_view() const {
-        return value_.arr ? value_.arr->view() : uxs::span<basic_value>();
+    est::span<const basic_value> array_view() const {
+        return value_.arr ? value_.arr->view() : est::span<basic_value>();
     }
-    uxs::span<basic_value> array_view() { return value_.arr ? value_.arr->view() : uxs::span<basic_value>(); }
+    est::span<basic_value> array_view() { return value_.arr ? value_.arr->view() : est::span<basic_value>(); }
 
     UXS_EXPORT char_flexarray_t* alloc_string(std::basic_string_view<char_type> s);
     UXS_EXPORT void assign_string(std::basic_string_view<char_type> s);
@@ -769,7 +769,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
     template<typename InputIt>
     value_flexarray_t* alloc_array(InputIt first, InputIt last, std::false_type);
-    value_flexarray_t* alloc_array(uxs::span<const basic_value> v) { return alloc_array(v.size(), v.data()); }
+    value_flexarray_t* alloc_array(est::span<const basic_value> v) { return alloc_array(v.size(), v.data()); }
 
     template<typename RandIt>
     void assign_array(std::size_t sz, RandIt src);
@@ -779,7 +779,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
     template<typename InputIt>
     void assign_array(InputIt first, InputIt last, std::false_type /* random access iterator */);
-    void assign_array(uxs::span<const basic_value> v) { assign_array(v.size(), v.data()); }
+    void assign_array(est::span<const basic_value> v) { assign_array(v.size(), v.data()); }
 
     template<typename RandIt>
     void append_array(std::size_t sz, RandIt src);
@@ -1023,29 +1023,29 @@ void basic_value<CharT, Alloc>::insert(InputIt first, InputIt last) {
 }
 
 template<typename CharT, typename Alloc>
-uxs::span<const basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() const noexcept {
+est::span<const basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() const noexcept {
     if (type_ == dtype::array) { return array_view(); }
-    return type_ != dtype::null ? uxs::as_span(this, 1) : uxs::span<basic_value>();
+    return type_ != dtype::null ? est::as_span(this, 1) : est::span<basic_value>();
 }
 
 template<typename CharT, typename Alloc>
-uxs::span<basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() noexcept {
+est::span<basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() noexcept {
     if (type_ == dtype::array) { return array_view(); }
-    return type_ != dtype::null ? uxs::as_span(this, 1) : uxs::span<basic_value>();
+    return type_ != dtype::null ? est::as_span(this, 1) : est::span<basic_value>();
 }
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::as_record() const -> iterator_range<typename record_t::const_iterator> {
     if (type_ != dtype::record) { throw database_error("not a record"); }
-    return uxs::make_range(typename record_t::const_iterator(value_.rec->head.next),
-                           typename record_t::const_iterator(&value_.rec->head));
+    return make_range(typename record_t::const_iterator(value_.rec->head.next),
+                      typename record_t::const_iterator(&value_.rec->head));
 }
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::as_record() -> iterator_range<typename record_t::iterator> {
     if (type_ != dtype::record) { throw database_error("not a record"); }
-    return uxs::make_range(typename record_t::iterator(value_.rec->head.next),
-                           typename record_t::iterator(&value_.rec->head));
+    return make_range(typename record_t::iterator(value_.rec->head.next),
+                      typename record_t::iterator(&value_.rec->head));
 }
 
 template<typename CharT, typename Alloc>
@@ -1289,9 +1289,9 @@ struct value_getters_specializer;
     struct value_getters_specializer<CharT, Alloc, ty> { \
         static bool is(const basic_value<CharT, Alloc>& v) { return v.is##func(); } \
         static ty as(const basic_value<CharT, Alloc>& v) { return static_cast<ty>(v.as##func()); } \
-        static uxs::optional<ty> get(const basic_value<CharT, Alloc>& v) { \
+        static est::optional<ty> get(const basic_value<CharT, Alloc>& v) { \
             auto result = v.get##func(); \
-            return result ? uxs::make_optional(static_cast<ty>(*result)) : uxs::nullopt(); \
+            return result ? est::make_optional(static_cast<ty>(*result)) : est::nullopt(); \
         } \
     };
 UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(bool, _bool)
@@ -1328,7 +1328,7 @@ Ty basic_value<CharT, Alloc>::as() const {
 
 template<typename CharT, typename Alloc>
 template<typename Ty>
-uxs::optional<Ty> basic_value<CharT, Alloc>::get() const {
+est::optional<Ty> basic_value<CharT, Alloc>::get() const {
     return detail::value_getters_specializer<CharT, Alloc, Ty>::get(*this);
 }
 

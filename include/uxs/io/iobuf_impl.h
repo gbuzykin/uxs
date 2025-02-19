@@ -5,12 +5,12 @@
 namespace uxs {
 
 template<typename CharT>
-basic_iobuf<CharT>& basic_iobuf<CharT>::write(uxs::span<const char_type> s) {
+basic_iobuf<CharT>& basic_iobuf<CharT>::write(est::span<const char_type> s) {
     return write(s.begin(), s.end());
 }
 
 template<typename CharT>
-basic_iobuf<CharT>& basic_iobuf<CharT>::write_with_endian(uxs::span<const char_type> s, size_type element_sz) {
+basic_iobuf<CharT>& basic_iobuf<CharT>::write_with_endian(est::span<const char_type> s, size_type element_sz) {
     if (!(this->mode() & iomode::invert_endian) || element_sz <= 1) { return write(s.begin(), s.end()); }
     auto p = s.begin();
     while (element_sz < static_cast<size_type>(s.end() - p)) {

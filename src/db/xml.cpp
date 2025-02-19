@@ -66,7 +66,7 @@ std::pair<xml::token_t, std::string_view> xml::reader::read_next() {
                 } break;
                 case lex_token_t::pi_open: {  // <?xml n1=v1 n2=v2...?>
                     attrs_.clear();
-                    if (uxs::compare_strings_nocase(lval, string_literal<char, 'x', 'm', 'l'>{}()) != 0) {
+                    if (compare_strings_nocase(lval, string_literal<char, 'x', 'm', 'l'>{}()) != 0) {
                         throw database_error(format("{}: invalid document declaration", n_ln_));
                     }
                     name_cache_it->assign(lval.data(), lval.size());

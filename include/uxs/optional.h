@@ -6,20 +6,20 @@
 
 #    include <optional>
 
-namespace uxs {
+namespace est {
 using nullopt_t = std::nullopt_t;
 constexpr nullopt_t nullopt() { return std::nullopt; }
 template<typename Ty>
 using optional = std::optional<Ty>;
 using bad_optional_access = std::bad_optional_access;
-}  // namespace uxs
+}  // namespace est
 
 #else  // optional
 
 #    include <cassert>
 #    include <stdexcept>
 
-namespace uxs {
+namespace est {
 
 struct nullopt_t {};
 inline nullopt_t nullopt() { return nullopt_t{}; }
@@ -118,11 +118,11 @@ class optional {
     value_type& val() { return *reinterpret_cast<value_type*>(&data_); }
 };
 
-}  // namespace uxs
+}  // namespace est
 
 #endif  // optional
 
-namespace uxs {
+namespace est {
 
 template<typename Ty>
 optional<std::decay_t<Ty>> make_optional(Ty&& value) {
@@ -131,7 +131,7 @@ optional<std::decay_t<Ty>> make_optional(Ty&& value) {
 
 template<typename Ty, typename... Args>
 optional<Ty> make_optional(Args&&... args) {
-    return optional<Ty>(uxs::in_place(), std::forward<Args>(args)...);
+    return optional<Ty>(in_place(), std::forward<Args>(args)...);
 }
 
-}  // namespace uxs
+}  // namespace est

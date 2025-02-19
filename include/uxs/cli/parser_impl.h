@@ -18,7 +18,7 @@ basic_option_group<CharT>::basic_option_group(const basic_option_group& group)
     : basic_option_node<CharT>(group), is_exclusive_(group.is_exclusive_) {
     children_.reserve(group.children_.size());
     for (const auto& child : group.children_) {
-        add_child(uxs::static_pointer_cast<basic_option_node<CharT>>(child->clone()));
+        add_child(static_pointer_cast<basic_option_node<CharT>>(child->clone()));
     }
 }
 
@@ -26,16 +26,16 @@ template<typename CharT>
 basic_option<CharT>::basic_option(const basic_option& opt)
     : basic_option_node<CharT>(opt), keys_(opt.keys_), handler_(opt.handler_) {
     values_.reserve(opt.values_.size());
-    for (const auto& val : opt.values_) { add_value(uxs::make_unique<basic_value<CharT>>(*val)); }
+    for (const auto& val : opt.values_) { add_value(est::make_unique<basic_value<CharT>>(*val)); }
 }
 
 template<typename CharT>
 basic_command<CharT>::basic_command(const basic_command& cmd)
     : basic_node<CharT>(cmd), name_(cmd.name_), overview_(cmd.overview_),
-      opts_(uxs::make_unique<basic_option_group<CharT>>(*cmd.opts_)) {
+      opts_(est::make_unique<basic_option_group<CharT>>(*cmd.opts_)) {
     values_.reserve(cmd.values_.size());
-    for (const auto& val : cmd.values_) { add_value(uxs::make_unique<basic_value<CharT>>(*val)); }
-    for (const auto& item : cmd.subcommands_) { add_subcommand(uxs::make_unique<basic_command<CharT>>(*item.second)); }
+    for (const auto& val : cmd.values_) { add_value(est::make_unique<basic_value<CharT>>(*val)); }
+    for (const auto& item : cmd.subcommands_) { add_subcommand(est::make_unique<basic_command<CharT>>(*item.second)); }
 }
 
 template<typename CharT>
@@ -171,8 +171,8 @@ template<typename CharT>
         bool is_specified = false, is_optional = false;
         if (group.is_exclusive()) {
             for (const auto& opt : group.get_children()) {
-                if (uxs::contains(optional, &*opt)) { is_optional = true; }
-                if (uxs::contains(specified, &*opt)) {
+                if (contains(optional, &*opt)) { is_optional = true; }
+                if (contains(specified, &*opt)) {
                     if (is_specified) {
                         result.status = parsing_status::conflicting_option;
                         result.node = &*opt;
@@ -185,9 +185,9 @@ template<typename CharT>
             const basic_node<CharT>* first_unspecified = nullptr;
             is_optional = true;
             for (const auto& opt : group.get_children()) {
-                bool is_child_optional = uxs::contains(optional, &*opt);
+                bool is_child_optional = contains(optional, &*opt);
                 if (!is_child_optional) { is_optional = false; }
-                if (uxs::contains(specified, &*opt)) {
+                if (contains(specified, &*opt)) {
                     is_specified = true;
                 } else if (!is_child_optional) {
                     if (!first_unspecified) { first_unspecified = &*opt; }
@@ -228,7 +228,7 @@ std::basic_string<CharT> basic_option_node<CharT>::make_text(text_briefness brie
         std::basic_string<CharT> s(keys.front());
         bool no_space = !s.empty() && s.back() == '=';
         if (briefness == text_briefness::full) {
-            for (const auto& key : uxs::make_subrange(keys, 1)) { s += ',', s += ' ', s += key; }
+            for (const auto& key : make_subrange(keys, 1)) { s += ',', s += ' ', s += key; }
             no_space = !keys.back().empty() && keys.back().back() == '=';
         }
         for (const auto& val : opt.get_values()) {
@@ -251,7 +251,7 @@ std::basic_string<CharT> basic_option_node<CharT>::make_text(text_briefness brie
     };
     if (group.get_children().empty()) { return {}; }
     std::basic_string<CharT> s(make_child_string(*group.get_children().front()));
-    for (const auto& opt : uxs::make_subrange(group.get_children(), 1)) {
+    for (const auto& opt : make_subrange(group.get_children(), 1)) {
         s += group.is_exclusive() ? '|' : ' ';
         s += make_child_string(*opt);
     }
@@ -260,13 +260,13 @@ std::basic_string<CharT> basic_option_node<CharT>::make_text(text_briefness brie
 
 namespace detail {
 template<typename CharT>
-void print_text_with_margin(uxs::basic_iobuf<CharT>& out, std::basic_string_view<CharT> text, std::size_t left_margin) {
+void print_text_with_margin(basic_iobuf<CharT>& out, std::basic_string_view<CharT> text, std::size_t left_margin) {
     auto it = text.begin();
     while (it != text.end()) {
         auto end_it = std::find(it, text.end(), '\n');
         if (end_it != text.end()) { ++end_it; }
         if (it != text.begin()) { out.fill_n(left_margin, ' '); }
-        out.write(uxs::as_span(&*it, end_it - it));
+        out.write(est::as_span(&*it, end_it - it));
         it = end_it;
     }
 }
@@ -299,7 +299,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring color
         }
 
         if (coloring == text_coloring::colored) { osb.write(color_green); }
-        for (const auto& name : uxs::make_reverse_range(cmd_names)) {
+        for (const auto& name : make_reverse_range(cmd_names)) {
             width += 1 + name.size();
             osb.write(name).put(' ');
         }
@@ -314,7 +314,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring color
         if (!opts.empty()) {
             std::vector<std::basic_string<CharT>> opts_str;
             opts_str.reserve(opts.size());
-            uxs::transform(opts, std::back_inserter(opts_str), [](decltype(*opts.cbegin()) opt) {
+            transform(opts, std::back_inserter(opts_str), [](decltype(*opts.cbegin()) opt) {
                 if (opt->is_optional()) {
                     return static_cast<CharT>('[') + opt->make_text(text_briefness::brief) + static_cast<CharT>(']');
                 }
@@ -334,7 +334,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring color
             const auto label_subcommand = string_literal<CharT, '{', 'S', 'U', 'B', 'C', 'O', 'M', 'M', 'A', 'N', 'D',
                                                          '}', ' ', '.', '.', '.'>{}();
             osb.put('\n').fill_n(left_margin, ' ');
-            for (const auto& name : uxs::make_reverse_range(cmd_names)) { osb.write(name).put(' '); }
+            for (const auto& name : make_reverse_range(cmd_names)) { osb.write(name).put(' '); }
             osb.write(name_).put(' ').write(label_subcommand);
         }
         if (coloring == text_coloring::colored) { osb.write(color_normal); }
@@ -343,7 +343,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring color
     };
 
     auto print_parameters = [this, &osb, end_width_nl, coloring]() {
-        if (uxs::all_of(values_, [](decltype(*values_.cbegin()) val) { return val->get_doc().empty(); })) { return; }
+        if (all_of(values_, [](decltype(*values_.cbegin()) val) { return val->get_doc().empty(); })) { return; }
 
         if (coloring == text_coloring::colored) { osb.write(color_br_white); }
         const auto label_parameters =
@@ -417,8 +417,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring color
     };
 
     auto print_subcommands = [this, &osb, end_width_nl, coloring]() {
-        if (uxs::all_of(subcommands_,
-                        [](decltype(*subcommands_.cbegin()) item) { return item.second->get_doc().empty(); })) {
+        if (all_of(subcommands_, [](decltype(*subcommands_.cbegin()) item) { return item.second->get_doc().empty(); })) {
             return;
         }
 

@@ -215,7 +215,7 @@ auto split_string(std::wstring_view s, Finder finder,
 // --------------------------
 
 template<split_opts opts, typename CharT, typename Traits, typename Finder>
-type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_finder> basic_string_section(
+est::type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_finder> basic_string_section(
     std::basic_string_view<CharT, Traits> s, Finder finder, std::size_t start,
     std::size_t fin = std::numeric_limits<std::size_t>::max()) {
     if (fin < start) { fin = start; }
@@ -234,13 +234,13 @@ type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_finde
 }
 
 template<split_opts opts = split_opts::no_opts, typename Finder>
-type_identity_t<std::string_view, typename Finder::is_finder> string_section(  //
+est::type_identity_t<std::string_view, typename Finder::is_finder> string_section(  //
     std::string_view s, Finder finder, std::size_t start, std::size_t fin = std::numeric_limits<std::size_t>::max()) {
     return basic_string_section<opts>(s, finder, start, fin);
 }
 
 template<split_opts opts = split_opts::no_opts, typename Finder>
-type_identity_t<std::wstring_view, typename Finder::is_finder> string_section(  //
+est::type_identity_t<std::wstring_view, typename Finder::is_finder> string_section(  //
     std::wstring_view s, Finder finder, std::size_t start, std::size_t fin = std::numeric_limits<std::size_t>::max()) {
     return basic_string_section<opts>(s, finder, start, fin);
 }
@@ -248,7 +248,7 @@ type_identity_t<std::wstring_view, typename Finder::is_finder> string_section(  
 // --------------------------
 
 template<split_opts opts, typename CharT, typename Traits, typename Finder>
-type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_reversed_finder> basic_string_section(
+est::type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_reversed_finder> basic_string_section(
     std::basic_string_view<CharT, Traits> s, Finder finder, std::size_t start, std::size_t fin = 0) {
     if (fin > start) { fin = start; }
     std::size_t count = 0;
@@ -266,13 +266,13 @@ type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_rever
 }
 
 template<split_opts opts = split_opts::no_opts, typename Finder>
-type_identity_t<std::string_view, typename Finder::is_reversed_finder> string_section(  //
+est::type_identity_t<std::string_view, typename Finder::is_reversed_finder> string_section(  //
     std::string_view s, Finder finder, std::size_t start, std::size_t fin = 0) {
     return basic_string_section<opts>(s, finder, start, fin);
 }
 
 template<split_opts opts = split_opts::no_opts, typename Finder>
-type_identity_t<std::wstring_view, typename Finder::is_reversed_finder> string_section(  //
+est::type_identity_t<std::wstring_view, typename Finder::is_reversed_finder> string_section(  //
     std::wstring_view s, Finder finder, std::size_t start, std::size_t fin = 0) {
     return basic_string_section<opts>(s, finder, start, fin);
 }
@@ -284,7 +284,7 @@ std::size_t basic_string_to_words(std::basic_string_view<CharT, Traits> s, CharT
                                   std::size_t n = std::numeric_limits<std::size_t>::max()) {
     if (!n) { return 0; }
     std::size_t count = 0;
-    enum class state_t : char { start = 0, sep_found, skip_sep } state = state_t::start;
+    enum class state_t { start = 0, sep_found, skip_sep } state = state_t::start;
     for (auto p = s.begin();; ++p) {
         while (p != s.end() && is_space(*p)) { ++p; }  // skip spaces
         auto p0 = p;

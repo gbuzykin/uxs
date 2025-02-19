@@ -31,19 +31,19 @@
 #define UXS_IMPLEMENT_FRIEND_BITWISE_OPS_FOR_ENUM(ty) \
     UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM_(ty, friend inline UXS_CONSTEXPR)
 
-namespace uxs {
+namespace est {
+template<typename... Ts>
+struct always_true : std::true_type {};
 template<typename Ty, typename... Ts>
 struct type_identity {
     using type = Ty;
 };
 template<typename Ty, typename... Ts>
 using type_identity_t = typename type_identity<Ty, Ts...>::type;
-template<typename... Ts>
-struct always_true : std::true_type {};
-}  // namespace uxs
+}  // namespace est
 
 #if __cplusplus < 201703L
-namespace uxs {
+namespace est {
 namespace detail {
 template<std::size_t... Indices>
 struct index_sequence {};
@@ -54,7 +54,7 @@ struct make_index_sequence<0U, Next...> {
     using type = index_sequence<Next...>;
 };
 }  // namespace detail
-}  // namespace uxs
+}  // namespace est
 namespace std {
 #    if __cplusplus < 201402L
 template<bool B, typename Ty = void>
@@ -88,7 +88,7 @@ void as_const(const Ty&&) = delete;
 #    endif  // as const
 #    if !defined(__cpp_lib_void_t)
 template<typename Ty, typename... Ts>
-using void_t = typename uxs::type_identity<void, Ty, Ts...>::type;
+using void_t = typename est::type_identity<void, Ty, Ts...>::type;
 #    endif  // void_t
 #    if !defined(__cpp_lib_is_swappable)
 template<typename Ty>
@@ -96,9 +96,9 @@ using is_nothrow_swappable = bool_constant<noexcept(swap(declval<Ty&>(), declval
 #    endif  // is swappable
 #    if __cplusplus < 201402L && !defined(__cpp_lib_integer_sequence)
 template<std::size_t... Indices>
-using index_sequence = uxs::detail::index_sequence<Indices...>;
+using index_sequence = est::detail::index_sequence<Indices...>;
 template<std::size_t N>
-using make_index_sequence = typename uxs::detail::make_index_sequence<N>::type;
+using make_index_sequence = typename est::detail::make_index_sequence<N>::type;
 template<typename... Ts>
 using index_sequence_for = make_index_sequence<sizeof...(Ts)>;
 #    endif  // integer sequence
@@ -114,7 +114,7 @@ using remove_cvref_t = typename remove_cvref<Ty>::type;
 }  // namespace std
 #endif  // remove_cvref
 
-namespace uxs {
+namespace est {
 
 template<typename Ty>
 struct remove_const : std::remove_const<Ty> {};
@@ -133,11 +133,6 @@ template<typename Ty1, typename Ty2>
 struct remove_cv<std::pair<Ty1, Ty2>> {
     using type = std::pair<std::remove_cv_t<Ty1>, std::remove_cv_t<Ty2>>;
 };
-
-template<typename Ty, typename = void>
-struct is_boolean : std::false_type {};
-template<typename Ty>
-struct is_boolean<Ty, std::enable_if_t<std::is_same<std::remove_cv_t<Ty>, bool>::value>> : std::true_type {};
 
 #if __cplusplus < 201703L
 struct in_place_t {};
@@ -158,6 +153,15 @@ constexpr in_place_type_t<Ty> in_place_type() {
     return std::in_place_type<Ty>;
 }
 #endif  //__cplusplus < 201703L
+
+}  // namespace est
+
+namespace uxs {
+
+template<typename Ty, typename = void>
+struct is_boolean : std::false_type {};
+template<typename Ty>
+struct is_boolean<Ty, std::enable_if_t<std::is_same<std::remove_cv_t<Ty>, bool>::value>> : std::true_type {};
 
 namespace detail {
 template<typename... Ts>

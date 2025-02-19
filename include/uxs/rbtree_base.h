@@ -161,8 +161,8 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     using const_pointer = typename value_alloc_traits::const_pointer;
     using reference = value_type&;
     using const_reference = const value_type&;
-    using iterator = uxs::list_iterator<rbtree_base, node_traits, std::is_same<key_type, value_type>::value>;
-    using const_iterator = uxs::list_iterator<rbtree_base, node_traits, true>;
+    using iterator = list_iterator<rbtree_base, node_traits, std::is_same<key_type, value_type>::value>;
+    using const_iterator = list_iterator<rbtree_base, node_traits, true>;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
     using node_type = rbtree_node_handle<node_traits, Alloc>;
@@ -263,7 +263,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     }
 
     template<typename Key, typename Comp_ = key_compare>
-    type_identity_t<iterator, typename Comp_::is_transparent> find(const Key& key) {
+    est::type_identity_t<iterator, typename Comp_::is_transparent> find(const Key& key) {
         auto* p = rbtree_lower_bound<node_traits>(std::addressof(head_), key, this->get_compare());
         if (p == std::addressof(head_) || this->get_compare()(key, node_traits::get_key(node_traits::get_value(p)))) {
             return end();
@@ -280,7 +280,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     }
 
     template<typename Key, typename Comp_ = key_compare>
-    type_identity_t<const_iterator, typename Comp_::is_transparent> find(const Key& key) const {
+    est::type_identity_t<const_iterator, typename Comp_::is_transparent> find(const Key& key) const {
         auto* p = rbtree_lower_bound<node_traits>(std::addressof(head_), key, this->get_compare());
         if (p == std::addressof(head_) || this->get_compare()(key, node_traits::get_key(node_traits::get_value(p)))) {
             return end();
@@ -295,7 +295,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     }
 
     template<typename Key, typename Comp_ = key_compare>
-    type_identity_t<iterator, typename Comp_::is_transparent> lower_bound(const Key& key) {
+    est::type_identity_t<iterator, typename Comp_::is_transparent> lower_bound(const Key& key) {
         return iterator(rbtree_lower_bound<node_traits>(std::addressof(head_), key, this->get_compare()));
     }
 
@@ -304,7 +304,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     }
 
     template<typename Key, typename Comp_ = key_compare>
-    type_identity_t<const_iterator, typename Comp_::is_transparent> lower_bound(const Key& key) const {
+    est::type_identity_t<const_iterator, typename Comp_::is_transparent> lower_bound(const Key& key) const {
         return const_iterator(rbtree_lower_bound<node_traits>(std::addressof(head_), key, this->get_compare()));
     }
 
@@ -315,7 +315,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     }
 
     template<typename Key, typename Comp_ = key_compare>
-    type_identity_t<iterator, typename Comp_::is_transparent> upper_bound(const Key& key) {
+    est::type_identity_t<iterator, typename Comp_::is_transparent> upper_bound(const Key& key) {
         return iterator(rbtree_upper_bound<node_traits>(std::addressof(head_), key, this->get_compare()));
     }
 
@@ -324,7 +324,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     }
 
     template<typename Key, typename Comp_ = key_compare>
-    type_identity_t<const_iterator, typename Comp_::is_transparent> upper_bound(const Key& key) const {
+    est::type_identity_t<const_iterator, typename Comp_::is_transparent> upper_bound(const Key& key) const {
         return const_iterator(rbtree_upper_bound<node_traits>(std::addressof(head_), key, this->get_compare()));
     }
 
@@ -336,7 +336,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     }
 
     template<typename Key, typename Comp_ = key_compare>
-    type_identity_t<std::pair<iterator, iterator>, typename Comp_::is_transparent> equal_range(const Key& key) {
+    est::type_identity_t<std::pair<iterator, iterator>, typename Comp_::is_transparent> equal_range(const Key& key) {
         auto result = rbtree_equal_range<node_traits>(std::addressof(head_), key, this->get_compare());
         return std::make_pair(iterator(result.first), iterator(result.second));
     }
@@ -347,7 +347,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     }
 
     template<typename Key, typename Comp_ = key_compare>
-    type_identity_t<std::pair<const_iterator, const_iterator>, typename Comp_::is_transparent> equal_range(
+    est::type_identity_t<std::pair<const_iterator, const_iterator>, typename Comp_::is_transparent> equal_range(
         const Key& key) const {
         auto result = rbtree_equal_range<node_traits>(std::addressof(head_), key, this->get_compare());
         return std::make_pair(const_iterator(result.first), const_iterator(result.second));
@@ -357,14 +357,14 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
 
     size_type count(const key_type& key) const {
         size_type count = 0;
-        for (auto it : uxs::make_range(equal_range(key))) { ++count, (void)it; }
+        for (auto it : make_range(equal_range(key))) { ++count, (void)it; }
         return count;
     }
 
     template<typename Key, typename Comp_ = key_compare>
-    type_identity_t<size_type, typename Comp_::is_transparent> count(const Key& key) const {
+    est::type_identity_t<size_type, typename Comp_::is_transparent> count(const Key& key) const {
         size_type count = 0;
-        for (auto it : uxs::make_range(equal_range(key))) { ++count, (void)it; }
+        for (auto it : make_range(equal_range(key))) { ++count, (void)it; }
         return count;
     }
 
@@ -373,7 +373,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     bool contains(const key_type& key) const { return find(key) != end(); }
 
     template<typename Key, typename Comp_ = key_compare>
-    type_identity_t<bool, typename Comp_::is_transparent> contains(const Key& key) const {
+    est::type_identity_t<bool, typename Comp_::is_transparent> contains(const Key& key) const {
         return find(key) != end();
     }
 
@@ -410,7 +410,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     }
 
     template<typename Key, typename Comp_ = key_compare>
-    type_identity_t<size_type, typename Comp_::is_transparent> erase(const Key& key) const {
+    est::type_identity_t<size_type, typename Comp_::is_transparent> erase(const Key& key) const {
         size_type old_size = size_;
         auto result = rbtree_equal_range<node_traits>(std::addressof(head_), key, this->get_compare());
         if (result.first != result.second) { erase_impl(result.first, result.second); }
@@ -433,7 +433,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     }
 
     template<typename Key, typename Comp_ = key_compare>
-    type_identity_t<node_type, typename Comp_::is_transparent> extract(const Key& key) {
+    est::type_identity_t<node_type, typename Comp_::is_transparent> extract(const Key& key) {
         auto it = find(key);
         if (it != end()) { return extract(it); }
         return node_type(*this);
@@ -757,16 +757,7 @@ void rbtree_base<NodeTraits, Alloc, Comp>::copy_node_reuse(rbtree_node_t* node, 
 
 #if __cplusplus >= 201703L
 template<typename InputIt>
-using iter_key_t = remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>;
-template<typename InputIt>
-using iter_val_t = typename std::iterator_traits<InputIt>::value_type::second_type;
-template<typename InputIt>
-using iter_to_alloc_t = std::pair<std::add_const_t<iter_key_t<InputIt>>, iter_val_t<InputIt>>;
-#endif  // __cplusplus >= 201703L
-
-#if __cplusplus >= 201703L
-template<typename InputIt>
-using iter_key_t = remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>;
+using iter_key_t = est::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>;
 template<typename InputIt>
 using iter_val_t = typename std::iterator_traits<InputIt>::value_type::second_type;
 template<typename InputIt>

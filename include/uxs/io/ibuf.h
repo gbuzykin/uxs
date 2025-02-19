@@ -34,7 +34,7 @@ class basic_ibuf : public iostate {
     size_type avail() const noexcept { return last_ - curr_; }
     const char_type* first_avail() const noexcept { return curr_; }
     const char_type* last_avail() const noexcept { return last_; }
-    uxs::span<const char_type> view_avail() const noexcept { return uxs::as_span(curr_, avail()); }
+    est::span<const char_type> view_avail() const noexcept { return est::as_span(curr_, avail()); }
 
     int_type peek() {
         if (curr_ != last_ || (this->good() && underflow() >= 0)) { return traits_type::to_int_type(*curr_); }
@@ -82,8 +82,8 @@ class basic_ibuf : public iostate {
         return sz;
     }
 
-    UXS_EXPORT size_type read(uxs::span<char_type> s);
-    UXS_EXPORT size_type read_with_endian(uxs::span<char_type> s, size_type element_sz);
+    UXS_EXPORT size_type read(est::span<char_type> s);
+    UXS_EXPORT size_type read_with_endian(est::span<char_type> s, size_type element_sz);
     template<typename Ty, std::size_t N>
     size_type read(Ty (&)[N]) = delete;
     UXS_EXPORT size_type skip(size_type count);

@@ -65,7 +65,7 @@ template<typename Ty, typename FmtCtx>
 struct is_formattable {
     template<typename U, typename V>
     static auto test(U* ctx, V* parse_ctx, const Ty* val)
-        -> always_true<
+        -> est::always_true<
             decltype(parse_ctx->advance_to(std::declval<formatter<Ty, typename V::char_type>&>().parse(*parse_ctx))),
             decltype(formatter<Ty, typename U::char_type>().format(*ctx, *val))>;
     template<typename U, typename V>
@@ -385,7 +385,7 @@ using arg_store_type = std::conditional<(arg_type_index<Ty, typename FmtCtx::cha
                                         reduce_type_t<Ty, typename FmtCtx::char_type>, custom_arg_handle<FmtCtx>>;
 
 template<typename FmtCtx, typename Ty>
-using arg_size = uxs::size_of<typename arg_store_type<FmtCtx, Ty>::type>;
+using arg_size = est::size_of<typename arg_store_type<FmtCtx, Ty>::type>;
 
 template<typename FmtCtx, typename Ty>
 using arg_alignment = std::alignment_of<typename arg_store_type<FmtCtx, Ty>::type>;
@@ -399,7 +399,7 @@ struct arg_store_size_evaluator<FmtCtx, Size, Ty, Rest...>
     : std::integral_constant<
           std::size_t,
           arg_store_size_evaluator<FmtCtx,
-                                   uxs::align_up<arg_alignment<FmtCtx, Ty>::value>::template type<Size>::value +
+                                   est::align_up<arg_alignment<FmtCtx, Ty>::value>::template type<Size>::value +
                                        arg_size<FmtCtx, Ty>::value,
                                    Rest...>::value> {};
 
@@ -456,7 +456,7 @@ class arg_store {
     template<typename Ty, typename... Ts>
     UXS_CONSTEXPR void store_values(std::size_t i, std::size_t offset, const Ty& val, const Ts&... other) noexcept {
         static_assert(formattable<Ty, char_type>::value, "value of this type cannot be formatted");
-        offset = uxs::align_up<arg_alignment<FmtCtx, Ty>::value>::value(offset);
+        offset = est::align_up<arg_alignment<FmtCtx, Ty>::value>::value(offset);
         ::new (reinterpret_cast<unsigned*>(&data_) + i) unsigned(
             static_cast<unsigned>(offset << 8) | static_cast<unsigned>(arg_type_index<Ty, char_type>::value));
         store_value(val, &data_[offset]);
@@ -835,7 +835,7 @@ class compile_parse_context : public basic_format_parse_context<CharT> {
     using char_type = CharT;
 
     constexpr compile_parse_context(std::basic_string_view<char_type> fmt,
-                                    uxs::span<const sfmt::index_t> arg_types) noexcept
+                                    est::span<const sfmt::index_t> arg_types) noexcept
         : basic_format_parse_context<CharT>(fmt), arg_types_(arg_types) {}
 
     [[nodiscard]] constexpr std::size_t next_arg_id() {
@@ -865,7 +865,7 @@ class compile_parse_context : public basic_format_parse_context<CharT> {
     }
 
  private:
-    uxs::span<const sfmt::index_t> arg_types_;
+    est::span<const sfmt::index_t> arg_types_;
 };
 #endif  // defined(UXS_HAS_CONSTEVAL)
 
@@ -956,9 +956,9 @@ class basic_format_string {
 };
 
 template<typename... Args>
-using format_string = basic_format_string<char, type_identity_t<Args>...>;
+using format_string = basic_format_string<char, est::type_identity_t<Args>...>;
 template<typename... Args>
-using wformat_string = basic_format_string<wchar_t, type_identity_t<Args>...>;
+using wformat_string = basic_format_string<wchar_t, est::type_identity_t<Args>...>;
 
 // ---- basic_vformat
 
@@ -999,14 +999,14 @@ StrTy& basic_vformat(StrTy& s, const std::locale& loc, std::basic_string_view<ty
 // ---- basic_format
 
 template<typename StrTy, typename... Args>
-StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type, type_identity_t<Args>...> fmt,
+StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type, est::type_identity_t<Args>...> fmt,
                     const Args&... args) {
     return basic_vformat(s, fmt.get(), make_format_args<basic_format_context<typename StrTy::value_type>>(args...));
 }
 
 template<typename StrTy, typename... Args>
 StrTy& basic_format(StrTy& s, const std::locale& loc,
-                    basic_format_string<typename StrTy::value_type, type_identity_t<Args>...> fmt,
+                    basic_format_string<typename StrTy::value_type, est::type_identity_t<Args>...> fmt,
                     const Args&... args) {
     return basic_vformat(s, loc, fmt.get(), make_format_args<basic_format_context<typename StrTy::value_type>>(args...));
 }

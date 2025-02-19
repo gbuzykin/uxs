@@ -60,7 +60,7 @@ enum class variant_id : std::uint32_t {
     vector4d,
     quaternion,
     matrix4x4,
-    custom0
+    custom0,
 };
 inline UXS_CONSTEXPR variant_id operator+(variant_id lhs, std::uint32_t rhs) {
     return static_cast<variant_id>(static_cast<std::uint32_t>(lhs) + rhs);
@@ -78,8 +78,8 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC variant_error : public std::runtime_error {
 
 namespace detail {
 template<typename... Ts>
-struct alignas(alignment_of<Ts...>::value) aligned_storage_t {
-    std::uint8_t x[size_of<Ts...>::value];
+struct alignas(est::alignment_of<Ts...>::value) aligned_storage_t {
+    std::uint8_t x[est::size_of<Ts...>::value];
 };
 using variant_storage_t = aligned_storage_t<std::int64_t, double, void*, std::string>;
 
@@ -210,7 +210,7 @@ class variant {
     }
 
     template<typename Ty, typename... Args, typename = std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
-    explicit variant(in_place_type_t<Ty>, Args&&... args) : vtable_(get_vtable(variant_type_impl<Ty>::type_id)) {
+    explicit variant(est::in_place_type_t<Ty>, Args&&... args) : vtable_(get_vtable(variant_type_impl<Ty>::type_id)) {
         assert(vtable_);
         variant_type_impl<Ty>::construct(&data_, std::forward<Args>(args)...);
     }
@@ -258,7 +258,7 @@ class variant {
     }
 
     template<typename Ty>
-    uxs::optional<Ty> get() const {
+    est::optional<Ty> get() const {
         return get_impl<Ty>();
     }
 
@@ -286,7 +286,7 @@ class variant {
     UXS_EXPORT bool is_equal_to(const variant& v) const;
 
 #define UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(ty, internal_ty) \
-    variant(ty val) : variant(in_place_type<internal_ty>(), static_cast<internal_ty>(val)) {} \
+    variant(ty val) : variant(est::in_place_type<internal_ty>(), static_cast<internal_ty>(val)) {} \
     variant& operator=(ty val) { \
         assign_impl<internal_ty>(static_cast<internal_ty>(val)); \
         return *this; \
@@ -335,7 +335,7 @@ class variant {
     Ty as_impl();
 
     template<typename Ty, typename = std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
-    uxs::optional<Ty> get_impl() const;
+    est::optional<Ty> get_impl() const;
 
     friend UXS_EXPORT u8ibuf& operator>>(u8ibuf& is, variant& v);
     friend UXS_EXPORT u8iobuf& operator<<(u8iobuf& os, const variant& v);
@@ -417,9 +417,9 @@ bool variant::is_equal_to_impl(const U& val) const {
         return static_cast<ty>(as_impl<internal_ty>()); \
     } \
     template<> \
-    inline uxs::optional<ty> variant::get<ty>() const { \
+    inline est::optional<ty> variant::get<ty>() const { \
         auto result = get_impl<internal_ty>(); \
-        return result ? uxs::make_optional(static_cast<ty>(*result)) : uxs::nullopt(); \
+        return result ? est::make_optional(static_cast<ty>(*result)) : est::nullopt(); \
     }
 UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(signed, std::int32_t)
 UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(unsigned, std::uint32_t)
@@ -476,12 +476,12 @@ Ty variant::as_impl() {
 }
 
 template<typename Ty, typename>
-uxs::optional<Ty> variant::get_impl() const {
-    if (!vtable_) { return uxs::nullopt(); }
+est::optional<Ty> variant::get_impl() const {
+    if (!vtable_) { return est::nullopt(); }
     auto* val_vtable = get_vtable(variant_type_impl<Ty>::type_id);
     assert(vtable_ && val_vtable);
     if (vtable_ == val_vtable) { return *static_cast<const Ty*>(vtable_->get_value_const_ptr(&data_)); }
-    uxs::optional<Ty> result(uxs::in_place());
+    est::optional<Ty> result(est::in_place());
     if (vtable_->type > val_vtable->type) {
         if (vtable_->convert_to &&
             vtable_->convert_to(val_vtable->type, &*result, vtable_->get_value_const_ptr(&data_))) {
@@ -491,7 +491,7 @@ uxs::optional<Ty> variant::get_impl() const {
                val_vtable->convert_from(vtable_->type, &*result, vtable_->get_value_const_ptr(&data_))) {
         return result;
     }
-    return uxs::nullopt();
+    return est::nullopt();
 }
 
 namespace detail {
