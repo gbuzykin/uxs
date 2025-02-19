@@ -12,15 +12,15 @@ namespace xml {
 // --------------------------
 
 template<typename CharT, typename Alloc>
-basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Alloc& al) {
-    if (input_.peek() == ibuf::traits_type::eof()) { throw database_error("empty input"); }
+basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Alloc& al) {
+    if (in_.peek() == ibuf::traits_type::eof()) { throw database_error("empty input"); }
 
     auto text_to_value = [&al](std::string_view sval) -> basic_value<CharT, Alloc> {
-        switch (classify_string(sval)) {
-            case string_class::null: return {nullptr, al};
-            case string_class::true_value: return {true, al};
-            case string_class::false_value: return {false, al};
-            case string_class::integer_number: {
+        switch (classify_value(sval)) {
+            case value_class::null: return {nullptr, al};
+            case value_class::true_value: return {true, al};
+            case value_class::false_value: return {false, al};
+            case value_class::integer_number: {
                 std::uint64_t u64 = 0;
                 if (stoval(sval, u64) != 0) {
                     if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max())) {
@@ -35,7 +35,7 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
                 // too big integer - treat as double
                 return {from_string<double>(sval), al};
             } break;
-            case string_class::negative_integer_number: {
+            case value_class::negative_integer_number: {
                 std::int64_t i64 = 0;
                 if (stoval(sval, i64) != 0) {
                     if (i64 >= static_cast<std::int64_t>(std::numeric_limits<std::int32_t>::min())) {
@@ -46,9 +46,9 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
                 // too big integer - treat as double
                 return {from_string<double>(sval), al};
             } break;
-            case string_class::floating_point_number: return {from_string<double>(sval), al};
-            case string_class::ws_with_nl: return make_record<CharT>(al);
-            case string_class::other: return {utf_string_adapter<CharT>{}(sval), al};
+            case value_class::floating_point_number: return {from_string<double>(sval), al};
+            case value_class::ws_with_nl: return make_record<CharT>(al);
+            case value_class::other: return {utf_string_adapter<CharT>{}(sval), al};
             default: UXS_UNREACHABLE_CODE;
         }
     };
@@ -56,17 +56,18 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
     inline_dynbuffer txt;
     basic_value<CharT, Alloc> result;
     std::vector<std::pair<basic_value<CharT, Alloc>*, std::string>> stack;
-    std::pair<token_t, std::string_view> tk = read_next();
 
     stack.reserve(32);
     stack.emplace_back(&result, root_element);
 
+    auto tk = next();
+
     while (true) {
         auto& top = stack.back();
         switch (tk.first) {
-            case token_t::eof: throw database_error(format("{}: unexpected end of file", n_ln_));
-            case token_t::preamble: throw database_error(format("{}: unexpected document preamble", n_ln_));
-            case token_t::entity: throw database_error(format("{}: unknown entity name", n_ln_));
+            case token_t::eof: throw database_error(to_string(ln_) + ": unexpected end of file");
+            case token_t::preamble: throw database_error(to_string(ln_) + ": unexpected document preamble");
+            case token_t::entity: throw database_error(to_string(ln_) + ": unknown entity name");
             case token_t::plain_text: {
                 if (!top.first->is_record()) { txt += tk.second; }
             } break;
@@ -78,7 +79,7 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
             } break;
             case token_t::end_element: {
                 if (top.second != tk.second) {
-                    throw database_error(format("{}: unterminated element {}", n_ln_, top.second));
+                    throw database_error(to_string(ln_) + ": unterminated element " + top.second);
                 }
                 if (!top.first->is_record()) { *(top.first) = text_to_value(std::string_view(txt.data(), txt.size())); }
                 stack.pop_back();
@@ -86,7 +87,7 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
             } break;
             default: UXS_UNREACHABLE_CODE;
         }
-        tk = read_next();
+        tk = next();
     }
 }
 
@@ -94,15 +95,13 @@ basic_value<CharT, Alloc> reader::read(std::string_view root_element, const Allo
 
 namespace detail {
 
-template<typename CharT, typename ValueCharT, typename Alloc>
+template<typename ValueCharT, typename Alloc>
 struct writer_stack_item_t {
     using value_t = basic_value<ValueCharT, Alloc>;
     using iterator = typename value_t::const_iterator;
-    using string_type = std::conditional_t<std::is_same<ValueCharT, CharT>::value, std::basic_string_view<CharT>,
-                                           std::basic_string<CharT>>;
     writer_stack_item_t() = default;
     writer_stack_item_t(iterator f, iterator l) : first(f), last(l) {}
-    string_type element;
+    std::basic_string_view<ValueCharT> element;
     iterator first;
     iterator last;
 };
@@ -172,27 +171,22 @@ value_visitor<StrTy, StackTy> make_value_visitor(StrTy& out, StackTy& stack) {
     return {out, stack};
 }
 
-}  // namespace detail
-
 template<typename CharT>
 template<typename ValueCharT, typename Alloc>
-void writer<CharT>::write(const basic_value<ValueCharT, Alloc>& v, std::basic_string_view<CharT> root_element,
-                          unsigned indent) {
-    using stack_item_t = detail::writer_stack_item_t<CharT, ValueCharT, Alloc>;
-    std::vector<stack_item_t> stack;
-    typename stack_item_t::string_type element(root_element);
-    stack.reserve(32);
+void writer<CharT>::do_write(const basic_value<ValueCharT, Alloc>& v, std::basic_string_view<ValueCharT> element,
+                             unsigned indent) {
+    using stack_item_t = detail::writer_stack_item_t<ValueCharT, Alloc>;
+    inline_basic_dynbuffer<stack_item_t, 32> stack;
 
-    auto visitor = make_value_visitor(output_, stack);
+    auto visitor = make_value_visitor(out, stack);
 
-    output_ += '<';
-    output_ += element;
-    output_ += '>';
+    out += '<';
+    utf_string_adapter<CharT>{}.append(out, element);
+    out += '>';
     if (!v.visit(visitor)) {
-        output_ += string_literal<CharT, '<', '/'>{}();
-        output_ += element;
-        output_ += '>';
-        output_.flush();
+        out += string_literal<CharT, '<', '/'>{}();
+        utf_string_adapter<CharT>{}.append(out, element);
+        out += '>';
         return;
     }
 
@@ -202,22 +196,22 @@ void writer<CharT>::write(const basic_value<ValueCharT, Alloc>& v, std::basic_st
 loop:
     auto& top = stack.back();
 
-    if (is_first_element && top.first.is_record()) { indent += indent_size_; }
+    if (is_first_element && top.first.is_record()) { indent += indent_size; }
 
     while (true) {
         if (!is_first_element && !std::prev(top.first).value().is_array()) {
-            output_ += string_literal<CharT, '<', '/'>{}();
-            output_ += element;
-            output_ += '>';
+            out += string_literal<CharT, '<', '/'>{}();
+            utf_string_adapter<CharT>{}.append(out, element);
+            out += '>';
         }
         if (top.first == top.last) { break; }
-        if (top.first.is_record()) { element = utf_string_adapter<CharT>{}(top.first.key()); }
+        if (top.first.is_record()) { element = top.first.key(); }
         if (!top.first.value().is_array()) {
-            output_ += '\n';
-            output_.append(indent, indent_char_);
-            output_ += '<';
-            output_ += element;
-            output_ += '>';
+            out += '\n';
+            out.append(indent, indent_char);
+            out += '<';
+            utf_string_adapter<CharT>{}.append(out, element);
+            out += '>';
         }
         if ((top.first++).value().visit(visitor)) {
             is_first_element = true;
@@ -228,9 +222,9 @@ loop:
     }
 
     if (top.first.is_record()) {
-        indent -= indent_size_;
-        output_ += '\n';
-        output_.append(indent, indent_char_);
+        indent -= indent_size;
+        out += '\n';
+        out.append(indent, indent_char);
     }
 
     is_first_element = false;
@@ -238,11 +232,12 @@ loop:
     stack.pop_back();
     if (!stack.empty()) { goto loop; }
 
-    output_ += string_literal<CharT, '<', '/'>{}();
-    output_ += element;
-    output_ += '>';
-    output_.flush();
+    out += string_literal<CharT, '<', '/'>{}();
+    utf_string_adapter<CharT>{}.append(out, element);
+    out += '>';
 }
+
+}  // namespace detail
 
 }  // namespace xml
 }  // namespace db

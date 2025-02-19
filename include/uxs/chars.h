@@ -24,7 +24,7 @@ enum char_bits : std::uint8_t {
     is_upper = 1 << 2,
     is_alpha = 1 << 3,
     is_alnum = 1 << 4,
-    is_json_space = 1 << 5,
+    is_json_ws = 1 << 5,
     is_xml_special = 1 << 6,
 };
 struct char_tbl_t {
