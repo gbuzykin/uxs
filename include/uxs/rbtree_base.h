@@ -465,10 +465,8 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
 
     void swap_impl(rbtree_base& other, std::false_type) noexcept(std::is_nothrow_swappable<key_compare>::value) {
         this->swap_compare(other.get_compare());
-        if (!size_) {
-            steal_data(other);
-            return;
-        } else if (other.size_) {
+        if (!size_) { return steal_data(other); }
+        if (other.size_) {
             std::swap(head_.left, other.head_.left);
             std::swap(head_.right, other.head_.right);
             std::swap(head_.parent, other.head_.parent);

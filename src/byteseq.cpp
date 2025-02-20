@@ -107,7 +107,9 @@ byteseq byteseq::make_compressed() const {
         if (ret == Z_STREAM_END) {
             if (deflateEnd(&zstr) != Z_OK) { return {}; }
             break;
-        } else if (ret != Z_OK) {
+        }
+
+        if (ret != Z_OK) {
             deflateEnd(&zstr);
             return {};
         }
@@ -150,7 +152,9 @@ byteseq byteseq::make_uncompressed() const {
         if (ret == Z_STREAM_END) {
             if (inflateEnd(&zstr) != Z_OK) { return {}; }
             break;
-        } else if (ret != Z_OK) {
+        }
+
+        if (ret != Z_OK) {
             inflateEnd(&zstr);
             return {};
         }

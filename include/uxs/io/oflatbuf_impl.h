@@ -62,7 +62,8 @@ typename basic_oflatbuf<CharT, Alloc>::pos_type basic_oflatbuf<CharT, Alloc>::se
 template<typename CharT, typename Alloc>
 void basic_oflatbuf<CharT, Alloc>::grow(size_type extra) {
     top_ = std::max(top_, this->curr());
-    size_type sz = top_ - this->first(), delta_sz = std::max(extra, sz >> 1);
+    size_type sz = top_ - this->first();
+    size_type delta_sz = std::max(extra, sz >> 1);
     const size_type max_avail = std::allocator_traits<alloc_type>::max_size(*this) - sz;
     if (delta_sz > max_avail) {
         if (extra > max_avail) { throw std::length_error("too much to reserve"); }

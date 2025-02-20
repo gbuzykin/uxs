@@ -150,7 +150,9 @@ template<typename Pool, std::uint16_t Size, std::uint16_t Alignment>
 /*static*/ typename Pool::pool_desc_t* pool_specializer<Pool, Size, Alignment>::specialize(pool_desc_t* desc) {
     if (pool_desc_t* found = Pool::find_pool(desc, size_and_alignment)) {
         return found;  // pool for desired size and alignment found
-    } else if (!dllist_is_empty(&desc->partitions)) {
+    }
+
+    if (!dllist_is_empty(&desc->partitions)) {
         // create new pool for desired size and alignment
         pool_desc_t* prev_desc = desc;
         desc = Pool::allocate_new_pool(*desc);

@@ -20,11 +20,13 @@ std::pair<token_t, std::string_view> parser::next() {
     }
     if (!in_) { return {token_t::eof, {}}; }
     while (in_.avail() || in_.peek() != ibuf::traits_type::eof()) {
-        const char *first = in_.first_avail(), *last = in_.last_avail();
+        const char* first = in_.first_avail();
+        const char* last = in_.last_avail();
         std::string_view lval;
         if (*first == '<') {  // found '<'
             auto tt = lex(lval);
-            auto name_cache_it = name_cache_.begin(), name_cache_prev_it = name_cache_it;
+            auto name_cache_it = name_cache_.begin();
+            auto name_cache_prev_it = name_cache_it;
             auto read_attribute = [this, &name_cache_it, &name_cache_prev_it](std::string_view lval) {
                 auto tt = lex_token_t::eof;
                 if (name_cache_it != name_cache_.end()) {
@@ -129,20 +131,20 @@ parser::lex_token_t parser::lex(std::string_view& lval) {
                 stack_limitation = true;
             }
             pat = lex_detail::lex(first, last, stack_.p_curr(), &llen, stack_limitation || in_);
-            if (pat >= lex_detail::predef_pat_default) {
-                break;
-            } else if (stack_limitation) {  // enlarge state stack and continue analysis
+            if (pat >= lex_detail::predef_pat_default) { break; }
+            if (stack_limitation) {
+                // enlarge state stack and continue analysis
                 stack_.reserve(llen);
                 first = last;
                 continue;
-            } else if (!in_) {  // end of sequence, first_ == last_
-                return lex_token_t::eof;
             }
-            if (in_.avail()) {  // append read buffer to stash
+            if (!in_) { return lex_token_t::eof; }  // end of sequence, first_ == last_
+            if (in_.avail()) {
+                // append read buffer to stash
                 stash_.append(in_.first_avail(), in_.last_avail());
                 in_.advance(in_.avail());
             }
-            // read more characters from in
+            // read more characters from input
             in_.peek();
             first = in_.first_avail();
         }

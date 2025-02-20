@@ -42,7 +42,7 @@ struct fp_m64_t {
     int exp;
 };
 
-const UXS_CONSTEXPR std::uint64_t msb64 = 1ull << 63;
+const UXS_CONSTEXPR std::uint64_t msb64 = 1ULL << 63;
 inline UXS_CONSTEXPR std::uint64_t lo32(std::uint64_t x) { return x & 0xffffffff; }
 inline UXS_CONSTEXPR std::uint64_t hi32(std::uint64_t x) { return x >> 32; }
 template<typename TyH, typename TyL>
@@ -124,21 +124,23 @@ template<typename Ty, typename CharT>
 Ty to_integer_common(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) noexcept {
     bool neg = false;
     last = p;
-    if (p == end) {
-        return 0;
-    } else if (*p == '+') {
+    if (p == end) { return 0; }
+
+    if (*p == '+') {
         ++p;  // skip positive sign
     } else if (*p == '-') {
         ++p, neg = true;  // negative sign
     }
+
     unsigned dig = 0;
     if (p == end || (dig = dig_v(*p)) >= 10) { return 0; }
     Ty val = dig;
     while (++p < end && (dig = dig_v(*p)) < 10) {
         Ty val0 = val;
-        val = 10u * val + dig;
+        val = 10U * val + dig;
         if (val < val0) { return 0; }  // too big integer
     }
+
     // Note: resulting number must be in range [-(1 + pos_limit / 2), pos_limit]
     if (neg) {
         if (val > 1 + (pos_limit >> 1)) { return 0; }  // negative integer is out of range
@@ -146,6 +148,7 @@ Ty to_integer_common(const CharT* p, const CharT* end, const CharT*& last, Ty po
     } else if (val > pos_limit) {
         return 0;  // positive integer is out of range
     }
+
     last = p;
     return val;
 }
@@ -164,16 +167,16 @@ UXS_EXPORT std::uint64_t bignum_mul32(std::uint64_t* x, unsigned sz, std::uint32
 
 template<typename CharT>
 const CharT* accum_mantissa(const CharT* p, const CharT* end, fp10_t& fp10) noexcept {
-    const UXS_CONSTEXPR std::uint64_t short_lim = 1000000000000000000ull;
+    const UXS_CONSTEXPR std::uint64_t short_lim = 1000000000000000000ULL;
     std::uint64_t* m10 = &fp10.bits[max_fp10_mantissa_size - fp10.bits_used];
     if (fp10.bits_used == 1) {
         std::uint64_t m = *m10;
-        for (unsigned dig = 0; p < end && (dig = dig_v(*p)) < 10 && m < short_lim; ++p) { m = 10u * m + dig; }
+        for (unsigned dig = 0; p < end && (dig = dig_v(*p)) < 10 && m < short_lim; ++p) { m = 10U * m + dig; }
         *m10 = m;
     }
     for (unsigned dig = 0; p < end && (dig = dig_v(*p)) < 10; ++p) {
         if (fp10.bits_used < max_fp10_mantissa_size) {
-            const std::uint64_t higher = bignum_mul32(m10, fp10.bits_used, 10u, dig);
+            const std::uint64_t higher = bignum_mul32(m10, fp10.bits_used, 10U, dig);
             if (higher) { *--m10 = higher, ++fp10.bits_used; }
         } else {
             if (dig > 0) { fp10.zero_tail = false; }
@@ -217,10 +220,9 @@ template<typename CharT>
 std::uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, unsigned bpm, int exp_max) noexcept {
     std::uint64_t fp2 = 0;
     last = p;
+    if (p == end) { return 0; }
 
-    if (p == end) {
-        return 0;
-    } else if (*p == '+') {
+    if (*p == '+') {
         ++p;  // skip positive sign
     } else if (*p == '-') {
         ++p, fp2 = static_cast<std::uint64_t>(1 + exp_max) << bpm;  // negative sign
@@ -233,7 +235,7 @@ std::uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& la
     } else if ((p1 = starts_with(p, end, default_numpunct<CharT>().infname(false))) > p) {  // infinity
         fp2 |= static_cast<std::uint64_t>(exp_max) << bpm;
     } else if ((p1 = starts_with(p, end, default_numpunct<CharT>().nanname(false))) > p) {  // NaN
-        fp2 |= (static_cast<std::uint64_t>(exp_max) << bpm) | ((1ull << bpm) - 1);
+        fp2 |= (static_cast<std::uint64_t>(exp_max) << bpm) | ((1ULL << bpm) - 1);
     } else {
         return 0;
     }
@@ -259,8 +261,8 @@ UXS_FORCE_INLINE std::uint64_t get_pow10(int pow) noexcept {
 #define UXS_SCVT_POWERS_OF_10(base) \
     base, (base) * 10, (base) * 100, (base) * 1000, (base) * 10000, (base) * 100000, (base) * 1000000, \
         (base) * 10000000, (base) * 100000000, (base) * 1000000000
-    static const UXS_CONSTEXPR std::uint64_t ten_pows[] = {UXS_SCVT_POWERS_OF_10(1ull),
-                                                           UXS_SCVT_POWERS_OF_10(10000000000ull)};
+    static const UXS_CONSTEXPR std::uint64_t ten_pows[] = {UXS_SCVT_POWERS_OF_10(1ULL),
+                                                           UXS_SCVT_POWERS_OF_10(10000000000ULL)};
 #undef UXS_SCVT_POWERS_OF_10
     assert(pow >= 0 && pow < static_cast<int>(sizeof(ten_pows) / sizeof(ten_pows[0])));
     return ten_pows[pow];
@@ -269,7 +271,8 @@ UXS_FORCE_INLINE std::uint64_t get_pow10(int pow) noexcept {
 template<typename CharT, typename Func, typename... Args>
 void adjust_numeric(basic_membuffer<CharT>& s, Func fn, unsigned len, unsigned prefix, fmt_opts fmt, Args&&... args) {
     const unsigned n_prefix = prefix > 0xff ? (prefix > 0xffff ? 3 : 2) : (prefix ? 1 : 0);
-    unsigned left = fmt.width - len - n_prefix, right = left;
+    unsigned left = fmt.width - len - n_prefix;
+    unsigned right = left;
     if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::left) {
         left = 0;
     } else if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::internal) {
@@ -509,8 +512,8 @@ Ty divmod(Ty& v) {
 
 template<typename CharT, typename Ty>
 UXS_FORCE_INLINE CharT* gen_digits(CharT* p, Ty v) noexcept {
-    while (v >= 100u) { copy2(p -= 2, get_digits(static_cast<unsigned>(divmod<100u>(v)))); }
-    if (v >= 10u) {
+    while (v >= 100U) { copy2(p -= 2, get_digits(static_cast<unsigned>(divmod<100U>(v)))); }
+    if (v >= 10U) {
         copy2(p -= 2, get_digits(static_cast<unsigned>(v)));
         return p;
     }
@@ -521,9 +524,9 @@ UXS_FORCE_INLINE CharT* gen_digits(CharT* p, Ty v) noexcept {
 template<typename CharT, typename Ty>
 UXS_FORCE_INLINE Ty gen_digits_n(CharT* p, Ty v, unsigned n) noexcept {
     CharT* p0 = p - (n & ~1);
-    while (p != p0) { copy2(p -= 2, get_digits(static_cast<unsigned>(divmod<100u>(v)))); }
+    while (p != p0) { copy2(p -= 2, get_digits(static_cast<unsigned>(divmod<100U>(v)))); }
     if (!(n & 1)) { return v; }
-    *--p = '0' + static_cast<unsigned>(divmod<10u>(v));
+    *--p = '0' + static_cast<unsigned>(divmod<10U>(v));
     return v;
 }
 
@@ -531,12 +534,12 @@ template<typename CharT, typename Ty>
 void fmt_gen_dec_with_grouping(CharT* p, Ty val, const grouping_t<CharT>& grouping) noexcept {
     auto grp_it = grouping.grouping.begin();
     int cnt = *grp_it;
-    *--p = '0' + static_cast<unsigned>(divmod<10u>(val));
+    *--p = '0' + static_cast<unsigned>(divmod<10U>(val));
     while (val) {
         if (--cnt <= 0) {
             *--p = grouping.thousands_sep, cnt = std::next(grp_it) != grouping.grouping.end() ? *++grp_it : *grp_it;
         }
-        *--p = '0' + static_cast<unsigned>(divmod<10u>(val));
+        *--p = '0' + static_cast<unsigned>(divmod<10U>(val));
     }
 }
 
@@ -573,7 +576,7 @@ void fmt_integer_common(basic_membuffer<CharT>& s, Ty val, bool is_signed, fmt_o
         case fmt_flags::oct: return fmt_oct(s, val, is_signed, fmt, loc);
         case fmt_flags::hex: return fmt_hex(s, val, is_signed, fmt, loc);
         case fmt_flags::character: {
-            const Ty char_mask = static_cast<Ty>((1ull << (8 * sizeof(CharT))) - 1);
+            const Ty char_mask = static_cast<Ty>((1ULL << (8 * sizeof(CharT))) - 1);
             if ((val & char_mask) != val && (~val & char_mask) != val) {
                 throw format_error("integral cannot be represented as a character");
             }
@@ -624,7 +627,8 @@ void fmt_character(basic_membuffer<CharT>& s, CharT val, fmt_opts fmt, locale_re
             if (!(fmt.flags & fmt_flags::debug_format)) {
                 const auto fn = [val](basic_membuffer<CharT>& s) { s += val; };
                 return fmt.width > 1 ? append_adjusted(s, fn, 1, fmt) : fn(s);
-            } else if (fmt.width == 0) {
+            }
+            if (fmt.width == 0) {
                 append_escaped_text(s, &val, &val + 1, true);
                 return;
             }
@@ -644,7 +648,8 @@ void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, fm
     if (!(fmt.flags & fmt_flags::debug_format)) {
         std::size_t width = 0;
         std::uint32_t code = 0;
-        auto first = val.begin(), last = val.end();
+        auto first = val.begin();
+        auto last = val.end();
         if (fmt.prec >= 0 || fmt.width > 0) {
             const std::size_t max_width = fmt.prec >= 0 ? fmt.prec : std::numeric_limits<std::size_t>::max();
             last = first;
@@ -656,7 +661,8 @@ void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, fm
         }
         const auto fn = [first, last](basic_membuffer<CharT>& s) { s += to_string_view(first, last); };
         return fmt.width > width ? append_adjusted(s, fn, static_cast<unsigned>(width), fmt) : fn(s);
-    } else if (fmt.width == 0) {
+    }
+    if (fmt.width == 0) {
         append_escaped_text(s, val.begin(), val.end(), false,
                             fmt.prec >= 0 ? fmt.prec : std::numeric_limits<std::size_t>::max());
         return;
@@ -796,7 +802,8 @@ void fp_dec_fmt_t::generate_scientific(CharT* p, bool uppercase, CharT dec_point
 template<typename CharT>
 void fp_dec_fmt_t::generate_fixed(CharT* p, CharT dec_point, const grouping_t<CharT>* grouping) const noexcept {
     std::uint64_t m = significand_;
-    int k = 1 + exp_, n_zeroes = n_zeroes_;
+    int k = 1 + exp_;
+    int n_zeroes = n_zeroes_;
     if (prec_ > 0) {             // has fractional part
         if (k > 0) {             // fixed form [1-9]+.[0-9]+
             if (significand_) {  // generate fractional part from significand
@@ -834,13 +841,13 @@ void fp_dec_fmt_t::generate_fixed(CharT* p, CharT dec_point, const grouping_t<Ch
     auto grp_it = grouping->grouping.begin();
     int cnt = *grp_it;
     if (significand_) {
-        *--p = '0' + static_cast<unsigned>(divmod<10u>(m));
+        *--p = '0' + static_cast<unsigned>(divmod<10U>(m));
         while (m) {
             if (--cnt <= 0) {
                 *--p = grouping->thousands_sep;
                 cnt = std::next(grp_it) != grouping->grouping.end() ? *++grp_it : *grp_it;
             }
-            *--p = '0' + static_cast<unsigned>(divmod<10u>(m));
+            *--p = '0' + static_cast<unsigned>(divmod<10U>(m));
         }
         return;
     }
@@ -906,7 +913,7 @@ void fmt_float_common(basic_membuffer<CharT>& s, std::uint64_t u64, fmt_opts fmt
 
     // Binary exponent and mantissa
     const bool uppercase = !!(fmt.flags & fmt_flags::uppercase);
-    const fp_m64_t fp2{u64 & ((1ull << bpm) - 1), static_cast<int>((u64 >> bpm) & exp_max)};
+    const fp_m64_t fp2{u64 & ((1ULL << bpm) - 1), static_cast<int>((u64 >> bpm) & exp_max)};
     if (fp2.exp == exp_max) {
         // Print infinity or NaN
         const auto sval = fp2.m == 0 ? default_numpunct<CharT>().infname(uppercase) :

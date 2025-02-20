@@ -411,7 +411,8 @@ template<typename Func>
 struct for_loop_helper<Func, std::false_type> {
     template<typename Range, typename... InputIts>
     auto operator()(Range&& r, Func func, InputIts... its) -> decltype(std::end(r)) {
-        auto it = std::begin(r), end_it = std::end(r);
+        auto it = std::begin(r);
+        auto end_it = std::end(r);
         for (; it != end_it; ++it, detail::dummy_variadic(++its...)) {
             if (!func(*it, *its...)) { break; }
         }
@@ -422,7 +423,8 @@ template<typename Func>
 struct for_loop_helper<Func, std::true_type> {
     template<typename Range, typename... InputIts>
     auto operator()(Range&& r, Func func, InputIts... its) -> decltype(std::end(r)) {
-        auto it = std::begin(r), end_it = std::end(r);
+        auto it = std::begin(r);
+        auto end_it = std::end(r);
         for (; it != end_it; ++it, detail::dummy_variadic(++its...)) { func(*it, *its...); }
         return it;
     }
@@ -436,7 +438,8 @@ auto for_loop(Range&& r, Func func, InputIts... its) -> decltype(std::end(r)) {
 #else   // __cplusplus < 201703L
 template<typename Range, typename Func, typename... InputIts>
 auto for_loop(Range&& r, Func func, InputIts... its) -> decltype(std::end(r)) {
-    auto it = std::begin(r), end_it = std::end(r);
+    auto it = std::begin(r);
+    auto end_it = std::end(r);
     for (; it != end_it; (++it, ..., ++its)) {
         if constexpr (std::is_same_v<decltype(func(*std::begin(r), *its...)), void>) {
             func(*it, *its...);

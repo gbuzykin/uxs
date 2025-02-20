@@ -25,9 +25,11 @@ basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Allo
                 if (stoval(sval, u64) != 0) {
                     if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max())) {
                         return {static_cast<std::int32_t>(u64), al};
-                    } else if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max())) {
+                    }
+                    if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max())) {
                         return {static_cast<std::uint32_t>(u64), al};
-                    } else if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+                    }
+                    if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
                         return {static_cast<std::int64_t>(u64), al};
                     }
                     return {u64, al};

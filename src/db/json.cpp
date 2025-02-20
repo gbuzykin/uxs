@@ -50,20 +50,20 @@ token_t detail::parser::lex(std::string_view& lval) {
                 stack_limitation = true;
             }
             pat = lex_detail::lex(first, last, stack.p_curr(), &llen, stack_limitation || in);
-            if (pat >= lex_detail::predef_pat_default) {
-                break;
-            } else if (stack_limitation) {  // enlarge state stack and continue analysis
+            if (pat >= lex_detail::predef_pat_default) { break; }
+            if (stack_limitation) {
+                // enlarge state stack and continue analysis
                 stack.reserve(llen);
                 first = last;
                 continue;
-            } else if (!in) {
-                return token_t::eof;  // end of sequence, first_ == last_
             }
-            if (in.avail()) {  // append read buffer to stash
+            if (!in) { return token_t::eof; }  // end of sequence, first_ == last_
+            if (in.avail()) {
+                // append read buffer to stash
                 stash.append(in.first_avail(), in.last_avail());
                 in.advance(in.avail());
             }
-            // read more characters from in
+            // read more characters from input
             in.peek();
             first = in.first_avail();
         }

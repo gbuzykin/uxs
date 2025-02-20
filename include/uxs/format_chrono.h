@@ -381,7 +381,7 @@ void format_chrono_month_full(FmtCtx& ctx, std::chrono::month m) {
 
 template<typename FmtCtx>
 void format_chrono_month_mm(FmtCtx& ctx, std::chrono::month m) {
-    const unsigned month = std::min(static_cast<unsigned>(m), 99u);
+    const unsigned month = std::min(static_cast<unsigned>(m), 99U);
     format_append_2digs(ctx, month);
 }
 
@@ -416,12 +416,12 @@ void format_chrono_month(FmtCtx& ctx, std::chrono::month m, const chrono_specs& 
 
 template<typename FmtCtx>
 void format_chrono_day_dd(FmtCtx& ctx, std::chrono::day d) {
-    format_append_2digs(ctx, std::min(static_cast<unsigned>(d), 99u));
+    format_append_2digs(ctx, std::min(static_cast<unsigned>(d), 99U));
 }
 
 template<typename FmtCtx>
 void format_chrono_day_dd_space(FmtCtx& ctx, std::chrono::day d) {
-    const unsigned day = std::min(static_cast<unsigned>(d), 99u);
+    const unsigned day = std::min(static_cast<unsigned>(d), 99U);
     if (day >= 10) { return format_append_2digs(ctx, day); }
     ctx.out() += ' ';
     ctx.out() += '0' + day;
@@ -672,7 +672,8 @@ void format_chrono_date_time(FmtCtx& ctx, std::chrono::sys_time<Duration> t, con
     const auto days = std::chrono::floor<std::chrono::days>(t);
     if (specs.spec >= chrono_specifier::century && specs.spec <= chrono_specifier::locale_date) {
         return format_chrono_date(ctx, std::chrono::year_month_day{days}, specs);
-    } else if (specs.spec >= chrono_specifier::hours && specs.spec <= chrono_specifier::locale_time) {
+    }
+    if (specs.spec >= chrono_specifier::hours && specs.spec <= chrono_specifier::locale_time) {
         return format_chrono_time(ctx, std::chrono::hh_mm_ss{t - days}, specs);
     }
     std::tm tm{};
@@ -761,7 +762,8 @@ struct chrono_formatter {
     template<typename FmtCtx>
     void format_impl(FmtCtx& ctx, const Ty& val, chrono_specs& specs) const {
         if (fmt_.empty()) { return DeriverFormatterTy::template default_value_writer<FmtCtx>(ctx, val, specs.opts); }
-        auto it0 = fmt_.begin(), it = it0;
+        auto it0 = fmt_.begin();
+        auto it = it0;
         while (true) {
             auto first = it;
             specs.spec = parse_chrono_format_spec(it, fmt_.end(), specs.modifier);

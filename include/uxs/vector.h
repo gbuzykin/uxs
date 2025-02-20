@@ -314,7 +314,8 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
     }
 
     size_type grow_capacity(size_type extra) const {
-        size_type sz = size(), delta_sz = std::max(extra, sz >> 1);
+        size_type sz = size();
+        size_type delta_sz = std::max(extra, sz >> 1);
         const size_type max_avail = alloc_traits::max_size(*this) - sz;
         if (delta_sz > max_avail) {
             if (extra > max_avail) { throw std::length_error("too much to reserve"); }
@@ -684,7 +685,8 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
 
     template<typename InputIt>
     pointer insert_range(pointer p, InputIt first, InputIt last, std::false_type /* random access iterator */) {
-        size_type old_sz = size(), n = static_cast<size_type>(p - v_.begin);
+        size_type old_sz = size();
+        size_type n = static_cast<size_type>(p - v_.begin);
         for (; first != last; ++first) { emplace_back(*first); }
         size_type count = size() - old_sz;
         std::rotate(v_.begin + n, v_.end - count, v_.end);
@@ -693,7 +695,8 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
 
     struct helpers {
         static pointer construct_default(alloc_type& alloc, pointer first, size_type n) {
-            pointer p = first, last = first + n;
+            pointer p = first;
+            pointer last = first + n;
             try {
                 for (; p != last; ++p) { alloc_traits::construct(alloc, std::addressof(*p)); }
                 return last;
@@ -713,7 +716,8 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
         static pointer construct_copy(
             std::enable_if_t<!std::is_same<alloc_type, std::allocator<Ty_>>::value, alloc_type>& alloc, pointer first,
             size_type n, InputIt src) {
-            pointer p = first, last = first + n;
+            pointer p = first;
+            pointer last = first + n;
             try {
                 for (; p != last; ++p) {
                     alloc_traits::construct(alloc, std::addressof(*p), *src);

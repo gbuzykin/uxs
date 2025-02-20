@@ -62,7 +62,8 @@ void* byteseqdev::map(std::size_t& sz, bool wr) {
     if (!wr || chunk_ != seq_->head_) {
         sz = chunk_ ? chunk_->size() - (pos_ - pos0_) : 0;
         return chunk_ ? chunk_->data + (pos_ - pos0_) : nullptr;
-    } else if (chunk_ && pos_ - pos0_ < chunk_->capacity()) {
+    }
+    if (chunk_ && pos_ - pos0_ < chunk_->capacity()) {
         sz = chunk_->capacity() - (pos_ - pos0_);
         return chunk_->data + (pos_ - pos0_);
     }

@@ -564,10 +564,8 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
     }
 
     void swap_impl(list& other, std::false_type) noexcept {
-        if (!size_) {
-            steal_data(other);
-            return;
-        } else if (other.size_) {
+        if (!size_) { return steal_data(other); }
+        if (other.size_) {
             std::swap(head_.next, other.head_.next);
             std::swap(head_.prev, other.head_.prev);
             std::swap(head_.next->prev, other.head_.next->prev);
@@ -771,7 +769,8 @@ void list<Ty, Alloc>::sort(Comp comp) {
     // worth sorting, do it
     const size_type max_bins = 25;
     size_type maxbin = 0;
-    list_links_t tmp_list, bin_lists[max_bins];
+    list_links_t tmp_list;
+    list_links_t bin_lists[max_bins];
 
     dllist_make_cycle(std::addressof(tmp_list));
 
