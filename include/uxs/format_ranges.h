@@ -69,7 +69,7 @@ template<typename Tuple, typename CharT>
 struct formatter<Tuple, CharT, std::enable_if_t<tuple_formattable<Tuple, CharT>::value>> {
  private:
     fmt_opts opts_;
-    std::size_t width_arg_id_ = dynamic_extent;
+    std::size_t width_arg_id_ = unspecified_size;
     typename tuple_formattable<Tuple, CharT>::underlying_type underlying_;
     std::basic_string_view<CharT> separator_;
     std::basic_string_view<CharT> opening_bracket_;
@@ -133,7 +133,7 @@ struct formatter<Tuple, CharT, std::enable_if_t<tuple_formattable<Tuple, CharT>:
     UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) {
         auto it = ctx.begin();
         if (it != ctx.end() && *it == ':') {
-            std::size_t dummy_id = dynamic_extent;
+            std::size_t dummy_id = unspecified_size;
             it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
             if (opts_.prec >= 0 || !!(opts_.flags & ~fmt_flags::adjust_field)) { ParseCtx::syntax_error(); }
             if (it != ctx.end() && (*it == 'n' || *it == 'm')) {
@@ -150,7 +150,7 @@ struct formatter<Tuple, CharT, std::enable_if_t<tuple_formattable<Tuple, CharT>:
     template<typename FmtCtx>
     void format(FmtCtx& ctx, const Tuple& val) const {
         fmt_opts opts = opts_;
-        if (width_arg_id_ != dynamic_extent) {
+        if (width_arg_id_ != unspecified_size) {
             opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>();
         }
         if (opts.width == 0) { return format_impl(ctx, val); }
@@ -169,8 +169,8 @@ struct range_formatter {
     static_assert(formattable<Ty, CharT>::value, "range_formatter<> template parameter must be formattable");
 
     fmt_opts opts_;
-    std::size_t width_arg_id_ = dynamic_extent;
-    std::size_t prec_arg_id_ = dynamic_extent;
+    std::size_t width_arg_id_ = unspecified_size;
+    std::size_t prec_arg_id_ = unspecified_size;
     formatter<Ty, CharT> underlying_;
     bool format_as_string_ = false;
     std::basic_string_view<CharT> separator_;
@@ -255,7 +255,7 @@ struct range_formatter {
     UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) {
         auto it = ctx.begin();
         if (it != ctx.end() && *it == ':') {
-            std::size_t dummy_id = dynamic_extent;
+            std::size_t dummy_id = unspecified_size;
             it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
             if (!!(opts_.flags & ~fmt_flags::adjust_field)) { ParseCtx::syntax_error(); }
             if (it != ctx.end()) {
@@ -294,10 +294,10 @@ struct range_formatter {
         static_assert(std::is_same<sfmt::reduce_type_t<range_element_t<Range>, CharT>, Ty>::value,
                       "inconsistent template parameter and range types");
         fmt_opts opts = opts_;
-        if (width_arg_id_ != dynamic_extent) {
+        if (width_arg_id_ != unspecified_size) {
             opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>();
         }
-        if (prec_arg_id_ != dynamic_extent) {
+        if (prec_arg_id_ != unspecified_size) {
             opts.prec = ctx.arg(prec_arg_id_).template get_unsigned<decltype(opts.prec)>();
         }
         if (opts.width == 0) {

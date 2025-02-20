@@ -160,7 +160,7 @@ struct formatter<db::basic_value<ValueCharT, Alloc>, CharT> {
     char object_ws_char_ = ' ';
     char array_ws_char_ = ' ';
     char indent_char_ = ' ';
-    std::size_t indent_size_arg_id_ = dynamic_extent;
+    std::size_t indent_size_arg_id_ = unspecified_size;
 
  public:
     template<typename ParseCtx>
@@ -190,7 +190,7 @@ struct formatter<db::basic_value<ValueCharT, Alloc>, CharT> {
     template<typename FmtCtx>
     void format(FmtCtx& ctx, const db::basic_value<ValueCharT, Alloc>& val) const {
         unsigned indent_size = indent_size_;
-        if (indent_size_arg_id_ != dynamic_extent) {
+        if (indent_size_arg_id_ != unspecified_size) {
             indent_size = ctx.arg(indent_size_arg_id_).template get_unsigned<decltype(indent_size)>();
         }
         db::json::write(ctx.out(), val, indent_size_, object_ws_char_, array_ws_char_, indent_char_);

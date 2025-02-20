@@ -141,14 +141,14 @@ template<typename CharT>
 struct formatter<guid, CharT> {
  private:
     fmt_opts opts_;
-    std::size_t width_arg_id_ = dynamic_extent;
+    std::size_t width_arg_id_ = unspecified_size;
 
  public:
     template<typename ParseCtx>
     UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) {
         auto it = ctx.begin();
         if (it == ctx.end() || *it != ':') { return it; }
-        std::size_t dummy_id = dynamic_extent;
+        std::size_t dummy_id = unspecified_size;
         it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
         if (opts_.prec >= 0 || !!(opts_.flags & ~fmt_flags::adjust_field)) { ParseCtx::syntax_error(); }
         if (it == ctx.end() || (*it != 'X' && *it != 'x')) { return it; }
@@ -158,7 +158,7 @@ struct formatter<guid, CharT> {
     template<typename FmtCtx>
     void format(FmtCtx& ctx, const guid& val) const {
         fmt_opts opts = opts_;
-        if (width_arg_id_ != dynamic_extent) {
+        if (width_arg_id_ != unspecified_size) {
             opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>();
         }
         string_converter<guid, CharT>{}.to_string(ctx.out(), val, opts);

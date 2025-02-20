@@ -7,6 +7,7 @@
 #    include <span>
 
 namespace est {
+inline constexpr std::size_t dynamic_extent = std::dynamic_extent;
 template<typename Ty>
 using span = std::span<Ty, std::dynamic_extent>;
 }  // namespace est
@@ -19,6 +20,11 @@ using span = std::span<Ty, std::dynamic_extent>;
 #    include <stdexcept>
 
 namespace est {
+#    if __cplusplus < 201703L
+const std::size_t dynamic_extent = ~std::size_t(0);
+#    else   // __cplusplus < 201703L
+inline constexpr std::size_t dynamic_extent = std::numeric_limits<std::size_t>::max();
+#    endif  // __cplusplus < 201703L
 
 template<typename Ty>
 class span {
