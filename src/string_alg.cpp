@@ -20,7 +20,8 @@ std::string from_wide_to_utf8(std::wstring_view s) {
 
 template<typename CharT>
 std::basic_string_view<CharT> basic_trim_string(std::basic_string_view<CharT> s) {
-    auto p1 = s.begin(), p2 = s.end();
+    auto p1 = s.begin();
+    auto p2 = s.end();
     while (p1 != p2 && is_space(*p1)) { ++p1; }
     while (p1 != p2 && is_space(*(p2 - 1))) { --p2; }
     return s.substr(p1 - s.begin(), p2 - p1);
@@ -51,7 +52,8 @@ std::basic_string<CharT, Traits> basic_encode_escapes(std::basic_string_view<Cha
                                                       std::basic_string_view<CharT, Traits> code) {
     std::basic_string<CharT, Traits> result;
     result.reserve(s.size());
-    auto p = s.begin(), p0 = p;
+    auto p0 = s.begin();
+    auto p = p0;
     for (; p != s.end(); ++p) {
         auto pos = symb.find(*p);
         if (pos != std::basic_string_view<CharT, Traits>::npos) {
@@ -81,7 +83,8 @@ std::basic_string<CharT, Traits> basic_decode_escapes(std::basic_string_view<Cha
                                                       std::basic_string_view<CharT, Traits> code) {
     std::basic_string<CharT, Traits> result;
     result.reserve(s.size());
-    auto p = s.begin(), p0 = p;
+    auto p0 = s.begin();
+    auto p = p0;
     for (; p != s.end(); ++p) {
         if (*p != '\\') { continue; }
         result += to_string_view(p0, p);
@@ -111,18 +114,13 @@ template<typename CharT>
 int basic_compare_strings_nocase(std::basic_string_view<CharT> lhs, std::basic_string_view<CharT> rhs) {
     auto p1_end = lhs.begin() + std::min(lhs.size(), rhs.size());
     for (auto p1 = lhs.begin(), p2 = rhs.begin(); p1 != p1_end; ++p1, ++p2) {
-        CharT ch1 = to_lower(*p1), ch2 = to_lower(*p2);
-        if (std::basic_string_view<CharT>::traits_type::lt(ch1, ch2)) {
-            return -1;
-        } else if (std::basic_string_view<CharT>::traits_type::lt(ch2, ch1)) {
-            return 1;
-        }
+        CharT ch1 = to_lower(*p1);
+        CharT ch2 = to_lower(*p2);
+        if (std::basic_string_view<CharT>::traits_type::lt(ch1, ch2)) { return -1; }
+        if (std::basic_string_view<CharT>::traits_type::lt(ch2, ch1)) { return 1; }
     }
-    if (lhs.size() < rhs.size()) {
-        return -1;
-    } else if (rhs.size() < lhs.size()) {
-        return 1;
-    }
+    if (lhs.size() < rhs.size()) { return -1; }
+    if (rhs.size() < lhs.size()) { return 1; }
     return 0;
 }
 

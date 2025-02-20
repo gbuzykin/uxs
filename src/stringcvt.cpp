@@ -170,7 +170,8 @@ inline std::uint64_t bignum_submul(std::uint64_t* x, const std::uint64_t* y, uns
     one_bit_t borrow = 0;
     std::uint64_t* x0 = x;
     x += sz - 1, y += sz - 1;
-    std::uint64_t higher, lower = umul128(*y, mul, higher);
+    std::uint64_t higher;
+    std::uint64_t lower = umul128(*y, mul, higher);
     if (sz > sz_x) {
         std::uint64_t* x1 = x0 + sz_x;
         borrow = sub64_borrow(0, lower, *x);
@@ -368,7 +369,8 @@ UXS_FORCE_INLINE uint96_t get_cached_pow10(int pow) noexcept {
         0x36251261, 0xacca6da2, 0x0fabaf40, 0xddbb901c, 0xed238cd4, 0x4b2d8645, 0xdb0b487b, 0x73832eec, 0x6ed1bf9a,
         0x47c6b82f, 0x79c5db9b, 0xe6a11583, 0x505f522e, 0x213a4f0b, 0x848ce346};
     const UXS_CONSTEXPR int step_pow = 3;
-    int n = (pow10_max + pow) >> step_pow, k = pow & ((1 << step_pow) - 1);
+    int n = (pow10_max + pow) >> step_pow;
+    int k = pow & ((1 << step_pow) - 1);
     uint96_t result{higher64[n], lower32[n]};
     if (!k) { return result; }
     static const UXS_CONSTEXPR std::uint32_t mul10[] = {0,          0xa0000000, 0xc8000000, 0xfa000000,
@@ -378,7 +380,7 @@ UXS_FORCE_INLINE uint96_t get_cached_pow10(int pow) noexcept {
         result.hi = shl128(result.hi, t, 1);
         t <<= 1;
     }
-    result.lo = static_cast<std::uint32_t>(hi32(t + (1ull << 31)));
+    result.lo = static_cast<std::uint32_t>(hi32(t + (1ULL << 31)));
     return result;
 }
 
@@ -459,25 +461,22 @@ static std::uint64_t fp10_to_fp2_slow(fp10_t& fp10, unsigned bpm, int exp_max) n
     }
 
     // Align mantissa so only 1 left bit is zero
-    if (!(m & (1ull << 62))) { m <<= 1, --exp2; }
+    if (!(m & (1ULL << 62))) { m <<= 1, --exp2; }
 
-    if (exp2 >= exp_max) {
-        return static_cast<std::uint64_t>(exp_max) << bpm;  // infinity
-    } else if (exp2 < -static_cast<int>(bpm)) {
-        return 0;  // zero
-    }
+    if (exp2 >= exp_max) { return static_cast<std::uint64_t>(exp_max) << bpm; }  // infinity
+    if (exp2 < -static_cast<int>(bpm)) { return 0; }                             // zero
 
     // When `exp2 <= 0` mantissa will be denormalized further, so store the real mantissa length
     const unsigned n_bits = exp2 > 0 ? 1 + bpm : bpm + exp2;
 
     // Do banker's or `nearest even` rounding
-    const std::uint64_t lsb = 1ull << (63 - n_bits);
+    const std::uint64_t lsb = 1ULL << (63 - n_bits);
     const std::uint64_t half = lsb >> 1;
     const std::uint64_t frac = m & (lsb - 1);
     m >>= 63 - n_bits;  // shift mantissa to the right position
     if (frac > half || (frac == half && (!fp10.zero_tail || (m & 1) || bignum_trim_unused(m10 + 1, sz_num)))) {
         ++m;                         // round to upper
-        if (m & (1ull << n_bits)) {  // overflow
+        if (m & (1ULL << n_bits)) {  // overflow
             // Note: the value can become normalized if `exp == 0` or infinity if `exp == exp_max - 1`
             // Note: in case of overflow mantissa will be zero
             ++exp2;
@@ -486,7 +485,7 @@ static std::uint64_t fp10_to_fp2_slow(fp10_t& fp10, unsigned bpm, int exp_max) n
 
     // Compose floating point value
     if (exp2 <= 0) { return m; }                                                   // denormalized
-    return (static_cast<std::uint64_t>(exp2) << bpm) | (m & ((1ull << bpm) - 1));  // normalized
+    return (static_cast<std::uint64_t>(exp2) << bpm) | (m & ((1ULL << bpm) - 1));  // normalized
 }
 
 std::uint64_t fp10_to_fp2(fp10_t& fp10, unsigned bpm, int exp_max) noexcept {
@@ -495,9 +494,8 @@ std::uint64_t fp10_to_fp2(fp10_t& fp10, unsigned bpm, int exp_max) noexcept {
 
     // Note, that decimal mantissa can contain up to 772 digits. So, all numbers with
     // powers less than -772 - 324 = -1096 are zeroes in fact. We round this power to -1100
-    if (m == 0 || fp10.exp < -1100) {
-        return 0;                                           // zero
-    } else if (fp10.exp > 310) {                            // too big power even for one specified digit
+    if (m == 0 || fp10.exp < -1100) { return 0; }           // zero
+    if (fp10.exp > 310) {                                   // too big power even for one specified digit
         return static_cast<std::uint64_t>(exp_max) << bpm;  // infinity
     }
 
@@ -516,17 +514,14 @@ std::uint64_t fp10_to_fp2(fp10_t& fp10, unsigned bpm, int exp_max) noexcept {
     std::uint64_t frac = umul96x64_higher128(coef, m, m);
     if (!(m & msb64)) { --shift, --exp2; }
 
-    if (exp2 >= exp_max) {
-        return static_cast<std::uint64_t>(exp_max) << bpm;  // infinity
-    } else if (exp2 < -static_cast<int>(bpm)) {
-        return 0;  // zero
-    }
+    if (exp2 >= exp_max) { return static_cast<std::uint64_t>(exp_max) << bpm; }  // infinity
+    if (exp2 < -static_cast<int>(bpm)) { return 0; }                             // zero
 
     // When `exp2 <= 0` mantissa will be denormalized further, so store the real mantissa length
     const unsigned n_bits = exp2 > 0 ? 1 + bpm : bpm + exp2;
 
     // Shift mantissa to the right position
-    const std::uint64_t half = 1ull << 31;
+    const std::uint64_t half = 1ULL << 31;
     shift -= n_bits;
     if (shift < 64) {
         frac = shr128(m, frac, shift), m >>= shift;
@@ -541,7 +536,7 @@ std::uint64_t fp10_to_fp2(fp10_t& fp10, unsigned bpm, int exp_max) noexcept {
     } else if (frac >= half - 1) {  // round direction is undefined: use slow algorithm
         return fp10_to_fp2_slow(fp10, bpm, exp_max);
     }
-    if (m & (1ull << n_bits)) {  // overflow
+    if (m & (1ULL << n_bits)) {  // overflow
         // Note: the value can become normalized if `exp == 0` or infinity if `exp == exp_max - 1`
         // Note: in case of overflow mantissa will be zero
         ++exp2;
@@ -549,7 +544,7 @@ std::uint64_t fp10_to_fp2(fp10_t& fp10, unsigned bpm, int exp_max) noexcept {
 
     // Compose floating point value
     if (exp2 <= 0) { return m; }                                                   // denormalized
-    return (static_cast<std::uint64_t>(exp2) << bpm) | (m & ((1ull << bpm) - 1));  // normalized
+    return (static_cast<std::uint64_t>(exp2) << bpm) | (m & ((1ULL << bpm) - 1));  // normalized
 }
 
 // --------------------------
@@ -566,7 +561,7 @@ fp_hex_fmt_t::fp_hex_fmt_t(const fp_m64_t& fp2, fmt_opts fmt, unsigned bpm, int 
     // 1 (or 2 after round) for normalized, 0 for denormalized
     significand_ <<= 60 - bpm;
     if (exp_ > 0) {
-        significand_ |= 1ull << 60, exp_ -= exp_bias;
+        significand_ |= 1ULL << 60, exp_ -= exp_bias;
     } else {
         exp_ = 1 - exp_bias;
     }
@@ -574,7 +569,7 @@ fp_hex_fmt_t::fp_hex_fmt_t(const fp_m64_t& fp2, fmt_opts fmt, unsigned bpm, int 
         prec_ = 15;
         while (!(significand_ & 0xf)) { significand_ >>= 4, --prec_; }
     } else if (prec_ < 15) {  // round
-        const std::uint64_t half = 1ull << (59 - 4 * prec_);
+        const std::uint64_t half = 1ULL << (59 - 4 * prec_);
         const std::uint64_t frac = significand_ & ((half << 1) - 1);
         significand_ >>= 60 - 4 * prec_;
         if (frac > half || (frac == half && (significand_ & 1))) { ++significand_; }
@@ -602,12 +597,12 @@ UXS_FORCE_INLINE int remove_trailing_zeros(std::uint64_t& n, int max_remove) {
     const UXS_CONSTEXPR std::uint64_t mod_inv_25 = 0x8f5c28f5c28f5c29;
     while (s > 1) {
         const std::uint64_t q = rotr2(n * mod_inv_25);
-        if (q > std::numeric_limits<std::uint64_t>::max() / 100u) { break; }
+        if (q > std::numeric_limits<std::uint64_t>::max() / 100U) { break; }
         s -= 2, n = q;
     }
     if (s > 0) {
         const std::uint64_t q = rotr1(n * mod_inv_5);
-        if (q <= std::numeric_limits<std::uint64_t>::max() / 10u) { --s, n = q; }
+        if (q <= std::numeric_limits<std::uint64_t>::max() / 10U) { --s, n = q; }
     }
     return max_remove - s;
 }
@@ -666,7 +661,7 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, fmt_opts fmt, unsigned bpm, int exp_bia
     // Note: powers of 10 are normalized and belong [0.5, 1) range
     // To get the desired count of digits we get greater power of 10, it's equivalent to
     // multiplying the result by a certain power of 10
-    const std::uint64_t half = 1ull << 31;
+    const std::uint64_t half = 1ULL << 31;
     const int cached_exp = prec_ - exp_;
     const uint96_t coef = get_cached_pow10(cached_exp);
     std::uint64_t frac = umul96x64_higher128(coef, fp2.m, significand_);
@@ -683,7 +678,8 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, fmt_opts fmt, unsigned bpm, int exp_bia
 
     // Try to remove two digits at once
     const std::uint64_t significand0 = significand_;
-    const std::uint64_t err100_p = frac + (divmod<100u>(significand_) << 32), err100_m = (100ull << 32) - err100_p;
+    const std::uint64_t err100_p = frac + (divmod<100U>(significand_) << 32);
+    const std::uint64_t err100_m = (100ULL << 32) - err100_p;
     if (err100_p < delta_plus) {
         if (err100_m < err100_p || (err100_m == err100_p && (significand_ & 1))) { ++significand_; }
         prec_ -= 2;
@@ -692,7 +688,8 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, fmt_opts fmt, unsigned bpm, int exp_bia
     } else {
         // Try to remove only one digit
         significand_ = significand0;
-        const std::uint64_t err10_p = frac + (divmod<10u>(significand_) << 32), err10_m = (10ull << 32) - err10_p;
+        const std::uint64_t err10_p = frac + (divmod<10U>(significand_) << 32);
+        const std::uint64_t err10_m = (10ULL << 32) - err10_p;
         if (err10_p < delta_plus) {
             if (err10_m < err10_p || (err10_m == err10_p && (significand_ & 1))) { ++significand_; }
             --prec_;
@@ -715,7 +712,7 @@ fp_dec_fmt_t::fp_dec_fmt_t(fp_m64_t fp2, fmt_opts fmt, unsigned bpm, int exp_bia
 
     // Put mandatory digit after decimal point in alternate mode:
     // it is not needed by standard, but very useful for JSON formatter
-    if (!!(fmt.flags & fmt_flags::json_compat) && prec_ == 0) { significand_ *= 10u, prec_ = 1; }
+    if (!!(fmt.flags & fmt_flags::json_compat) && prec_ == 0) { significand_ *= 10U, prec_ = 1; }
 }
 
 void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, fmt_flags fp_fmt) noexcept {
@@ -732,25 +729,25 @@ void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, fmt_fla
     const unsigned shift = 62 - fp2.exp - exp10to2(cached_exp);
     assert(shift > 0 && shift < 64);
     frac = shr128(significand_, frac, shift), significand_ >>= shift;
-    significand_ += add64_carry(frac, 1ull << 31, frac);  // round mantissa
+    significand_ += add64_carry(frac, 1ULL << 31, frac);  // round mantissa
     frac >>= 32;                                          // drop lower 32 bits
 
     // Note, that the first digit formally can belong [1, 20) range, so we can get one digit more
     if (fp_fmt != fmt_flags::fixed && significand_ >= get_pow10(n_digs)) {  // one excess digit
         // Remove one excess digit for scientific format
-        const std::uint64_t err = frac + (divmod<100u>(significand_) << 32);
-        if (err > (50ull << 32)) {
+        const std::uint64_t err = frac + (divmod<100U>(significand_) << 32);
+        if (err > (50ULL << 32)) {
             ++significand_;
-        } else if (err >= (50ull << 32) - 1) {
+        } else if (err >= (50ULL << 32) - 1) {
             format_short_decimal_slow(fp2, n_digs, fp_fmt);
             goto finish;
         }
         ++exp_;
     } else {
-        const std::uint64_t err = frac + (divmod<10u>(significand_) << 32);
-        if (err > (5ull << 32)) {
+        const std::uint64_t err = frac + (divmod<10U>(significand_) << 32);
+        if (err > (5ULL << 32)) {
             ++significand_;
-        } else if (err >= (5ull << 32) - 1) {
+        } else if (err >= (5ULL << 32) - 1) {
             format_short_decimal_slow(fp2, n_digs, fp_fmt);
             goto finish;
         }
@@ -759,7 +756,7 @@ void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, fmt_fla
             if (fp_fmt != fmt_flags::fixed) {
                 // Remove one excess digit for scientific format
                 // Note: `significand` is exact power of 10 in this case
-                significand_ /= 10u;
+                significand_ /= 10U;
             }
         }
     }
@@ -820,13 +817,13 @@ void fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, fm
     if (fp_fmt != fmt_flags::fixed && significand_ >= get_pow10(n_digs)) {
         ++exp_;  // one excess digit
         // Remove one excess digit for scientific format
-        const unsigned r = static_cast<unsigned>(divmod<100u>(significand_));
-        if (r > 50u || (r == 50u && ((significand_ & 1) || bignum_trim_unused(num, sz_num) /* nearest even */))) {
+        const unsigned r = static_cast<unsigned>(divmod<100U>(significand_));
+        if (r > 50U || (r == 50U && ((significand_ & 1) || bignum_trim_unused(num, sz_num) /* nearest even */))) {
             ++significand_;
         }
     } else {
-        const unsigned r = static_cast<unsigned>(divmod<10u>(significand_));
-        if (r > 5u || (r == 5u && ((significand_ & 1) || bignum_trim_unused(num, sz_num) /* nearest even */))) {
+        const unsigned r = static_cast<unsigned>(divmod<10U>(significand_));
+        if (r > 5U || (r == 5U && ((significand_ & 1) || bignum_trim_unused(num, sz_num) /* nearest even */))) {
             ++significand_;
         }
         if (significand_ >= get_pow10(n_digs - 1)) {
@@ -834,7 +831,7 @@ void fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, fm
             if (fp_fmt != fmt_flags::fixed) {
                 // Remove one excess digit for scientific format
                 // Note: `significand` is exact power of 10 in this case
-                significand_ /= 10u;
+                significand_ /= 10U;
             }
         }
     }

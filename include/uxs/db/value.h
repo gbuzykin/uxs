@@ -1137,7 +1137,8 @@ template<typename InputIt>
 void basic_value<CharT, Alloc>::assign_array(InputIt first, InputIt last,
                                              std::false_type /* random access iterator */) {
     if (value_.arr) {
-        basic_value *p0 = &(*value_.arr)[0], *p = p0;
+        basic_value* p0 = &(*value_.arr)[0];
+        basic_value* p = p0;
         basic_value* p_end = &(*value_.arr)[value_.arr->size];
         for (; p != p_end && first != last; ++first) { *p++ = *first; }
         value_.arr->size = p - p0;

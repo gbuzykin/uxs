@@ -221,7 +221,8 @@ est::type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_
     std::size_t fin = std::numeric_limits<std::size_t>::max()) {
     if (fin < start) { fin = start; }
     std::size_t count = 0;
-    auto p = s.begin(), from = s.end();
+    auto p = s.begin();
+    auto from = s.end();
     while (true) {
         auto sub = finder(p, s.end());
         if (!(opts & split_opts::skip_empty) || p != sub.first) {
@@ -253,7 +254,8 @@ est::type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_
     std::basic_string_view<CharT, Traits> s, Finder finder, std::size_t start, std::size_t fin = 0) {
     if (fin > start) { fin = start; }
     std::size_t count = 0;
-    auto p = s.end(), to = s.begin();
+    auto p = s.end();
+    auto to = s.begin();
     while (true) {
         auto sub = finder(s.begin(), p);
         if (!(opts & split_opts::skip_empty) || sub.second != p) {
@@ -347,7 +349,8 @@ StrTy& pack_basic_strings(StrTy& s, const Range& r, typename StrTy::value_type s
     if (std::begin(r) != std::end(r)) {
         for (auto it = std::begin(r);;) {
             auto el = fn(*it);
-            auto p = std::begin(el), p0 = p;
+            auto p0 = std::begin(el);
+            auto p = p0;
             for (; p != std::end(el); ++p) {
                 if (*p == '\\' || *p == sep) {
                     s += to_string_view(p0, p);

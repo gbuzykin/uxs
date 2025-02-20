@@ -25,7 +25,8 @@ UXS_EXPORT bool operator==(const basic_value<CharT, Alloc>& lhs, const basic_val
         case dtype::double_precision: return lhs.value_.dbl == rhs.value_.dbl;
         case dtype::string: return lhs.str_view() == rhs.str_view();
         case dtype::array: {
-            auto range1 = lhs.as_array(), range2 = rhs.as_array();
+            auto range1 = lhs.as_array();
+            auto range2 = rhs.as_array();
             return range1.size() == range2.size() && equal(range1, range2.begin());
         } break;
         case dtype::record: {
@@ -764,9 +765,8 @@ void basic_value<CharT, Alloc>::reserve(std::size_t sz) {
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::resize(std::size_t sz) {
     reserve(sz);
-    if (!value_.arr) {
-        return;
-    } else if (sz <= value_.arr->size) {
+    if (!value_.arr) { return; }
+    if (sz <= value_.arr->size) {
         std::for_each(&(*value_.arr)[sz], &(*value_.arr)[value_.arr->size], [](basic_value& v) { v.~basic_value(); });
     } else {
         std::for_each(&(*value_.arr)[value_.arr->size], &(*value_.arr)[sz],

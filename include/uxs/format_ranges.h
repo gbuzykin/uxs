@@ -205,7 +205,8 @@ struct range_formatter {
         if (!(opts.flags & fmt_flags::debug_format)) {
             std::size_t width = 0;
             std::uint32_t code = 0;
-            auto first = std::begin(val), last = std::end(val);
+            auto first = std::begin(val);
+            auto last = std::end(val);
             if (opts.prec >= 0 || opts.width > 0) {
                 const std::size_t max_width = opts.prec >= 0 ? opts.prec : std::numeric_limits<std::size_t>::max();
                 last = first;

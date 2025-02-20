@@ -118,11 +118,8 @@ bool variant::convert(variant_id type) {
 }
 
 bool variant::is_equal_to(const variant& v) const {
-    if (vtable_ == v.vtable_) {
-        return !vtable_ || vtable_->is_equal(&data_, &v.data_);
-    } else if (!vtable_ || !v.vtable_) {
-        return false;
-    }
+    if (vtable_ == v.vtable_) { return !vtable_ || vtable_->is_equal(&data_, &v.data_); }
+    if (!vtable_ || !v.vtable_) { return false; }
     detail::variant_storage_t tmp;
     bool result = false;
     assert(vtable_ && v.vtable_);

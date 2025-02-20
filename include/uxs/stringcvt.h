@@ -79,7 +79,8 @@ class basic_membuffer {
                                                            std::is_same<iterator_value_t<InputIt>, Ty>::value>>
     basic_membuffer& append(InputIt first, InputIt last) {
         assert(first <= last);
-        size_type count = static_cast<size_type>(last - first), n_avail = avail();
+        size_type count = static_cast<size_type>(last - first);
+        const size_type n_avail = avail();
         while (count > n_avail) {
             curr_ = std::copy_n(first, n_avail, curr_);
             first += n_avail, count -= n_avail;
@@ -90,7 +91,7 @@ class basic_membuffer {
     }
 
     basic_membuffer& append(size_type count, value_type val) {
-        size_type n_avail = avail();
+        const size_type n_avail = avail();
         while (count > n_avail) {
             curr_ = std::fill_n(curr_, n_avail, val);
             count -= n_avail;
@@ -178,7 +179,9 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
         : basic_membuffer<Ty>(first, last), first_(first), is_allocated_(false) {}
 
     size_type try_grow(size_type extra) override {
-        size_type sz = size(), cap = capacity(), delta_sz = std::max(extra, sz >> 1);
+        size_type sz = size();
+        size_type cap = capacity();
+        size_type delta_sz = std::max(extra, sz >> 1);
         const size_type max_avail = std::allocator_traits<alloc_type>::max_size(*this) - sz;
         if (delta_sz > max_avail) {
             if (extra > max_avail) { throw std::length_error("too much to reserve"); }
@@ -361,7 +364,8 @@ std::size_t estimate_string_width(InputIt first, InputIt last) {
 
 template<typename StrTy, typename Func>
 void append_adjusted(StrTy& s, Func fn, unsigned len, fmt_opts fmt, bool prefer_right = false) {
-    unsigned left = fmt.width - len, right = left;
+    unsigned left = fmt.width - len;
+    unsigned right = left;
     if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::left) {
         left = 0;
     } else if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::internal) {
@@ -395,7 +399,7 @@ template<>
 struct fp_traits<float> {
     static_assert(sizeof(float) == sizeof(std::uint32_t), "type size mismatch");
     enum : unsigned { total_bits = 32, bits_per_mantissa = 23 };
-    enum : std::uint64_t { mantissa_mask = (1ull << bits_per_mantissa) - 1 };
+    enum : std::uint64_t { mantissa_mask = (1ULL << bits_per_mantissa) - 1 };
     enum : int { exp_max = (1 << (total_bits - bits_per_mantissa - 1)) - 1 };
     static std::uint64_t to_u64(float f) noexcept { return bit_cast<std::uint32_t>(f); }
     static float from_u64(std::uint64_t u64) noexcept { return bit_cast<float>(static_cast<std::uint32_t>(u64)); }
@@ -405,7 +409,7 @@ template<>
 struct fp_traits<double> {
     static_assert(sizeof(double) == sizeof(std::uint64_t), "type size mismatch");
     enum : unsigned { total_bits = 64, bits_per_mantissa = 52 };
-    enum : std::uint64_t { mantissa_mask = (1ull << bits_per_mantissa) - 1 };
+    enum : std::uint64_t { mantissa_mask = (1ULL << bits_per_mantissa) - 1 };
     enum : int { exp_max = (1 << (total_bits - bits_per_mantissa - 1)) - 1 };
     static std::uint64_t to_u64(double f) noexcept { return bit_cast<std::uint64_t>(f); }
     static double from_u64(std::uint64_t u64) noexcept { return bit_cast<double>(u64); }

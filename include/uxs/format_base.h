@@ -490,9 +490,8 @@ struct parse_context_utils {
     static UXS_CONSTEXPR bool parse_dynamic_parameter(ParseCtx& ctx, typename ParseCtx::iterator& it,
                                                       std::size_t& arg_id) {
         std::size_t tmp = 0;
-        if (it == ctx.end()) {
-            return false;
-        } else if (*it == '}') {
+        if (it == ctx.end()) { return false; }
+        if (*it == '}') {
             arg_id = ctx.next_arg_id();
         } else if ((tmp = dig_v(*it)) < 10) {
             it = parse_number(it + 1, ctx.end(), tmp);
@@ -510,9 +509,8 @@ struct parse_context_utils {
     static UXS_CONSTEXPR bool parse_integral_parameter(ParseCtx& ctx, typename ParseCtx::iterator& it, Ty& num,
                                                        std::size_t& arg_id) {
         unsigned dig = 0;
-        if (it == ctx.end()) {
-            return false;
-        } else if ((dig = dig_v(*it)) < 10) {
+        if (it == ctx.end()) { return false; }
+        if ((dig = dig_v(*it)) < 10) {
             num = static_cast<Ty>(dig);
             it = parse_number(it + 1, ctx.end(), num) - 1;
         } else if (*it == '{') {

@@ -305,14 +305,16 @@ void basic_devbuf<CharT, Alloc>::parse_ctrlesc(const char_type* first, const cha
 template<typename CharT, typename Alloc>
 int basic_devbuf<CharT, Alloc>::flush_buffer() {
     int ret = 0;
-    const char_type *from = this->first(), *top = this->curr();
+    const char_type* from = this->first();
+    const char_type* top = this->curr();
     if (!(this->mode() & (iomode::cr_lf | iomode::ctrl_esc))) {
         if ((ret = write_buf(from, top - from)) < 0) { return ret; }
         this->setcurr(this->first());
         return 0;
     }
     do {
-        char_type *to0 = buf_->data, *to = to0;
+        char_type* to0 = buf_->data;
+        char_type* to = to0;
         while (from != top) {
             if (*from == '\n' && !!(this->mode() & iomode::cr_lf)) {
                 if (to == from) { break; }

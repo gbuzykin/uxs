@@ -108,7 +108,8 @@ template<typename CharT>
         return argc0 != argc;
     };
 
-    std::unordered_set<const basic_option_node<CharT>*> specified, optional;
+    std::unordered_set<const basic_option_node<CharT>*> specified;
+    std::unordered_set<const basic_option_node<CharT>*> optional;
 
     auto val_it = cmd->values_.begin();
     std::size_t count_multiple = 0;
@@ -139,7 +140,8 @@ template<typename CharT>
                         ++count_multiple;
                     }
                     break;
-                } else if (val->is_optional() || count_multiple) {
+                }
+                if (val->is_optional() || count_multiple) {
                     ++val_it, count_multiple = 0;
                 } else {
                     return parsing_result<CharT>{parsing_status::invalid_value, argc0 - argc, &*val};
@@ -168,7 +170,8 @@ template<typename CharT>
         }
 
         const auto& group = static_cast<const basic_option_group<CharT>&>(node);
-        bool is_specified = false, is_optional = false;
+        bool is_specified = false;
+        bool is_optional = false;
         if (group.is_exclusive()) {
             for (const auto& opt : group.get_children()) {
                 if (contains(optional, &*opt)) { is_optional = true; }
@@ -277,7 +280,10 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring color
     static const auto color_br_white = string_literal<CharT, '\033', '[', '1', ';', '3', '7', 'm'>{}();
     static const auto color_green = string_literal<CharT, '\033', '[', '0', ';', '3', '2', 'm'>{}();
     static const auto color_normal = string_literal<CharT, '\033', '[', '0', 'm'>{}();
-    static const unsigned tab_size = 4, max_width = 100, max_margin = 24, gap = 2;
+    static const unsigned tab_size = 4;
+    static const unsigned max_width = 100;
+    static const unsigned max_margin = 24;
+    static const unsigned gap = 2;
 
     basic_oflatbuf<CharT> osb;
     const bool start_with_nl = !overview_.empty() && overview_.front() == '\n';

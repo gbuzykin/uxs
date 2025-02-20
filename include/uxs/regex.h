@@ -31,11 +31,8 @@ struct reversed_string_finder<std::basic_regex<CharT, RegexTraits>, Traits> {
         auto result = std::make_pair(begin, begin);
         for (iterator p = end; begin != p;) {
             if (std::regex_search(--p, end, m, regex, std::regex_constants::match_continuous)) {
-                if (m[0].second < result.second) {
-                    break;
-                } else {
-                    result = m[0];
-                }
+                if (m[0].second < result.second) { break; }
+                result = m[0];
             } else if (result.second > begin) {
                 break;
             }
