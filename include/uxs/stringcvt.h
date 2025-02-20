@@ -80,7 +80,7 @@ class basic_membuffer {
     basic_membuffer& append(InputIt first, InputIt last) {
         assert(first <= last);
         size_type count = static_cast<size_type>(last - first);
-        const size_type n_avail = avail();
+        size_type n_avail = avail();
         while (count > n_avail) {
             curr_ = std::copy_n(first, n_avail, curr_);
             first += n_avail, count -= n_avail;
@@ -91,7 +91,7 @@ class basic_membuffer {
     }
 
     basic_membuffer& append(size_type count, value_type val) {
-        const size_type n_avail = avail();
+        size_type n_avail = avail();
         while (count > n_avail) {
             curr_ = std::fill_n(curr_, n_avail, val);
             count -= n_avail;
@@ -175,8 +175,7 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
     }
 
  protected:
-    basic_dynbuffer(Ty* first, Ty* last) noexcept
-        : basic_membuffer<Ty>(first, last), first_(first), is_allocated_(false) {}
+    basic_dynbuffer(Ty* first, Ty* last) noexcept : basic_membuffer<Ty>(first, last), first_(first) {}
 
     size_type try_grow(size_type extra) override {
         size_type sz = size();
@@ -197,7 +196,7 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
 
  private:
     Ty* first_;
-    bool is_allocated_;
+    bool is_allocated_ = false;
 };
 
 template<typename Ty, std::size_t InlineBufSize = 0, typename Alloc = std::allocator<Ty>>
@@ -214,7 +213,7 @@ class inline_basic_dynbuffer final : public basic_dynbuffer<Ty, Alloc> {
         inline_buf_size = 7
 #endif  // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
     };
-    alignas(std::alignment_of<Ty>::value) std::uint8_t buf_[inline_buf_size * sizeof(Ty)];
+    alignas(std::alignment_of<Ty>::value) std::uint8_t buf_[inline_buf_size * sizeof(Ty)]{};
 };
 
 using inline_dynbuffer = inline_basic_dynbuffer<char>;

@@ -402,7 +402,7 @@ void basic_value<CharT, Alloc>::insert(
 
 namespace detail {
 inline bool is_integral(double d) {
-    double integral_part;
+    double integral_part = 0.;
     return std::modf(d, &integral_part) == 0.;
 }
 }  // namespace detail

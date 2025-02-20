@@ -71,10 +71,7 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
         return *this;
     }
 
-    vector(vector&& other) noexcept : alloc_type(std::move(other)) {
-        v_ = other.v_;
-        other.v_.nullify();
-    }
+    vector(vector&& other) noexcept : alloc_type(std::move(other)), v_(other.v_) { other.v_.nullify(); }
 
     vector(vector&& other, const allocator_type& alloc) noexcept(is_alloc_always_equal<alloc_type>::value)
         : alloc_type(alloc) {

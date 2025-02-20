@@ -72,10 +72,7 @@ class rbtree_node_handle : public rbtree_node_handle_getters<NodeTraits, Alloc, 
     using allocator_type = Alloc;
 
     rbtree_node_handle() noexcept(noexcept(super())) : super() {}
-    rbtree_node_handle(rbtree_node_handle&& nh) noexcept : super(std::move(nh)) {
-        node_ = nh.node_;
-        nh.node_ = nullptr;
-    }
+    rbtree_node_handle(rbtree_node_handle&& nh) noexcept : super(std::move(nh)), node_(nh.node_) { nh.node_ = nullptr; }
 
     rbtree_node_handle& operator=(rbtree_node_handle&& nh) noexcept {
         assert(std::addressof(nh) != this);
