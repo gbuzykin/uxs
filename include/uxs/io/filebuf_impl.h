@@ -39,7 +39,7 @@ file_desc_t basic_filebuf<CharT>::detach() noexcept {
 template<typename CharT>
 bool basic_filebuf<CharT>::open(const char* fname, iomode mode) {
     this->freebuf();
-    bool res = file_.open(fname, mode);
+    const bool res = file_.open(fname, mode);
     if (res) { this->initbuf(mode); }
     return res;
 }
@@ -47,7 +47,7 @@ bool basic_filebuf<CharT>::open(const char* fname, iomode mode) {
 template<typename CharT>
 bool basic_filebuf<CharT>::open(const wchar_t* fname, iomode mode) {
     this->freebuf();
-    bool res = file_.open(fname, mode);
+    const bool res = file_.open(fname, mode);
     if (res) { this->initbuf(mode); }
     return res;
 }

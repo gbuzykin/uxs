@@ -71,13 +71,15 @@ token_t detail::parser::lex(std::string_view& lval) {
         if (stash.empty()) {  // the stash is empty
             in.advance(llen);
         } else {
-            if (llen >= stash.size()) {  // all characters in stash buffer are used
+            if (llen >= stash.size()) {
+                // all characters in stash buffer are used
                 // concatenate full lexeme in stash
-                std::size_t len_rest = llen - stash.size();
+                const std::size_t len_rest = llen - stash.size();
                 stash.append(in.first_avail(), len_rest);
                 in.advance(len_rest);
-            } else {  // at least one character in stash is yet unused
-                      // put unused chars back to `ibuf`
+            } else {
+                // at least one character in stash is yet unused
+                // put unused chars back to `ibuf`
                 for (const char* p = stash.curr(); p != stash.last(); ++p) { in.unget(); }
             }
             lexeme = stash.data();

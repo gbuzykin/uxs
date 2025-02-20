@@ -64,7 +64,7 @@ template<typename CharT>
     --argc, ++argv;
     if (cmd->get_handler()) { cmd->get_handler()(); }
     for (; argc > 0; --argc, ++argv) {
-        std::basic_string_view<CharT> arg(*argv);
+        const std::basic_string_view<CharT> arg(*argv);
         auto subcmd_it = cmd->subcommands_.find(arg);
         if (subcmd_it == cmd->subcommands_.end()) { break; }
         cmd = &*subcmd_it->second;
@@ -93,11 +93,11 @@ template<typename CharT>
         const int argc0 = argc;
         if (argc > 0) {
             if (!val.is_multiple() && !val.is_optional()) {
-                std::basic_string_view<CharT> arg(*argv + n_prefix);
+                const std::basic_string_view<CharT> arg(*argv + n_prefix);
                 if (val.get_handler()(arg)) { --argc, ++argv; }
             } else {
                 for (const int argc1 = val.is_multiple() ? 0 : argc - 1; argc > argc1; --argc, ++argv) {
-                    std::basic_string_view<CharT> arg(*argv + n_prefix);
+                    const std::basic_string_view<CharT> arg(*argv + n_prefix);
                     if ((!n_prefix && find_option_by_key(arg) != cmd->opt_map_.end()) || !val.get_handler()(arg)) {
                         break;
                     }
@@ -114,7 +114,7 @@ template<typename CharT>
     auto val_it = cmd->values_.begin();
     std::size_t count_multiple = 0;
     while (argc > 0) {
-        std::basic_string_view<CharT> arg(*argv);
+        const std::basic_string_view<CharT> arg(*argv);
         auto opt_it = find_option_by_key(arg);
         if (opt_it != cmd->opt_map_.end()) {
             std::size_t n_prefix = opt_it->first.size();
@@ -188,7 +188,7 @@ template<typename CharT>
             const basic_node<CharT>* first_unspecified = nullptr;
             is_optional = true;
             for (const auto& opt : group.get_children()) {
-                bool is_child_optional = contains(optional, &*opt);
+                const bool is_child_optional = contains(optional, &*opt);
                 if (!is_child_optional) { is_optional = false; }
                 if (contains(specified, &*opt)) {
                     is_specified = true;

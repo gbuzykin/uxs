@@ -430,7 +430,8 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
     }
 
     template<typename InputIt>
-    static bool check_iterator_range(InputIt first, InputIt last, std::false_type /* random access iterator */) {
+    static bool check_iterator_range(InputIt /*first*/, InputIt /*last*/,
+                                     std::false_type /* random access iterator */) {
         return true;
     }
 
@@ -511,12 +512,12 @@ class list : protected std::allocator_traits<Alloc>::template rebind_alloc<  //
         node_traits::set_head(head_.next, std::addressof(head_), std::addressof(head_));
     }
 
-    void construct_impl(list&& other, const allocator_type& alloc, std::true_type) noexcept {
+    void construct_impl(list&& other, const allocator_type& /*alloc*/, std::true_type) noexcept {
         init();
         steal_data(other);
     }
 
-    void construct_impl(list&& other, const allocator_type& alloc, std::false_type) {
+    void construct_impl(list&& other, const allocator_type& /*alloc*/, std::false_type) {
         init();
         if (is_same_alloc(other)) {
             steal_data(other);

@@ -91,7 +91,7 @@ template<typename CharT, typename Traits, typename Alloc>
 void guid::to_per_byte_basic_string(std::basic_string<CharT, Traits, Alloc>& s) const {
     s.resize(32);
     auto* p = &s[0];
-    for (std::uint8_t b : data8_) { to_hex(b, p, 2, true), p += 2; }
+    for (const std::uint8_t b : data8_) { to_hex(b, p, 2, true), p += 2; }
 }
 
 template<typename CharT, typename Traits>

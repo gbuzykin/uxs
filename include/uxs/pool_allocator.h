@@ -331,7 +331,7 @@ class global_pool_allocator {
 };
 
 template<typename TyL, typename TyR>
-bool operator==(const global_pool_allocator<TyL>& lhs, const global_pool_allocator<TyR>& rhs) noexcept {
+bool operator==(const global_pool_allocator<TyL>& /*lhs*/, const global_pool_allocator<TyR>& /*rhs*/) noexcept {
     return true;
 }
 template<typename TyL, typename TyR>

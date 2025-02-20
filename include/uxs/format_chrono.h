@@ -523,14 +523,14 @@ void format_chrono_mm_dd_yy(FmtCtx& ctx, std::chrono::year_month_day ymd) {
 
 template<typename FmtCtx>
 void format_chrono_day_of_the_year(FmtCtx& ctx, std::chrono::year_month_day ymd) {
-    std::chrono::sys_days days{ymd};
+    const std::chrono::sys_days days{ymd};
     const int yday = (days - std::chrono::sys_days{ymd.year() / std::chrono::January / 0}).count();
     ctx.out() += '0' + yday / 100;
     format_append_2digs(ctx, yday % 100);
 }
 
 inline void make_tm_for_date(std::tm& tm, std::chrono::year_month_day ymd) {
-    std::chrono::sys_days days{ymd};
+    const std::chrono::sys_days days{ymd};
     tm.tm_year = static_cast<int>(ymd.year()) - 1900;
     tm.tm_mon = static_cast<unsigned>(ymd.month()) - 1;
     tm.tm_mday = static_cast<unsigned>(ymd.day());

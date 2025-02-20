@@ -17,7 +17,7 @@ class basic_iomembuffer final : public basic_membuffer<Ty> {
  private:
     basic_iobuf<Ty>& out_;
 
-    std::size_t try_grow(std::size_t extra) override {
+    std::size_t try_grow(std::size_t /*extra*/) override {
         flush();
         if (!out_.reserve().good()) { return 0; }
         this->set(out_.first_avail(), out_.last_avail());

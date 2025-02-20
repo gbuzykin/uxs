@@ -25,7 +25,7 @@ void sysfile::attach(file_desc_t fd) noexcept {
 }
 
 file_desc_t sysfile::detach() noexcept {
-    file_desc_t fd = fd_;
+    const file_desc_t fd = fd_;
     fd_ = -1;
     return fd;
 }
@@ -60,14 +60,14 @@ bool sysfile::open(const wchar_t* fname, iomode mode) { return open(from_wide_to
 void sysfile::close() noexcept { ::close(detach()); }
 
 int sysfile::read(void* data, std::size_t sz, std::size_t& n_read) {
-    ssize_t result = ::read(fd_, data, sz);
+    const ssize_t result = ::read(fd_, data, sz);
     if (result < 0) { return -1; }
     n_read = static_cast<std::size_t>(result);
     return 0;
 }
 
 int sysfile::write(const void* data, std::size_t sz, std::size_t& n_written) {
-    ssize_t result = ::write(fd_, data, sz);
+    const ssize_t result = ::write(fd_, data, sz);
     if (result < 0) { return -1; }
     n_written = static_cast<std::size_t>(result);
     return 0;
@@ -80,7 +80,7 @@ std::int64_t sysfile::seek(std::int64_t off, seekdir dir) {
         case seekdir::end: whence = SEEK_END; break;
         default: break;
     }
-    off_t result = ::lseek(fd_, off, whence);
+    const off_t result = ::lseek(fd_, off, whence);
     return result < 0 ? -1 : result;
 }
 

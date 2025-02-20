@@ -14,7 +14,7 @@ inline std::uint64_t umul128(std::uint64_t x, std::uint64_t y, std::uint64_t bia
     result_hi += _addcarry_u64(0, result_lo, bias, &result_lo);
     return result_lo;
 #elif UXS_SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
-    gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x) * y + bias;
+    const gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x) * y + bias;
     result_hi = static_cast<std::uint64_t>(p >> 64);
     return static_cast<std::uint64_t>(p);
 #else
@@ -30,7 +30,7 @@ inline std::uint64_t umul128(std::uint64_t x, std::uint64_t y, std::uint64_t& re
 #if UXS_SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
     return _umul128(x, y, &result_hi);
 #elif UXS_SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
-    gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x) * y;
+    const gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x) * y;
     result_hi = static_cast<std::uint64_t>(p >> 64);
     return static_cast<std::uint64_t>(p);
 #else
@@ -171,7 +171,7 @@ inline std::uint64_t bignum_submul(std::uint64_t* x, const std::uint64_t* y, uns
     std::uint64_t* x0 = x;
     x += sz - 1, y += sz - 1;
     std::uint64_t higher;
-    std::uint64_t lower = umul128(*y, mul, higher);
+    const std::uint64_t lower = umul128(*y, mul, higher);
     if (sz > sz_x) {
         std::uint64_t* x1 = x0 + sz_x;
         borrow = sub64_borrow(0, lower, *x);
@@ -215,7 +215,7 @@ inline std::uint64_t shl128(std::uint64_t x_hi, std::uint64_t x_lo, unsigned shi
 #if UXS_SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
     return __shiftleft128(x_lo, x_hi, shift);
 #elif UXS_SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
-    gcc_ints::uint128 x = ((static_cast<gcc_ints::uint128>(x_hi) << 64) | x_lo) << shift;
+    const gcc_ints::uint128 x = ((static_cast<gcc_ints::uint128>(x_hi) << 64) | x_lo) << shift;
     return static_cast<std::uint64_t>(x >> 64);
 #else
     return (x_hi << shift) | (x_lo >> (64 - shift));
@@ -225,7 +225,7 @@ inline std::uint64_t shl128(std::uint64_t x_hi, std::uint64_t x_lo, unsigned shi
 inline std::uint64_t bignum_shift_left(std::uint64_t* x, unsigned sz, unsigned shift) {
     assert(sz > 0);
     std::uint64_t* x0 = x + sz - 1;
-    std::uint64_t higher = *x >> (64 - shift);
+    const std::uint64_t higher = *x >> (64 - shift);
     while (x != x0) { *x = shl128(*x, *(x + 1), shift), ++x; }
     *x <<= shift;
     return higher;
@@ -235,7 +235,7 @@ inline std::uint64_t shr128(std::uint64_t x_hi, std::uint64_t x_lo, unsigned shi
 #if UXS_SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
     return __shiftright128(x_lo, x_hi, shift);
 #elif UXS_SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
-    gcc_ints::uint128 x = ((static_cast<gcc_ints::uint128>(x_hi) << 64) | x_lo) >> shift;
+    const gcc_ints::uint128 x = ((static_cast<gcc_ints::uint128>(x_hi) << 64) | x_lo) >> shift;
     return static_cast<std::uint64_t>(x);
 #else
     return (x_hi << (64 - shift)) | (x_lo >> shift);
@@ -246,7 +246,7 @@ inline std::uint64_t bignum_shift_right(std::uint64_t higher, std::uint64_t* x, 
     assert(sz > 0);
     std::uint64_t* x0 = x;
     x += sz - 1;
-    std::uint64_t lower = *x << (64 - shift);
+    const std::uint64_t lower = *x << (64 - shift);
     while (x != x0) { *x = shr128(*(x - 1), *x, shift), --x; }
     *x = shr128(higher, *x, shift);
     return lower;
@@ -310,7 +310,7 @@ inline std::uint64_t umul96x32(uint96_t x, std::uint32_t y, std::uint64_t& resul
 #if UXS_SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
     return umul128(x.hi, static_cast<std::uint64_t>(y) << 32, static_cast<std::uint64_t>(x.lo) * y, result_hi);
 #elif UXS_SCVT_USE_COMPILER_128BIT_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
-    gcc_ints::uint128 p = ((static_cast<gcc_ints::uint128>(x.hi) << 32) | x.lo) * y;
+    const gcc_ints::uint128 p = ((static_cast<gcc_ints::uint128>(x.hi) << 32) | x.lo) * y;
     result_hi = static_cast<std::uint64_t>(p >> 64);
     return static_cast<std::uint64_t>(p);
 #else
@@ -369,8 +369,8 @@ UXS_FORCE_INLINE uint96_t get_cached_pow10(int pow) noexcept {
         0x36251261, 0xacca6da2, 0x0fabaf40, 0xddbb901c, 0xed238cd4, 0x4b2d8645, 0xdb0b487b, 0x73832eec, 0x6ed1bf9a,
         0x47c6b82f, 0x79c5db9b, 0xe6a11583, 0x505f522e, 0x213a4f0b, 0x848ce346};
     const UXS_CONSTEXPR int step_pow = 3;
-    int n = (pow10_max + pow) >> step_pow;
-    int k = pow & ((1 << step_pow) - 1);
+    const int n = (pow10_max + pow) >> step_pow;
+    const int k = pow & ((1 << step_pow) - 1);
     uint96_t result{higher64[n], lower32[n]};
     if (!k) { return result; }
     static const UXS_CONSTEXPR std::uint32_t mul10[] = {0,          0xa0000000, 0xc8000000, 0xfa000000,
@@ -489,7 +489,7 @@ static std::uint64_t fp10_to_fp2_slow(fp10_t& fp10, unsigned bpm, int exp_max) n
 }
 
 std::uint64_t fp10_to_fp2(fp10_t& fp10, unsigned bpm, int exp_max) noexcept {
-    unsigned sz_num = fp10.bits_used;
+    const unsigned sz_num = fp10.bits_used;
     std::uint64_t m = fp10.bits[max_fp10_mantissa_size - sz_num];
 
     // Note, that decimal mantissa can contain up to 772 digits. So, all numbers with

@@ -59,7 +59,7 @@ typename basic_ibuf<CharT>::pos_type basic_ibuf<CharT>::seek(off_type off, seekd
         this->setstate(iostate_bits::fail);
         return traits_type::npos();
     }
-    pos_type pos = seekimpl(off, dir);
+    const pos_type pos = seekimpl(off, dir);
     if (pos == traits_type::npos()) { this->setstate(iostate_bits::fail); }
     return pos;
 }
@@ -75,7 +75,7 @@ int basic_ibuf<CharT>::ungetfail() {
 }
 
 template<typename CharT>
-typename basic_ibuf<CharT>::pos_type basic_ibuf<CharT>::seekimpl(off_type off, seekdir dir) {
+typename basic_ibuf<CharT>::pos_type basic_ibuf<CharT>::seekimpl(off_type /*off*/, seekdir /*dir*/) {
     return traits_type::npos();
 }
 

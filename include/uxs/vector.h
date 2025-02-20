@@ -346,12 +346,12 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
         alloc_traits::deallocate(*this, v.begin, static_cast<size_type>(v.boundary - v.begin));
     }
 
-    void construct_impl(vector&& other, const allocator_type& alloc, std::true_type) noexcept {
+    void construct_impl(vector&& other, const allocator_type& /*alloc*/, std::true_type) noexcept {
         v_ = other.v_;
         other.v_.nullify();
     }
 
-    void construct_impl(vector&& other, const allocator_type& alloc, std::false_type) {
+    void construct_impl(vector&& other, const allocator_type& /*alloc*/, std::false_type) {
         if (is_same_alloc(other)) {
             v_ = other.v_;
             other.v_.nullify();
@@ -704,7 +704,7 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
         }
 
         template<typename InputIt>
-        static pointer construct_copy(std::allocator<Ty>& alloc, pointer first, size_type n, InputIt src) {
+        static pointer construct_copy(std::allocator<Ty>& /*alloc*/, pointer first, size_type n, InputIt src) {
             std::uninitialized_copy_n(src, n, first);
             return first + n;
         }
@@ -728,7 +728,7 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
         }
 
         template<typename Ty_ = Ty>
-        static pointer construct_relocate(std::allocator<Ty_>& alloc, pointer dst, pointer first, pointer last) {
+        static pointer construct_relocate(std::allocator<Ty_>& /*alloc*/, pointer dst, pointer first, pointer last) {
             return std::uninitialized_copy(std::make_move_iterator(first), std::make_move_iterator(last), dst);
         }
 
@@ -773,7 +773,7 @@ class vector : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>
             return helpers::truncate_impl(alloc, first, last, std::is_trivially_destructible<Ty>());
         }
 
-        static pointer truncate_impl(std::allocator<Ty>& alloc, pointer first, pointer last,
+        static pointer truncate_impl(std::allocator<Ty>& /*alloc*/, pointer first, pointer /*last*/,
                                      std::true_type /* trivially destructible */) {
             return first;
         }
