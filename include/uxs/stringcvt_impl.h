@@ -211,7 +211,7 @@ const CharT* chars_to_fp10(const CharT* p, const CharT* end, fp10_t& fp10) noexc
 parse_exponent:
     p0 = p;
     if (*p == 'e' || *p == 'E') {  // optional exponent
-        int exp_optional = to_integer<int>(p + 1, end, p);
+        const int exp_optional = to_integer<int>(p + 1, end, p);
         if (p > p0 + 1) { fp10.exp += exp_optional, p0 = p; }
     }
     return p0;
@@ -301,7 +301,7 @@ struct grouping_t {
 inline unsigned calc_len_with_grouping(unsigned desired_len, const std::string& grouping) {
     unsigned length = desired_len;
     unsigned grp = 1;
-    for (char ch : grouping) {
+    for (const char ch : grouping) {
         grp = ch > 0 ? ch : 1;
         if (desired_len <= grp) { return length; }
         desired_len -= grp, ++length;
@@ -375,7 +375,7 @@ void fmt_bin(basic_membuffer<CharT>& s, Ty val, bool is_signed, fmt_opts fmt, lo
     }
     if (!!(fmt.flags & fmt_flags::localize)) {
         const auto& numpunct = std::use_facet<std::numpunct<CharT>>(*loc);
-        grouping_t<CharT> grouping{numpunct.thousands_sep(), numpunct.grouping()};
+        const grouping_t<CharT> grouping{numpunct.thousands_sep(), numpunct.grouping()};
         if (!grouping.grouping.empty()) {
             const unsigned len = calc_len_with_grouping(1 + ulog2(val), grouping.grouping);
             auto fn = make_print_functor<CharT>(s, val, fmt_gen_bin_with_grouping<CharT, Ty>);
@@ -423,7 +423,7 @@ void fmt_oct(basic_membuffer<CharT>& s, Ty val, bool is_signed, fmt_opts fmt, lo
     }
     if (!!(fmt.flags & fmt_flags::localize)) {
         const auto& numpunct = std::use_facet<std::numpunct<CharT>>(*loc);
-        grouping_t<CharT> grouping{numpunct.thousands_sep(), numpunct.grouping()};
+        const grouping_t<CharT> grouping{numpunct.thousands_sep(), numpunct.grouping()};
         if (!grouping.grouping.empty()) {
             const unsigned len = calc_len_with_grouping(1 + ulog2(val) / 3, grouping.grouping);
             auto fn = make_print_functor<CharT>(s, val, fmt_gen_oct_with_grouping<CharT, Ty>);
@@ -477,7 +477,7 @@ void fmt_hex(basic_membuffer<CharT>& s, Ty val, bool is_signed, fmt_opts fmt, lo
     }
     if (!!(fmt.flags & fmt_flags::localize)) {
         const auto& numpunct = std::use_facet<std::numpunct<CharT>>(*loc);
-        grouping_t<CharT> grouping{numpunct.thousands_sep(), numpunct.grouping()};
+        const grouping_t<CharT> grouping{numpunct.thousands_sep(), numpunct.grouping()};
         if (!grouping.grouping.empty()) {
             const unsigned len = calc_len_with_grouping(1 + (ulog2(val) >> 2), grouping.grouping);
             auto fn = make_print_functor<CharT>(s, val, fmt_gen_hex_with_grouping<CharT, Ty>);
@@ -558,7 +558,7 @@ void fmt_dec(basic_membuffer<CharT>& s, Ty val, bool is_signed, fmt_opts fmt, lo
     }
     if (!!(fmt.flags & fmt_flags::localize)) {
         const auto& numpunct = std::use_facet<std::numpunct<CharT>>(*loc);
-        grouping_t<CharT> grouping{numpunct.thousands_sep(), numpunct.grouping()};
+        const grouping_t<CharT> grouping{numpunct.thousands_sep(), numpunct.grouping()};
         if (!grouping.grouping.empty()) {
             const unsigned len = calc_len_with_grouping(fmt_dec_unsigned_len(val), grouping.grouping);
             auto fn = make_print_functor<CharT>(s, val, fmt_gen_dec_with_grouping<CharT, Ty>);
@@ -931,17 +931,17 @@ void fmt_float_common(basic_membuffer<CharT>& s, std::uint64_t u64, fmt_opts fmt
 
     if ((fmt.flags & fmt_flags::base_field) == fmt_flags::hex) {
         // Print hexadecimal representation
-        fp_hex_fmt_t fp(fp2, fmt, bpm, exp_max >> 1);
+        const fp_hex_fmt_t fp(fp2, fmt, bpm, exp_max >> 1);
         const CharT dec_point = !!(fmt.flags & fmt_flags::localize) ?
                                     std::use_facet<std::numpunct<CharT>>(*loc).decimal_point() :
                                     default_numpunct<CharT>().decimal_point();
         const unsigned len = fp.get_len();
-        print_float_functor<CharT, fp_hex_fmt_t> fn{s, fp, uppercase, dec_point};
+        const print_float_functor<CharT, fp_hex_fmt_t> fn{s, fp, uppercase, dec_point};
         return fmt.width > len ? adjust_numeric(s, fn, len, sign, fmt) : fn(len, sign);
     }
 
     // Print decimal representation
-    fp_dec_fmt_t fp(fp2, fmt, bpm, exp_max >> 1);
+    const fp_dec_fmt_t fp(fp2, fmt, bpm, exp_max >> 1);
     print_float_functor<CharT, fp_dec_fmt_t> fn{s, fp, uppercase, default_numpunct<CharT>().decimal_point()};
     if (!!(fmt.flags & fmt_flags::localize)) {
         const auto& numpunct = std::use_facet<std::numpunct<CharT>>(*loc);

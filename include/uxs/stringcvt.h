@@ -17,7 +17,7 @@ unsigned from_hex(InputIt in, unsigned n_digs, InputFn fn = InputFn{}, unsigned*
     unsigned val = 0;
     if (n_valid) { *n_valid = n_digs; }
     while (n_digs) {
-        unsigned dig = dig_v(fn(*in));
+        const unsigned dig = dig_v(fn(*in));
         if (dig < 16) {
             val = (val << 4) | dig;
         } else {
@@ -131,7 +131,7 @@ class basic_membuffer {
  protected:
     void set(Ty* curr) noexcept { curr_ = curr; }
     void set(Ty* curr, Ty* last) noexcept { curr_ = curr, last_ = last; }
-    virtual size_type try_grow(size_type extra) { return 0; }
+    virtual size_type try_grow(size_type /*extra*/) { return 0; }
 
  private:
     Ty* curr_;
@@ -179,7 +179,7 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
 
     size_type try_grow(size_type extra) override {
         size_type sz = size();
-        size_type cap = capacity();
+        const size_type cap = capacity();
         size_type delta_sz = std::max(extra, sz >> 1);
         const size_type max_avail = std::allocator_traits<alloc_type>::max_size(*this) - sz;
         if (delta_sz > max_avail) {

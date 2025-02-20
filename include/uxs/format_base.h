@@ -818,7 +818,7 @@ class basic_format_parse_context : public sfmt::parse_context_utils {
         return next_arg_id_++;
     }
 
-    UXS_CONSTEXPR void check_arg_id(std::size_t id) {
+    UXS_CONSTEXPR void check_arg_id(std::size_t /*id*/) {
         if (next_arg_id_ != dynamic_extent && next_arg_id_ > 0) {
             throw format_error("manual argument indexing error");
         }

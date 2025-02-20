@@ -152,13 +152,15 @@ parser::lex_token_t parser::lex(std::string_view& lval) {
         if (stash_.empty()) {  // the stash is empty
             in_.advance(llen);
         } else {
-            if (llen >= stash_.size()) {  // all characters in stash buffer are used
+            if (llen >= stash_.size()) {
+                // all characters in stash buffer are used
                 // concatenate full lexeme in stash
-                std::size_t len_rest = llen - stash_.size();
+                const std::size_t len_rest = llen - stash_.size();
                 stash_.append(in_.first_avail(), len_rest);
                 in_.advance(len_rest);
-            } else {  // at least one character in stash is yet unused
-                      // put unused chars back to `ibuf`
+            } else {
+                // at least one character in stash is yet unused
+                // put unused chars back to `ibuf`
                 for (const char* p = stash_.curr(); p != stash_.last(); ++p) { in_.unget(); }
             }
             lexeme = stash_.data();
@@ -210,7 +212,7 @@ parser::lex_token_t parser::lex(std::string_view& lval) {
             } break;
             case lex_detail::pat_dcode: {
                 unsigned unicode = 0;
-                for (char ch : std::string_view(lexeme + 2, llen - 3)) { unicode = 10 * unicode + dig_v(ch); }
+                for (const char ch : std::string_view(lexeme + 2, llen - 3)) { unicode = 10 * unicode + dig_v(ch); }
                 if (stack_.back() == lex_detail::sc_initial) {
                     lval = std::string_view(str_.data(), to_utf8(unicode, str_.data()));
                     return lex_token_t::entity;
@@ -219,7 +221,7 @@ parser::lex_token_t parser::lex(std::string_view& lval) {
             } break;
             case lex_detail::pat_hcode: {
                 unsigned unicode = 0;
-                for (char ch : std::string_view(lexeme + 3, llen - 4)) { unicode = (unicode << 4) + dig_v(ch); }
+                for (const char ch : std::string_view(lexeme + 3, llen - 4)) { unicode = (unicode << 4) + dig_v(ch); }
                 if (stack_.back() == lex_detail::sc_initial) {
                     lval = std::string_view(str_.data(), to_utf8(unicode, str_.data()));
                     return lex_token_t::entity;
@@ -279,7 +281,7 @@ parser::lex_token_t parser::lex(std::string_view& lval) {
 
 /*static*/ value_class parser::classify_value(const std::string_view& sval) {
     int state = lex_detail::sc_value;
-    for (std::uint8_t ch : sval) {
+    for (const std::uint8_t ch : sval) {
         state = lex_detail::Dtran[lex_detail::dtran_width * state + lex_detail::symb2meta[ch]];
     }
     switch (lex_detail::accept[state]) {

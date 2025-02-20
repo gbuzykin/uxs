@@ -146,7 +146,7 @@ template<typename CharT, typename Alloc>
     rec->init();
     try {
         for_each(init, [&rec_al, &rec](const basic_value<CharT, Alloc>& v) {
-            std::basic_string_view<CharT> key = (*v.value_.arr)[0].str_view();
+            const std::basic_string_view<CharT> key = (*v.value_.arr)[0].str_view();
             list_links_t* node = rec->new_node(rec_al, key, (*v.value_.arr)[1]);
             rec = insert(rec_al, rec, hasher{}(key), node);
         });
@@ -353,7 +353,7 @@ void basic_value<CharT, Alloc>::assign(std::initializer_list<basic_value> init) 
         } else {
             value_.rec->clear(rec_al);
             for_each(init, [this, &rec_al](const basic_value& v) {
-                std::basic_string_view<char_type> key = (*v.value_.arr)[0].str_view();
+                const std::basic_string_view<char_type> key = (*v.value_.arr)[0].str_view();
                 detail::list_links_t* node = value_.rec->new_node(rec_al, key, (*v.value_.arr)[1]);
                 value_.rec = record_t::insert(rec_al, value_.rec, typename record_t::hasher{}(key), node);
             });

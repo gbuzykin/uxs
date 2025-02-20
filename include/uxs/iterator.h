@@ -124,7 +124,7 @@ iterator_range<Iter> make_subrange(const std::pair<Iter, Iter>& p, std::size_t o
 template<typename Range>
 auto make_subrange(Range&& r, std::size_t offset, std::size_t count = dynamic_extent) noexcept
     -> std::enable_if_t<is_random_access_iterator<decltype(std::end(r))>::value, iterator_range<decltype(std::end(r))>> {
-    std::size_t sz = std::end(r) - std::begin(r);
+    const std::size_t sz = std::end(r) - std::begin(r);
     if (offset > sz) { offset = sz; }
     return {std::begin(r) + offset, std::begin(r) + (count < sz - offset ? offset + count : sz)};
 }

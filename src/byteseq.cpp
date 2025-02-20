@@ -103,7 +103,7 @@ byteseq byteseq::make_compressed() const {
         zstr.avail_in = static_cast<uInt>(std::min<std::size_t>(chunk->end - zstr.next_in, max_avail_count));
         zstr.avail_out = static_cast<uInt>(buf.head_->boundary - zstr.next_out);
 
-        int ret = deflate(&zstr, zstr.avail_in ? Z_NO_FLUSH : Z_FINISH);
+        const int ret = deflate(&zstr, zstr.avail_in ? Z_NO_FLUSH : Z_FINISH);
         if (ret == Z_STREAM_END) {
             if (deflateEnd(&zstr) != Z_OK) { return {}; }
             break;
@@ -148,7 +148,7 @@ byteseq byteseq::make_uncompressed() const {
         zstr.avail_in = static_cast<uInt>(std::min<std::size_t>(chunk->end - zstr.next_in, max_avail_count));
         zstr.avail_out = static_cast<uInt>(buf.head_->boundary - zstr.next_out);
 
-        int ret = inflate(&zstr, zstr.avail_in ? Z_NO_FLUSH : Z_FINISH);
+        const int ret = inflate(&zstr, zstr.avail_in ? Z_NO_FLUSH : Z_FINISH);
         if (ret == Z_STREAM_END) {
             if (inflateEnd(&zstr) != Z_OK) { return {}; }
             break;

@@ -22,7 +22,7 @@ void zipfile::close() noexcept {
 
 int zipfile::read(void* buf, std::size_t sz, std::size_t& n_read) {
     if (!zip_fd_) { return -1; }
-    zip_int64_t result = zip_fread(static_cast<zip_file_t*>(zip_fd_), buf, sz);
+    const zip_int64_t result = zip_fread(static_cast<zip_file_t*>(zip_fd_), buf, sz);
     if (result < 0) { return -1; }
     n_read = static_cast<std::size_t>(result);
     return 0;

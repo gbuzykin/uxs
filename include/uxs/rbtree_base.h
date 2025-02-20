@@ -505,7 +505,7 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
     }
 
     template<typename InputIt>
-    static bool check_iterator_range(InputIt first, InputIt last, std::false_type) {
+    static bool check_iterator_range(InputIt /*first*/, InputIt /*last*/, std::false_type) {
         return true;
     }
 
@@ -592,12 +592,12 @@ class rbtree_base : protected rbtree_compare<NodeTraits, Alloc, Comp> {
         }
     };
 
-    void construct_impl(rbtree_base&& other, const allocator_type& alloc, std::true_type) noexcept {
+    void construct_impl(rbtree_base&& other, const allocator_type& /*alloc*/, std::true_type) noexcept {
         init();
         steal_data(other);
     }
 
-    void construct_impl(rbtree_base&& other, const allocator_type& alloc, std::false_type) {
+    void construct_impl(rbtree_base&& other, const allocator_type& /*alloc*/, std::false_type) {
         if (is_same_alloc(other)) {
             init();
             steal_data(other);
