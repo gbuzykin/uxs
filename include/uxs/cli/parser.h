@@ -34,7 +34,7 @@ class basic_command;
 template<typename CharT>
 class basic_node {
  public:
-    explicit basic_node(node_type type) noexcept : type_(type), is_optional_(false), parent_(nullptr) {}
+    explicit basic_node(node_type type) noexcept : type_(type), parent_(nullptr) {}
     basic_node(const basic_node&) = default;
     basic_node& operator=(const basic_node&) = delete;
     virtual ~basic_node() = default;
@@ -56,7 +56,7 @@ class basic_node {
 
  private:
     node_type type_;
-    bool is_optional_;
+    bool is_optional_ = false;
     basic_node* parent_;
     std::basic_string<CharT> doc_;
 };
@@ -65,7 +65,7 @@ template<typename CharT>
 class basic_value : public basic_node<CharT> {
  public:
     basic_value(std::basic_string<CharT> label, value_handler_fn<CharT> fn)
-        : basic_node<CharT>(node_type::value), label_(std::move(label)), handler_(std::move(fn)), is_multiple_(false) {}
+        : basic_node<CharT>(node_type::value), label_(std::move(label)), handler_(std::move(fn)) {}
     std::unique_ptr<basic_node<CharT>> clone() const override { return est::make_unique<basic_value>(*this); }
 
     const std::basic_string<CharT>& get_label() const noexcept { return label_; }
@@ -77,7 +77,7 @@ class basic_value : public basic_node<CharT> {
  private:
     std::basic_string<CharT> label_;
     value_handler_fn<CharT> handler_;
-    bool is_multiple_;
+    bool is_multiple_ = false;
 };
 
 template<typename CharT>

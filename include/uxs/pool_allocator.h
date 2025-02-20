@@ -89,7 +89,7 @@ class pool {
     }
 
     pool_desc_t* desc() { return desc_; }
-    void swap(pool& other) { std::swap(desc_, other.desc_); }
+    void swap(pool& other) noexcept { std::swap(desc_, other.desc_); }
     bool is_equal_to(const pool& other) const { return desc_->root_pool == other.desc_->root_pool; }
 
     void reset(pool_desc_t* desc) {

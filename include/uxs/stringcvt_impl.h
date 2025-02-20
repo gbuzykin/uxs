@@ -188,7 +188,7 @@ const CharT* accum_mantissa(const CharT* p, const CharT* end, fp10_t& fp10) noex
 
 template<typename CharT>
 const CharT* chars_to_fp10(const CharT* p, const CharT* end, fp10_t& fp10) noexcept {
-    const CharT* p0;
+    const CharT* p0 = nullptr;
     unsigned dig = 0;
     const CharT dec_point = default_numpunct<CharT>().decimal_point();
     if (p == end) { return p; }
@@ -202,9 +202,12 @@ const CharT* chars_to_fp10(const CharT* p, const CharT* end, fp10_t& fp10) noexc
     } else {
         return p;
     }
-    p0 = p + 1, p = accum_mantissa(p0, end, fp10);  // fractional part
+
+    p0 = p + 1;
+    p = accum_mantissa(p0, end, fp10);  // fractional part
     fp10.exp -= static_cast<unsigned>(p - p0);
     if (p == end) { return p; }
+
 parse_exponent:
     p0 = p;
     if (*p == 'e' || *p == 'E') {  // optional exponent

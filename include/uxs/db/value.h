@@ -255,7 +255,7 @@ class value_iterator : public container_iterator_facade<basic_value<CharT, Alloc
     value_iterator() noexcept = default;
 #if UXS_ITERATOR_DEBUG_LEVEL != 0
     explicit value_iterator(value_type* ptr, value_type* begin, value_type* end) noexcept
-        : is_record_(false), ptr_(ptr), begin_(begin), end_(end) {}
+        : ptr_(ptr), begin_(begin), end_(end) {}
     template<bool Const_ = Const>
     value_iterator(const std::enable_if_t<Const_, value_iterator<CharT, Alloc, false>>& it) noexcept
         : is_record_(it.is_record_), ptr_(it.ptr_), begin_(it.begin_), end_(it.end_) {}
