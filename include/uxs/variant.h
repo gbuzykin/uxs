@@ -18,7 +18,7 @@
 #define UXS_IMPLEMENT_VARIANT_STRING_CONVERTER(ty) \
     bool uxs::variant_type_impl<ty>::convert_from(variant_id type, void* to, const void* from) { \
         if (type != variant_id::string) { return false; } \
-        return uxs::stoval(*static_cast<const std::string*>(from), *static_cast<ty*>(to)) != 0; \
+        return uxs::from_string(*static_cast<const std::string*>(from), *static_cast<ty*>(to)) != 0; \
     } \
     bool uxs::variant_type_impl<ty>::convert_to(variant_id type, void* to, const void* from) { \
         if (type != variant_id::string) { return false; } \

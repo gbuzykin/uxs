@@ -102,8 +102,9 @@ class basic_membuffer {
     }
 
     template<typename... Args>
-    void emplace_back(Args&&... args) {
-        if (curr_ != last_ || try_grow(1)) { new (curr_++) value_type(std::forward<Args>(args)...); }
+    value_type& emplace_back(Args&&... args) {
+        if (curr_ != last_ || try_grow(1)) { new (curr_) value_type(std::forward<Args>(args)...); }
+        return *curr_++;
     }
     void push_back(value_type val) {
         if (curr_ != last_ || try_grow(1)) { *curr_++ = val; }
@@ -218,6 +219,25 @@ class inline_basic_dynbuffer final : public basic_dynbuffer<Ty, Alloc> {
 
 using inline_dynbuffer = inline_basic_dynbuffer<char>;
 using inline_wdynbuffer = inline_basic_dynbuffer<wchar_t>;
+
+template<typename Ty>
+class basic_membuffer_with_size_tracker final : public basic_membuffer<Ty> {
+ public:
+    basic_membuffer_with_size_tracker(Ty* first, Ty* last) noexcept
+        : basic_membuffer<Ty>(first, last), size_(static_cast<std::size_t>(last - first)) {}
+    std::size_t size() const { return this->avail() ? size_ - this->avail() : size_; }
+
+ private:
+    std::size_t size_ = 0;
+
+    std::size_t try_grow(std::size_t extra) override {
+        size_ += extra;
+        return 0;
+    }
+};
+
+using membuffer_with_size_tracker = basic_membuffer_with_size_tracker<char>;
+using wmembuffer_with_size_tracker = basic_membuffer_with_size_tracker<wchar_t>;
 
 // --------------------------
 
@@ -525,38 +545,45 @@ UXS_EXPORT void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<Cha
 
 // --------------------------
 
-template<typename Ty, typename CharT = char>
-struct string_converter;
-
 template<typename Ty, typename CharT = char, typename = void>
 struct formatter;
+
+// --------------------------
+
+template<typename Ty, typename CharT = char>
+struct from_string_impl;
+
+template<typename Ty, typename CharT = char>
+struct to_string_impl;
 
 template<typename Ty, typename CharT = char, typename = void>
 struct convertible_from_string : std::false_type {};
 template<typename Ty, typename CharT>
 struct convertible_from_string<
     Ty, CharT,
-    std::enable_if_t<std::is_same<
-        decltype(string_converter<Ty, CharT>{}.from_chars(nullptr, nullptr, std::declval<Ty&>())), const CharT*>::value>>
-    : std::true_type {};
+    std::enable_if_t<std::is_same<decltype(from_string_impl<Ty, CharT>{}(nullptr, nullptr, std::declval<Ty&>())),
+                                  const CharT*>::value>> : std::true_type {};
 
 template<typename Ty, typename StrTy = membuffer, typename = void>
 struct convertible_to_string : std::false_type {};
 template<typename Ty, typename StrTy>
 struct convertible_to_string<Ty, StrTy,
-                             std::void_t<decltype(string_converter<Ty, typename StrTy::value_type>{}.to_string(
+                             std::void_t<decltype(to_string_impl<Ty, typename StrTy::value_type>{}(
                                  std::declval<StrTy&>(), std::declval<const Ty&>(), {}))>> : std::true_type {};
 
 #define UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(ty, from_func, fmt_func) \
     template<typename CharT> \
-    struct string_converter<ty, CharT> { \
-        const CharT* from_chars(const CharT* first, const CharT* last, ty& val) const noexcept { \
+    struct from_string_impl<ty, CharT> { \
+        const CharT* operator()(const CharT* first, const CharT* last, ty& val) const noexcept { \
             auto t = from_func(first, last, last); \
             if (last != first) { val = t; } \
             return last; \
         } \
+    }; \
+    template<typename CharT> \
+    struct to_string_impl<ty, CharT> { \
         template<typename StrTy> \
-        void to_string(StrTy& s, ty val, fmt_opts fmt, locale_ref loc = {}) const { \
+        void operator()(StrTy& s, ty val, fmt_opts fmt, locale_ref loc = {}) const { \
             fmt_func(s, val, fmt, loc); \
         } \
     };
@@ -578,8 +605,10 @@ UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(long double, scvt::to_float<long do
 
 template<typename CharT, typename Ty>
 const CharT* from_basic_chars(const CharT* first, const CharT* last, Ty& val) {
-    return string_converter<Ty, CharT>{}.from_chars(first, last, val);
+    return from_string_impl<Ty, CharT>{}(first, last, val);
 }
+
+// ---- from_chars
 
 template<typename Ty>
 const char* from_chars(const char* first, const char* last, Ty& val) {
@@ -591,25 +620,27 @@ const wchar_t* from_wchars(const wchar_t* first, const wchar_t* last, Ty& val) {
     return from_basic_chars(first, last, val);
 }
 
-template<typename Ty, typename CharT, typename Traits = std::char_traits<CharT>>
-std::size_t basic_stoval(std::basic_string_view<CharT, Traits> s, Ty& val) {
+// ---- from_string
+
+template<typename Ty, typename CharT, typename Traits>
+std::size_t from_basic_string(std::basic_string_view<CharT, Traits> s, Ty& val) {
     return from_basic_chars(s.data(), s.data() + s.size(), val) - s.data();
 }
 
 template<typename Ty>
-std::size_t stoval(std::string_view s, Ty& val) {
-    return basic_stoval(s, val);
+std::size_t from_string(std::string_view s, Ty& val) {
+    return from_basic_string(s, val);
 }
 
 template<typename Ty>
-std::size_t wstoval(std::wstring_view s, Ty& val) {
-    return basic_stoval(s, val);
+std::size_t from_wstring(std::wstring_view s, Ty& val) {
+    return from_basic_string(s, val);
 }
 
-template<typename Ty, typename CharT, typename Traits = std::char_traits<CharT>>
+template<typename Ty, typename CharT, typename Traits>
 Ty from_basic_string(std::basic_string_view<CharT, Traits> s) {
     Ty result{};
-    basic_stoval(s, result);
+    from_basic_string(s, result);
     return result;
 }
 
@@ -623,92 +654,125 @@ Ty from_wstring(std::wstring_view s) {
     return from_basic_string<Ty>(s);
 }
 
+template<typename Ty, typename CharT, typename Traits, typename U>
+Ty from_basic_string_or(std::basic_string_view<CharT, Traits> s, U&& def) {
+    Ty result(std::forward<U>(def));
+    from_basic_string(s, result);
+    return result;
+}
+
+template<typename Ty, typename U>
+Ty from_string_or(std::string_view s, U&& def) {
+    return from_basic_string_or<Ty>(s, std::forward<U>(def));
+}
+
+template<typename Ty, typename U>
+Ty from_wstring_or(std::wstring_view s, U&& def) {
+    return from_basic_string_or<Ty>(s, std::forward<U>(def));
+}
+
+// ---- to_string
+
 template<typename StrTy, typename Ty>
 StrTy& to_basic_string(StrTy& s, const Ty& val, fmt_opts fmt = {}) {
-    string_converter<Ty, typename StrTy::value_type>{}.to_string(s, val, fmt);
+    to_string_impl<Ty, typename StrTy::value_type>{}(s, val, fmt);
     return s;
 }
 
 template<typename StrTy, typename Ty>
 StrTy& to_basic_string(StrTy& s, const std::locale& loc, const Ty& val, fmt_opts fmt) {
-    string_converter<Ty, typename StrTy::value_type>{}.to_string(s, val, fmt, locale_ref{loc});
+    to_string_impl<Ty, typename StrTy::value_type>{}(s, val, fmt, locale_ref{loc});
     return s;
 }
 
-template<typename Ty, typename... Opts>
-std::string to_string(const Ty& val, const Opts&... opts) {
+template<typename Ty>
+std::string to_string(const Ty& val, fmt_opts fmt = {}) {
     inline_dynbuffer buf;
-    to_basic_string(buf, val, fmt_opts{opts...});
+    to_basic_string(buf, val, fmt);
     return std::string(buf.data(), buf.size());
 }
 
-template<typename Ty, typename... Opts>
-std::string to_string(const std::locale& loc, const Ty& val, const Opts&... opts) {
+template<typename Ty>
+std::string to_string(const std::locale& loc, const Ty& val, fmt_opts fmt = {}) {
     inline_dynbuffer buf;
-    to_basic_string(buf, loc, val, fmt_opts{opts...});
+    to_basic_string(buf, loc, val, fmt);
     return std::string(buf.data(), buf.size());
 }
 
-template<typename Ty, typename... Opts>
-std::wstring to_wstring(const Ty& val, const Opts&... opts) {
+template<typename Ty>
+std::wstring to_wstring(const Ty& val, fmt_opts fmt = {}) {
     inline_wdynbuffer buf;
-    to_basic_string(buf, val, fmt_opts{opts...});
+    to_basic_string(buf, val, fmt);
     return std::wstring(buf.data(), buf.size());
 }
 
-template<typename Ty, typename... Opts>
-std::wstring to_wstring(const std::locale& loc, const Ty& val, const Opts&... opts) {
+template<typename Ty>
+std::wstring to_wstring(const std::locale& loc, const Ty& val, fmt_opts fmt = {}) {
     inline_wdynbuffer buf;
-    to_basic_string(buf, loc, val, fmt_opts{opts...});
+    to_basic_string(buf, loc, val, fmt);
     return std::wstring(buf.data(), buf.size());
 }
 
-template<typename Ty, typename... Opts>
-char* to_chars(char* p, const Ty& val, const Opts&... opts) {
+// ---- to_chars
+
+template<typename Ty>
+char* to_chars(char* p, const Ty& val, fmt_opts fmt = {}) {
     membuffer buf(p);
-    return to_basic_string(buf, val, fmt_opts{opts...}).curr();
+    return to_basic_string(buf, val, fmt).curr();
 }
 
-template<typename Ty, typename... Opts>
-char* to_chars(char* p, const std::locale& loc, const Ty& val, const Opts&... opts) {
+template<typename Ty>
+char* to_chars(char* p, const std::locale& loc, const Ty& val, fmt_opts fmt = {}) {
     membuffer buf(p);
-    return to_basic_string(buf, loc, val, fmt_opts{opts...}).curr();
+    return to_basic_string(buf, loc, val, fmt).curr();
 }
 
-template<typename Ty, typename... Opts>
-wchar_t* to_wchars(wchar_t* p, const Ty& val, const Opts&... opts) {
+template<typename Ty>
+wchar_t* to_wchars(wchar_t* p, const Ty& val, fmt_opts fmt = {}) {
     wmembuffer buf(p);
-    return to_basic_string(buf, val, fmt_opts{opts...}).curr();
+    return to_basic_string(buf, val, fmt).curr();
 }
 
-template<typename Ty, typename... Opts>
-wchar_t* to_wchars(wchar_t* p, const std::locale& loc, const Ty& val, const Opts&... opts) {
+template<typename Ty>
+wchar_t* to_wchars(wchar_t* p, const std::locale& loc, const Ty& val, fmt_opts fmt = {}) {
     wmembuffer buf(p);
-    return to_basic_string(buf, loc, val, fmt_opts{opts...}).curr();
+    return to_basic_string(buf, loc, val, fmt).curr();
 }
 
-template<typename Ty, typename... Opts>
-char* to_chars_n(char* p, std::size_t n, const Ty& val, const Opts&... opts) {
-    membuffer buf(p, p + n);
-    return to_basic_string(buf, val, fmt_opts{opts...}).curr();
+// ---- to_chars_n
+
+template<typename CharT>
+struct chars_to_n_result {
+#if __cplusplus < 201703L
+    chars_to_n_result(CharT* out, std::size_t size) : out(out), size(size) {}
+#endif  // __cplusplus < 201703L
+    CharT* out;
+    std::size_t size;
+};
+
+template<typename Ty>
+chars_to_n_result<char> to_chars_n(char* p, std::size_t n, const Ty& val, fmt_opts fmt = {}) {
+    membuffer_with_size_tracker buf(p, p + n);
+    return {to_basic_string(buf, val, fmt).curr(), buf.size()};
 }
 
-template<typename Ty, typename... Opts>
-char* to_chars_n(char* p, std::size_t n, const std::locale& loc, const Ty& val, const Opts&... opts) {
-    membuffer buf(p, p + n);
-    return to_basic_string(buf, loc, val, fmt_opts{opts...}).curr();
+template<typename Ty>
+chars_to_n_result<char> to_chars_n(char* p, std::size_t n, const std::locale& loc, const Ty& val, fmt_opts fmt = {}) {
+    membuffer_with_size_tracker buf(p, p + n);
+    return {to_basic_string(buf, loc, val, fmt).curr(), buf.size()};
 }
 
-template<typename Ty, typename... Opts>
-wchar_t* to_wchars_n(wchar_t* p, std::size_t n, const Ty& val, const Opts&... opts) {
-    wmembuffer buf(p, p + n);
-    return to_basic_string(buf, val, fmt_opts{opts...}).curr();
+template<typename Ty>
+chars_to_n_result<wchar_t> to_wchars_n(wchar_t* p, std::size_t n, const Ty& val, fmt_opts fmt = {}) {
+    wmembuffer_with_size_tracker buf(p, p + n);
+    return {to_basic_string(buf, val, fmt).curr(), buf.size()};
 }
 
-template<typename Ty, typename... Opts>
-wchar_t* to_wchars_n(wchar_t* p, std::size_t n, const std::locale& loc, const Ty& val, const Opts&... opts) {
-    wmembuffer buf(p, p + n);
-    return to_basic_string(buf, loc, val, fmt_opts{opts...}).curr();
+template<typename Ty>
+chars_to_n_result<wchar_t> to_wchars_n(wchar_t* p, std::size_t n, const std::locale& loc, const Ty& val,
+                                       fmt_opts fmt = {}) {
+    wmembuffer_with_size_tracker buf(p, p + n);
+    return {to_basic_string(buf, loc, val, fmt).curr(), buf.size()};
 }
 
 }  // namespace uxs

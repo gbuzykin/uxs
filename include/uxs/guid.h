@@ -104,8 +104,8 @@ template<typename CharT, typename Traits>
 }
 
 template<typename CharT>
-struct string_converter<guid, CharT> {
-    const CharT* from_chars(const CharT* first, const CharT* last, guid& val) const noexcept {
+struct from_string_impl<guid, CharT> {
+    const CharT* operator()(const CharT* first, const CharT* last, guid& val) const noexcept {
         const std::size_t len = 38;
         if (static_cast<std::size_t>(last - first) < len) { return 0; }
         const auto* p = first;
@@ -118,8 +118,12 @@ struct string_converter<guid, CharT> {
         for (unsigned i = 10; i < 16; ++i, p += 2) { val.data8(i) = from_hex(p, 2); }
         return first + len;
     }
+};
+
+template<typename CharT>
+struct to_string_impl<guid, CharT> {
     template<typename StrTy>
-    void to_string(StrTy& s, const guid& val, fmt_opts fmt) const {
+    void operator()(StrTy& s, const guid& val, fmt_opts fmt) const {
         const unsigned len = 38;
         const bool upper = !!(fmt.flags & fmt_flags::uppercase);
         std::array<typename StrTy::value_type, len> buf;
@@ -161,7 +165,7 @@ struct formatter<guid, CharT> {
         if (width_arg_id_ != unspecified_size) {
             opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>();
         }
-        string_converter<guid, CharT>{}.to_string(ctx.out(), val, opts);
+        to_string_impl<guid, CharT>{}(ctx.out(), val, opts);
     }
 };
 

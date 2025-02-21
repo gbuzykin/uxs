@@ -47,7 +47,7 @@ void read(ibuf& in, const ValueFunc& fn_value, const ArrItemFunc& fn_arr_item, c
     detail::parser state(in);
     inline_basic_dynbuffer<char, 32> stack;
 
-    auto fn_value_checked = [&state, &fn_value](token_t tt, std::string_view lval) -> parse_step {
+    const auto fn_value_checked = [&state, &fn_value](token_t tt, std::string_view lval) -> parse_step {
         if (tt >= token_t::null_value || tt == token_t::array || tt == token_t::object) { return fn_value(tt, lval); }
         throw database_error(to_string(state.ln) + ": invalid value or unexpected character");
     };

@@ -2,7 +2,6 @@
 
 #include "parser.h"
 
-#include "uxs/algorithm.h"
 #include "uxs/io/oflatbuf.h"
 
 #include <numeric>
@@ -71,7 +70,7 @@ template<typename CharT>
         if (cmd->get_handler()) { cmd->get_handler()(); }
     }
 
-    auto find_option_by_key = [cmd](std::basic_string_view<CharT> arg) {
+    const auto find_option_by_key = [cmd](std::basic_string_view<CharT> arg) {
         auto opt_it = cmd->opt_map_.lower_bound(arg);
         if (opt_it != cmd->opt_map_.end() && !(arg < opt_it->first)) { return opt_it; }
         while (opt_it != cmd->opt_map_.begin() && !arg.empty()) {
@@ -89,7 +88,8 @@ template<typename CharT>
         return cmd->opt_map_.end();
     };
 
-    auto parse_value = [cmd, &find_option_by_key, &argc, &argv](const basic_value<CharT>& val, std::size_t n_prefix) {
+    const auto parse_value = [cmd, &find_option_by_key, &argc, &argv](const basic_value<CharT>& val,
+                                                                      std::size_t n_prefix) {
         const int argc0 = argc;
         if (argc > 0) {
             if (!val.is_multiple() && !val.is_optional()) {
@@ -174,8 +174,8 @@ template<typename CharT>
         bool is_optional = false;
         if (group.is_exclusive()) {
             for (const auto& opt : group.get_children()) {
-                if (contains(optional, &*opt)) { is_optional = true; }
-                if (contains(specified, &*opt)) {
+                if (optional.find(&*opt) != optional.end()) { is_optional = true; }
+                if (specified.find(&*opt) != specified.end()) {
                     if (is_specified) {
                         result.status = parsing_status::conflicting_option;
                         result.node = &*opt;
@@ -188,9 +188,9 @@ template<typename CharT>
             const basic_node<CharT>* first_unspecified = nullptr;
             is_optional = true;
             for (const auto& opt : group.get_children()) {
-                const bool is_child_optional = contains(optional, &*opt);
+                const bool is_child_optional = optional.find(&*opt) != optional.end();
                 if (!is_child_optional) { is_optional = false; }
-                if (contains(specified, &*opt)) {
+                if (specified.find(&*opt) != specified.end()) {
                     is_specified = true;
                 } else if (!is_child_optional) {
                     if (!first_unspecified) { first_unspecified = &*opt; }
@@ -244,7 +244,7 @@ std::basic_string<CharT> basic_option_node<CharT>::make_text(text_briefness brie
     }
     assert(this->get_type() == node_type::option_group);
     const auto& group = static_cast<const basic_option_group<CharT>&>(*this);
-    auto make_child_string = [&group, briefness](const basic_option_node<CharT>& opt) {
+    const auto make_child_string = [&group, briefness](const basic_option_node<CharT>& opt) {
         if (opt.is_optional()) { return static_cast<CharT>('[') + opt.make_text(briefness) + static_cast<CharT>(']'); }
         if (!group.is_exclusive() && opt.get_type() == node_type::option_group &&
             static_cast<const basic_option_group<CharT>&>(opt).is_exclusive()) {
@@ -289,7 +289,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring color
     const bool start_with_nl = !overview_.empty() && overview_.front() == '\n';
     const bool end_width_nl = !overview_.empty() && overview_.back() == '\n';
 
-    auto print_usage = [this, &osb, start_with_nl, end_width_nl, coloring]() {
+    const auto print_usage = [this, &osb, start_with_nl, end_width_nl, coloring]() {
         if (coloring == text_coloring::colored) { osb.write(color_br_white); }
         const auto label_usage = string_literal<CharT, 'U', 'S', 'A', 'G', 'E', ':', ' '>{}();
         osb.write(label_usage);
@@ -320,7 +320,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring color
         if (!opts.empty()) {
             std::vector<std::basic_string<CharT>> opts_str;
             opts_str.reserve(opts.size());
-            transform(opts, std::back_inserter(opts_str), [](decltype(*opts.cbegin()) opt) {
+            std::transform(opts.begin(), opts.end(), std::back_inserter(opts_str), [](decltype(*opts.cbegin()) opt) {
                 if (opt->is_optional()) {
                     return static_cast<CharT>('[') + opt->make_text(text_briefness::brief) + static_cast<CharT>(']');
                 }
@@ -348,8 +348,11 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring color
         if (end_width_nl) { osb.put('\n'); }
     };
 
-    auto print_parameters = [this, &osb, end_width_nl, coloring]() {
-        if (all_of(values_, [](decltype(*values_.cbegin()) val) { return val->get_doc().empty(); })) { return; }
+    const auto print_parameters = [this, &osb, end_width_nl, coloring]() {
+        if (std::all_of(values_.begin(), values_.end(),
+                        [](decltype(*values_.cbegin()) val) { return val->get_doc().empty(); })) {
+            return;
+        }
 
         if (coloring == text_coloring::colored) { osb.write(color_br_white); }
         const auto label_parameters =
@@ -381,7 +384,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring color
         if (end_width_nl) { osb.put('\n'); }
     };
 
-    auto print_options = [this, &osb, end_width_nl, coloring]() {
+    const auto print_options = [this, &osb, end_width_nl, coloring]() {
         std::vector<std::basic_string<CharT>> opts_str;
         opts_str.reserve(32);
         opts_->traverse_options([&opts_str](const basic_option_node<CharT>& node) {
@@ -422,8 +425,9 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring color
         if (end_width_nl) { osb.put('\n'); }
     };
 
-    auto print_subcommands = [this, &osb, end_width_nl, coloring]() {
-        if (all_of(subcommands_, [](decltype(*subcommands_.cbegin()) item) { return item.second->get_doc().empty(); })) {
+    const auto print_subcommands = [this, &osb, end_width_nl, coloring]() {
+        if (std::all_of(subcommands_.begin(), subcommands_.end(),
+                        [](decltype(*subcommands_.cbegin()) item) { return item.second->get_doc().empty(); })) {
             return;
         }
 

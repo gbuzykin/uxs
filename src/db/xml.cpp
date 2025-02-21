@@ -27,7 +27,7 @@ std::pair<token_t, std::string_view> parser::next() {
             auto tt = lex(lval);
             auto name_cache_it = name_cache_.begin();
             auto name_cache_prev_it = name_cache_it;
-            auto read_attribute = [this, &name_cache_it, &name_cache_prev_it](std::string_view lval) {
+            const auto read_attribute = [this, &name_cache_it, &name_cache_prev_it](std::string_view lval) {
                 auto tt = lex_token_t::eof;
                 if (name_cache_it != name_cache_.end()) {
                     name_cache_it->assign(lval.data(), lval.size());

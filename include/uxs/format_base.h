@@ -1153,24 +1153,8 @@ struct format_to_n_result {
     std::size_t size;
 };
 
-template<typename Ty>
-class basic_membuffer_with_size_counter final : public basic_membuffer<Ty> {
- public:
-    basic_membuffer_with_size_counter(Ty* first, Ty* last) noexcept
-        : basic_membuffer<Ty>(first, last), size_(static_cast<std::size_t>(last - first)) {}
-    std::size_t size() const { return this->avail() ? size_ - this->avail() : size_; }
-
- private:
-    std::size_t size_ = 0;
-
-    std::size_t try_grow(std::size_t extra) override {
-        size_ += extra;
-        return 0;
-    }
-};
-
 inline format_to_n_result<char*> vformat_to_n(char* p, std::size_t n, std::string_view fmt, format_args args) {
-    basic_membuffer_with_size_counter<char> buf(p, p + n);
+    membuffer_with_size_tracker buf(p, p + n);
     return {basic_vformat(buf, fmt, args).curr(), buf.size()};
 }
 
@@ -1182,7 +1166,7 @@ format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, std::stri
 }
 
 inline format_to_n_result<wchar_t*> vformat_to_n(wchar_t* p, std::size_t n, std::wstring_view fmt, wformat_args args) {
-    basic_membuffer_with_size_counter<wchar_t> buf(p, p + n);
+    wmembuffer_with_size_tracker buf(p, p + n);
     return {basic_vformat(buf, fmt, args).curr(), buf.size()};
 }
 
@@ -1195,7 +1179,7 @@ format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, std::wstr
 
 inline format_to_n_result<char*> vformat_to_n(char* p, std::size_t n, const std::locale& loc, std::string_view fmt,
                                               format_args args) {
-    basic_membuffer_with_size_counter<char> buf(p, p + n);
+    membuffer_with_size_tracker buf(p, p + n);
     return {basic_vformat(buf, loc, fmt, args).curr(), buf.size()};
 }
 
@@ -1209,7 +1193,7 @@ format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, const std
 
 inline format_to_n_result<wchar_t*> vformat_to_n(wchar_t* p, std::size_t n, const std::locale& loc,
                                                  std::wstring_view fmt, wformat_args args) {
-    basic_membuffer_with_size_counter<wchar_t> buf(p, p + n);
+    wmembuffer_with_size_tracker buf(p, p + n);
     return {basic_vformat(buf, loc, fmt, args).curr(), buf.size()};
 }
 

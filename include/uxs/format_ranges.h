@@ -201,7 +201,7 @@ struct range_formatter {
     }
 
     template<typename StrTy, typename Range>
-    static std::size_t format_as_string(StrTy& s, const Range& val, const fmt_opts& opts, std::true_type) {
+    static std::size_t format_as_string(StrTy& s, const Range& val, fmt_opts opts, std::true_type) {
         if (!(opts.flags & fmt_flags::debug_format)) {
             std::size_t width = 0;
             std::uint32_t code = 0;
@@ -224,7 +224,7 @@ struct range_formatter {
     }
 
     template<typename StrTy, typename Range>
-    static std::size_t format_as_string(StrTy&, const Range&, const fmt_opts&, std::false_type) {
+    static std::size_t format_as_string(StrTy&, const Range&, fmt_opts, std::false_type) {
         return 0;
     }
 

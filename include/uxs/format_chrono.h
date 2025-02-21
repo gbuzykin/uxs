@@ -265,7 +265,7 @@ class formatbuf : public StreamBuf {
 };
 
 template<typename FmtCtx>
-void format_chrono_locale(FmtCtx& ctx, const std::tm& tm, char spec, char modifier, const fmt_opts& opts) {
+void format_chrono_locale(FmtCtx& ctx, const std::tm& tm, char spec, char modifier, fmt_opts opts) {
     using char_type = typename FmtCtx::char_type;
     formatbuf<FmtCtx, std::basic_streambuf<char_type>> format_buf(ctx);
     std::basic_ostream<char_type> os(&format_buf);
@@ -281,7 +281,7 @@ void format_chrono_locale(FmtCtx& ctx, const std::tm& tm, const chrono_specs& sp
     format_chrono_locale(ctx, tm, specs.spec_char, specs.modifier, specs.opts);
 }
 
-inline bool is_locale_classic(locale_ref loc, const fmt_opts& opts) {
+inline bool is_locale_classic(locale_ref loc, fmt_opts opts) {
     return !(opts.flags & fmt_flags::localize) || *loc == std::locale::classic();
 }
 
@@ -603,7 +603,7 @@ void format_chrono_minutes(FmtCtx& ctx, std::chrono::minutes m) {
 }
 
 template<typename FmtCtx, typename Duration>
-void format_chrono_seconds(FmtCtx& ctx, std::chrono::hh_mm_ss<Duration> hms, const fmt_opts& opts) {
+void format_chrono_seconds(FmtCtx& ctx, std::chrono::hh_mm_ss<Duration> hms, fmt_opts opts) {
     const auto seconds = hms.seconds().count();
     assert(seconds >= 0 && seconds < 60);
     format_append_2digs(ctx, static_cast<int>(seconds));
@@ -627,7 +627,7 @@ void format_chrono_hh_mm(FmtCtx& ctx, std::chrono::hh_mm_ss<Duration> hms) {
 }
 
 template<typename FmtCtx, typename Duration>
-void format_chrono_hh_mm_ss(FmtCtx& ctx, std::chrono::hh_mm_ss<Duration> hms, const fmt_opts& opts) {
+void format_chrono_hh_mm_ss(FmtCtx& ctx, std::chrono::hh_mm_ss<Duration> hms, fmt_opts opts) {
     format_chrono_hours(ctx, hms.hours());
     ctx.out() += ':';
     format_chrono_minutes(ctx, hms.minutes());
@@ -683,7 +683,7 @@ void format_chrono_date_time(FmtCtx& ctx, std::chrono::sys_time<Duration> t, con
 }
 
 template<typename FmtCtx, typename Duration>
-void format_chrono_yyyy_mm_dd_hh_mm_ss(FmtCtx& ctx, std::chrono::sys_time<Duration> t, const fmt_opts& opts) {
+void format_chrono_yyyy_mm_dd_hh_mm_ss(FmtCtx& ctx, std::chrono::sys_time<Duration> t, fmt_opts opts) {
     const auto days = std::chrono::floor<std::chrono::days>(t);
     format_chrono_yyyy_mm_dd(ctx, std::chrono::year_month_day{days});
     ctx.out() += ' ';
@@ -862,7 +862,7 @@ struct formatter<std::chrono::duration<Rep, Period>, CharT>
     }
 
     template<typename FmtCtx>
-    static void default_value_writer(FmtCtx& ctx, value_type d, const fmt_opts& opts) {
+    static void default_value_writer(FmtCtx& ctx, value_type d, fmt_opts opts) {
         to_basic_string(ctx.out(), *ctx.locale(), d.count(), fmt_opts{opts.flags, opts.prec});
         detail::duration_suffix_writer<typename Period::type>{}.write(ctx);
     }
@@ -886,7 +886,7 @@ struct formatter<std::chrono::year, CharT>
     }
 
     template<typename FmtCtx>
-    static void default_value_writer(FmtCtx& ctx, value_type y, const fmt_opts&) {
+    static void default_value_writer(FmtCtx& ctx, value_type y, fmt_opts) {
         detail::format_chrono_year_yyyy(ctx, y);
         if (y.ok()) { return; }
         ctx.out() += string_literal<typename FmtCtx::char_type, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v',
@@ -913,7 +913,7 @@ struct formatter<std::chrono::month, CharT>
     }
 
     template<typename FmtCtx>
-    static void default_value_writer(FmtCtx& ctx, value_type m, const fmt_opts& opts) {
+    static void default_value_writer(FmtCtx& ctx, value_type m, fmt_opts opts) {
         if (m.ok()) {
             if (detail::is_locale_classic(ctx.locale(), opts)) { return detail::format_chrono_month_brief(ctx, m); }
             std::tm tm{};
@@ -944,7 +944,7 @@ struct formatter<std::chrono::day, CharT>
     }
 
     template<typename FmtCtx>
-    static void default_value_writer(FmtCtx& ctx, value_type d, const fmt_opts&) {
+    static void default_value_writer(FmtCtx& ctx, value_type d, fmt_opts) {
         detail::format_chrono_day_dd(ctx, d);
         if (d.ok()) { return; }
         ctx.out() += string_literal<typename FmtCtx::char_type, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v',
@@ -973,7 +973,7 @@ struct formatter<std::chrono::year_month, CharT>
     }
 
     template<typename FmtCtx>
-    static void default_value_writer(FmtCtx& ctx, value_type ym, const fmt_opts& opts) {
+    static void default_value_writer(FmtCtx& ctx, value_type ym, fmt_opts opts) {
         formatter<std::chrono::year, CharT>::default_value_writer(ctx, ym.year(), opts);
         ctx.out() += '/';
         formatter<std::chrono::month, CharT>::default_value_writer(ctx, ym.month(), opts);
@@ -1001,7 +1001,7 @@ struct formatter<std::chrono::month_day, CharT>
     }
 
     template<typename FmtCtx>
-    static void default_value_writer(FmtCtx& ctx, value_type md, const fmt_opts& opts) {
+    static void default_value_writer(FmtCtx& ctx, value_type md, fmt_opts opts) {
         formatter<std::chrono::month, CharT>::default_value_writer(ctx, md.month(), opts);
         ctx.out() += '/';
         formatter<std::chrono::day, CharT>::default_value_writer(ctx, md.day(), opts);
@@ -1025,7 +1025,7 @@ struct formatter<std::chrono::weekday, CharT>
     }
 
     template<typename FmtCtx>
-    static void default_value_writer(FmtCtx& ctx, value_type wd, const fmt_opts& opts) {
+    static void default_value_writer(FmtCtx& ctx, value_type wd, fmt_opts opts) {
         if (wd.ok()) {
             if (detail::is_locale_classic(ctx.locale(), opts)) { return detail::format_chrono_weekday_brief(ctx, wd); }
             std::tm tm{};
@@ -1056,7 +1056,7 @@ struct formatter<std::chrono::year_month_day, CharT>
     }
 
     template<typename FmtCtx>
-    static void default_value_writer(FmtCtx& ctx, value_type ymd, const fmt_opts&) {
+    static void default_value_writer(FmtCtx& ctx, value_type ymd, fmt_opts) {
         detail::format_chrono_yyyy_mm_dd(ctx, ymd);
         if (ymd.ok()) { return; }
         ctx.out() += string_literal<typename FmtCtx::char_type, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v',
@@ -1081,7 +1081,7 @@ struct formatter<std::chrono::hh_mm_ss<Duration>, CharT>
     }
 
     template<typename FmtCtx>
-    static void default_value_writer(FmtCtx& ctx, value_type hms, const fmt_opts& opts) {
+    static void default_value_writer(FmtCtx& ctx, value_type hms, fmt_opts opts) {
         detail::format_chrono_hh_mm_ss(ctx, hms, opts);
     }
 };
@@ -1109,7 +1109,7 @@ struct formatter<std::chrono::sys_time<Duration>, CharT>
     }
 
     template<typename FmtCtx>
-    static void default_value_writer(FmtCtx& ctx, value_type t, const fmt_opts& opts) {
+    static void default_value_writer(FmtCtx& ctx, value_type t, fmt_opts opts) {
         detail::format_chrono_yyyy_mm_dd_hh_mm_ss(ctx, t, opts);
     }
 };
@@ -1141,7 +1141,7 @@ struct formatter<detail::local_time_format_t<Duration>, CharT>
     }
 
     template<typename FmtCtx>
-    static void default_value_writer(FmtCtx& ctx, value_type t, const fmt_opts& opts) {
+    static void default_value_writer(FmtCtx& ctx, value_type t, fmt_opts opts) {
         detail::format_chrono_yyyy_mm_dd_hh_mm_ss(ctx, t.time, opts);
         ctx.out() += ' ';
         ctx.out() += t.abbrev;
@@ -1185,7 +1185,7 @@ struct formatter<std::chrono::local_time<Duration>, CharT>
     }
 
     template<typename FmtCtx>
-    static void default_value_writer(FmtCtx& ctx, value_type t, const fmt_opts& opts) {
+    static void default_value_writer(FmtCtx& ctx, value_type t, fmt_opts opts) {
         detail::format_chrono_yyyy_mm_dd_hh_mm_ss(ctx, std::chrono::sys_time<Duration>{t.time_since_epoch()}, opts);
     }
 };

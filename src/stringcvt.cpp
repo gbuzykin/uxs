@@ -781,7 +781,7 @@ void fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, fm
     const std::uint64_t mul10 = get_pow10(digs_per_64 - 1 - divmod<digs_per_64>(index));
     index -= 999999;
 
-    auto mul_and_shift = [&num, &sz_num](std::uint64_t m, std::uint64_t mul, int shift) {
+    const auto mul_and_shift = [&num, &sz_num](std::uint64_t m, std::uint64_t mul, int shift) {
         std::uint64_t digs;
         num[0] = umul128(m, mul, digs);
         if (shift > 0) {
@@ -855,7 +855,7 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, fmt_flag
     index -= 1000000;
 
     char* p = digs_buf_;
-    auto gen_first_digit_pack = [this, fp_fmt, digs_first_len, &p, &n_digs](std::uint64_t digs) {
+    const auto gen_first_digit_pack = [this, fp_fmt, digs_first_len, &p, &n_digs](std::uint64_t digs) {
         // Note, that the first digit formally can belong [1, 20) range,
         // so we can get one digit more while calculating the first pack
         if (digs < get_pow10(digs_first_len)) {
