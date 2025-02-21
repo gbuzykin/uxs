@@ -13,14 +13,15 @@ namespace json {
 
 template<typename CharT, typename Alloc>
 basic_value<CharT, Alloc> read(ibuf& in, const Alloc& al) {
-    auto token_to_value = [](token_t tt, std::string_view lval, const Alloc& al) -> basic_value<CharT, Alloc> {
+    static const auto token_to_value = [](token_t tt, std::string_view lval,
+                                          const Alloc& al) -> basic_value<CharT, Alloc> {
         switch (tt) {
             case token_t::null_value: return {nullptr, al};
             case token_t::true_value: return {true, al};
             case token_t::false_value: return {false, al};
             case token_t::integer_number: {
                 std::uint64_t u64 = 0;
-                if (stoval(lval, u64) != 0) {
+                if (from_string(lval, u64) != 0) {
                     if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max())) {
                         return {static_cast<std::int32_t>(u64), al};
                     }
@@ -37,7 +38,7 @@ basic_value<CharT, Alloc> read(ibuf& in, const Alloc& al) {
             } break;
             case token_t::negative_integer_number: {
                 std::int64_t i64 = 0;
-                if (stoval(lval, i64) != 0) {
+                if (from_string(lval, i64) != 0) {
                     if (i64 >= static_cast<std::int64_t>(std::numeric_limits<std::int32_t>::min())) {
                         return {static_cast<std::int32_t>(i64), al};
                     }
@@ -56,10 +57,9 @@ basic_value<CharT, Alloc> read(ibuf& in, const Alloc& al) {
     inline_basic_dynbuffer<basic_value<CharT, Alloc>*, 32> stack;
 
     auto* val = &result;
-    stack.push_back(val);
     read(
         in,
-        [&al, &stack, &val, &token_to_value](token_t tt, std::string_view lval) {
+        [&al, &stack, &val](token_t tt, std::string_view lval) {
             if (tt >= token_t::null_value) {
                 *val = token_to_value(tt, lval, al);
             } else {
@@ -136,7 +136,12 @@ struct value_visitor {
 
     template<typename Ty>
     bool operator()(Ty v) const {
-        to_basic_string(out, v, fmt_opts{fmt_flags::json_compat});
+        to_basic_string(out, v);
+        return false;
+    }
+
+    bool operator()(double f) const {
+        to_basic_string(out, f, fmt_opts{fmt_flags::json_compat});
         return false;
     }
 

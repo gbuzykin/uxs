@@ -15,14 +15,14 @@ template<typename CharT, typename Alloc>
 basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Alloc& al) {
     if (in_.peek() == ibuf::traits_type::eof()) { throw database_error("empty input"); }
 
-    auto text_to_value = [&al](std::string_view sval) -> basic_value<CharT, Alloc> {
+    static const auto text_to_value = [](std::string_view sval, const Alloc& al) -> basic_value<CharT, Alloc> {
         switch (classify_value(sval)) {
             case value_class::null: return {nullptr, al};
             case value_class::true_value: return {true, al};
             case value_class::false_value: return {false, al};
             case value_class::integer_number: {
                 std::uint64_t u64 = 0;
-                if (stoval(sval, u64) != 0) {
+                if (from_string(sval, u64) != 0) {
                     if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max())) {
                         return {static_cast<std::int32_t>(u64), al};
                     }
@@ -39,7 +39,7 @@ basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Allo
             } break;
             case value_class::negative_integer_number: {
                 std::int64_t i64 = 0;
-                if (stoval(sval, i64) != 0) {
+                if (from_string(sval, i64) != 0) {
                     if (i64 >= static_cast<std::int64_t>(std::numeric_limits<std::int32_t>::min())) {
                         return {static_cast<std::int32_t>(i64), al};
                     }
@@ -83,7 +83,9 @@ basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Allo
                 if (top.second != tk.second) {
                     throw database_error(to_string(ln_) + ": unterminated element " + top.second);
                 }
-                if (!top.first->is_record()) { *(top.first) = text_to_value(std::string_view(txt.data(), txt.size())); }
+                if (!top.first->is_record()) {
+                    *(top.first) = text_to_value(std::string_view(txt.data(), txt.size()), al);
+                }
                 stack.pop_back();
                 if (stack.empty()) { return result; }
             } break;
@@ -140,7 +142,12 @@ struct value_visitor {
 
     template<typename Ty>
     bool operator()(Ty v) const {
-        to_basic_string(out, v, fmt_opts{fmt_flags::json_compat});
+        to_basic_string(out, v);
+        return false;
+    }
+
+    bool operator()(double f) const {
+        to_basic_string(out, f, fmt_opts{fmt_flags::json_compat});
         return false;
     }
 

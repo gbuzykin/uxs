@@ -178,7 +178,7 @@ bool variant_type_impl<std::int32_t>::convert_from(variant_id type, void* to, co
     auto& result = *static_cast<std::int32_t*>(to);
     switch (type) {
         case variant_id::string: {
-            return stoval(*static_cast<const std::string*>(from), result) != 0;
+            return from_string(*static_cast<const std::string*>(from), result) != 0;
         } break;
         case variant_id::boolean: {
             result = *static_cast<const bool*>(from) ? 1 : 0;
@@ -206,7 +206,7 @@ bool variant_type_impl<std::uint32_t>::convert_from(variant_id type, void* to, c
     auto& result = *static_cast<std::uint32_t*>(to);
     switch (type) {
         case variant_id::string: {
-            return stoval(*static_cast<const std::string*>(from), result) != 0;
+            return from_string(*static_cast<const std::string*>(from), result) != 0;
         } break;
         case variant_id::boolean: {
             result = *static_cast<const bool*>(from) ? 1 : 0;
@@ -243,7 +243,7 @@ bool variant_type_impl<std::int64_t>::convert_from(variant_id type, void* to, co
     auto& result = *static_cast<std::int64_t*>(to);
     switch (type) {
         case variant_id::string: {
-            return stoval(*static_cast<const std::string*>(from), result) != 0;
+            return from_string(*static_cast<const std::string*>(from), result) != 0;
         } break;
         case variant_id::boolean: {
             result = *static_cast<const bool*>(from) ? 1 : 0;
@@ -287,7 +287,7 @@ bool variant_type_impl<std::uint64_t>::convert_from(variant_id type, void* to, c
     auto& result = *static_cast<std::uint64_t*>(to);
     switch (type) {
         case variant_id::string: {
-            return stoval(*static_cast<const std::string*>(from), result) != 0;
+            return from_string(*static_cast<const std::string*>(from), result) != 0;
         } break;
         case variant_id::boolean: {
             result = *static_cast<const bool*>(from) ? 1 : 0;
@@ -340,7 +340,7 @@ bool variant_type_impl<double>::convert_from(variant_id type, void* to, const vo
     auto& result = *static_cast<double*>(to);
     switch (type) {
         case variant_id::string: {
-            return stoval(*static_cast<const std::string*>(from), result) != 0;
+            return from_string(*static_cast<const std::string*>(from), result) != 0;
         } break;
         case variant_id::boolean: {
             result = *static_cast<const bool*>(from) ? 1. : 0.;
@@ -366,7 +366,7 @@ bool variant_type_impl<double>::convert_to(variant_id type, void* to, const void
     const auto& v = *static_cast<const double*>(from);
     switch (type) {
         case variant_id::string: {
-            *static_cast<std::string*>(to) = to_string(v, fmt_flags::json_compat);
+            *static_cast<std::string*>(to) = to_string(v, fmt_opts{fmt_flags::json_compat});
         } break;
         case variant_id::boolean: {
             *static_cast<bool*>(to) = v != 0;

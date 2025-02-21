@@ -419,7 +419,7 @@ est::optional<bool> basic_value<CharT, Alloc>::get_bool() const {
         case dtype::double_precision: return value_.dbl != 0;
         case dtype::string: {
             est::optional<bool> result(est::in_place());
-            return basic_stoval(str_view(), *result) ? result : est::nullopt();
+            return from_basic_string(str_view(), *result) ? result : est::nullopt();
         } break;
         case dtype::array: return est::nullopt();
         case dtype::record: return est::nullopt();
@@ -453,7 +453,7 @@ est::optional<std::int32_t> basic_value<CharT, Alloc>::get_int() const {
                        est::nullopt();
         case dtype::string: {
             est::optional<std::int32_t> result(est::in_place());
-            return basic_stoval(str_view(), *result) ? result : est::nullopt();
+            return from_basic_string(str_view(), *result) ? result : est::nullopt();
         } break;
         case dtype::array: return est::nullopt();
         case dtype::record: return est::nullopt();
@@ -484,7 +484,7 @@ est::optional<std::uint32_t> basic_value<CharT, Alloc>::get_uint() const {
                        est::nullopt();
         case dtype::string: {
             est::optional<std::uint32_t> result(est::in_place());
-            return basic_stoval(str_view(), *result) ? result : est::nullopt();
+            return from_basic_string(str_view(), *result) ? result : est::nullopt();
         } break;
         case dtype::array: return est::nullopt();
         case dtype::record: return est::nullopt();
@@ -512,7 +512,7 @@ est::optional<std::int64_t> basic_value<CharT, Alloc>::get_int64() const {
                        est::nullopt();
         case dtype::string: {
             est::optional<std::int64_t> result(est::in_place());
-            return basic_stoval(str_view(), *result) ? result : est::nullopt();
+            return from_basic_string(str_view(), *result) ? result : est::nullopt();
         } break;
         case dtype::array: return est::nullopt();
         case dtype::record: return est::nullopt();
@@ -538,7 +538,7 @@ est::optional<std::uint64_t> basic_value<CharT, Alloc>::get_uint64() const {
                        est::nullopt();
         case dtype::string: {
             est::optional<std::uint64_t> result(est::in_place());
-            return basic_stoval(str_view(), *result) ? result : est::nullopt();
+            return from_basic_string(str_view(), *result) ? result : est::nullopt();
         } break;
         case dtype::array: return est::nullopt();
         case dtype::record: return est::nullopt();
@@ -558,7 +558,7 @@ est::optional<double> basic_value<CharT, Alloc>::get_double() const {
         case dtype::double_precision: return value_.dbl;
         case dtype::string: {
             est::optional<double> result(est::in_place());
-            return basic_stoval(str_view(), *result) ? result : est::nullopt();
+            return from_basic_string(str_view(), *result) ? result : est::nullopt();
         } break;
         case dtype::array: return est::nullopt();
         case dtype::record: return est::nullopt();
