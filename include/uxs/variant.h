@@ -234,7 +234,6 @@ class variant {
     }
 
     bool has_value() const noexcept { return vtable_ != nullptr; }
-    explicit operator bool() const noexcept { return vtable_ != nullptr; }
     variant_id type() const noexcept { return vtable_ ? vtable_->type : variant_id::invalid; }
 
     void reset() noexcept {
