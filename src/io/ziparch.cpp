@@ -1,6 +1,6 @@
 #include "uxs/io/ziparch.h"
 
-#include "uxs/string_alg.h"
+#include "uxs/string_util.h"
 
 #if defined(UXS_USE_LIBZIP)
 

@@ -3,7 +3,7 @@
 #include "value.h"
 #include "xml.h"
 
-#include "uxs/string_alg.h"
+#include <vector>
 
 namespace uxs {
 namespace db {
