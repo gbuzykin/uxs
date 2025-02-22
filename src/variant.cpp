@@ -180,9 +180,6 @@ bool variant_type_impl<std::int32_t>::convert_from(variant_id type, void* to, co
         case variant_id::string: {
             return from_string(*static_cast<const std::string*>(from), result) != 0;
         } break;
-        case variant_id::boolean: {
-            result = *static_cast<const bool*>(from) ? 1 : 0;
-        } break;
         default: return false;
     }
     return true;
@@ -207,9 +204,6 @@ bool variant_type_impl<std::uint32_t>::convert_from(variant_id type, void* to, c
     switch (type) {
         case variant_id::string: {
             return from_string(*static_cast<const std::string*>(from), result) != 0;
-        } break;
-        case variant_id::boolean: {
-            result = *static_cast<const bool*>(from) ? 1 : 0;
         } break;
         case variant_id::integer: {
             const auto& v = *static_cast<const std::int32_t*>(from);
@@ -244,9 +238,6 @@ bool variant_type_impl<std::int64_t>::convert_from(variant_id type, void* to, co
     switch (type) {
         case variant_id::string: {
             return from_string(*static_cast<const std::string*>(from), result) != 0;
-        } break;
-        case variant_id::boolean: {
-            result = *static_cast<const bool*>(from) ? 1 : 0;
         } break;
         case variant_id::integer: {
             result = *static_cast<const std::int32_t*>(from);
@@ -288,9 +279,6 @@ bool variant_type_impl<std::uint64_t>::convert_from(variant_id type, void* to, c
     switch (type) {
         case variant_id::string: {
             return from_string(*static_cast<const std::string*>(from), result) != 0;
-        } break;
-        case variant_id::boolean: {
-            result = *static_cast<const bool*>(from) ? 1 : 0;
         } break;
         case variant_id::integer: {
             const auto& v = *static_cast<const std::int32_t*>(from);
@@ -341,9 +329,6 @@ bool variant_type_impl<double>::convert_from(variant_id type, void* to, const vo
     switch (type) {
         case variant_id::string: {
             return from_string(*static_cast<const std::string*>(from), result) != 0;
-        } break;
-        case variant_id::boolean: {
-            result = *static_cast<const bool*>(from) ? 1. : 0.;
         } break;
         case variant_id::integer: {
             result = *static_cast<const std::int32_t*>(from);

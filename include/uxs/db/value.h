@@ -43,12 +43,11 @@ struct is_record_value<CharT, Alloc, std::pair<FirstTy, SecondTy>,
                                         std::is_convertible<SecondTy, basic_value<CharT, Alloc>>::value>>
     : std::true_type {};
 
-template<typename CharT, typename Alloc, bool store_values>
+template<typename Ty, typename Alloc>
 struct flexarray_t {
-    using array_value_t = std::conditional_t<store_values, basic_value<CharT, Alloc>, CharT>;
     std::size_t size;
     std::size_t capacity;
-    alignas(std::alignment_of<array_value_t>::value) std::uint8_t x[sizeof(array_value_t)];
+    alignas(std::alignment_of<Ty>::value) std::uint8_t x[sizeof(Ty)];
 
     enum : unsigned { start_capacity = 8 };
 
@@ -57,24 +56,31 @@ struct flexarray_t {
 
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<flexarray_t>;
 
-    est::span<const array_value_t> view() const {
-        return est::as_span(reinterpret_cast<const array_value_t*>(&x), size);
+    est::span<const Ty> view() const { return est::as_span(reinterpret_cast<const Ty*>(&x), size); }
+    est::span<Ty> view() { return est::as_span(reinterpret_cast<Ty*>(&x), size); }
+    const Ty& operator[](std::size_t i) const { return reinterpret_cast<const Ty*>(&x)[i]; }
+    Ty& operator[](std::size_t i) { return reinterpret_cast<Ty*>(&x)[i]; }
+
+    void clear() {
+        destroy();
+        size = 0;
     }
-    est::span<array_value_t> view() { return est::as_span(reinterpret_cast<array_value_t*>(&x), size); }
-    const array_value_t& operator[](std::size_t i) const { return reinterpret_cast<const array_value_t*>(&x)[i]; }
-    array_value_t& operator[](std::size_t i) { return reinterpret_cast<array_value_t*>(&x)[i]; }
 
     static std::size_t max_size(const alloc_type& arr_al) {
         return (std::allocator_traits<alloc_type>::max_size(arr_al) * sizeof(flexarray_t) - offsetof(flexarray_t, x)) /
-               sizeof(array_value_t);
+               sizeof(Ty);
     }
 
     static std::size_t get_alloc_sz(std::size_t cap) {
-        return (offsetof(flexarray_t, x) + cap * sizeof(array_value_t) + sizeof(flexarray_t) - 1) / sizeof(flexarray_t);
+        return (offsetof(flexarray_t, x) + cap * sizeof(Ty) + sizeof(flexarray_t) - 1) / sizeof(flexarray_t);
     }
 
     UXS_EXPORT static flexarray_t* alloc(alloc_type& arr_al, std::size_t cap);
     UXS_EXPORT static flexarray_t* grow(alloc_type& arr_al, flexarray_t* arr, std::size_t extra);
+
+    void destroy(std::size_t start_from = 0) {
+        std::for_each(&(*this)[start_from], &(*this)[size], [](Ty& v) { v.~Ty(); });
+    }
 
     static void dealloc(alloc_type& arr_al, flexarray_t* arr) { arr_al.deallocate(arr, get_alloc_sz(arr->capacity)); }
 
@@ -192,6 +198,12 @@ struct record_t {
 
     UXS_EXPORT void init();
     UXS_EXPORT void destroy(alloc_type& rec_al, list_links_t* node);
+
+    iterator begin() const { return iterator(head.next); }
+    iterator end() const { return iterator(&head); }
+
+    const_iterator cbegin() const { return const_iterator(head.next); }
+    const_iterator cend() const { return const_iterator(&head); }
 
     UXS_EXPORT list_links_t* find(std::basic_string_view<CharT> key, std::size_t hash_code) const;
     UXS_EXPORT std::size_t count(std::basic_string_view<CharT> key) const;
@@ -363,8 +375,8 @@ template<typename CharT, typename Alloc = std::allocator<CharT>>
 class basic_value : protected std::allocator_traits<Alloc>::template rebind_alloc<CharT> {
  private:
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<CharT>;
-    using char_flexarray_t = detail::flexarray_t<CharT, Alloc, false>;
-    using value_flexarray_t = detail::flexarray_t<CharT, Alloc, true>;
+    using char_flexarray_t = detail::flexarray_t<CharT, Alloc>;
+    using value_flexarray_t = detail::flexarray_t<basic_value, Alloc>;
     using record_t = detail::record_t<CharT, Alloc>;
 
  public:
@@ -571,11 +583,12 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     UXS_EXPORT est::optional<std::uint64_t> get_uint64() const;
     UXS_EXPORT est::optional<double> get_double() const;
     UXS_EXPORT est::optional<std::basic_string<char_type>> get_string() const;
-    UXS_EXPORT est::optional<std::basic_string_view<char_type>> get_string_view() const;
+    est::optional<std::basic_string_view<char_type>> get_string_view() const {
+        return type_ == dtype::string ? est::make_optional(str_view()) : est::nullopt();
+    }
 
     bool empty() const noexcept { return size() == 0; }
     UXS_EXPORT std::size_t size() const noexcept;
-    explicit operator bool() const { return !is_null(); }
 
     iterator begin() noexcept {
         if (type_ == dtype::record) { return iterator(value_.rec->head.next); }
@@ -1037,15 +1050,13 @@ est::span<basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() noexc
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::as_record() const -> iterator_range<typename record_t::const_iterator> {
     if (type_ != dtype::record) { throw database_error("not a record"); }
-    return make_range(typename record_t::const_iterator(value_.rec->head.next),
-                      typename record_t::const_iterator(&value_.rec->head));
+    return make_range(value_.rec->cbegin(), value_.rec->cend());
 }
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::as_record() -> iterator_range<typename record_t::iterator> {
     if (type_ != dtype::record) { throw database_error("not a record"); }
-    return make_range(typename record_t::iterator(value_.rec->head.next),
-                      typename record_t::iterator(&value_.rec->head));
+    return make_range(value_.rec->begin(), value_.rec->end());
 }
 
 template<typename CharT, typename Alloc>
@@ -1103,7 +1114,7 @@ auto basic_value<CharT, Alloc>::alloc_array(InputIt first, InputIt last,
         } while (first != last);
         return arr;
     } catch (...) {
-        std::for_each(&(*arr)[0], &(*arr)[arr->size], [](basic_value& v) { v.~basic_value(); });
+        arr->destroy();
         value_flexarray_t::dealloc(arr_al, arr);
         throw;
     }
@@ -1125,7 +1136,7 @@ void basic_value<CharT, Alloc>::assign_array(std::size_t sz, RandIt src) {
         value_flexarray_t* new_arr = alloc_array(sz, src);
         if (value_.arr) {
             typename value_flexarray_t::alloc_type arr_al(*this);
-            std::for_each(&(*value_.arr)[0], &(*value_.arr)[value_.arr->size], [](basic_value& v) { v.~basic_value(); });
+            value_.arr->destroy();
             value_flexarray_t::dealloc(arr_al, value_.arr);
         }
         value_.arr = new_arr;
