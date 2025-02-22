@@ -1,7 +1,6 @@
 #pragma once
 
 #include "format_base.h"
-#include "string_alg.h"
 
 #include <filesystem>
 

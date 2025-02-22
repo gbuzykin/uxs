@@ -1,7 +1,6 @@
 #pragma once
 
 #include "string_util.h"
-#include "utf.h"
 
 #include <algorithm>
 #include <cstring>

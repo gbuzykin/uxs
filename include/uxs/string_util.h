@@ -3,6 +3,7 @@
 #include "chars.h"
 #include "iterator.h"
 #include "string_view.h"
+#include "utf.h"
 
 #include <array>
 #include <string>
@@ -47,5 +48,42 @@ UXS_CONSTEXPR std::basic_string_view<iterator_value_t<Iter>> to_string_view(Iter
     return std::basic_string_view<iterator_value_t<Iter>>(&*first, size);
 #endif  // __cplusplus >= 202002L
 }
+
+UXS_EXPORT std::wstring from_utf8_to_wide(std::string_view s);
+UXS_EXPORT std::string from_wide_to_utf8(std::wstring_view s);
+
+template<typename CharT>
+struct utf_string_adapter;
+template<>
+struct utf_string_adapter<char> {
+    std::string_view operator()(std::string_view s) const { return s; }
+    std::string operator()(std::wstring_view s) const { return from_wide_to_utf8(s); }
+    template<typename StrTy>
+    void append(StrTy& out, std::string_view s) const {
+        out.append(s.data(), s.size());
+    }
+    template<typename StrTy>
+    void append(StrTy& out, std::wstring_view s) const {
+        std::uint32_t code = 0;
+        for (auto p = s.begin(); from_wchar(p, s.end(), p, code) != 0;) { to_utf8(code, std::back_inserter(out)); }
+    }
+};
+template<>
+struct utf_string_adapter<wchar_t> {
+    std::wstring_view operator()(std::wstring_view s) const { return s; }
+    std::wstring operator()(std::string_view s) const { return from_utf8_to_wide(s); }
+    template<typename StrTy>
+    void append(StrTy& out, std::string_view s) const {
+        std::uint32_t code = 0;
+        for (auto p = s.begin(); from_utf8(p, s.end(), p, code) != 0;) { to_wchar(code, std::back_inserter(out)); }
+    }
+    template<typename StrTy>
+    void append(StrTy& out, std::wstring_view s) const {
+        out.append(s.data(), s.size());
+    }
+};
+
+using utf8_string_adapter = utf_string_adapter<char>;
+using wide_string_adapter = utf_string_adapter<wchar_t>;
 
 }  // namespace uxs

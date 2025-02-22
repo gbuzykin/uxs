@@ -1,6 +1,6 @@
 #include "uxs/io/sysfile.h"
 
-#include "uxs/string_alg.h"
+#include "uxs/string_util.h"
 
 #include <windows.h>
 
