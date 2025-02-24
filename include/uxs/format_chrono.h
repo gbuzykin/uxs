@@ -1115,6 +1115,30 @@ struct formatter<std::chrono::sys_time<Duration>, CharT>
 };
 
 template<typename CharT, typename Duration>
+struct formatter<std::chrono::local_time<Duration>, CharT>
+    : detail::chrono_formatter<formatter<std::chrono::local_time<Duration>, CharT>, std::chrono::local_time<Duration>,
+                               CharT> {
+ private:
+    using value_type = std::chrono::local_time<Duration>;
+    friend struct detail::chrono_formatter<formatter, value_type, CharT>;
+
+    static UXS_CONSTEXPR bool spec_checker(detail::chrono_specifier spec) {
+        return spec != detail::chrono_specifier::ticks && spec != detail::chrono_specifier::unit_suffix &&
+               spec != detail::chrono_specifier::time_zone && spec != detail::chrono_specifier::time_zone_abbreviation;
+    }
+
+    template<typename FmtCtx>
+    static void value_writer(FmtCtx& ctx, value_type t, const detail::chrono_specs& specs) {
+        detail::format_chrono_date_time(ctx, std::chrono::sys_time<Duration>{t.time_since_epoch()}, specs);
+    }
+
+    template<typename FmtCtx>
+    static void default_value_writer(FmtCtx& ctx, value_type t, fmt_opts opts) {
+        detail::format_chrono_yyyy_mm_dd_hh_mm_ss(ctx, std::chrono::sys_time<Duration>{t.time_since_epoch()}, opts);
+    }
+};
+
+template<typename CharT, typename Duration>
 struct formatter<detail::local_time_format_t<Duration>, CharT>
     : detail::chrono_formatter<formatter<detail::local_time_format_t<Duration>, CharT>,
                                detail::local_time_format_t<Duration>, CharT> {
@@ -1148,48 +1172,37 @@ struct formatter<detail::local_time_format_t<Duration>, CharT>
     }
 };
 
+#if _MSC_VER >= 1930 || __GLIBCXX__ >= 20240904
 template<typename CharT, typename Duration>
 struct formatter<std::chrono::utc_time<Duration>, CharT> : formatter<std::chrono::sys_time<Duration>, CharT> {
     template<typename FmtCtx>
     void format(FmtCtx& ctx, std::chrono::utc_time<Duration> t) const {
-        formatter<std::chrono::sys_time<Duration>, CharT>::format(
-            ctx, std::chrono::clock_cast<std::chrono::system_clock>(t));
+        formatter<std::chrono::sys_time<Duration>, CharT>::format(ctx, std::chrono::utc_clock::to_sys(t));
     }
 };
+#endif
+
+namespace detail {
+template<typename Clock, typename Duration>
+auto cast_to_system_clock(std::chrono::time_point<Clock, Duration> t) -> decltype(Clock::to_sys(t)) {
+    return Clock::to_sys(t);
+}
+template<typename Clock, typename Duration>
+auto cast_to_system_clock(std::chrono::time_point<Clock, Duration> t)
+    -> decltype(decltype(Clock::to_utc(t))::clock::to_sys(Clock::to_utc(t))) {
+    return decltype(Clock::to_utc(t))::clock::to_sys(Clock::to_utc(t));
+}
+}  // namespace detail
 
 template<typename CharT, typename Duration>
 struct formatter<std::chrono::file_time<Duration>, CharT> : formatter<std::chrono::sys_time<Duration>, CharT> {
     template<typename FmtCtx>
     void format(FmtCtx& ctx, std::chrono::file_time<Duration> t) const {
-        formatter<std::chrono::sys_time<Duration>, CharT>::format(
-            ctx, std::chrono::clock_cast<std::chrono::system_clock>(t));
+        formatter<std::chrono::sys_time<Duration>, CharT>::format(ctx, detail::cast_to_system_clock(t));
     }
 };
 
-template<typename CharT, typename Duration>
-struct formatter<std::chrono::local_time<Duration>, CharT>
-    : detail::chrono_formatter<formatter<std::chrono::local_time<Duration>, CharT>, std::chrono::local_time<Duration>,
-                               CharT> {
- private:
-    using value_type = std::chrono::local_time<Duration>;
-    friend struct detail::chrono_formatter<formatter, value_type, CharT>;
-
-    static UXS_CONSTEXPR bool spec_checker(detail::chrono_specifier spec) {
-        return spec != detail::chrono_specifier::ticks && spec != detail::chrono_specifier::unit_suffix &&
-               spec != detail::chrono_specifier::time_zone && spec != detail::chrono_specifier::time_zone_abbreviation;
-    }
-
-    template<typename FmtCtx>
-    static void value_writer(FmtCtx& ctx, value_type t, const detail::chrono_specs& specs) {
-        detail::format_chrono_date_time(ctx, std::chrono::sys_time<Duration>{t.time_since_epoch()}, specs);
-    }
-
-    template<typename FmtCtx>
-    static void default_value_writer(FmtCtx& ctx, value_type t, fmt_opts opts) {
-        detail::format_chrono_yyyy_mm_dd_hh_mm_ss(ctx, std::chrono::sys_time<Duration>{t.time_since_epoch()}, opts);
-    }
-};
-
+#if _MSC_VER >= 1930 || __GLIBCXX__ >= 20240904
 template<typename CharT, typename Duration, typename TimeZonePtr>
 struct formatter<std::chrono::zoned_time<Duration, TimeZonePtr>, CharT>
     : formatter<detail::local_time_format_t<std::common_type_t<Duration, std::chrono::seconds>>, CharT> {
@@ -1202,5 +1215,6 @@ struct formatter<std::chrono::zoned_time<Duration, TimeZonePtr>, CharT>
                                      zone_info.abbrev, zone_info.offset});
     }
 };
+#endif
 
 }  // namespace uxs
