@@ -207,11 +207,11 @@ class inline_basic_dynbuffer final : public basic_dynbuffer<Ty, Alloc> {
 
  private:
     enum : unsigned {
-#if defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
+#if defined(NDEBUG) || !defined(UXS_DEBUG_REDUCED_BUFFERS)
         inline_buf_size = InlineBufSize != 0 ? InlineBufSize : 256 / sizeof(Ty)
-#else   // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
+#else   // defined(NDEBUG) || !defined(UXS_DEBUG_REDUCED_BUFFERS)
         inline_buf_size = 7
-#endif  // defined(NDEBUG) || !defined(_DEBUG_REDUCED_BUFFERS)
+#endif  // defined(NDEBUG) || !defined(UXS_DEBUG_REDUCED_BUFFERS)
     };
     alignas(std::alignment_of<Ty>::value) std::uint8_t buf_[inline_buf_size * sizeof(Ty)]{};
 };
@@ -549,10 +549,10 @@ struct formatter;
 
 // --------------------------
 
-template<typename Ty, typename CharT = char>
+template<typename Ty, typename CharT = char, typename = void>
 struct from_string_impl;
 
-template<typename Ty, typename CharT = char>
+template<typename Ty, typename CharT = char, typename = void>
 struct to_string_impl;
 
 template<typename Ty, typename CharT = char, typename = void>
@@ -569,6 +569,8 @@ template<typename Ty, typename StrTy>
 struct convertible_to_string<Ty, StrTy,
                              std::void_t<decltype(to_string_impl<Ty, typename StrTy::value_type>{}(
                                  std::declval<StrTy&>(), std::declval<const Ty&>(), {}))>> : std::true_type {};
+
+// --------------------------
 
 #define UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(ty, from_func, fmt_func) \
     template<typename CharT> \
