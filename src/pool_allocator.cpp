@@ -1,4 +1,4 @@
-#include "uxs/pool_allocator_impl.h"
+#include "uxs/impl/pool_allocator_impl.h"
 
 namespace uxs {
 namespace detail {

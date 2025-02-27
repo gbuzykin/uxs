@@ -1,7 +1,7 @@
 #pragma once
 
-#include "value.h"
-#include "xml.h"
+#include "uxs/db/value.h"
+#include "uxs/db/xml.h"
 
 #include <vector>
 

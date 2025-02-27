@@ -1,6 +1,6 @@
 #pragma once
 
-#include "devbuf.h"
+#include "uxs/io/devbuf.h"
 
 #include <array>
 #include <cstring>

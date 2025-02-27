@@ -1,4 +1,4 @@
-#include "uxs/io/oflatbuf_impl.h"
+#include "uxs/impl/io/oflatbuf_impl.h"
 
 namespace uxs {
 template class basic_oflatbuf<char>;

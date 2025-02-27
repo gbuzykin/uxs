@@ -1,6 +1,6 @@
 #pragma once
 
-#include "iflatbuf.h"
+#include "uxs/io/iflatbuf.h"
 
 namespace uxs {
 

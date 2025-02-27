@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pool_allocator.h"
+#include "uxs/pool_allocator.h"
 
 namespace uxs {
 namespace detail {

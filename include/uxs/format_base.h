@@ -763,17 +763,17 @@ class basic_format_arg {
         if (static_cast<std::make_unsigned<ty>::type>(val) > limit) { throw format_error("too large integer"); } \
         return static_cast<unsigned>(val); \
     } break;
+            UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE(std::int32_t)
+            UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE(std::int64_t)
+#undef UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE
 #define UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(ty) \
     case format_arg_type_index<FmtCtx, ty>::value: { \
         ty val = *static_cast<const ty*>(data_); \
         if (val > limit) { throw format_error("too large integer"); } \
         return static_cast<unsigned>(val); \
     } break;
-            UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE(std::int32_t)
-            UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE(std::int64_t)
             UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(std::uint32_t)
             UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(std::uint64_t)
-#undef UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE
 #undef UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE
             default: throw format_error("argument is not an integer");
         }

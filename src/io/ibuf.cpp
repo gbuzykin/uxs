@@ -1,4 +1,4 @@
-#include "uxs/io/ibuf_impl.h"
+#include "uxs/impl/io/ibuf_impl.h"
 
 namespace uxs {
 iomode detail::iomode_from_str(const char* mode, iomode def) noexcept {
