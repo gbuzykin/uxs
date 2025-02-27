@@ -1,7 +1,6 @@
 #pragma once
 
-#include "parser.h"
-
+#include "uxs/cli/parser.h"
 #include "uxs/io/oflatbuf.h"
 
 #include <numeric>

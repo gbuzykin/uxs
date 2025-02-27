@@ -1,6 +1,6 @@
 #pragma once
 
-#include "zipfilebuf.h"
+#include "uxs/io/zipfilebuf.h"
 
 namespace uxs {
 

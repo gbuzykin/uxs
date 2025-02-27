@@ -1,6 +1,6 @@
 #pragma once
 
-#include "oflatbuf.h"
+#include "uxs/io/oflatbuf.h"
 
 #include <stdexcept>
 

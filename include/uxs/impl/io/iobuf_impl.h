@@ -1,6 +1,6 @@
 #pragma once
 
-#include "iobuf.h"
+#include "uxs/io/iobuf.h"
 
 namespace uxs {
 

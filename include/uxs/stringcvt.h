@@ -602,7 +602,7 @@ UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(unsigned long long, scvt::to_intege
 UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(float, scvt::to_float<float>, scvt::fmt_float)
 UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(double, scvt::to_float<double>, scvt::fmt_float)
 UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER(long double, scvt::to_float<long double>, scvt::fmt_float)
-#undef SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER
+#undef UXS_SCVT_IMPLEMENT_STANDARD_STRING_CONVERTER
 
 template<typename CharT, typename Ty>
 const CharT* from_basic_chars(const CharT* first, const CharT* last, Ty& val) {

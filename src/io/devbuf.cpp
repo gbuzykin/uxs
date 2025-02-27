@@ -1,4 +1,4 @@
-#include "uxs/io/devbuf_impl.h"
+#include "uxs/impl/io/devbuf_impl.h"
 
 namespace uxs {
 template class basic_devbuf<char>;

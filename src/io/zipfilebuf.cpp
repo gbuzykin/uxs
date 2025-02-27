@@ -1,4 +1,4 @@
-#include "uxs/io/zipfilebuf_impl.h"
+#include "uxs/impl/io/zipfilebuf_impl.h"
 
 namespace uxs {
 template class basic_zipfilebuf<char>;
