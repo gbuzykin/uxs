@@ -19,21 +19,30 @@ bool ziparch::open(const char* name, iomode mode) {
             if (!!(mode & iomode::exclusive)) { oflag = (oflag & ~ZIP_TRUNCATE) | ZIP_EXCL; }
         }
     }
-    if (zip_) { zip_close(static_cast<zip_t*>(zip_)); }
-    return (zip_ = zip_open(name, oflag, &ziperr)) != nullptr;
+    if (zip_) { ::zip_close(static_cast<zip_t*>(zip_)); }
+    return (zip_ = ::zip_open(name, oflag, &ziperr)) != nullptr;
 }
 
 void ziparch::close() noexcept {
     if (!zip_) { return; }
-    zip_close(static_cast<zip_t*>(zip_));
+    ::zip_close(static_cast<zip_t*>(zip_));
     zip_ = nullptr;
+}
+
+bool ziparch::add_file(const char* fname, const void* buf, std::size_t sz) {
+    if (!zip_) { return false; }
+    zip_source_t* source = ::zip_source_buffer(static_cast<zip_t*>(zip_), buf, sz, 0);
+    if (!source) { return false; }
+    if (::zip_file_add(static_cast<zip_t*>(zip_), fname, source, ZIP_FL_ENC_UTF_8) >= 0) { return true; }
+    ::zip_source_free(source);
+    return false;
 }
 
 bool ziparch::stat_size(const char* fname, std::uint64_t& sz) {
     if (!zip_) { return false; }
     zip_stat_t stat;
-    zip_stat_init(&stat);
-    if (zip_stat(static_cast<zip_t*>(zip_), fname, ZIP_STAT_SIZE, &stat) != 0) { return false; }
+    ::zip_stat_init(&stat);
+    if (::zip_stat(static_cast<zip_t*>(zip_), fname, ZIP_STAT_SIZE, &stat) != 0) { return false; }
     sz = stat.size;
     return true;
 }
@@ -41,8 +50,8 @@ bool ziparch::stat_size(const char* fname, std::uint64_t& sz) {
 bool ziparch::stat_crc(const char* fname, std::uint32_t& crc) {
     if (!zip_) { return false; }
     zip_stat_t stat;
-    zip_stat_init(&stat);
-    if (zip_stat(static_cast<zip_t*>(zip_), fname, ZIP_STAT_CRC, &stat) != 0) { return false; }
+    ::zip_stat_init(&stat);
+    if (::zip_stat(static_cast<zip_t*>(zip_), fname, ZIP_STAT_CRC, &stat) != 0) { return false; }
     crc = stat.crc;
     return true;
 }
@@ -52,11 +61,15 @@ bool ziparch::stat_crc(const char* fname, std::uint32_t& crc) {
 using namespace uxs;
 bool ziparch::open(const char* name, iomode mode) { return false; }
 void ziparch::close() noexcept {}
+bool ziparch::add_file(const char* fname, const void* buf, std::size_t sz) { return false; }
 bool ziparch::stat_size(const char* fname, std::uint64_t& sz) { return false; }
 bool ziparch::stat_crc(const char* fname, std::uint32_t& crc) { return false; }
 
 #endif  // defined(UXS_USE_LIBZIP)
 
+bool ziparch::add_file(const wchar_t* fname, const void* buf, std::size_t sz) {
+    return add_file(from_wide_to_utf8(fname).c_str(), buf, sz);
+}
 bool ziparch::stat_size(const wchar_t* fname, std::uint64_t& sz) {
     return stat_size(from_wide_to_utf8(fname).c_str(), sz);
 }

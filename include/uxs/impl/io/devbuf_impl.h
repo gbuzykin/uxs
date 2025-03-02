@@ -76,7 +76,7 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
             buf_ = flexbuf_t::alloc(*this, bufsz);
 #if defined(UXS_USE_ZLIB)
             if (!!(mode & iomode::z_compr)) {
-                deflateInit(&buf_->zstr, Z_DEFAULT_COMPRESSION);
+                ::deflateInit(&buf_->zstr, Z_DEFAULT_COMPRESSION);
                 if (!mappable) {
                     const std::size_t tot_sz = buf_->sz;
                     buf_->sz /= 2;
@@ -95,7 +95,7 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
         buf_ = flexbuf_t::alloc(*this, bufsz);
 #if defined(UXS_USE_ZLIB)
         if (!!(mode & iomode::z_compr)) {
-            inflateInit(&buf_->zstr);
+            ::inflateInit(&buf_->zstr);
             if (!mappable) {
                 const std::size_t tot_sz = buf_->sz;
                 buf_->sz /= 2;
@@ -117,12 +117,12 @@ void basic_devbuf<CharT, Alloc>::freebuf() noexcept {
 #if defined(UXS_USE_ZLIB)
         if (!!(this->mode() & iomode::z_compr)) {
             finish_compressed();
-            deflateEnd(&buf_->zstr);
+            ::deflateEnd(&buf_->zstr);
         }
 #endif
     } else if (!!(this->mode() & iomode::z_compr)) {
 #if defined(UXS_USE_ZLIB)
-        inflateEnd(&buf_->zstr);
+        ::inflateEnd(&buf_->zstr);
 #endif
     }
     if (buf_) {
@@ -226,7 +226,7 @@ int basic_devbuf<CharT, Alloc>::write_compressed(const void* data, std::size_t s
     do {
         int ret = 0;
         if (!buf_->zstr.avail_out && (ret = flush_compressed_buf()) < 0) { return ret; }
-        if (deflate(&buf_->zstr, Z_NO_FLUSH) != Z_OK) { return -1; }
+        if (::deflate(&buf_->zstr, Z_NO_FLUSH) != Z_OK) { return -1; }
     } while (buf_->zstr.avail_in);
     return 0;
 #else
@@ -240,7 +240,7 @@ void basic_devbuf<CharT, Alloc>::finish_compressed() {
     int z_ret = 0;
     do {
         if (!buf_->zstr.avail_out && flush_compressed_buf() < 0) { return; }
-        z_ret = deflate(&buf_->zstr, Z_FINISH);
+        z_ret = ::deflate(&buf_->zstr, Z_FINISH);
     } while (z_ret == Z_OK);
     if (z_ret != Z_STREAM_END) { return; }
     if (!(dev_->caps() & iodevcaps::mappable)) {
@@ -271,8 +271,8 @@ int basic_devbuf<CharT, Alloc>::read_compressed(void* data, std::size_t sz, std:
             }
             if (!buf_->zstr.avail_in) { buf_->flags |= detail::devbuf_impl_flags::z_in_finish; }
         }
-        const int z_ret = inflate(&buf_->zstr,
-                                  !!(buf_->flags & detail::devbuf_impl_flags::z_in_finish) ? Z_FINISH : Z_NO_FLUSH);
+        const int z_ret = ::inflate(&buf_->zstr,
+                                    !!(buf_->flags & detail::devbuf_impl_flags::z_in_finish) ? Z_FINISH : Z_NO_FLUSH);
         if (z_ret == Z_STREAM_END) { break; }
         if (z_ret != Z_OK) { return -1; }
     } while (buf_->zstr.avail_out);
