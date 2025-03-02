@@ -88,7 +88,7 @@ byteseq byteseq::make_compressed() const {
 
     z_stream zstr;
     std::memset(&zstr, 0, sizeof(z_stream));
-    deflateInit(&zstr, Z_DEFAULT_COMPRESSION);
+    ::deflateInit(&zstr, Z_DEFAULT_COMPRESSION);
 
     const chunk_t* chunk = head_->next;
     zstr.next_in = chunk->data;
@@ -103,15 +103,14 @@ byteseq byteseq::make_compressed() const {
         zstr.avail_in = static_cast<uInt>(std::min<std::size_t>(chunk->end - zstr.next_in, max_avail_count));
         zstr.avail_out = static_cast<uInt>(buf.head_->boundary - zstr.next_out);
 
-        const int ret = deflate(&zstr, zstr.avail_in ? Z_NO_FLUSH : Z_FINISH);
-        if (ret == Z_STREAM_END) {
-            if (deflateEnd(&zstr) != Z_OK) { return {}; }
-            break;
-        }
-
+        const int ret = ::deflate(&zstr, zstr.avail_in ? Z_NO_FLUSH : Z_FINISH);
         if (ret != Z_OK) {
-            deflateEnd(&zstr);
-            return {};
+            if (::deflateEnd(&zstr) == Z_OK && ret == Z_STREAM_END) {
+                buf.head_->end = zstr.next_out;
+                buf.size_ += buf.head_->size();
+                return buf;
+            }
+            break;
         }
 
         if (zstr.next_out == buf.head_->boundary) {
@@ -120,9 +119,7 @@ byteseq byteseq::make_compressed() const {
         }
     }
 
-    buf.head_->end = zstr.next_out;
-    buf.size_ += buf.head_->size();
-    return buf;
+    return {};
 }
 
 byteseq byteseq::make_uncompressed() const {
@@ -133,7 +130,7 @@ byteseq byteseq::make_uncompressed() const {
 
     z_stream zstr;
     std::memset(&zstr, 0, sizeof(z_stream));
-    inflateInit(&zstr);
+    ::inflateInit(&zstr);
 
     const chunk_t* chunk = head_->next;
     zstr.next_in = chunk->data;
@@ -148,15 +145,14 @@ byteseq byteseq::make_uncompressed() const {
         zstr.avail_in = static_cast<uInt>(std::min<std::size_t>(chunk->end - zstr.next_in, max_avail_count));
         zstr.avail_out = static_cast<uInt>(buf.head_->boundary - zstr.next_out);
 
-        const int ret = inflate(&zstr, zstr.avail_in ? Z_NO_FLUSH : Z_FINISH);
-        if (ret == Z_STREAM_END) {
-            if (inflateEnd(&zstr) != Z_OK) { return {}; }
-            break;
-        }
-
+        const int ret = ::inflate(&zstr, zstr.avail_in ? Z_NO_FLUSH : Z_FINISH);
         if (ret != Z_OK) {
-            inflateEnd(&zstr);
-            return {};
+            if (::inflateEnd(&zstr) == Z_OK && ret == Z_STREAM_END) {
+                buf.head_->end = zstr.next_out;
+                buf.size_ += buf.head_->size();
+                return buf;
+            }
+            break;
         }
 
         if (zstr.next_out == buf.head_->boundary) {
@@ -165,9 +161,7 @@ byteseq byteseq::make_uncompressed() const {
         }
     }
 
-    buf.head_->end = zstr.next_out;
-    buf.size_ += buf.head_->size();
-    return buf;
+    return {};
 }
 #else
 byteseq byteseq::make_compressed() const { return *this; }
