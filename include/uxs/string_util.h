@@ -57,6 +57,8 @@ struct utf_string_adapter;
 template<>
 struct utf_string_adapter<char> {
     std::string_view operator()(std::string_view s) const { return s; }
+    const std::string& operator()(const std::string& s) const { return s; }
+    std::string_view operator()(const char* s) const { return s; }
     std::string operator()(std::wstring_view s) const { return from_wide_to_utf8(s); }
     template<typename StrTy>
     void append(StrTy& out, std::string_view s) const {
@@ -71,6 +73,8 @@ struct utf_string_adapter<char> {
 template<>
 struct utf_string_adapter<wchar_t> {
     std::wstring_view operator()(std::wstring_view s) const { return s; }
+    const std::wstring& operator()(const std::wstring& s) const { return s; }
+    std::wstring_view operator()(const wchar_t* s) const { return s; }
     std::wstring operator()(std::string_view s) const { return from_utf8_to_wide(s); }
     template<typename StrTy>
     void append(StrTy& out, std::string_view s) const {
