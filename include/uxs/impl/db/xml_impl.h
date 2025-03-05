@@ -62,25 +62,29 @@ basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Allo
     stack.reserve(32);
     stack.emplace_back(&result, root_element);
 
-    auto tk = next();
+    auto tt = next();
 
     while (true) {
         auto& top = stack.back();
-        switch (tk.first) {
+        switch (tt) {
             case token_t::eof: throw database_error(to_string(ln_) + ": unexpected end of file");
             case token_t::preamble: throw database_error(to_string(ln_) + ": unexpected document preamble");
             case token_t::entity: throw database_error(to_string(ln_) + ": unknown entity name");
             case token_t::plain_text: {
-                if (!top.first->is_record()) { txt += tk.second; }
+                if (!top.first->is_record()) { txt += token_.second; }
             } break;
             case token_t::start_element: {
                 txt.clear();
-                auto result = top.first->emplace_unique(utf_string_adapter<CharT>{}(tk.second), al);
-                stack.emplace_back(&result.first.value(), tk.second);
+                auto result = top.first->emplace_unique(utf_string_adapter<CharT>{}(token_.second), al);
+                stack.emplace_back(&result.first.value(), token_.second);
                 if (!result.second) { stack.back().first = &result.first.value().emplace_back(al); }
+                for (const auto& attr : attributes()) {
+                    stack.back().first->emplace_unique(utf_string_adapter<CharT>{}(attr.first),
+                                                       text_to_value(attr.second, al));
+                }
             } break;
             case token_t::end_element: {
-                if (top.second != tk.second) {
+                if (top.second != token_.second) {
                     throw database_error(to_string(ln_) + ": unterminated element " + top.second);
                 }
                 if (!top.first->is_record()) {
@@ -91,7 +95,7 @@ basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Allo
             } break;
             default: UXS_UNREACHABLE_CODE;
         }
-        tk = next();
+        tt = next();
     }
 }
 
