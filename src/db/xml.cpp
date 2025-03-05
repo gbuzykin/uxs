@@ -12,9 +12,11 @@ namespace uxs {
 namespace db {
 namespace xml {
 
-parser::parser(ibuf& in) : in_(in), name_cache_(16) { stack_.push_back(lex_detail::sc_initial); }
+parser::parser(ibuf& in) : in_(in), name_cache_(16), token_{token_t::none, {}} {
+    stack_.push_back(lex_detail::sc_initial);
+}
 
-std::pair<token_t, std::string_view> parser::next() {
+std::pair<token_t, std::string_view> parser::next_impl() {
     if (is_end_element_pending_) {
         is_end_element_pending_ = false;
         return {token_t::end_element, name_cache_.front()};
@@ -25,30 +27,32 @@ std::pair<token_t, std::string_view> parser::next() {
         const char* last = in_.last_avail();
         std::string_view lval;
         if (*first == '<') {  // found '<'
-            auto tt = lex(lval);
             auto name_cache_it = name_cache_.begin();
             auto name_cache_prev_it = name_cache_it;
+
+            attrs_.clear();
+
             const auto read_attribute = [this, &name_cache_it, &name_cache_prev_it](std::string_view lval) {
-                auto tt = lex_token_t::eof;
                 if (name_cache_it != name_cache_.end()) {
                     name_cache_it->assign(lval.data(), lval.size());
                 } else {
                     name_cache_it = name_cache_.emplace_after(name_cache_prev_it, lval);
                 }
-                if ((tt = lex(lval)) != lex_token_t::eq) { throw database_error(to_string(ln_) + ": expected `=`"); }
-                if ((tt = lex(lval)) != lex_token_t::string) {
+                if (lex(lval) != lex_token_t::eq) { throw database_error(to_string(ln_) + ": expected `=`"); }
+                if (lex(lval) != lex_token_t::string) {
                     throw database_error(to_string(ln_) + ": expected valid attribute value");
                 }
                 name_cache_prev_it = name_cache_it;
                 attrs_.emplace(*name_cache_it++, lval);
             };
-            switch (tt) {
+
+            switch (lex(lval)) {
                 case lex_token_t::start_element_open: {  // <name n1=v1 n2=v2...> or <name n1=v1 n2=v2.../>
-                    attrs_.clear();
                     name_cache_it->assign(lval.data(), lval.size());
                     ++name_cache_it;
                     while (true) {
-                        if ((tt = lex(lval)) == lex_token_t::name) {
+                        auto tt = lex(lval);
+                        if (tt == lex_token_t::name) {
                             read_attribute(lval);
                         } else if (tt == lex_token_t::close) {
                             return {token_t::start_element, name_cache_.front()};
@@ -61,20 +65,18 @@ std::pair<token_t, std::string_view> parser::next() {
                     }
                 } break;
                 case lex_token_t::end_element_open: {  // </name>
-                    if ((tt = lex(lval)) != lex_token_t::close) {
-                        throw database_error(to_string(ln_) + ": expected `>`");
-                    }
+                    if (lex(lval) != lex_token_t::close) { throw database_error(to_string(ln_) + ": expected `>`"); }
                     return {token_t::end_element, lval};
                 } break;
                 case lex_token_t::pi_open: {  // <?xml n1=v1 n2=v2...?>
-                    attrs_.clear();
                     if (compare_strings_nocase(lval, string_literal<char, 'x', 'm', 'l'>{}()) != 0) {
                         throw database_error(to_string(ln_) + ": invalid document declaration");
                     }
                     name_cache_it->assign(lval.data(), lval.size());
                     ++name_cache_it;
                     while (true) {
-                        if ((tt = lex(lval)) == lex_token_t::name) {
+                        auto tt = lex(lval);
+                        if (tt == lex_token_t::name) {
                             read_attribute(lval);
                         } else if (tt == lex_token_t::pi_close) {
                             return {token_t::preamble, name_cache_.front()};
@@ -270,6 +272,7 @@ parser::lex_token_t parser::lex(std::string_view& lval) {
             case lex_detail::pat_whitespace: break;
             case lex_detail::predef_pat_default: {
                 switch (lexeme[0]) {
+                    case '\n': ++ln_; break;
                     case '\"': stack_.push_back(lex_detail::sc_string_quot); break;
                     case '\'': stack_.push_back(lex_detail::sc_string_apos); break;
                     default: return static_cast<lex_token_t>(static_cast<std::uint8_t>(*first));

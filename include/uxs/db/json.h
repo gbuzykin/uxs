@@ -48,7 +48,7 @@ void read(ibuf& in, const ValueFunc& fn_value, const ArrItemFunc& fn_arr_item, c
     inline_basic_dynbuffer<char, 32> stack;
 
     const auto fn_value_checked = [&state, &fn_value](token_t tt, std::string_view lval) -> parse_step {
-        if (tt >= token_t::null_value || tt == token_t::array || tt == token_t::object) { return fn_value(tt, lval); }
+        if (tt >= token_t::null_value || tt == token_t('[') || tt == token_t('{')) { return fn_value(tt, lval); }
         throw database_error(to_string(state.ln) + ": invalid value or unexpected character");
     };
 
@@ -61,7 +61,7 @@ void read(ibuf& in, const ValueFunc& fn_value, const ArrItemFunc& fn_arr_item, c
 
 loop:
     tt = state.lex(lval);
-    if (current == token_t::array) {
+    if (current == token_t('[')) {
         if (comma || tt != token_t(']')) {
             while (true) {
                 fn_arr_item();
@@ -84,9 +84,7 @@ loop:
         while (true) {
             if (tt != token_t::string) { throw database_error(to_string(state.ln) + ": expected valid string"); }
             fn_obj_item(lval);
-            if ((tt = state.lex(lval)) != token_t(':')) {
-                throw database_error(to_string(state.ln) + ": expected `:`");
-            }
+            if (state.lex(lval) != token_t(':')) { throw database_error(to_string(state.ln) + ": expected `:`"); }
             tt = state.lex(lval);
             const auto ret = fn_value_checked(tt, lval);
             if (ret == parse_step::into) {
@@ -108,7 +106,7 @@ loop:
         current = token_t(stack.back());
         stack.pop_back();
         fn_pop();
-        const char close_char = current == token_t::array ? ']' : '}';
+        const char close_char = current == token_t('[') ? ']' : '}';
         if ((tt = state.lex(lval)) != token_t(close_char)) {
             if (tt != token_t(',')) {
                 throw database_error(to_string(state.ln) + ": expected `,` or `" + close_char + "`");
