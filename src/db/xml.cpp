@@ -98,7 +98,7 @@ std::pair<token_t, std::string_view> parser::next_impl() {
                     if (!in_) { break; }
                     in_.advance(1);
                 } break;
-                default: UXS_UNREACHABLE_CODE;
+                default: break;
             }
         } else if (*first == '&') {  // parse entity
             if (lex(lval) == lex_token_t::predef_entity) { return {token_t::plain_text, lval}; }
@@ -289,7 +289,7 @@ parser::lex_token_t parser::lex(std::string_view& lval) {
         state = lex_detail::Dtran[lex_detail::dtran_width * state + lex_detail::symb2meta[ch]];
     }
     switch (lex_detail::accept[state]) {
-        case lex_detail::pat_null: return value_class::null;
+        case lex_detail::pat_null: return value_class::null_value;
         case lex_detail::pat_true: return value_class::true_value;
         case lex_detail::pat_false: return value_class::false_value;
         case lex_detail::pat_decimal: return value_class::integer_number;
@@ -297,7 +297,7 @@ parser::lex_token_t parser::lex(std::string_view& lval) {
         case lex_detail::pat_real: return value_class::floating_point_number;
         case lex_detail::pat_ws_with_nl: return value_class::ws_with_nl;
         case lex_detail::pat_other_value: return value_class::other;
-        default: UXS_UNREACHABLE_CODE;
+        default: return value_class::empty;
     }
 }
 

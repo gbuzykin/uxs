@@ -51,7 +51,7 @@ basic_value<CharT, Alloc> read(ibuf& in, const Alloc& al) {
         }
     };
 
-    basic_value<CharT, Alloc> result;
+    basic_value<CharT, Alloc> result(al);
     inline_basic_dynbuffer<basic_value<CharT, Alloc>*, 32> stack;
 
     auto* val = &result;

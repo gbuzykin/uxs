@@ -17,7 +17,8 @@ basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Allo
 
     static const auto text_to_value = [](std::string_view sval, const Alloc& al) -> basic_value<CharT, Alloc> {
         switch (classify_value(sval)) {
-            case value_class::null: return {nullptr, al};
+            case value_class::empty:
+            case value_class::null_value: return {nullptr, al};
             case value_class::true_value: return {true, al};
             case value_class::false_value: return {false, al};
             case value_class::integer_number: {
@@ -55,14 +56,18 @@ basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Allo
         }
     };
 
+    auto tt = token_type();
+    while (!eof() && !(tt == token_t::start_element && name() == root_element)) { tt = next(); }
+    if (eof()) { throw database_error("no such element"); }
+
     inline_dynbuffer txt;
-    basic_value<CharT, Alloc> result;
+    basic_value<CharT, Alloc> result(al);
     std::vector<std::pair<basic_value<CharT, Alloc>*, std::string>> stack;
 
     stack.reserve(32);
     stack.emplace_back(&result, root_element);
 
-    auto tt = next();
+    tt = next();
 
     while (true) {
         auto& top = stack.back();
@@ -71,12 +76,12 @@ basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Allo
             case token_t::preamble: throw database_error(to_string(ln_) + ": unexpected document preamble");
             case token_t::entity: throw database_error(to_string(ln_) + ": unknown entity name");
             case token_t::plain_text: {
-                if (!top.first->is_record()) { txt += token_.second; }
+                if (!top.first->is_record()) { txt += text(); }
             } break;
             case token_t::start_element: {
                 txt.clear();
-                auto result = top.first->emplace_unique(utf_string_adapter<CharT>{}(token_.second), al);
-                stack.emplace_back(&result.first.value(), token_.second);
+                auto result = top.first->emplace_unique(utf_string_adapter<CharT>{}(name()), al);
+                stack.emplace_back(&result.first.value(), name());
                 if (!result.second) { stack.back().first = &result.first.value().emplace_back(al); }
                 for (const auto& attr : attributes()) {
                     stack.back().first->emplace_unique(utf_string_adapter<CharT>{}(attr.first),
@@ -84,16 +89,16 @@ basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Allo
                 }
             } break;
             case token_t::end_element: {
-                if (top.second != token_.second) {
+                if (top.second != name()) {
                     throw database_error(to_string(ln_) + ": unterminated element " + top.second);
                 }
-                if (!top.first->is_record()) {
+                if (!top.first->is_record() && !txt.empty()) {
                     *(top.first) = text_to_value(std::string_view(txt.data(), txt.size()), al);
                 }
                 stack.pop_back();
                 if (stack.empty()) { return result; }
             } break;
-            default: UXS_UNREACHABLE_CODE;
+            default: break;
         }
         tt = next();
     }

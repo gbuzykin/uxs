@@ -22,6 +22,18 @@ enum class token_t : int {
     preamble,
 };
 
+enum class value_class : int {
+    empty = 0,
+    null_value,
+    true_value,
+    false_value,
+    integer_number,
+    negative_integer_number,
+    floating_point_number,
+    ws_with_nl,
+    other,
+};
+
 class attributes_t : public std::map<std::string_view, std::string> {
  public:
     using underlying_t = std::map<std::string_view, std::string>;
@@ -57,17 +69,6 @@ class attributes_t : public std::map<std::string_view, std::string> {
     Ty value(std::string_view key) const {
         return value_or<Ty>(key, Ty());
     }
-};
-
-enum class value_class : int {
-    null = 0,
-    true_value,
-    false_value,
-    integer_number,
-    negative_integer_number,
-    floating_point_number,
-    ws_with_nl,
-    other,
 };
 
 class parser {
