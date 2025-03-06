@@ -22,7 +22,7 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC sysfile : public iodevice {
     sysfile(const wchar_t* fname, const char* mode) : sysfile() {
         open(fname, detail::iomode_from_str(mode, iomode::none));
     }
-    UXS_EXPORT ~sysfile() override;
+    ~sysfile() override { close(); }
     sysfile(sysfile&& other) noexcept : fd_(other.detach()) {}
     sysfile& operator=(sysfile&& other) noexcept {
         if (&other == this) { return *this; }
@@ -44,8 +44,8 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC sysfile : public iodevice {
     }
     UXS_EXPORT void close() noexcept;
 
-    UXS_EXPORT int read(void* buf, std::size_t sz, std::size_t& n_read) override;
-    UXS_EXPORT int write(const void* buf, std::size_t sz, std::size_t& n_written) override;
+    UXS_EXPORT int read(void* data, std::size_t sz, std::size_t& n_read) override;
+    UXS_EXPORT int write(const void* data, std::size_t sz, std::size_t& n_written) override;
     UXS_EXPORT std::int64_t seek(std::int64_t off, seekdir dir) override;
     UXS_EXPORT int ctrlesc_color(est::span<const std::uint8_t> v) override;
     UXS_EXPORT int flush() override;
