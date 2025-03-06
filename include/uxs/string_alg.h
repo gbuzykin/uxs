@@ -190,8 +190,8 @@ std::size_t split_string(std::string_view s, Finder finder, OutputFn fn, OutputI
 }
 
 template<split_opts opts = split_opts::no_opts, typename Finder, typename OutputFn = nofunc>
-auto split_string(std::string_view s, Finder finder,
-                  OutputFn fn = OutputFn{}) -> std::vector<std::decay_t<decltype(fn(s))>> {
+auto split_string(std::string_view s, Finder finder, OutputFn fn = OutputFn{})
+    -> std::vector<std::decay_t<decltype(fn(s))>> {
     std::vector<std::decay_t<decltype(fn(s))>> result;
     split_string<opts>(s, finder, fn, std::back_inserter(result));
     return result;
@@ -205,8 +205,8 @@ std::size_t split_string(std::wstring_view s, Finder finder, OutputFn fn, Output
 }
 
 template<split_opts opts = split_opts::no_opts, typename Finder, typename OutputFn = nofunc>
-auto split_string(std::wstring_view s, Finder finder,
-                  OutputFn fn = OutputFn{}) -> std::vector<std::decay_t<decltype(fn(s))>> {
+auto split_string(std::wstring_view s, Finder finder, OutputFn fn = OutputFn{})
+    -> std::vector<std::decay_t<decltype(fn(s))>> {
     std::vector<std::decay_t<decltype(fn(s))>> result;
     split_string<opts>(s, finder, fn, std::back_inserter(result));
     return result;
@@ -320,8 +320,8 @@ std::size_t string_to_words(std::string_view s, char sep, OutputFn fn, OutputIt 
 }
 
 template<typename OutputFn = nofunc>
-auto string_to_words(std::string_view s, char sep,
-                     OutputFn fn = OutputFn{}) -> std::vector<std::decay_t<decltype(fn(s))>> {
+auto string_to_words(std::string_view s, char sep, OutputFn fn = OutputFn{})
+    -> std::vector<std::decay_t<decltype(fn(s))>> {
     std::vector<std::decay_t<decltype(fn(s))>> result;
     string_to_words(s, sep, fn, std::back_inserter(result));
     return result;
@@ -334,8 +334,8 @@ std::size_t string_to_words(std::wstring_view s, wchar_t sep, OutputFn fn, Outpu
 }
 
 template<typename OutputFn = nofunc>
-auto string_to_words(std::wstring_view s, wchar_t sep,
-                     OutputFn fn = OutputFn{}) -> std::vector<std::decay_t<decltype(fn(s))>> {
+auto string_to_words(std::wstring_view s, wchar_t sep, OutputFn fn = OutputFn{})
+    -> std::vector<std::decay_t<decltype(fn(s))>> {
     std::vector<std::decay_t<decltype(fn(s))>> result;
     string_to_words(s, sep, fn, std::back_inserter(result));
     return result;

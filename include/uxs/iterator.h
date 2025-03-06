@@ -204,8 +204,8 @@ class iterator_facade {
     }
 
     template<typename Iter_ = Iter>
-    auto operator*() const
-        noexcept(noexcept(std::declval<Iter>().dereference())) -> decltype(std::declval<Iter_>().dereference()) {
+    auto operator*() const noexcept(noexcept(std::declval<Iter>().dereference()))
+        -> decltype(std::declval<Iter_>().dereference()) {
         return static_cast<const Iter&>(*this).dereference();
     }
 
@@ -217,8 +217,8 @@ class iterator_facade {
 
     template<typename Iter_ = Iter>
     auto operator[](difference_type j) const
-        noexcept(noexcept(std::declval<Iter>().dereference()) &&
-                 noexcept(std::declval<Iter>().advance(j))) -> decltype(std::declval<Iter_>().dereference()) {
+        noexcept(noexcept(std::declval<Iter>().dereference()) && noexcept(std::declval<Iter>().advance(j)))
+            -> decltype(std::declval<Iter_>().dereference()) {
         return *(*this + j);
     }
 };

@@ -45,7 +45,7 @@ struct list_hook_traits<Ty, HookTy, opt_hook_caster<Caster>> {
     owning_pointer_t release_pointer(hook_t* h) const { return Caster{}.cast(h); }
 };
 
-template<typename Ty, typename HookTy, typename InternalPtrTy, InternalPtrTy HookTy::*InternalPointerMember>
+template<typename Ty, typename HookTy, typename InternalPtrTy, InternalPtrTy HookTy::* InternalPointerMember>
 struct list_hook_traits<Ty, HookTy, opt_internal_pointer<HookTy, InternalPtrTy, InternalPointerMember>> {
     using hook_t = HookTy;
     using owning_pointer_t = InternalPtrTy;
@@ -54,7 +54,7 @@ struct list_hook_traits<Ty, HookTy, opt_internal_pointer<HookTy, InternalPtrTy, 
     void reset_pointer(hook_t* h, owning_pointer_t p) const { h->*InternalPointerMember = std::move(p); }
 };
 
-template<typename ParentTy, typename HookTy, HookTy ParentTy::*HookMember>
+template<typename ParentTy, typename HookTy, HookTy ParentTy::* HookMember>
 struct list_hook_getter<opt_member_hook<ParentTy, HookTy, HookMember>> {
     HookTy* get_hook(ParentTy* parent) const { return std::addressof(parent->*HookMember); }
 };
@@ -75,8 +75,8 @@ struct list_node_traits {
     }
 
     template<typename HookTraits_ = HookTraits>
-    static auto reset_pointer(hook_t* h, owning_pointer_t p) -> decltype(HookTraits_{}.reset_pointer(h, std::move(p)),
-                                                                         int{}) {
+    static auto reset_pointer(hook_t* h, owning_pointer_t p)
+        -> decltype(HookTraits_{}.reset_pointer(h, std::move(p)), int{}) {
         HookTraits{}.reset_pointer(h, std::move(p));
         return 0;
     }
