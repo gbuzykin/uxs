@@ -2,6 +2,9 @@
 
 #include "uxs/string_util.h"
 
+#include <cstdlib>
+#include <cstring>
+
 #if defined(UXS_USE_LIBZIP)
 
 #    include <zip.h>
@@ -29,10 +32,16 @@ void ziparch::close() noexcept {
     zip_ = nullptr;
 }
 
-bool ziparch::add_file(const char* fname, const void* buf, std::size_t sz) {
+bool ziparch::add_file(const char* fname, const void* data, std::size_t sz) {
     if (!zip_) { return false; }
-    zip_source_t* source = ::zip_source_buffer(static_cast<zip_t*>(zip_), buf, sz, 0);
-    if (!source) { return false; }
+    void* data_copy = std::malloc(sz);
+    if (!data_copy) { return false; }
+    std::memcpy(data_copy, data, sz);
+    zip_source_t* source = ::zip_source_buffer(static_cast<zip_t*>(zip_), data_copy, sz, 1);
+    if (!source) {
+        std::free(data_copy);
+        return false;
+    }
     if (::zip_file_add(static_cast<zip_t*>(zip_), fname, source, ZIP_FL_ENC_UTF_8) >= 0) { return true; }
     ::zip_source_free(source);
     return false;

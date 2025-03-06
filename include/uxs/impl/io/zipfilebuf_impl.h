@@ -27,7 +27,7 @@ basic_zipfilebuf<CharT>& basic_zipfilebuf<CharT>::operator=(basic_zipfilebuf&& o
 template<typename CharT>
 bool basic_zipfilebuf<CharT>::open(ziparch& arch, const char* fname, iomode mode) {
     this->freebuf();
-    const bool res = zip_file_.open(arch, fname);
+    const bool res = zip_file_.open(arch, fname, mode);
     if (res) { this->initbuf(mode); }
     return res;
 }
@@ -35,7 +35,7 @@ bool basic_zipfilebuf<CharT>::open(ziparch& arch, const char* fname, iomode mode
 template<typename CharT>
 bool basic_zipfilebuf<CharT>::open(ziparch& arch, const wchar_t* fname, iomode mode) {
     this->freebuf();
-    const bool res = zip_file_.open(arch, fname);
+    const bool res = zip_file_.open(arch, fname, mode);
     if (res) { this->initbuf(mode); }
     return res;
 }

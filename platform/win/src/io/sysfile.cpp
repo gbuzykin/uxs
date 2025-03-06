@@ -10,9 +10,6 @@ using namespace uxs;
 
 sysfile::sysfile() noexcept : fd_(INVALID_HANDLE_VALUE) {}
 sysfile::sysfile(file_desc_t fd) noexcept : fd_(fd) {}
-sysfile::~sysfile() {
-    if (fd_ != INVALID_HANDLE_VALUE) { ::CloseHandle(fd_); }
-}
 
 bool sysfile::valid() const noexcept { return fd_ != INVALID_HANDLE_VALUE; }
 

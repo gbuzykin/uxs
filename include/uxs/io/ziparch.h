@@ -31,8 +31,8 @@ class ziparch {
     bool open(const wchar_t* name, const char* mode) { return open(name, detail::iomode_from_str(mode, iomode::in)); }
     UXS_EXPORT void close() noexcept;
 
-    UXS_EXPORT bool add_file(const char* fname, const void* buf, std::size_t sz);
-    UXS_EXPORT bool add_file(const wchar_t* fname, const void* buf, std::size_t sz);
+    UXS_EXPORT bool add_file(const char* fname, const void* data, std::size_t sz);
+    UXS_EXPORT bool add_file(const wchar_t* fname, const void* data, std::size_t sz);
 
     UXS_EXPORT bool stat_size(const char* fname, std::uint64_t& sz);
     UXS_EXPORT bool stat_crc(const char* fname, std::uint32_t& crc);
