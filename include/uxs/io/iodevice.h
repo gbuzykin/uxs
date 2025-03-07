@@ -22,6 +22,7 @@ class iodevice {
     virtual void* map(std::size_t& /*sz*/, bool /*wr*/) { return nullptr; }
     virtual std::int64_t seek(std::int64_t /*off*/, seekdir /*dir*/) { return -1; }
     virtual int ctrlesc_color(est::span<const std::uint8_t> /*v*/) { return -1; }
+    virtual int truncate() { return -1; }
     virtual int flush() = 0;
 
  private:

@@ -77,7 +77,7 @@ std::int64_t sysfile::seek(std::int64_t off, seekdir dir) {
         case seekdir::end: whence = SEEK_END; break;
         default: break;
     }
-    const off_t result = ::lseek(fd_, off, whence);
+    const off64_t result = ::lseek64(fd_, static_cast<off64_t>(off), whence);
     return result < 0 ? -1 : result;
 }
 
@@ -87,6 +87,12 @@ int sysfile::ctrlesc_color(est::span<const std::uint8_t> v) {
     join_basic_strings(buf, v, ';', [](membuffer& s, std::uint8_t x) -> membuffer& { return to_basic_string(s, x); });
     buf += 'm';
     return ::write(fd_, buf.data(), buf.size()) < 0 ? -1 : 0;
+}
+
+int sysfile::truncate() {
+    const off64_t pos = ::lseek64(fd_, 0, SEEK_CUR);
+    if (pos < 0) { return -1; }
+    return ::ftruncate64(fd_, pos) < 0 ? -1 : 0;
 }
 
 int sysfile::flush() { return 0; }
