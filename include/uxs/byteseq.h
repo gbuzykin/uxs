@@ -35,16 +35,16 @@ class byteseq : public detail::byteseq_chunk::alloc_type {
  public:
     byteseq() noexcept = default;
     byteseq(const byteseq& other) { assign(other); }
-    byteseq(byteseq&& other) noexcept : head_(other.head_), size_(other.size_) {
-        other.head_ = nullptr, other.size_ = 0;
+    byteseq(byteseq&& other) noexcept : size_(other.size_), head_(other.head_) {
+        other.size_ = 0, other.head_ = nullptr;
     }
     UXS_EXPORT ~byteseq();
 
     byteseq& operator=(const byteseq& other) { return &other != this ? assign(other) : *this; }
     byteseq& operator=(byteseq&& other) noexcept {
         if (&other != this) {
-            head_ = other.head_, size_ = other.size_;
-            other.head_ = nullptr, other.size_ = 0;
+            size_ = other.size_, head_ = other.head_;
+            other.size_ = 0, other.head_ = nullptr;
         }
         return *this;
     }
@@ -55,8 +55,8 @@ class byteseq : public detail::byteseq_chunk::alloc_type {
     UXS_EXPORT std::uint32_t calc_crc32() const noexcept;
 
     void swap(byteseq& other) noexcept {
-        std::swap(head_, other.head_);
         std::swap(size_, other.size_);
+        std::swap(head_, other.head_);
     }
 
     template<typename FillFunc>
@@ -95,8 +95,8 @@ class byteseq : public detail::byteseq_chunk::alloc_type {
 
     enum : std::size_t { chunk_size = 0x100000, max_avail_count = 0x40000000 };
 
-    chunk_t* head_ = nullptr;
     std::size_t size_ = 0;
+    chunk_t* head_ = nullptr;
 
     UXS_EXPORT void delete_chunks() noexcept;
     UXS_EXPORT void clear_and_reserve(std::size_t cap);

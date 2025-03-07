@@ -8,7 +8,7 @@
 #if defined(UXS_USE_ZLIB)
 #    define ZLIB_CONST
 #    include <zlib.h>
-#endif
+#endif  // defined(UXS_USE_ZLIB)
 
 namespace uxs {
 
@@ -22,11 +22,13 @@ struct basic_devbuf<CharT, Alloc>::flexbuf_t {
     detail::devbuf_impl_flags flags;
     std::size_t alloc_sz;
     std::size_t sz;
+
 #if defined(UXS_USE_ZLIB)
     Bytef* z_first;
     Bytef* z_last;
     z_stream zstr;
-#endif
+#endif  // defined(UXS_USE_ZLIB)
+
     char_type data[1];
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<flexbuf_t>;
     static std::size_t get_alloc_sz(std::size_t sz) {
@@ -51,7 +53,9 @@ basic_devbuf<CharT, Alloc>::~basic_devbuf() {
 template<typename CharT, typename Alloc>
 basic_devbuf<CharT, Alloc>::basic_devbuf(basic_devbuf&& other) noexcept
     : alloc_type(std::move(other)), basic_iobuf<CharT>(std::move(other)), dev_(other.dev_), buf_(other.buf_),
-      tie_buf_(other.tie_buf_) {}
+      tie_buf_(other.tie_buf_) {
+    other.dev_ = nullptr, other.buf_ = nullptr, other.tie_buf_ = nullptr;
+}
 
 template<typename CharT, typename Alloc>
 basic_devbuf<CharT, Alloc>& basic_devbuf<CharT, Alloc>::operator=(basic_devbuf&& other) noexcept {
@@ -60,6 +64,7 @@ basic_devbuf<CharT, Alloc>& basic_devbuf<CharT, Alloc>::operator=(basic_devbuf&&
     alloc_type::operator=(std::move(other));
     basic_iobuf<CharT>::operator=(std::move(other));
     dev_ = other.dev_, buf_ = other.buf_, tie_buf_ = other.tie_buf_;
+    other.dev_ = nullptr, other.buf_ = nullptr, other.tie_buf_ = nullptr;
     return *this;
 }
 
@@ -74,6 +79,7 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
         mode &= ~iomode::in;
         if (!mappable || !!(mode & (iomode::cr_lf | iomode::ctrl_esc | iomode::z_compr))) {
             buf_ = flexbuf_t::alloc(*this, bufsz);
+
 #if defined(UXS_USE_ZLIB)
             if (!!(mode & iomode::z_compr)) {
                 ::deflateInit(&buf_->zstr, Z_DEFAULT_COMPRESSION);
@@ -86,13 +92,15 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
                     buf_->zstr.avail_out = static_cast<uLong>(buf_->z_last - buf_->z_first);
                 }
             }
-#endif
+#endif  // defined(UXS_USE_ZLIB)
+
             // reserve additional space for Lf->CrLf expansion
             const std::size_t cr_reserve_sz = !!(mode & iomode::cr_lf) ? buf_->sz / cr_reserve_ratio : 0;
             this->setview(&buf_->data[cr_reserve_sz], &buf_->data[cr_reserve_sz], &buf_->data[buf_->sz]);
         }
     } else if (!mappable || !!(mode & (iomode::cr_lf | iomode::z_compr))) {
         buf_ = flexbuf_t::alloc(*this, bufsz);
+
 #if defined(UXS_USE_ZLIB)
         if (!!(mode & iomode::z_compr)) {
             ::inflateInit(&buf_->zstr);
@@ -103,7 +111,7 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
                 buf_->z_last = reinterpret_cast<Bytef*>(&buf_->data[tot_sz]);
             }
         }
-#endif
+#endif  // defined(UXS_USE_ZLIB)
     }
     this->setmode(mode);
     this->clear();
@@ -114,16 +122,17 @@ void basic_devbuf<CharT, Alloc>::freebuf() noexcept {
     if (this->mode() == iomode::none) { return; }
     if (!!(this->mode() & iomode::out)) {
         this->flush();
+
 #if defined(UXS_USE_ZLIB)
         if (!!(this->mode() & iomode::z_compr)) {
             finish_compressed();
             ::deflateEnd(&buf_->zstr);
         }
-#endif
+#endif  // defined(UXS_USE_ZLIB)
     } else if (!!(this->mode() & iomode::z_compr)) {
 #if defined(UXS_USE_ZLIB)
         ::inflateEnd(&buf_->zstr);
-#endif
+#endif  // defined(UXS_USE_ZLIB)
     }
     if (buf_) {
         typename flexbuf_t::alloc_type(*this).deallocate(buf_, buf_->alloc_sz);
@@ -198,9 +207,10 @@ int basic_devbuf<CharT, Alloc>::read_buf(void* data, std::size_t sz, std::size_t
     return ret;
 }
 
+#if defined(UXS_USE_ZLIB)
+
 template<typename CharT, typename Alloc>
 int basic_devbuf<CharT, Alloc>::flush_compressed_buf() {
-#if defined(UXS_USE_ZLIB)
     if (!(dev_->caps() & iodevcaps::mappable)) {
         const int ret = detail::write_all<Bytef>(dev_, buf_->z_first, buf_->zstr.next_out - buf_->z_first);
         if (ret < 0) { return ret; }
@@ -213,14 +223,10 @@ int basic_devbuf<CharT, Alloc>::flush_compressed_buf() {
     buf_->zstr.next_out = buf_->z_first = static_cast<Bytef*>(dev_->map(sz, true));
     buf_->zstr.avail_out = static_cast<uLong>(sz);
     return sz ? 0 : -1;
-#else
-    return -1;
-#endif
 }
 
 template<typename CharT, typename Alloc>
 int basic_devbuf<CharT, Alloc>::write_compressed(const void* data, std::size_t sz) {
-#if defined(UXS_USE_ZLIB)
     buf_->zstr.next_in = static_cast<const Bytef*>(data);
     buf_->zstr.avail_in = static_cast<uLong>(sz);
     do {
@@ -229,14 +235,10 @@ int basic_devbuf<CharT, Alloc>::write_compressed(const void* data, std::size_t s
         if (::deflate(&buf_->zstr, Z_NO_FLUSH) != Z_OK) { return -1; }
     } while (buf_->zstr.avail_in);
     return 0;
-#else
-    return -1;
-#endif
 }
 
 template<typename CharT, typename Alloc>
 void basic_devbuf<CharT, Alloc>::finish_compressed() {
-#if defined(UXS_USE_ZLIB)
     int z_ret = 0;
     do {
         if (!buf_->zstr.avail_out && flush_compressed_buf() < 0) { return; }
@@ -248,12 +250,10 @@ void basic_devbuf<CharT, Alloc>::finish_compressed() {
     } else {
         dev_->seek(buf_->zstr.next_out - buf_->z_first, seekdir::curr);
     }
-#endif
 }
 
 template<typename CharT, typename Alloc>
 int basic_devbuf<CharT, Alloc>::read_compressed(void* data, std::size_t sz, std::size_t& n_read) {
-#if defined(UXS_USE_ZLIB)
     buf_->zstr.next_out = static_cast<Bytef*>(data);
     buf_->zstr.avail_out = static_cast<uLong>(sz);
     do {
@@ -278,10 +278,29 @@ int basic_devbuf<CharT, Alloc>::read_compressed(void* data, std::size_t sz, std:
     } while (buf_->zstr.avail_out);
     n_read = buf_->zstr.next_out - static_cast<const Bytef*>(data);
     return n_read ? 0 : -1;
-#else
-    return -1;
-#endif
 }
+
+#else  // defined(UXS_USE_ZLIB)
+
+template<typename CharT, typename Alloc>
+int basic_devbuf<CharT, Alloc>::flush_compressed_buf() {
+    return -1;
+}
+
+template<typename CharT, typename Alloc>
+int basic_devbuf<CharT, Alloc>::write_compressed(const void* /*data*/, std::size_t /*sz*/) {
+    return -1;
+}
+
+template<typename CharT, typename Alloc>
+void basic_devbuf<CharT, Alloc>::finish_compressed() {}
+
+template<typename CharT, typename Alloc>
+int basic_devbuf<CharT, Alloc>::read_compressed(void* /*data*/, std::size_t /*sz*/, std::size_t& /*n_read*/) {
+    return -1;
+}
+
+#endif  // defined(UXS_USE_ZLIB)
 
 template<typename CharT, typename Alloc>
 void basic_devbuf<CharT, Alloc>::parse_ctrlesc(const char_type* first, const char_type* last) {
