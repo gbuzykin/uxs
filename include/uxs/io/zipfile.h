@@ -3,8 +3,6 @@
 #include "iodevice.h"
 #include "ziparch.h"
 
-#include <string>
-
 namespace uxs {
 
 class UXS_EXPORT_ALL_STUFF_FOR_GNUC zipfile : public iodevice {
@@ -12,39 +10,33 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC zipfile : public iodevice {
     zipfile() noexcept = default;
     zipfile(ziparch& arch, const char* fname, iomode mode) { open(arch, fname, mode); }
     zipfile(ziparch& arch, const wchar_t* fname, iomode mode) { open(arch, fname, mode); }
-    zipfile(ziparch& arch, const char* fname, const char* mode) {
-        open(arch, fname, detail::iomode_from_str(mode, iomode::none));
-    }
-    zipfile(ziparch& arch, const wchar_t* fname, const char* mode) {
-        open(arch, fname, detail::iomode_from_str(mode, iomode::none));
-    }
+    zipfile(ziparch& arch, std::uint64_t index, iomode mode) { open(arch, index, mode); }
+    zipfile(ziparch& arch, const char* fname, const char* mode) { open(arch, fname, mode); }
+    zipfile(ziparch& arch, const wchar_t* fname, const char* mode) { open(arch, fname, mode); }
+    zipfile(ziparch& arch, std::uint64_t index, const char* mode) { open(arch, index, mode); }
     ~zipfile() override { close(); }
-    zipfile(zipfile&& other) noexcept
-        : mode_(other.mode_), fname_(std::move(other.fname_)), zip_arch_(other.zip_arch_), zip_fd_(other.zip_fd_) {
-        other.zip_arch_ = nullptr;
-        other.zip_fd_ = nullptr;
-    }
+    zipfile(zipfile&& other) noexcept : mode_(other.mode_), zip_fdesc_(other.zip_fdesc_) { other.zip_fdesc_ = nullptr; }
     zipfile& operator=(zipfile&& other) noexcept {
         if (&other == this) { return *this; }
-        mode_ = other.mode_;
-        fname_ = std::move(other.fname_);
-        zip_arch_ = other.zip_arch_;
-        zip_fd_ = other.zip_fd_;
-        other.zip_arch_ = nullptr;
-        other.zip_fd_ = nullptr;
+        mode_ = other.mode_, zip_fdesc_ = other.zip_fdesc_;
+        other.zip_fdesc_ = nullptr;
         return *this;
     }
 
-    bool valid() const noexcept { return zip_fd_ != nullptr; }
-    explicit operator bool() const noexcept { return zip_fd_ != nullptr; }
+    bool valid() const noexcept { return zip_fdesc_ != nullptr; }
+    explicit operator bool() const noexcept { return zip_fdesc_ != nullptr; }
 
     UXS_EXPORT bool open(ziparch& arch, const char* fname, iomode mode);
     UXS_EXPORT bool open(ziparch& arch, const wchar_t* fname, iomode mode);
+    UXS_EXPORT bool open(ziparch& arch, std::uint64_t index, iomode mode);
     bool open(ziparch& arch, const char* fname, const char* mode) {
         return open(arch, fname, detail::iomode_from_str(mode, iomode::none));
     }
     bool open(ziparch& arch, const wchar_t* fname, const char* mode) {
         return open(arch, fname, detail::iomode_from_str(mode, iomode::none));
+    }
+    bool open(ziparch& arch, std::uint64_t index, const char* mode) {
+        return open(arch, index, detail::iomode_from_str(mode, iomode::none));
     }
     UXS_EXPORT void close() noexcept;
 
@@ -53,10 +45,18 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC zipfile : public iodevice {
     int flush() override { return -1; }
 
  private:
+    struct writing_desc_t {
+#if __cplusplus < 201703L
+        writing_desc_t(std::string fname, void* zip_arch, void* zip_source)
+            : fname(std::move(fname)), zip_arch(zip_arch), zip_source(zip_source) {}
+#endif  // __cplusplus < 201703L
+        std::string fname;
+        void* zip_arch = nullptr;
+        void* zip_source = nullptr;
+    };
+
     iomode mode_ = iomode::none;
-    std::string fname_;
-    void* zip_arch_ = nullptr;
-    void* zip_fd_ = nullptr;
+    void* zip_fdesc_ = nullptr;
 };
 
 }  // namespace uxs

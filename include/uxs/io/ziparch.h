@@ -2,17 +2,26 @@
 
 #include "iostate.h"
 
+#include <string>
+
 namespace uxs {
 
 class zipfile;
 
 class ziparch {
  public:
+    struct file_info {
+        std::string name;
+        std::uint64_t index = 0;
+        std::uint64_t size = 0;
+        std::uint32_t crc = 0;
+    };
+
     ziparch() noexcept = default;
     ziparch(const char* name, iomode mode) { open(name, mode); }
     ziparch(const wchar_t* name, iomode mode) { open(name, mode); }
-    ziparch(const char* name, const char* mode) : ziparch(name, detail::iomode_from_str(mode, iomode::in)) {}
-    ziparch(const wchar_t* name, const char* mode) : ziparch(name, detail::iomode_from_str(mode, iomode::in)) {}
+    ziparch(const char* name, const char* mode) { open(name, mode); }
+    ziparch(const wchar_t* name, const char* mode) { open(name, mode); }
     ~ziparch() { close(); }
     ziparch(ziparch&& other) noexcept : zip_(other.zip_) { other.zip_ = nullptr; }
     ziparch& operator=(ziparch&& other) noexcept {
@@ -31,14 +40,12 @@ class ziparch {
     bool open(const wchar_t* name, const char* mode) { return open(name, detail::iomode_from_str(mode, iomode::in)); }
     UXS_EXPORT void close() noexcept;
 
-    UXS_EXPORT bool add_file(const char* fname, const void* data, std::size_t sz);
-    UXS_EXPORT bool add_file(const wchar_t* fname, const void* data, std::size_t sz);
+    UXS_EXPORT std::int64_t add_file(const char* fname, const void* data, std::size_t sz);
+    UXS_EXPORT std::int64_t add_file(const wchar_t* fname, const void* data, std::size_t sz);
 
-    UXS_EXPORT bool stat_size(const char* fname, std::uint64_t& sz);
-    UXS_EXPORT bool stat_crc(const char* fname, std::uint32_t& crc);
-
-    UXS_EXPORT bool stat_size(const wchar_t* fname, std::uint64_t& sz);
-    UXS_EXPORT bool stat_crc(const wchar_t* fname, std::uint32_t& crc);
+    UXS_EXPORT bool stat_file(const char* fname, file_info& info);
+    UXS_EXPORT bool stat_file(const wchar_t* fname, file_info& info);
+    UXS_EXPORT bool stat_file(std::uint64_t index, file_info& info);
 
  private:
     friend class zipfile;
