@@ -39,6 +39,8 @@ class basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_all
     UXS_EXPORT void freebuf() noexcept;
     allocator_type get_allocator() const noexcept { return allocator_type(*this); }
 
+    UXS_EXPORT bool truncate();
+
  protected:
     UXS_EXPORT int underflow() override;
     UXS_EXPORT int overflow() override;

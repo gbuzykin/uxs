@@ -31,11 +31,11 @@ int byteseqdev::read(void* data, std::size_t sz, std::size_t& n_read) {
     const std::size_t sz0 = sz;
     while (sz) {
         std::size_t mapped_sz = 0;
-        void* p = map(mapped_sz, false);
+        void* p = byteseqdev::map(mapped_sz, false);
         if (!p || !mapped_sz) { break; }
         if (sz < mapped_sz) { mapped_sz = sz; }
         std::memcpy(data, p, mapped_sz);
-        seek(mapped_sz, seekdir::curr);
+        byteseqdev::seek(mapped_sz, seekdir::curr);
         data = static_cast<std::uint8_t*>(data) + mapped_sz, sz -= mapped_sz;
     }
     n_read = sz0 - sz;
@@ -46,11 +46,11 @@ int byteseqdev::write(const void* data, std::size_t sz, std::size_t& n_written) 
     const std::size_t sz0 = sz;
     while (sz) {
         std::size_t mapped_sz = 0;
-        void* p = map(mapped_sz, true);
+        void* p = byteseqdev::map(mapped_sz, true);
         if (!p || !mapped_sz) { return -1; }
         if (sz < mapped_sz) { mapped_sz = sz; }
         std::memcpy(p, data, mapped_sz);
-        seek(mapped_sz, seekdir::curr);
+        byteseqdev::seek(mapped_sz, seekdir::curr);
         data = static_cast<const std::uint8_t*>(data) + mapped_sz, sz -= mapped_sz;
     }
     n_written = sz0;
@@ -130,3 +130,5 @@ std::int64_t byteseqdev::seek(std::int64_t off, seekdir dir) {
     }
     return static_cast<std::int64_t>(pos_);
 }
+
+int byteseqdev::truncate() { return -1; }

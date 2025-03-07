@@ -115,16 +115,18 @@ int sysfile::ctrlesc_color(est::span<const std::uint8_t> v) {
 
 std::int64_t sysfile::seek(std::int64_t off, seekdir dir) {
     DWORD method = FILE_BEGIN;
-    LONG pos_hi = static_cast<long>(off >> 32);
+    LONG pos_hi = static_cast<LONG>(off >> 32);
     switch (dir) {
         case seekdir::curr: method = FILE_CURRENT; break;
         case seekdir::end: method = FILE_END; break;
         default: break;
     }
-    DWORD pos_lo = ::SetFilePointer(fd_, static_cast<long>(off), &pos_hi, method);
+    DWORD pos_lo = ::SetFilePointer(fd_, static_cast<LONG>(off), &pos_hi, method);
     if (pos_lo == INVALID_SET_FILE_POINTER) { return -1; }
     return (static_cast<std::int64_t>(pos_hi) << 32) | pos_lo;
 }
+
+int sysfile::truncate() { return ::SetEndOfFile(fd_) ? 0 : -1; }
 
 int sysfile::flush() { return 0; }
 

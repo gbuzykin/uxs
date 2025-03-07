@@ -18,11 +18,12 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC byteseqdev : public iodevice {
 
     const byteseq* get() const noexcept { return seq_; }
     UXS_EXPORT void clear() noexcept;
-    UXS_EXPORT int read(void* data, std::size_t sz, std::size_t& n_read) final;
-    UXS_EXPORT int write(const void* data, std::size_t sz, std::size_t& n_written) final;
-    UXS_EXPORT void* map(std::size_t& sz, bool wr) final;
-    UXS_EXPORT std::int64_t seek(std::int64_t off, seekdir dir) final;
-    int flush() final { return 0; }
+    UXS_EXPORT int read(void* data, std::size_t sz, std::size_t& n_read) override;
+    UXS_EXPORT int write(const void* data, std::size_t sz, std::size_t& n_written) override;
+    UXS_EXPORT void* map(std::size_t& sz, bool wr) override;
+    UXS_EXPORT std::int64_t seek(std::int64_t off, seekdir dir) override;
+    UXS_EXPORT int truncate() override;
+    int flush() override { return 0; }
 
  private:
     byteseq* seq_;

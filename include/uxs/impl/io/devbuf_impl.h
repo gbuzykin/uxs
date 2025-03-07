@@ -144,6 +144,14 @@ void basic_devbuf<CharT, Alloc>::freebuf() noexcept {
 }
 
 template<typename CharT, typename Alloc>
+bool basic_devbuf<CharT, Alloc>::truncate() {
+    assert(dev_);
+    if (!(this->mode() & iomode::out)) { return false; }
+    this->flush();
+    return *this && dev_->truncate() == 0;
+}
+
+template<typename CharT, typename Alloc>
 const typename basic_devbuf<CharT, Alloc>::char_type* basic_devbuf<CharT, Alloc>::find_end_of_ctrlesc(
     const char_type* first, const char_type* last) noexcept {
     if (first == last) { return first; }
