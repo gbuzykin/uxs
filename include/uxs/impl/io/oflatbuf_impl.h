@@ -13,7 +13,9 @@ basic_oflatbuf<CharT, Alloc>::~basic_oflatbuf() {
 
 template<typename CharT, typename Alloc>
 basic_oflatbuf<CharT, Alloc>::basic_oflatbuf(basic_oflatbuf&& other) noexcept
-    : alloc_type(std::move(other)), basic_iobuf<CharT>(std::move(other)), top_(other.top_) {}
+    : alloc_type(std::move(other)), basic_iobuf<CharT>(std::move(other)), top_(other.top_) {
+    other.top_ = nullptr;
+}
 
 template<typename CharT, typename Alloc>
 basic_oflatbuf<CharT, Alloc>& basic_oflatbuf<CharT, Alloc>::operator=(basic_oflatbuf&& other) noexcept {
@@ -21,6 +23,7 @@ basic_oflatbuf<CharT, Alloc>& basic_oflatbuf<CharT, Alloc>::operator=(basic_ofla
     alloc_type::operator=(std::move(other));
     basic_iobuf<CharT>::operator=(std::move(other));
     top_ = other.top_;
+    other.top_ = nullptr;
     return *this;
 }
 

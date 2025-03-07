@@ -6,7 +6,7 @@
 #if defined(UXS_USE_ZLIB)
 #    define ZLIB_CONST
 #    include <zlib.h>
-#endif
+#endif  // defined(UXS_USE_ZLIB)
 
 #include <algorithm>
 #include <cassert>
@@ -27,9 +27,9 @@ byteseq::~byteseq() {
 void byteseq::clear() noexcept {
     if (!head_) { return; }
     delete_chunks();
+    size_ = 0;
     dllist_make_cycle(head_);
     head_->end = head_->data;
-    size_ = 0;
 }
 
 std::uint32_t byteseq::calc_crc32() const noexcept {
@@ -50,17 +50,17 @@ byteseq& byteseq::assign(const byteseq& other) {
 
 bool byteseq::compress() {
     if (empty()) { return true; }
-    auto buf = make_compressed();
-    if (buf.empty()) { return false; }
-    *this = std::move(buf);
+    auto seq = make_compressed();
+    if (seq.empty()) { return false; }
+    *this = std::move(seq);
     return true;
 }
 
 bool byteseq::uncompress() {
     if (empty()) { return true; }
-    auto buf = make_uncompressed();
-    if (buf.empty()) { return false; }
-    *this = std::move(buf);
+    auto seq = make_uncompressed();
+    if (seq.empty()) { return false; }
+    *this = std::move(seq);
     return true;
 }
 
@@ -83,40 +83,45 @@ std::vector<std::uint8_t> byteseq::make_vector() const {
 byteseq byteseq::make_compressed() const {
     if (empty()) { return {}; }
 
-    byteseq buf;
-    buf.create_head_chunk();
+    byteseq seq;
+    seq.create_head_chunk();
 
     z_stream zstr;
     std::memset(&zstr, 0, sizeof(z_stream));
     ::deflateInit(&zstr, Z_DEFAULT_COMPRESSION);
 
-    const chunk_t* chunk = head_->next;
-    zstr.next_in = chunk->data;
-    zstr.next_out = buf.head_->data;
+    try {
+        const chunk_t* chunk = head_->next;
+        zstr.next_in = chunk->data;
+        zstr.next_out = seq.head_->data;
 
-    while (true) {
-        if (zstr.next_in == chunk->end && chunk != head_) {
-            chunk = chunk->next;
-            zstr.next_in = chunk->data;
-        }
-
-        zstr.avail_in = static_cast<uInt>(std::min<std::size_t>(chunk->end - zstr.next_in, max_avail_count));
-        zstr.avail_out = static_cast<uInt>(buf.head_->boundary - zstr.next_out);
-
-        const int ret = ::deflate(&zstr, zstr.avail_in ? Z_NO_FLUSH : Z_FINISH);
-        if (ret != Z_OK) {
-            if (::deflateEnd(&zstr) == Z_OK && ret == Z_STREAM_END) {
-                buf.head_->end = zstr.next_out;
-                buf.size_ += buf.head_->size();
-                return buf;
+        while (true) {
+            if (zstr.next_in == chunk->end && chunk != head_) {
+                chunk = chunk->next;
+                zstr.next_in = chunk->data;
             }
-            break;
-        }
 
-        if (zstr.next_out == buf.head_->boundary) {
-            buf.create_next_chunk();
-            zstr.next_out = buf.head_->data;
+            zstr.avail_in = static_cast<uInt>(std::min<std::size_t>(chunk->end - zstr.next_in, max_avail_count));
+            zstr.avail_out = static_cast<uInt>(seq.head_->boundary - zstr.next_out);
+
+            const int ret = ::deflate(&zstr, zstr.avail_in ? Z_NO_FLUSH : Z_FINISH);
+            if (ret != Z_OK) {
+                if (::deflateEnd(&zstr) == Z_OK && ret == Z_STREAM_END) {
+                    seq.head_->end = zstr.next_out;
+                    seq.size_ += seq.head_->size();
+                    return seq;
+                }
+                break;
+            }
+
+            if (zstr.next_out == seq.head_->boundary) {
+                seq.create_next_chunk();
+                zstr.next_out = seq.head_->data;
+            }
         }
+    } catch (...) {
+        ::deflateEnd(&zstr);
+        throw;
     }
 
     return {};
@@ -125,48 +130,53 @@ byteseq byteseq::make_compressed() const {
 byteseq byteseq::make_uncompressed() const {
     if (empty()) { return {}; }
 
-    byteseq buf;
-    buf.create_head_chunk();
+    byteseq seq;
+    seq.create_head_chunk();
 
     z_stream zstr;
     std::memset(&zstr, 0, sizeof(z_stream));
     ::inflateInit(&zstr);
 
-    const chunk_t* chunk = head_->next;
-    zstr.next_in = chunk->data;
-    zstr.next_out = buf.head_->data;
+    try {
+        const chunk_t* chunk = head_->next;
+        zstr.next_in = chunk->data;
+        zstr.next_out = seq.head_->data;
 
-    while (true) {
-        if (zstr.next_in == chunk->end && chunk != head_) {
-            chunk = chunk->next;
-            zstr.next_in = chunk->data;
-        }
-
-        zstr.avail_in = static_cast<uInt>(std::min<std::size_t>(chunk->end - zstr.next_in, max_avail_count));
-        zstr.avail_out = static_cast<uInt>(buf.head_->boundary - zstr.next_out);
-
-        const int ret = ::inflate(&zstr, zstr.avail_in ? Z_NO_FLUSH : Z_FINISH);
-        if (ret != Z_OK) {
-            if (::inflateEnd(&zstr) == Z_OK && ret == Z_STREAM_END) {
-                buf.head_->end = zstr.next_out;
-                buf.size_ += buf.head_->size();
-                return buf;
+        while (true) {
+            if (zstr.next_in == chunk->end && chunk != head_) {
+                chunk = chunk->next;
+                zstr.next_in = chunk->data;
             }
-            break;
-        }
 
-        if (zstr.next_out == buf.head_->boundary) {
-            buf.create_next_chunk();
-            zstr.next_out = buf.head_->data;
+            zstr.avail_in = static_cast<uInt>(std::min<std::size_t>(chunk->end - zstr.next_in, max_avail_count));
+            zstr.avail_out = static_cast<uInt>(seq.head_->boundary - zstr.next_out);
+
+            const int ret = ::inflate(&zstr, zstr.avail_in ? Z_NO_FLUSH : Z_FINISH);
+            if (ret != Z_OK) {
+                if (::inflateEnd(&zstr) == Z_OK && ret == Z_STREAM_END) {
+                    seq.head_->end = zstr.next_out;
+                    seq.size_ += seq.head_->size();
+                    return seq;
+                }
+                break;
+            }
+
+            if (zstr.next_out == seq.head_->boundary) {
+                seq.create_next_chunk();
+                zstr.next_out = seq.head_->data;
+            }
         }
+    } catch (...) {
+        ::deflateEnd(&zstr);
+        throw;
     }
 
     return {};
 }
-#else
+#else   // defined(UXS_USE_ZLIB)
 byteseq byteseq::make_compressed() const { return *this; }
 byteseq byteseq::make_uncompressed() const { return *this; }
-#endif
+#endif  // defined(UXS_USE_ZLIB)
 
 void byteseq::delete_chunks() noexcept {
     chunk_t* chunk = head_->next;
@@ -180,16 +190,17 @@ void byteseq::delete_chunks() noexcept {
 void byteseq::clear_and_reserve(std::size_t cap) {
     if (head_) {
         delete_chunks();
+        size_ = 0;
         // delete chunks excepts of the last
         if (head_->capacity() < cap) {
             // create new head buffer
             chunk_t::dealloc(*this, head_);
+            head_ = nullptr;
             create_head(cap);
         } else {  // reuse head buffer
             dllist_make_cycle(head_);
             head_->end = head_->data;
         }
-        size_ = 0;
     } else if (cap) {
         create_head(cap);
     }
