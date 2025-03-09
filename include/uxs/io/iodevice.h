@@ -20,6 +20,7 @@ class iodevice {
     virtual int read(void* data, std::size_t sz, std::size_t& n_read) = 0;
     virtual int write(const void* data, std::size_t sz, std::size_t& n_written) = 0;
     virtual void* map(std::size_t& /*sz*/, bool /*wr*/) { return nullptr; }
+    virtual void advance(std::size_t /*n*/) {}
     virtual std::int64_t seek(std::int64_t /*off*/, seekdir /*dir*/) { return -1; }
     virtual int ctrlesc_color(est::span<const std::uint8_t> /*v*/) { return -1; }
     virtual int truncate() { return -1; }

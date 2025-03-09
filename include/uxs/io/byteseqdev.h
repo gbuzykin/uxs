@@ -21,6 +21,7 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC byteseqdev : public iodevice {
     UXS_EXPORT int read(void* data, std::size_t sz, std::size_t& n_read) override;
     UXS_EXPORT int write(const void* data, std::size_t sz, std::size_t& n_written) override;
     UXS_EXPORT void* map(std::size_t& sz, bool wr) override;
+    UXS_EXPORT void advance(std::size_t n) override;
     UXS_EXPORT std::int64_t seek(std::int64_t off, seekdir dir) override;
     UXS_EXPORT int truncate() override;
     int flush() override { return 0; }
