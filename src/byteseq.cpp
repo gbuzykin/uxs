@@ -48,6 +48,44 @@ byteseq& byteseq::assign(const byteseq& other) {
     });
 }
 
+std::vector<std::uint8_t> byteseq::make_vector() const {
+    std::vector<std::uint8_t> result;
+    scan([&result](const std::uint8_t* p, std::size_t sz) { result.insert(result.end(), p, p + sz); });
+    return result;
+}
+
+/*static*/ byteseq byteseq::from_vector(est::span<const std::uint8_t> v) {
+    byteseq seq;
+    return seq.assign(v.size(), [&v](std::uint8_t* dst, std::size_t dst_sz) {
+        std::memcpy(dst, v.data(), dst_sz);
+        return dst_sz;
+    });
+    return seq;
+}
+
+void byteseq::resize(std::size_t sz) {
+    if (sz > size_) {
+        if (!head_) { create_head_chunk(); }
+        while (sz - size_ > head_->avail()) {
+            std::memset(head_->end, 0, head_->avail());
+            create_next_chunk();
+        }
+        const std::size_t extra = sz - size_;
+        std::memset(head_->end, 0, extra);
+        head_->end += extra;
+    } else {
+        while (size_ - sz > head_->size()) {
+            chunk_t* prev = head_->prev;
+            size_ -= head_->size();
+            dllist_remove(head_);
+            chunk_t::dealloc(*this, head_);
+            head_ = prev;
+        }
+        head_->end -= size_ - sz;
+    }
+    size_ = sz;
+}
+
 bool byteseq::compress() {
     if (empty()) { return true; }
     auto seq = make_compressed();
@@ -62,21 +100,6 @@ bool byteseq::uncompress() {
     if (seq.empty()) { return false; }
     *this = std::move(seq);
     return true;
-}
-
-std::vector<std::uint8_t> byteseq::make_vector() const {
-    std::vector<std::uint8_t> result;
-    scan([&result](const std::uint8_t* p, std::size_t sz) { result.insert(result.end(), p, p + sz); });
-    return result;
-}
-
-/*static*/ byteseq byteseq::from_vector(est::span<const std::uint8_t> v) {
-    byteseq seq;
-    return seq.assign(v.size(), [&v](std::uint8_t* dst, std::size_t dst_sz) {
-        std::memcpy(dst, v.data(), dst_sz);
-        return dst_sz;
-    });
-    return seq;
 }
 
 #if defined(UXS_USE_ZLIB)

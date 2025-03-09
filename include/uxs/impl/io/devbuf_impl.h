@@ -227,7 +227,7 @@ int basic_devbuf<CharT, Alloc>::flush_compressed_buf() {
         return 0;
     }
     std::size_t sz = 0;
-    if (dev_->seek(buf_->zstr.next_out - buf_->z_first, seekdir::curr) < 0) { return -1; }
+    dev_->advance(static_cast<std::size_t>(buf_->zstr.next_out - buf_->z_first));
     buf_->zstr.next_out = buf_->z_first = static_cast<Bytef*>(dev_->map(sz, true));
     buf_->zstr.avail_out = static_cast<uLong>(sz);
     return sz ? 0 : -1;
@@ -256,7 +256,7 @@ void basic_devbuf<CharT, Alloc>::finish_compressed() {
     if (!(dev_->caps() & iodevcaps::mappable)) {
         detail::write_all<Bytef>(dev_, buf_->z_first, buf_->zstr.next_out - buf_->z_first);
     } else {
-        dev_->seek(buf_->zstr.next_out - buf_->z_first, seekdir::curr);
+        dev_->advance(static_cast<std::size_t>(buf_->zstr.next_out - buf_->z_first));
     }
 }
 
@@ -272,7 +272,7 @@ int basic_devbuf<CharT, Alloc>::read_compressed(void* data, std::size_t sz, std:
                 buf_->zstr.next_in = buf_->z_first;
                 buf_->zstr.avail_in = static_cast<uLong>(n_raw_read);
             } else {
-                if (dev_->seek(buf_->zstr.next_in - buf_->z_first, seekdir::curr) < 0) { return -1; }
+                dev_->advance(static_cast<std::size_t>(buf_->zstr.next_in - buf_->z_first));
                 std::size_t sz = 0;
                 buf_->zstr.next_in = buf_->z_first = static_cast<Bytef*>(dev_->map(sz, false));
                 buf_->zstr.avail_in = static_cast<uLong>(sz);
@@ -391,11 +391,11 @@ int basic_devbuf<CharT, Alloc>::underflow() {
     assert(dev_);
     if (!(this->mode() & iomode::in)) { return -1; }
     if (tie_buf_) { tie_buf_->flush(); }
-    if (!buf_) {  // mappable
+    if (!buf_) {  // no buffer - can use mapping
         std::size_t sz = 0;
         char_type* p = static_cast<char_type*>(dev_->map(sz, false));
         sz /= sizeof(char_type);
-        if (sz && dev_->seek(sz * sizeof(char_type), seekdir::curr) < 0) { return -1; }
+        dev_->advance(sz * sizeof(char_type));
         this->setview(p, p, p + sz);
         return sz ? 0 : -1;
     }
@@ -425,9 +425,9 @@ int basic_devbuf<CharT, Alloc>::overflow() {
     assert(dev_);
     if (!(this->mode() & iomode::out)) { return -1; }
     if (tie_buf_) { tie_buf_->flush(); }
-    if (!buf_) {  // mappable
+    if (!buf_) {  // no buffer - can use mapping
         const std::size_t count = this->curr() - this->first();
-        if (dev_->seek(count * sizeof(char_type), seekdir::curr) < 0) { return -1; }
+        dev_->advance(count * sizeof(char_type));
         std::size_t sz = 0;
         char_type* p = static_cast<char_type*>(dev_->map(sz, true));
         this->setview(p, p, p + sz / sizeof(char_type));
@@ -461,9 +461,9 @@ int basic_devbuf<CharT, Alloc>::sync() {
     assert(dev_);
     if (!(this->mode() & iomode::out)) { return -1; }
     if (tie_buf_) { tie_buf_->flush(); }
-    if (!buf_) {  // mappable
+    if (!buf_) {  // no buffer - can use mapping
         const std::size_t count = this->curr() - this->first();
-        if (dev_->seek(count * sizeof(char_type), seekdir::curr) < 0) { return -1; }
+        dev_->advance(count * sizeof(char_type));
         this->setview(this->curr(), this->curr(), this->last());
     } else {
         const int ret = flush_buffer();
