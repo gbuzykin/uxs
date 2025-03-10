@@ -7,11 +7,20 @@
 
 namespace uxs {
 
-class byteseqdev;
+template<typename Alloc>
+class basic_byteseqdev;
 
 namespace detail {
+template<typename Alloc>
 struct byteseq_chunk {
-    using alloc_type = std::allocator<byteseq_chunk>;
+    byteseq_chunk* next;
+    byteseq_chunk* prev;
+    std::uint8_t* end;
+    std::uint8_t* boundary;
+    alignas(std::alignment_of<max_align_t>::value) std::uint8_t data[1];
+
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<byteseq_chunk>;
+
     std::size_t size() const { return static_cast<std::size_t>(end - data); }
     std::size_t capacity() const { return static_cast<std::size_t>(boundary - data); }
     std::size_t avail() const { return static_cast<std::size_t>(boundary - end); }
@@ -23,25 +32,27 @@ struct byteseq_chunk {
     }
     static void dealloc(alloc_type& al, byteseq_chunk* chunk) { al.deallocate(chunk, get_alloc_sz(chunk->capacity())); }
     static byteseq_chunk* alloc(alloc_type& al, std::size_t cap);
-    byteseq_chunk* next;
-    byteseq_chunk* prev;
-    std::uint8_t* end;
-    std::uint8_t* boundary;
-    alignas(std::alignment_of<max_align_t>::value) std::uint8_t data[1];
 };
 }  // namespace detail
 
-class byteseq : public detail::byteseq_chunk::alloc_type {
+template<typename Alloc>
+class basic_byteseq : protected detail::byteseq_chunk<Alloc>::alloc_type {
+ private:
+    using chunk_t = detail::byteseq_chunk<Alloc>;
+    using alloc_type = typename chunk_t::alloc_type;
+
  public:
-    byteseq() noexcept = default;
-    byteseq(const byteseq& other) { assign(other); }
-    byteseq(byteseq&& other) noexcept : size_(other.size_), head_(other.head_) {
+    using allocator_type = Alloc;
+
+    basic_byteseq() noexcept = default;
+    basic_byteseq(const basic_byteseq& other) { assign(other); }
+    basic_byteseq(basic_byteseq&& other) noexcept : size_(other.size_), head_(other.head_) {
         other.size_ = 0, other.head_ = nullptr;
     }
-    UXS_EXPORT ~byteseq();
+    UXS_EXPORT ~basic_byteseq();
 
-    byteseq& operator=(const byteseq& other) { return &other != this ? assign(other) : *this; }
-    byteseq& operator=(byteseq&& other) noexcept {
+    basic_byteseq& operator=(const basic_byteseq& other) { return &other != this ? assign(other) : *this; }
+    basic_byteseq& operator=(basic_byteseq&& other) noexcept {
         if (&other != this) {
             size_ = other.size_, head_ = other.head_;
             other.size_ = 0, other.head_ = nullptr;
@@ -51,16 +62,18 @@ class byteseq : public detail::byteseq_chunk::alloc_type {
 
     std::size_t size() const noexcept { return size_; }
     bool empty() const noexcept { return size_ == 0; }
+    allocator_type get_allocator() const noexcept { return allocator_type(*this); }
+
     UXS_EXPORT void clear() noexcept;
     UXS_EXPORT std::uint32_t calc_crc32() const noexcept;
 
-    void swap(byteseq& other) noexcept {
+    void swap(basic_byteseq& other) noexcept {
         std::swap(size_, other.size_);
         std::swap(head_, other.head_);
     }
 
     template<typename FillFunc>
-    byteseq& assign(std::size_t max_size, FillFunc func) {
+    basic_byteseq& assign(std::size_t max_size, FillFunc func) {
         clear_and_reserve(max_size);
         if (head_) {
             size_ = func(head_->data, max_size);
@@ -79,20 +92,18 @@ class byteseq : public detail::byteseq_chunk::alloc_type {
         } while (chunk != head_->next);
     }
 
-    UXS_EXPORT byteseq& assign(const byteseq& other);
+    UXS_EXPORT basic_byteseq& assign(const basic_byteseq& other);
     UXS_NODISCARD UXS_EXPORT std::vector<std::uint8_t> make_vector() const;
-    UXS_EXPORT static byteseq from_vector(est::span<const std::uint8_t> v);
+    UXS_EXPORT static basic_byteseq from_vector(est::span<const std::uint8_t> v);
 
     UXS_EXPORT void resize(std::size_t sz);
-    UXS_NODISCARD UXS_EXPORT byteseq make_compressed() const;
-    UXS_NODISCARD UXS_EXPORT byteseq make_uncompressed() const;
+    UXS_NODISCARD UXS_EXPORT basic_byteseq make_compressed() const;
+    UXS_NODISCARD UXS_EXPORT basic_byteseq make_uncompressed() const;
     UXS_EXPORT bool compress();
     UXS_EXPORT bool uncompress();
 
  private:
-    using chunk_t = detail::byteseq_chunk;
-
-    friend class byteseqdev;
+    friend class basic_byteseqdev<Alloc>;
 
     enum : std::size_t { chunk_size = 0x100000, max_avail_count = 0x40000000 };
 
@@ -105,5 +116,7 @@ class byteseq : public detail::byteseq_chunk::alloc_type {
     UXS_EXPORT void create_head_chunk();
     UXS_EXPORT void create_next_chunk();
 };
+
+using byteseq = basic_byteseq<std::allocator<std::uint8_t>>;
 
 }  // namespace uxs
