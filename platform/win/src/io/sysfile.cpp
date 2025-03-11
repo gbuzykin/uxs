@@ -26,7 +26,9 @@ file_desc_t sysfile::detach() noexcept {
 }
 
 bool sysfile::open(const wchar_t* fname, iomode mode) {
-    DWORD access = GENERIC_READ, creat_disp = OPEN_EXISTING;
+    DWORD access = GENERIC_READ;
+    DWORD share_mode = FILE_SHARE_READ;
+    DWORD creat_disp = OPEN_EXISTING;
     if (!!(mode & iomode::out)) {
         access |= GENERIC_WRITE;
         if (!!(mode & iomode::create)) {
@@ -40,10 +42,12 @@ bool sysfile::open(const wchar_t* fname, iomode mode) {
         } else if (!!(mode & iomode::truncate)) {
             creat_disp = TRUNCATE_EXISTING;
         }
+    } else {
+        share_mode |= FILE_SHARE_WRITE;
     }
     OFSTRUCT of;
     std::memset(&of, 0, sizeof(of));
-    attach(::CreateFileW(fname, access, FILE_SHARE_READ, NULL, creat_disp, FILE_ATTRIBUTE_NORMAL, NULL));
+    attach(::CreateFileW(fname, access, share_mode, NULL, creat_disp, FILE_ATTRIBUTE_NORMAL, NULL));
     if (fd_ != INVALID_HANDLE_VALUE) {
         if (!!(mode & iomode::append)) {
             if (::SetFilePointer(fd_, 0, NULL, FILE_END) == INVALID_SET_FILE_POINTER) {

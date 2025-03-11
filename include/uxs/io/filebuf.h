@@ -28,25 +28,55 @@ class basic_filebuf : public basic_devbuf<CharT> {
     basic_filebuf(const wchar_t* fname, const char* mode)
         : basic_filebuf(fname,
                         detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::text : iomode::none)) {}
-    UXS_EXPORT ~basic_filebuf() override;
-    UXS_EXPORT basic_filebuf(basic_filebuf&& other) noexcept;
-    UXS_EXPORT basic_filebuf& operator=(basic_filebuf&& other) noexcept;
 
-    UXS_EXPORT void attach(file_desc_t fd, iomode mode);
-    UXS_EXPORT file_desc_t detach() noexcept;
+    ~basic_filebuf() override { this->freebuf(); }
 
-    UXS_EXPORT bool open(const char* fname, iomode mode);
-    UXS_EXPORT bool open(const wchar_t* fname, iomode mode);
+    basic_filebuf(basic_filebuf&& other) noexcept
+        : basic_devbuf<CharT>(std::move(other)), file_(std::move(other.file_)) {
+        this->setdev(&file_);
+    }
+    basic_filebuf& operator=(basic_filebuf&& other) noexcept {
+        if (&other == this) { return *this; }
+        basic_devbuf<CharT>::operator=(std::move(other));
+        file_ = std::move(other.file_);
+        this->setdev(&file_);
+        return *this;
+    }
+
+    void attach(file_desc_t fd, iomode mode) {
+        this->initbuf(mode);
+        file_.attach(fd);
+    }
+    file_desc_t detach() noexcept {
+        this->freebuf();
+        return file_.detach();
+    }
+
+    bool open(const char* fname, iomode mode) {
+        this->freebuf();
+        const bool res = file_.open(fname, mode);
+        if (res) { this->initbuf(mode); }
+        return res;
+    }
+    bool open(const wchar_t* fname, iomode mode) {
+        this->freebuf();
+        const bool res = file_.open(fname, mode);
+        if (res) { this->initbuf(mode); }
+        return res;
+    }
     bool open(const char* fname, const char* mode) {
         return open(fname, detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::text : iomode::none));
     }
     bool open(const wchar_t* fname, const char* mode) {
         return open(fname, detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::text : iomode::none));
     }
-    UXS_EXPORT void close() noexcept;
+    void close() noexcept {
+        this->freebuf();
+        file_.close();
+    }
 
  protected:
-    UXS_EXPORT int sync() override { return basic_devbuf<CharT>::sync(); }
+    int sync() override { return basic_devbuf<CharT>::sync(); }
 
  private:
     sysfile file_;

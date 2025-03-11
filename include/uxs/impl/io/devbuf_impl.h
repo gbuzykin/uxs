@@ -144,14 +144,6 @@ void basic_devbuf<CharT, Alloc>::freebuf() noexcept {
 }
 
 template<typename CharT, typename Alloc>
-bool basic_devbuf<CharT, Alloc>::truncate() {
-    assert(dev_);
-    if (!(this->mode() & iomode::out)) { return false; }
-    this->flush();
-    return *this && dev_->truncate() == 0;
-}
-
-template<typename CharT, typename Alloc>
 const typename basic_devbuf<CharT, Alloc>::char_type* basic_devbuf<CharT, Alloc>::find_end_of_ctrlesc(
     const char_type* first, const char_type* last) noexcept {
     if (first == last) { return first; }
@@ -437,7 +429,29 @@ int basic_devbuf<CharT, Alloc>::overflow() {
 }
 
 template<typename CharT, typename Alloc>
-typename basic_devbuf<CharT, Alloc>::pos_type basic_devbuf<CharT, Alloc>::seekimpl(off_type off, seekdir dir) {
+int basic_devbuf<CharT, Alloc>::sync() {
+    assert(dev_);
+    if (!(this->mode() & iomode::out)) { return -1; }
+    if (tie_buf_) { tie_buf_->flush(); }
+    if (!buf_) {  // no buffer - can use mapping
+        const std::size_t count = this->curr() - this->first();
+        dev_->advance(count * sizeof(char_type));
+        this->setview(this->curr(), this->curr(), this->last());
+    } else {
+        const int ret = flush_buffer();
+        if (ret < 0) { return ret; }
+    }
+    return dev_->flush();
+}
+
+template<typename CharT, typename Alloc>
+int basic_devbuf<CharT, Alloc>::truncate_impl() {
+    assert(dev_);
+    return dev_->truncate();
+}
+
+template<typename CharT, typename Alloc>
+typename basic_devbuf<CharT, Alloc>::pos_type basic_devbuf<CharT, Alloc>::seek_impl(off_type off, seekdir dir) {
     assert(dev_);
     if (!!(this->mode() & (iomode::z_compr | iomode::append))) { off = 0, dir = seekdir::curr; }
     if (dir == seekdir::curr) {
@@ -454,22 +468,6 @@ typename basic_devbuf<CharT, Alloc>::pos_type basic_devbuf<CharT, Alloc>::seekim
     if (dev_pos < 0) { return traits_type::npos(); }
     if (!buf_ || !!(this->mode() & iomode::in)) { this->setview(nullptr, nullptr, nullptr); }
     return static_cast<pos_type>(dev_pos / sizeof(char_type));
-}
-
-template<typename CharT, typename Alloc>
-int basic_devbuf<CharT, Alloc>::sync() {
-    assert(dev_);
-    if (!(this->mode() & iomode::out)) { return -1; }
-    if (tie_buf_) { tie_buf_->flush(); }
-    if (!buf_) {  // no buffer - can use mapping
-        const std::size_t count = this->curr() - this->first();
-        dev_->advance(count * sizeof(char_type));
-        this->setview(this->curr(), this->curr(), this->last());
-    } else {
-        const int ret = flush_buffer();
-        if (ret < 0) { return ret; }
-    }
-    return dev_->flush();
 }
 
 }  // namespace uxs

@@ -32,24 +32,31 @@ void ziparch::close() noexcept {
     zip_ = nullptr;
 }
 
-std::int64_t ziparch::add_file(const char* fname, const void* data, std::size_t sz) {
+std::int64_t ziparch::add_file(const char* fname, const void* data, std::size_t sz, zipfile_compression compr,
+                               unsigned level) {
     if (!zip_) { return -1; }
     void* data_copy = std::malloc(sz);
     if (!data_copy) { return -1; }
     std::memcpy(data_copy, data, sz);
-    zip_t* zip = static_cast<zip_t*>(zip_);
-    zip_source_t* source = ::zip_source_buffer(zip, data_copy, static_cast<zip_uint64_t>(sz), 1);
+    zip_source_t* source = ::zip_source_buffer_create(data_copy, static_cast<zip_uint64_t>(sz), 1, nullptr);
     if (!source) {
         std::free(data_copy);
         return -1;
     }
+    zip_t* zip = static_cast<zip_t*>(zip_);
     const std::int64_t index = ::zip_file_add(zip, fname, source, ZIP_FL_ENC_UTF_8);
-    if (index >= 0) { return static_cast<std::int64_t>(index); }
+    if (index >= 0) {
+        if (compr != zipfile_compression::deflate || level != 0) {
+            ::zip_set_file_compression(zip, index, compr == zipfile_compression::store ? ZIP_CM_STORE : ZIP_CM_DEFLATE,
+                                       static_cast<zip_uint32_t>(level));
+        }
+        return static_cast<std::int64_t>(index);
+    }
     ::zip_source_free(source);
     return -1;
 }
 
-bool ziparch::stat_file(const char* fname, file_info& info) {
+bool ziparch::stat_file(const char* fname, zipfile_info& info) const {
     if (!zip_) { return false; }
     zip_t* zip = static_cast<zip_t*>(zip_);
     zip_stat_t stat;
@@ -62,7 +69,7 @@ bool ziparch::stat_file(const char* fname, file_info& info) {
     return true;
 }
 
-bool ziparch::stat_file(std::uint64_t index, file_info& info) {
+bool ziparch::stat_file(std::uint64_t index, zipfile_info& info) const {
     if (!zip_) { return false; }
     zip_t* zip = static_cast<zip_t*>(zip_);
     zip_stat_t stat;
@@ -80,16 +87,20 @@ bool ziparch::stat_file(std::uint64_t index, file_info& info) {
 using namespace uxs;
 bool ziparch::open(const char* /*name*/, iomode /*mode*/) { return false; }
 void ziparch::close() noexcept {}
-std::int64_t ziparch::add_file(const char* /*fname*/, const void* /*data*/, std::size_t /*sz*/) { return -1; }
-bool ziparch::stat_file(const char* /*fname*/, file_info& /*info*/) { return false; }
-bool ziparch::stat_file(std::uint64_t /*index*/, file_info& /*info*/) { return false; }
+std::int64_t ziparch::add_file(const char* /*fname*/, const void* /*data*/, std::size_t /*sz*/,
+                               zipfile_compression /*compr*/, unsigned /*level*/) {
+    return -1;
+}
+bool ziparch::stat_file(const char* /*fname*/, zipfile_info& /*info*/) const { return false; }
+bool ziparch::stat_file(std::uint64_t /*index*/, zipfile_info& /*info*/) const { return false; }
 
 #endif  // defined(UXS_USE_LIBZIP)
 
 bool ziparch::open(const wchar_t* name, iomode mode) { return open(from_wide_to_utf8(name).c_str(), mode); }
-std::int64_t ziparch::add_file(const wchar_t* fname, const void* data, std::size_t sz) {
-    return add_file(from_wide_to_utf8(fname).c_str(), data, sz);
+std::int64_t ziparch::add_file(const wchar_t* fname, const void* data, std::size_t sz, zipfile_compression compr,
+                               unsigned level) {
+    return add_file(from_wide_to_utf8(fname).c_str(), data, sz, compr, level);
 }
-bool ziparch::stat_file(const wchar_t* fname, file_info& info) {
+bool ziparch::stat_file(const wchar_t* fname, zipfile_info& info) const {
     return stat_file(from_wide_to_utf8(fname).c_str(), info);
 }
