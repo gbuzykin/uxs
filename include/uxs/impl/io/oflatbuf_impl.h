@@ -39,7 +39,13 @@ int basic_oflatbuf<CharT, Alloc>::sync() {
 }
 
 template<typename CharT, typename Alloc>
-typename basic_oflatbuf<CharT, Alloc>::pos_type basic_oflatbuf<CharT, Alloc>::seekimpl(off_type off, seekdir dir) {
+int basic_oflatbuf<CharT, Alloc>::truncate_impl() {
+    top_ = this->curr();
+    return 0;
+}
+
+template<typename CharT, typename Alloc>
+typename basic_oflatbuf<CharT, Alloc>::pos_type basic_oflatbuf<CharT, Alloc>::seek_impl(off_type off, seekdir dir) {
     top_ = std::max(top_, this->curr());
     const size_type sz = top_ - this->first();
     size_type pos = this->curr() - this->first();

@@ -90,13 +90,13 @@ class basic_ibuf : public iostate {
     UXS_EXPORT pos_type seek(off_type off, seekdir dir = seekdir::beg);
     pos_type tell() {
         if (this->fail()) { return traits_type::npos(); }
-        return seekimpl(0, seekdir::curr);
+        return seek_impl(0, seekdir::curr);
     }
 
  protected:
     UXS_EXPORT virtual int underflow();
     UXS_EXPORT virtual int ungetfail();
-    UXS_EXPORT virtual pos_type seekimpl(off_type off, seekdir dir);
+    UXS_EXPORT virtual pos_type seek_impl(off_type off, seekdir dir);
     UXS_EXPORT virtual int sync();
 
     char_type* first() const noexcept { return first_; }

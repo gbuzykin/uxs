@@ -29,12 +29,11 @@ class basic_oflatbuf : protected std::allocator_traits<Alloc>::template rebind_a
     est::span<const char_type> view() const noexcept { return est::as_span(this->first(), size()); }
     allocator_type get_allocator() const noexcept { return allocator_type(*this); }
 
-    void truncate() noexcept { top_ = this->curr(); }
-
  protected:
     UXS_EXPORT int overflow() override;
     UXS_EXPORT int sync() override;
-    UXS_EXPORT pos_type seekimpl(off_type off, seekdir dir) override;
+    UXS_EXPORT int truncate_impl() override;
+    UXS_EXPORT pos_type seek_impl(off_type off, seekdir dir) override;
 
  private:
     enum : unsigned {

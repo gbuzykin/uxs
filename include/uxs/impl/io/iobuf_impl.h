@@ -41,7 +41,17 @@ basic_iobuf<CharT>& basic_iobuf<CharT>::flush() {
 }
 
 template<typename CharT>
+void basic_iobuf<CharT>::truncate() {
+    if (!flush() || truncate_impl() < 0) { this->setstate(iostate_bits::bad); }
+}
+
+template<typename CharT>
 int basic_iobuf<CharT>::overflow() {
+    return -1;
+}
+
+template<typename CharT>
+int basic_iobuf<CharT>::truncate_impl() {
     return -1;
 }
 

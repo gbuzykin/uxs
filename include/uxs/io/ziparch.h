@@ -6,17 +6,22 @@
 
 namespace uxs {
 
+enum class zipfile_compression {
+    deflate = 0,
+    store,
+};
+
+struct zipfile_info {
+    std::string name;
+    std::uint64_t index = 0;
+    std::uint64_t size = 0;
+    std::uint32_t crc = 0;
+};
+
 class zipfile;
 
 class ziparch {
  public:
-    struct file_info {
-        std::string name;
-        std::uint64_t index = 0;
-        std::uint64_t size = 0;
-        std::uint32_t crc = 0;
-    };
-
     ziparch() noexcept = default;
     ziparch(const char* name, iomode mode) { open(name, mode); }
     ziparch(const wchar_t* name, iomode mode) { open(name, mode); }
@@ -40,12 +45,14 @@ class ziparch {
     bool open(const wchar_t* name, const char* mode) { return open(name, detail::iomode_from_str(mode, iomode::in)); }
     UXS_EXPORT void close() noexcept;
 
-    UXS_EXPORT std::int64_t add_file(const char* fname, const void* data, std::size_t sz);
-    UXS_EXPORT std::int64_t add_file(const wchar_t* fname, const void* data, std::size_t sz);
+    UXS_EXPORT std::int64_t add_file(const char* fname, const void* data, std::size_t sz,
+                                     zipfile_compression compr = zipfile_compression::deflate, unsigned level = 0);
+    UXS_EXPORT std::int64_t add_file(const wchar_t* fname, const void* data, std::size_t sz,
+                                     zipfile_compression compr = zipfile_compression::deflate, unsigned level = 0);
 
-    UXS_EXPORT bool stat_file(const char* fname, file_info& info);
-    UXS_EXPORT bool stat_file(const wchar_t* fname, file_info& info);
-    UXS_EXPORT bool stat_file(std::uint64_t index, file_info& info);
+    UXS_EXPORT bool stat_file(const char* fname, zipfile_info& info) const;
+    UXS_EXPORT bool stat_file(const wchar_t* fname, zipfile_info& info) const;
+    UXS_EXPORT bool stat_file(std::uint64_t index, zipfile_info& info) const;
 
  private:
     friend class zipfile;

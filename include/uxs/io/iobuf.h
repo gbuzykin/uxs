@@ -64,8 +64,11 @@ class basic_iobuf : public basic_ibuf<CharT> {
     UXS_EXPORT basic_iobuf& flush();
     basic_iobuf& endl() { return put('\n').flush(); }
 
+    UXS_EXPORT void truncate();
+
  protected:
     UXS_EXPORT virtual int overflow();
+    UXS_EXPORT virtual int truncate_impl();
 };
 
 using iobuf = basic_iobuf<char>;

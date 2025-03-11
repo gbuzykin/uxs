@@ -5,7 +5,7 @@
 namespace uxs {
 
 template<typename CharT>
-typename basic_iflatbuf<CharT>::pos_type basic_iflatbuf<CharT>::seekimpl(off_type off, seekdir dir) {
+typename basic_iflatbuf<CharT>::pos_type basic_iflatbuf<CharT>::seek_impl(off_type off, seekdir dir) {
     const size_type sz = this->last() - this->first();
     size_type pos = this->curr() - this->first();
     switch (dir) {

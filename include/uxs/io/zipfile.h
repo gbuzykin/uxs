@@ -38,6 +38,7 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC zipfile : public iodevice {
     bool open(ziparch& arch, std::uint64_t index, const char* mode) {
         return open(arch, index, detail::iomode_from_str(mode, iomode::none));
     }
+    UXS_EXPORT void set_compression(zipfile_compression compr, unsigned level = 0);
     UXS_EXPORT void close() noexcept;
 
     UXS_EXPORT int read(void* data, std::size_t sz, std::size_t& n_read) override;
@@ -53,6 +54,8 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC zipfile : public iodevice {
         std::string fname;
         void* zip_arch = nullptr;
         void* zip_source = nullptr;
+        zipfile_compression zip_compr = zipfile_compression::deflate;
+        unsigned zip_compr_level = 0;
     };
 
     iomode mode_ = iomode::none;

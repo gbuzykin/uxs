@@ -20,7 +20,7 @@ class basic_iflatbuf : public basic_ibuf<CharT> {
     }
 
  protected:
-    UXS_EXPORT pos_type seekimpl(off_type off, seekdir dir) override;
+    UXS_EXPORT pos_type seek_impl(off_type off, seekdir dir) override;
 };
 
 using iflatbuf = basic_iflatbuf<char>;
