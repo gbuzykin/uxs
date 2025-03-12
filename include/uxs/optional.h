@@ -93,8 +93,8 @@ class optional {
     }
 
     template<typename U>
-    value_type value_or(U&& def) const {
-        return valid_ ? val() : value_type(std::forward<U>(def));
+    value_type value_or(U&& default_value) const {
+        return valid_ ? val() : value_type(std::forward<U>(default_value));
     }
 
     const Ty& operator*() const noexcept {
