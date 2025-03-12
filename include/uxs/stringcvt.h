@@ -656,20 +656,20 @@ Ty from_wstring(std::wstring_view s) {
 }
 
 template<typename Ty, typename CharT, typename Traits, typename U>
-Ty from_basic_string_or(std::basic_string_view<CharT, Traits> s, U&& def) {
-    Ty result(std::forward<U>(def));
+Ty from_basic_string_or(std::basic_string_view<CharT, Traits> s, U&& default_value) {
+    Ty result(std::forward<U>(default_value));
     from_basic_string(s, result);
     return result;
 }
 
 template<typename Ty, typename U>
-Ty from_string_or(std::string_view s, U&& def) {
-    return from_basic_string_or<Ty>(s, std::forward<U>(def));
+Ty from_string_or(std::string_view s, U&& default_value) {
+    return from_basic_string_or<Ty>(s, std::forward<U>(default_value));
 }
 
 template<typename Ty, typename U>
-Ty from_wstring_or(std::wstring_view s, U&& def) {
-    return from_basic_string_or<Ty>(s, std::forward<U>(def));
+Ty from_wstring_or(std::wstring_view s, U&& default_value) {
+    return from_basic_string_or<Ty>(s, std::forward<U>(default_value));
 }
 
 // ---- to_string

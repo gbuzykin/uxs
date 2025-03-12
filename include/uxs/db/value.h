@@ -529,15 +529,25 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     template<typename Ty, typename U>
     Ty value_or(U&& default_value) const {
-        auto result = get<Ty>();
+        const auto result = get<Ty>();
         return result ? *result : Ty(std::forward<U>(default_value));
     }
 
     template<typename Ty, typename U>
+    Ty value_or(std::size_t i, U&& default_value) const {
+        const auto range = as_array();
+        if (i < range.size()) {
+            const auto result = range[i].template get<Ty>();
+            if (result) { return *result; }
+        }
+        return Ty(std::forward<U>(default_value));
+    }
+
+    template<typename Ty, typename U>
     Ty value_or(std::basic_string_view<char_type> key, U&& default_value) const {
-        auto it = find(key);
+        const auto it = find(key);
         if (it != end()) {
-            auto result = it.value().template get<Ty>();
+            const auto result = it.value().template get<Ty>();
             if (result) { return *result; }
         }
         return Ty(std::forward<U>(default_value));
@@ -549,8 +559,25 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     template<typename Ty>
+    Ty value(std::size_t i) const {
+        return value_or<Ty>(i, Ty());
+    }
+
+    template<typename Ty>
     Ty value(std::basic_string_view<char_type> key) const {
         return value_or<Ty>(key, Ty());
+    }
+
+    const basic_value& value(std::size_t i) const {
+        static basic_value default_value;
+        const auto range = as_array();
+        return i < range.size() ? range[i] : default_value;
+    }
+
+    const basic_value& value(std::basic_string_view<char_type> key) const {
+        static basic_value default_value;
+        const auto it = find(key);
+        return it != end() ? it.value() : default_value;
     }
 
     bool is_null() const noexcept { return type_ == dtype::null; }
@@ -592,24 +619,24 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     iterator begin() noexcept {
         if (type_ == dtype::record) { return iterator(value_.rec->head.next); }
-        auto range = as_array();
+        const auto range = as_array();
         return iterator(range.data(), range.data(), range.data() + range.size());
     }
     const_iterator begin() const noexcept {
         if (type_ == dtype::record) { return const_iterator(value_.rec->head.next); }
-        auto range = const_cast<basic_value&>(*this).as_array();
+        const auto range = const_cast<basic_value&>(*this).as_array();
         return const_iterator(range.data(), range.data(), range.data() + range.size());
     }
     const_iterator cbegin() const noexcept { return begin(); }
 
     iterator end() noexcept {
         if (type_ == dtype::record) { return iterator(&value_.rec->head); }
-        auto range = as_array();
+        const auto range = as_array();
         return iterator(range.data() + range.size(), range.data(), range.data() + range.size());
     }
     const_iterator end() const noexcept {
         if (type_ == dtype::record) { return const_iterator(&value_.rec->head); }
-        auto range = const_cast<basic_value&>(*this).as_array();
+        const auto range = const_cast<basic_value&>(*this).as_array();
         return const_iterator(range.data() + range.size(), range.data(), range.data() + range.size());
     }
     const_iterator cend() const noexcept { return end(); }
@@ -638,25 +665,25 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     basic_value& operator[](std::size_t i) { return as_array()[i]; }
 
     const basic_value& at(std::size_t i) const {
-        auto range = as_array();
+        const auto range = as_array();
         if (i < range.size()) { return range[i]; }
         throw database_error("index out of range");
     }
 
     basic_value& at(std::size_t i) {
-        auto range = as_array();
+        const auto range = as_array();
         if (i < range.size()) { return range[i]; }
         throw database_error("index out of range");
     }
 
     const basic_value& at(std::basic_string_view<char_type> key) const {
-        auto it = find(key);
+        const auto it = find(key);
         if (it != end()) { return it.value(); }
         throw database_error("invalid key");
     }
 
     basic_value& at(std::basic_string_view<char_type> key) {
-        auto it = find(key);
+        const auto it = find(key);
         if (it != end()) { return it.value(); }
         throw database_error("invalid key");
     }
@@ -1238,7 +1265,7 @@ void basic_value<CharT, Alloc>::assign_impl(InputIt first, InputIt last, std::fa
 #define UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(ty, func) \
     template<typename CharT, typename Alloc> \
     ty basic_value<CharT, Alloc>::as##func() const { \
-        auto result = this->get##func(); \
+        const auto result = this->get##func(); \
         if (result) { return *result; } \
         throw database_error("bad value conversion"); \
     }
@@ -1302,7 +1329,7 @@ struct value_getters_specializer;
         static bool is(const basic_value<CharT, Alloc>& v) { return v.is##func(); } \
         static ty as(const basic_value<CharT, Alloc>& v) { return static_cast<ty>(v.as##func()); } \
         static est::optional<ty> get(const basic_value<CharT, Alloc>& v) { \
-            auto result = v.get##func(); \
+            const auto result = v.get##func(); \
             return result ? est::make_optional(static_cast<ty>(*result)) : est::nullopt(); \
         } \
     };
@@ -1322,6 +1349,7 @@ UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(float, _double)
 UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(double, _double)
 UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(long double, _double)
 UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::basic_string<CharT>, _string)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::basic_string_view<CharT>, _string_view)
 #undef UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS
 
 }  // namespace detail

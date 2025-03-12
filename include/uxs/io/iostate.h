@@ -59,7 +59,7 @@ class iostate {
 };
 
 namespace detail {
-UXS_EXPORT iomode iomode_from_str(const char* mode, iomode def) noexcept;
+UXS_EXPORT iomode iomode_from_str(const char* mode, iomode default_mode) noexcept;
 }
 
 }  // namespace uxs
