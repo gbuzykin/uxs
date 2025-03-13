@@ -14,6 +14,7 @@ class basic_byteseqdev : public iodevice {
           chunk_(seq_->head_ ? seq_->head_->next : nullptr) {}
     explicit basic_byteseqdev(basic_byteseq<Alloc>& seq) noexcept
         : iodevice(iodevcaps::mappable), seq_(&seq), chunk_(seq_->head_ ? seq_->head_->next : nullptr) {}
+
     UXS_EXPORT basic_byteseqdev(basic_byteseqdev&& other) noexcept;
     UXS_EXPORT basic_byteseqdev& operator=(basic_byteseqdev&& other) noexcept;
 
