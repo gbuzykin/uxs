@@ -11,13 +11,17 @@ template<typename Alloc>
 basic_byteseqdev<Alloc>::basic_byteseqdev(basic_byteseqdev&& other) noexcept
     : seq_(other.seq_), chunk_(other.chunk_), pos0_(other.pos0_), pos_(other.pos_) {
     other.seq_ = nullptr;
+    other.chunk_ = nullptr;
 }
+
 template<typename Alloc>
 basic_byteseqdev<Alloc>& basic_byteseqdev<Alloc>::operator=(basic_byteseqdev&& other) noexcept {
     if (&other == this) { return *this; }
-    seq_ = other.seq_, chunk_ = other.chunk_;
+    seq_ = other.seq_;
+    chunk_ = other.chunk_;
     pos0_ = other.pos0_, pos_ = other.pos_;
     other.seq_ = nullptr;
+    other.chunk_ = nullptr;
     return *this;
 }
 
@@ -87,7 +91,8 @@ void* basic_byteseqdev<Alloc>::map(std::size_t& sz, bool wr) {
 
 template<typename Alloc>
 void basic_byteseqdev<Alloc>::advance(std::size_t n) {
-    if (!chunk_) { return; }
+    if (!seq_ || !n) { return; }
+    assert(chunk_ && seq_->head_);
     pos_ += n;
     const std::size_t chunk_pos = pos_ - pos0_;
     if (pos_ > seq_->size_) {
@@ -144,6 +149,7 @@ std::int64_t basic_byteseqdev<Alloc>::seek(std::int64_t off, seekdir dir) {
 
 template<typename Alloc>
 int basic_byteseqdev<Alloc>::truncate() {
+    if (!seq_ || !!(this->caps() & iodevcaps::rdonly)) { return -1; }
     seq_->resize(pos_);
     return 0;
 }
