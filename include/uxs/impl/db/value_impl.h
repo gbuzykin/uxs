@@ -103,7 +103,7 @@ template<typename Ty, typename Alloc>
         if (extra > max_sz - arr->size) { throw std::length_error("too much to reserve"); }
         delta_sz = std::max(extra, (max_sz - arr->size) >> 1);
     }
-    flexarray_t* new_arr = alloc(arr_al, std::max<std::size_t>(arr->size + delta_sz, start_capacity));
+    flexarray_t* new_arr = alloc(arr_al, arr->size + delta_sz);
     detail::move_values<alloc_type>(&(*arr)[0], &(*arr)[arr->size], &(*new_arr)[0]);
     new_arr->size = arr->size;
     detail::destruct_moved_values<alloc_type>(&(*arr)[0], &(*arr)[arr->size]);
@@ -239,10 +239,12 @@ void record_t<CharT, Alloc>::add_to_hash(list_links_t* node, std::size_t hash_co
 template<typename CharT, typename Alloc>
 /*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::insert(alloc_type& rec_al, record_t* rec,
                                                                   std::size_t hash_code, list_links_t* node) {
-    assert(rec->size <= rec->bucket_count);
     if (rec->size == rec->bucket_count) {
-        const std::size_t sz = next_bucket_count(rec_al, rec->size);
-        if (sz > rec->size) { rec = record_t::rehash(rec_al, rec, sz); }
+        const std::size_t new_bckt_cnt = next_bucket_count(rec_al, rec->size);
+        if (new_bckt_cnt > rec->size) {
+            rec = record_t::rehash(rec_al, rec, new_bckt_cnt);
+            assert(rec->size < rec->bucket_count);
+        }
     }
     node_traits::set_head(node, &rec->head);
     node_t::from_links(node)->hash_code_ = hash_code;
@@ -287,16 +289,16 @@ std::size_t record_t<CharT, Alloc>::erase(alloc_type& rec_al, std::basic_string_
 }
 
 template<typename CharT, typename Alloc>
-/*static*/ std::size_t record_t<CharT, Alloc>::next_bucket_count(const alloc_type& rec_al, std::size_t sz) {
-    std::size_t delta_sz = std::max<std::size_t>(min_bucket_count_inc, sz >> 1);
-    const std::size_t max_sz = (std::allocator_traits<alloc_type>::max_size(rec_al) * sizeof(record_t) -
-                                offsetof(record_t, hashtbl)) /
-                               sizeof(list_links_t*);
-    if (delta_sz > max_sz - sz) {
-        if (sz == max_sz) { return sz; }
-        delta_sz = std::max<std::size_t>(1, (max_sz - sz) >> 1);
+/*static*/ std::size_t record_t<CharT, Alloc>::next_bucket_count(const alloc_type& rec_al, std::size_t count) {
+    std::size_t delta_count = count >> 1;
+    const std::size_t max_count = (std::allocator_traits<alloc_type>::max_size(rec_al) * sizeof(record_t) -
+                                   offsetof(record_t, hashtbl)) /
+                                  sizeof(list_links_t*);
+    if (delta_count > max_count - count) {
+        if (count == max_count) { return count; }
+        delta_count = std::max<std::size_t>(1, (max_count - count) >> 1);
     }
-    return sz + delta_sz;
+    return count + delta_count;
 }
 
 template<typename CharT, typename Alloc>
@@ -908,7 +910,7 @@ template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::reserve_back() {
     typename value_flexarray_t::alloc_type arr_al(*this);
     if (type_ != dtype::array || !value_.arr) {
-        value_flexarray_t* arr = value_flexarray_t::alloc(arr_al, value_flexarray_t::start_capacity);
+        value_flexarray_t* arr = value_flexarray_t::alloc(arr_al, 1);
         if (type_ != dtype::array && type_ != dtype::null) {
             basic_value* p = &(*arr)[0];
             new (p) basic_value(static_cast<const Alloc&>(*this));

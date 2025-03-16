@@ -47,9 +47,7 @@ template<typename Ty, typename Alloc>
 struct flexarray_t {
     std::size_t size;
     std::size_t capacity;
-    alignas(std::alignment_of<Ty>::value) std::uint8_t x[sizeof(Ty)];
-
-    enum : unsigned { start_capacity = 8 };
+    alignas(std::alignment_of<Ty>::value) std::uint8_t x[4 * sizeof(Ty)];
 
     flexarray_t(const flexarray_t&) = delete;
     flexarray_t& operator=(const flexarray_t&) = delete;
@@ -133,7 +131,7 @@ class record_value {
     std::size_t hash_code_;
     alignas(std::alignment_of<value_type>::value) std::uint8_t x_[sizeof(value_type)];
     std::size_t key_sz_;
-    char_type key_chars_[1];
+    char_type key_chars_[16];
 
     static std::size_t max_name_size(const alloc_type& node_al) {
         return (std::allocator_traits<alloc_type>::max_size(node_al) * sizeof(record_value) -
@@ -189,9 +187,7 @@ struct record_t {
     mutable list_links_t head;
     std::size_t size;
     std::size_t bucket_count;
-    list_links_t* hashtbl[1];
-
-    enum : unsigned { min_bucket_count_inc = 12 };
+    list_links_t* hashtbl[4];
 
     record_t(const record_t&) = delete;
     record_t& operator=(const record_t&) = delete;
@@ -247,7 +243,7 @@ struct record_t {
                sizeof(record_t);
     }
 
-    static std::size_t next_bucket_count(const alloc_type& rec_al, std::size_t sz);
+    static std::size_t next_bucket_count(const alloc_type& rec_al, std::size_t count);
     UXS_EXPORT static record_t* alloc(alloc_type& rec_al, std::size_t bckt_cnt);
     static record_t* rehash(alloc_type& rec_al, record_t* rec, std::size_t bckt_cnt);
     UXS_EXPORT static void dealloc(alloc_type& rec_al, record_t* rec) {
@@ -1130,7 +1126,7 @@ auto basic_value<CharT, Alloc>::alloc_array(InputIt first, InputIt last, std::fa
     -> value_flexarray_t* {
     if (first == last) { return nullptr; }
     typename value_flexarray_t::alloc_type arr_al(*this);
-    value_flexarray_t* arr = value_flexarray_t::alloc(arr_al, value_flexarray_t::start_capacity);
+    value_flexarray_t* arr = value_flexarray_t::alloc(arr_al, 1);
     arr->size = 0;
     try {
         do {
