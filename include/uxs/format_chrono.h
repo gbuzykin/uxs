@@ -74,25 +74,25 @@ struct chrono_specs {
     fmt_opts opts;
 };
 
-template<typename Duration>
+template<typename CharT, typename Duration, bool PrintZoneByDefault = false>
 struct local_time_format_t {
     std::chrono::sys_time<Duration> time;
-    const std::string& abbrev;
-    std::chrono::seconds offset;
+    std::basic_string_view<CharT> tz_abbrev;
+    std::chrono::seconds tz_offset{0};
 };
 
 template<typename... CharTs>
-UXS_CONSTEXPR bool check_chrono_modifier(char modifier) {
+constexpr bool check_chrono_modifier(char modifier) {
     return !modifier;
 }
 
 template<typename... CharTs>
-UXS_CONSTEXPR bool check_chrono_modifier(char modifier, char m, CharTs... others) {
+constexpr bool check_chrono_modifier(char modifier, char m, CharTs... others) {
     return modifier == m || check_chrono_modifier(modifier, others...);
 }
 
 template<typename Iter>
-UXS_CONSTEXPR chrono_specifier parse_chrono_format_spec(Iter& first, Iter last, char& modifier) {
+constexpr chrono_specifier parse_chrono_format_spec(Iter& first, Iter last, char& modifier) {
     modifier = '\0';
     if (first == last || *first == '{' || *first == '}') { return chrono_specifier::end_of_format; }
     if (*first++ != '%') { return chrono_specifier::ordinary_char; }
@@ -112,7 +112,7 @@ UXS_CONSTEXPR chrono_specifier parse_chrono_format_spec(Iter& first, Iter last, 
         } break;
         case 'O':
         case 'E': {
-            modifier = *first++;
+            modifier = static_cast<char>(*first++);
             if (first == last) { return chrono_specifier::end_of_format; }
         } break;
         default: break;
@@ -346,7 +346,7 @@ void format_chrono_month_brief(FmtCtx& ctx, std::chrono::month m) {
     using char_type = typename FmtCtx::char_type;
     const unsigned month = static_cast<unsigned>(m);
     assert(month >= 1 && month <= 12);
-    static UXS_CONSTEXPR std::basic_string_view<char_type> brief_name_list[] = {
+    static constexpr std::basic_string_view<char_type> brief_name_list[] = {
         string_literal<char_type, 'J', 'a', 'n'>{}(), string_literal<char_type, 'F', 'e', 'b'>{}(),
         string_literal<char_type, 'M', 'a', 'r'>{}(), string_literal<char_type, 'A', 'p', 'r'>{}(),
         string_literal<char_type, 'M', 'a', 'y'>{}(), string_literal<char_type, 'J', 'u', 'n'>{}(),
@@ -362,7 +362,7 @@ void format_chrono_month_full(FmtCtx& ctx, std::chrono::month m) {
     using char_type = typename FmtCtx::char_type;
     const unsigned month = static_cast<unsigned>(m);
     assert(month >= 1 && month <= 12);
-    static UXS_CONSTEXPR std::basic_string_view<char_type> full_name_list[] = {
+    static constexpr std::basic_string_view<char_type> full_name_list[] = {
         string_literal<char_type, 'J', 'a', 'n', 'u', 'a', 'r', 'y'>{}(),
         string_literal<char_type, 'F', 'e', 'b', 'r', 'u', 'a', 'r', 'y'>{}(),
         string_literal<char_type, 'M', 'a', 'r', 'c', 'h'>{}(),
@@ -442,13 +442,21 @@ void format_chrono_day(FmtCtx& ctx, std::chrono::day d, const chrono_specs& spec
     format_chrono_locale(ctx, tm, specs);
 }
 
+template<typename FmtCtx>
+void format_chrono_month_day_last(FmtCtx& ctx, std::chrono::month m, const chrono_specs& specs) {
+    static constexpr unsigned last_day_list[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if (!m.ok()) { format_chrono_out_of_bounds(); }
+    if (m == std::chrono::February) { throw format_error("cannot print the last day of February without a year"); }
+    format_chrono_day(ctx, std::chrono::day{last_day_list[static_cast<unsigned>(m) - 1]}, specs);
+}
+
 // --- day of the week ---
 
 template<typename FmtCtx>
 void format_chrono_weekday_brief(FmtCtx& ctx, std::chrono::weekday wd) {
     using char_type = typename FmtCtx::char_type;
     assert(wd.c_encoding() <= 6);
-    static UXS_CONSTEXPR std::basic_string_view<char_type> brief_name_list[] = {
+    static constexpr std::basic_string_view<char_type> brief_name_list[] = {
         string_literal<char_type, 'S', 'u', 'n'>{}(), string_literal<char_type, 'M', 'o', 'n'>{}(),
         string_literal<char_type, 'T', 'u', 'e'>{}(), string_literal<char_type, 'W', 'e', 'd'>{}(),
         string_literal<char_type, 'T', 'h', 'u'>{}(), string_literal<char_type, 'F', 'r', 'i'>{}(),
@@ -461,7 +469,7 @@ template<typename FmtCtx>
 void format_chrono_weekday_full(FmtCtx& ctx, std::chrono::weekday wd) {
     using char_type = typename FmtCtx::char_type;
     assert(wd.c_encoding() <= 6);
-    static UXS_CONSTEXPR std::basic_string_view<char_type> full_name_list[] = {
+    static constexpr std::basic_string_view<char_type> full_name_list[] = {
         string_literal<char_type, 'S', 'u', 'n', 'd', 'a', 'y'>{}(),
         string_literal<char_type, 'M', 'o', 'n', 'd', 'a', 'y'>{}(),
         string_literal<char_type, 'T', 'u', 'e', 's', 'd', 'a', 'y'>{}(),
@@ -690,6 +698,15 @@ void format_chrono_yyyy_mm_dd_hh_mm_ss(FmtCtx& ctx, std::chrono::sys_time<Durati
     format_chrono_hh_mm_ss(ctx, std::chrono::hh_mm_ss{t - days}, opts);
 }
 
+template<typename FmtCtx>
+void format_chrono_time_zone(FmtCtx& ctx, std::chrono::seconds offset, const chrono_specs& specs) {
+    std::chrono::hh_mm_ss hms{offset};
+    ctx.out() += hms.is_negative() ? '-' : '+';
+    detail::format_append_2digs(ctx, static_cast<int>(hms.hours().count() % 100));
+    if (specs.modifier) { ctx.out() += ':'; }
+    detail::format_append_2digs(ctx, static_cast<int>(hms.minutes().count()));
+}
+
 // --------------------------
 
 template<typename Ty, typename = void>
@@ -751,13 +768,21 @@ UXS_FMT_IMPLEMENT_CHRONO_DURATION_SUFFIX(std::ratio<3600>, 'h')
 UXS_FMT_IMPLEMENT_CHRONO_DURATION_SUFFIX(std::ratio<86400>, 'd')
 #undef UXS_FMT_IMPLEMENT_CHRONO_DURATION_SUFFIX
 
+template<typename FmtCtx, typename Rep, typename Period>
+void duration_default_writer(FmtCtx& ctx, std::chrono::duration<Rep, Period> d, fmt_opts opts) {
+    to_basic_string(ctx.out(), *ctx.locale(), d.count(), fmt_opts{opts.flags, opts.prec});
+    detail::duration_suffix_writer<typename Period::type>{}.write(ctx);
+}
+
+// --------------------------
+
 template<typename DeriverFormatterTy, typename Ty, typename CharT>
 struct chrono_formatter {
  private:
     fmt_opts opts_;
     std::size_t width_arg_id_ = unspecified_size;
     std::size_t prec_arg_id_ = unspecified_size;
-    std::string_view fmt_;
+    std::basic_string_view<CharT> fmt_;
 
     template<typename FmtCtx>
     void format_impl(FmtCtx& ctx, const Ty& val, chrono_specs& specs) const {
@@ -776,7 +801,7 @@ struct chrono_formatter {
                     case chrono_specifier::new_line: ctx.out() += '\n'; break;
                     case chrono_specifier::tab: ctx.out() += '\t'; break;
                     default: {
-                        specs.spec_char = *(it - 1);
+                        specs.spec_char = static_cast<char>(*(it - 1));
                         DeriverFormatterTy::template value_writer<FmtCtx>(ctx, val, specs);
                     } break;
                 }
@@ -787,7 +812,7 @@ struct chrono_formatter {
 
  public:
     template<typename ParseCtx>
-    UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) {
+    constexpr typename ParseCtx::iterator parse(ParseCtx& ctx) {
         auto it = ctx.begin();
         if (it == ctx.end() || *it != ':') { return it; }
         it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, prec_arg_id_);
@@ -846,7 +871,7 @@ struct formatter<std::chrono::duration<Rep, Period>, CharT>
     using value_type = std::chrono::duration<Rep, Period>;
     friend struct detail::chrono_formatter<formatter, value_type, CharT>;
 
-    static UXS_CONSTEXPR bool spec_checker(detail::chrono_specifier spec) {
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
         return spec >= detail::chrono_specifier::hours && spec <= detail::chrono_specifier::unit_suffix;
     }
 
@@ -863,8 +888,7 @@ struct formatter<std::chrono::duration<Rep, Period>, CharT>
 
     template<typename FmtCtx>
     static void default_value_writer(FmtCtx& ctx, value_type d, fmt_opts opts) {
-        to_basic_string(ctx.out(), *ctx.locale(), d.count(), fmt_opts{opts.flags, opts.prec});
-        detail::duration_suffix_writer<typename Period::type>{}.write(ctx);
+        detail::duration_default_writer(ctx, d, opts);
     }
 };
 
@@ -875,8 +899,11 @@ struct formatter<std::chrono::year, CharT>
     using value_type = std::chrono::year;
     friend struct detail::chrono_formatter<formatter, value_type, CharT>;
     friend struct formatter<std::chrono::year_month, CharT>;
+    friend struct formatter<std::chrono::year_month_day_last, CharT>;
+    friend struct formatter<std::chrono::year_month_weekday, CharT>;
+    friend struct formatter<std::chrono::year_month_weekday_last, CharT>;
 
-    static UXS_CONSTEXPR bool spec_checker(detail::chrono_specifier spec) {
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
         return spec >= detail::chrono_specifier::century && spec <= detail::chrono_specifier::year_yyyy;
     }
 
@@ -889,8 +916,8 @@ struct formatter<std::chrono::year, CharT>
     static void default_value_writer(FmtCtx& ctx, value_type y, fmt_opts) {
         detail::format_chrono_year_yyyy(ctx, y);
         if (y.ok()) { return; }
-        ctx.out() += string_literal<typename FmtCtx::char_type, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v',
-                                    'a', 'l', 'i', 'd', ' ', 'y', 'e', 'a', 'r'>{}();
+        ctx.out() += string_literal<CharT, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v', 'a', 'l', 'i', 'd',
+                                    ' ', 'y', 'e', 'a', 'r'>{}();
     }
 };
 
@@ -900,10 +927,15 @@ struct formatter<std::chrono::month, CharT>
  private:
     using value_type = std::chrono::month;
     friend struct detail::chrono_formatter<formatter, value_type, CharT>;
-    friend struct formatter<std::chrono::year_month, CharT>;
     friend struct formatter<std::chrono::month_day, CharT>;
+    friend struct formatter<std::chrono::month_day_last, CharT>;
+    friend struct formatter<std::chrono::month_weekday, CharT>;
+    friend struct formatter<std::chrono::month_weekday_last, CharT>;
+    friend struct formatter<std::chrono::year_month, CharT>;
+    friend struct formatter<std::chrono::year_month_weekday, CharT>;
+    friend struct formatter<std::chrono::year_month_weekday_last, CharT>;
 
-    static UXS_CONSTEXPR bool spec_checker(detail::chrono_specifier spec) {
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
         return spec >= detail::chrono_specifier::month_brief && spec <= detail::chrono_specifier::month_mm;
     }
 
@@ -921,8 +953,8 @@ struct formatter<std::chrono::month, CharT>
             return detail::format_chrono_locale(ctx, tm, 'b', '\0', opts);
         }
         scvt::fmt_integer(ctx.out(), static_cast<unsigned>(m));
-        ctx.out() += string_literal<typename FmtCtx::char_type, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v',
-                                    'a', 'l', 'i', 'd', ' ', 'm', 'o', 'n', 't', 'h'>{}();
+        ctx.out() += string_literal<CharT, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v', 'a', 'l', 'i', 'd',
+                                    ' ', 'm', 'o', 'n', 't', 'h'>{}();
     }
 };
 
@@ -934,7 +966,7 @@ struct formatter<std::chrono::day, CharT>
     friend struct detail::chrono_formatter<formatter, value_type, CharT>;
     friend struct formatter<std::chrono::month_day, CharT>;
 
-    static UXS_CONSTEXPR bool spec_checker(detail::chrono_specifier spec) {
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
         return spec >= detail::chrono_specifier::day_zero && spec <= detail::chrono_specifier::day_space;
     }
 
@@ -947,36 +979,98 @@ struct formatter<std::chrono::day, CharT>
     static void default_value_writer(FmtCtx& ctx, value_type d, fmt_opts) {
         detail::format_chrono_day_dd(ctx, d);
         if (d.ok()) { return; }
-        ctx.out() += string_literal<typename FmtCtx::char_type, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v',
-                                    'a', 'l', 'i', 'd', ' ', 'd', 'a', 'y'>{}();
+        ctx.out() += string_literal<CharT, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v', 'a', 'l', 'i', 'd',
+                                    ' ', 'd', 'a', 'y'>{}();
     }
 };
 
 template<typename CharT>
-struct formatter<std::chrono::year_month, CharT>
-    : detail::chrono_formatter<formatter<std::chrono::year_month, CharT>, std::chrono::year_month, CharT> {
+struct formatter<std::chrono::weekday, CharT>
+    : detail::chrono_formatter<formatter<std::chrono::weekday, CharT>, std::chrono::weekday, CharT> {
  private:
-    using value_type = std::chrono::year_month;
+    using value_type = std::chrono::weekday;
     friend struct detail::chrono_formatter<formatter, value_type, CharT>;
+    friend struct formatter<std::chrono::weekday_indexed, CharT>;
+    friend struct formatter<std::chrono::weekday_last, CharT>;
 
-    static UXS_CONSTEXPR bool spec_checker(detail::chrono_specifier spec) {
-        return spec >= detail::chrono_specifier::century && spec <= detail::chrono_specifier::month_mm;
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
+        return spec >= detail::chrono_specifier::weekday_brief && spec <= detail::chrono_specifier::weekday_0_6;
     }
 
     template<typename FmtCtx>
-    static void value_writer(FmtCtx& ctx, value_type ym, const detail::chrono_specs& specs) {
-        if (specs.spec >= detail::chrono_specifier::century && specs.spec <= detail::chrono_specifier::year_yyyy) {
-            detail::format_chrono_year(ctx, ym.year(), specs);
-        } else {
-            detail::format_chrono_month(ctx, ym.month(), specs);
+    static void value_writer(FmtCtx& ctx, value_type wd, const detail::chrono_specs& specs) {
+        detail::format_chrono_weekday(ctx, wd, specs);
+    }
+
+    template<typename FmtCtx>
+    static void default_value_writer(FmtCtx& ctx, value_type wd, fmt_opts opts) {
+        if (wd.ok()) {
+            if (detail::is_locale_classic(ctx.locale(), opts)) { return detail::format_chrono_weekday_brief(ctx, wd); }
+            std::tm tm{};
+            tm.tm_wday = wd.c_encoding();
+            return detail::format_chrono_locale(ctx, tm, 'a', '\0', opts);
         }
+        scvt::fmt_integer(ctx.out(), wd.c_encoding());
+        ctx.out() += string_literal<CharT, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v', 'a', 'l', 'i', 'd',
+                                    ' ', 'w', 'e', 'e', 'k', 'd', 'a', 'y'>{}();
+    }
+};
+
+template<typename CharT>
+struct formatter<std::chrono::weekday_indexed, CharT>
+    : detail::chrono_formatter<formatter<std::chrono::weekday_indexed, CharT>, std::chrono::weekday_indexed, CharT> {
+ private:
+    using value_type = std::chrono::weekday_indexed;
+    friend struct detail::chrono_formatter<formatter, value_type, CharT>;
+    friend struct formatter<std::chrono::month_weekday, CharT>;
+    friend struct formatter<std::chrono::year_month_weekday, CharT>;
+
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
+        return spec >= detail::chrono_specifier::weekday_brief && spec <= detail::chrono_specifier::weekday_0_6;
     }
 
     template<typename FmtCtx>
-    static void default_value_writer(FmtCtx& ctx, value_type ym, fmt_opts opts) {
-        formatter<std::chrono::year, CharT>::default_value_writer(ctx, ym.year(), opts);
-        ctx.out() += '/';
-        formatter<std::chrono::month, CharT>::default_value_writer(ctx, ym.month(), opts);
+    static void value_writer(FmtCtx& ctx, value_type wdi, const detail::chrono_specs& specs) {
+        detail::format_chrono_weekday(ctx, wdi.weekday(), specs);
+    }
+
+    template<typename FmtCtx>
+    static void default_value_writer(FmtCtx& ctx, value_type wdi, fmt_opts opts) {
+        formatter<std::chrono::weekday, CharT>::default_value_writer(ctx, wdi.weekday(), opts);
+        ctx.out() += '[';
+        if (wdi.index() >= 1 && wdi.index() <= 5) {
+            ctx.out() += '0' + wdi.index();
+        } else {
+            scvt::fmt_integer(ctx.out(), wdi.index());
+            ctx.out() += string_literal<CharT, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v', 'a', 'l', 'i',
+                                        'd', ' ', 'i', 'n', 'd', 'e', 'x'>{}();
+        }
+        ctx.out() += ']';
+    }
+};
+
+template<typename CharT>
+struct formatter<std::chrono::weekday_last, CharT>
+    : detail::chrono_formatter<formatter<std::chrono::weekday_last, CharT>, std::chrono::weekday_last, CharT> {
+ private:
+    using value_type = std::chrono::weekday_last;
+    friend struct detail::chrono_formatter<formatter, value_type, CharT>;
+    friend struct formatter<std::chrono::month_weekday_last, CharT>;
+    friend struct formatter<std::chrono::year_month_weekday_last, CharT>;
+
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
+        return spec >= detail::chrono_specifier::weekday_brief && spec <= detail::chrono_specifier::weekday_0_6;
+    }
+
+    template<typename FmtCtx>
+    static void value_writer(FmtCtx& ctx, value_type wdl, const detail::chrono_specs& specs) {
+        detail::format_chrono_weekday(ctx, wdl.weekday(), specs);
+    }
+
+    template<typename FmtCtx>
+    static void default_value_writer(FmtCtx& ctx, value_type wdl, fmt_opts opts) {
+        formatter<std::chrono::weekday, CharT>::default_value_writer(ctx, wdl.weekday(), opts);
+        ctx.out() += string_literal<CharT, '[', 'l', 'a', 's', 't', ']'>{}();
     }
 };
 
@@ -987,7 +1081,7 @@ struct formatter<std::chrono::month_day, CharT>
     using value_type = std::chrono::month_day;
     friend struct detail::chrono_formatter<formatter, value_type, CharT>;
 
-    static UXS_CONSTEXPR bool spec_checker(detail::chrono_specifier spec) {
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
         return spec >= detail::chrono_specifier::month_brief && spec <= detail::chrono_specifier::day_space;
     }
 
@@ -1009,32 +1103,116 @@ struct formatter<std::chrono::month_day, CharT>
 };
 
 template<typename CharT>
-struct formatter<std::chrono::weekday, CharT>
-    : detail::chrono_formatter<formatter<std::chrono::weekday, CharT>, std::chrono::weekday, CharT> {
+struct formatter<std::chrono::month_day_last, CharT>
+    : detail::chrono_formatter<formatter<std::chrono::month_day_last, CharT>, std::chrono::month_day_last, CharT> {
  private:
-    using value_type = std::chrono::weekday;
+    using value_type = std::chrono::month_day_last;
+    friend struct detail::chrono_formatter<formatter, value_type, CharT>;
+    friend struct formatter<std::chrono::year_month_day_last, CharT>;
+
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
+        return spec >= detail::chrono_specifier::month_brief && spec <= detail::chrono_specifier::day_space;
+    }
+
+    template<typename FmtCtx>
+    static void value_writer(FmtCtx& ctx, value_type mdl, const detail::chrono_specs& specs) {
+        if (specs.spec >= detail::chrono_specifier::month_brief && specs.spec <= detail::chrono_specifier::month_mm) {
+            detail::format_chrono_month(ctx, mdl.month(), specs);
+        } else {
+            detail::format_chrono_month_day_last(ctx, mdl.month(), specs);
+        }
+    }
+
+    template<typename FmtCtx>
+    static void default_value_writer(FmtCtx& ctx, value_type mdl, fmt_opts opts) {
+        formatter<std::chrono::month, CharT>::default_value_writer(ctx, mdl.month(), opts);
+        ctx.out() += string_literal<CharT, '/', 'l', 'a', 's', 't'>{}();
+    }
+};
+
+template<typename CharT>
+struct formatter<std::chrono::month_weekday, CharT>
+    : detail::chrono_formatter<formatter<std::chrono::month_weekday, CharT>, std::chrono::month_weekday, CharT> {
+ private:
+    using value_type = std::chrono::month_weekday;
     friend struct detail::chrono_formatter<formatter, value_type, CharT>;
 
-    static UXS_CONSTEXPR bool spec_checker(detail::chrono_specifier spec) {
-        return spec >= detail::chrono_specifier::weekday_brief && spec <= detail::chrono_specifier::weekday_0_6;
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
+        return (spec >= detail::chrono_specifier::month_brief && spec <= detail::chrono_specifier::month_mm) ||
+               (spec >= detail::chrono_specifier::weekday_brief && spec <= detail::chrono_specifier::weekday_0_6);
     }
 
     template<typename FmtCtx>
-    static void value_writer(FmtCtx& ctx, value_type wd, const detail::chrono_specs& specs) {
-        detail::format_chrono_weekday(ctx, wd, specs);
-    }
-
-    template<typename FmtCtx>
-    static void default_value_writer(FmtCtx& ctx, value_type wd, fmt_opts opts) {
-        if (wd.ok()) {
-            if (detail::is_locale_classic(ctx.locale(), opts)) { return detail::format_chrono_weekday_brief(ctx, wd); }
-            std::tm tm{};
-            tm.tm_wday = wd.c_encoding();
-            return detail::format_chrono_locale(ctx, tm, 'a', '\0', opts);
+    static void value_writer(FmtCtx& ctx, value_type mw, const detail::chrono_specs& specs) {
+        if (specs.spec >= detail::chrono_specifier::month_brief && specs.spec <= detail::chrono_specifier::month_mm) {
+            detail::format_chrono_month(ctx, mw.month(), specs);
+        } else {
+            detail::format_chrono_weekday(ctx, mw.weekday_indexed().weekday(), specs);
         }
-        scvt::fmt_integer(ctx.out(), wd.c_encoding());
-        ctx.out() += string_literal<typename FmtCtx::char_type, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v',
-                                    'a', 'l', 'i', 'd', ' ', 'w', 'e', 'e', 'k', 'd', 'a', 'y'>{}();
+    }
+
+    template<typename FmtCtx>
+    static void default_value_writer(FmtCtx& ctx, value_type mw, fmt_opts opts) {
+        formatter<std::chrono::month, CharT>::default_value_writer(ctx, mw.month(), opts);
+        ctx.out() += '/';
+        formatter<std::chrono::weekday_indexed, CharT>::default_value_writer(ctx, mw.weekday_indexed(), opts);
+    }
+};
+
+template<typename CharT>
+struct formatter<std::chrono::month_weekday_last, CharT>
+    : detail::chrono_formatter<formatter<std::chrono::month_weekday_last, CharT>, std::chrono::month_weekday_last, CharT> {
+ private:
+    using value_type = std::chrono::month_weekday_last;
+    friend struct detail::chrono_formatter<formatter, value_type, CharT>;
+
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
+        return (spec >= detail::chrono_specifier::month_brief && spec <= detail::chrono_specifier::month_mm) ||
+               (spec >= detail::chrono_specifier::weekday_brief && spec <= detail::chrono_specifier::weekday_0_6);
+    }
+
+    template<typename FmtCtx>
+    static void value_writer(FmtCtx& ctx, value_type mwl, const detail::chrono_specs& specs) {
+        if (specs.spec >= detail::chrono_specifier::month_brief && specs.spec <= detail::chrono_specifier::month_mm) {
+            detail::format_chrono_month(ctx, mwl.month(), specs);
+        } else {
+            detail::format_chrono_weekday(ctx, mwl.weekday_last().weekday(), specs);
+        }
+    }
+
+    template<typename FmtCtx>
+    static void default_value_writer(FmtCtx& ctx, value_type mwl, fmt_opts opts) {
+        formatter<std::chrono::month, CharT>::default_value_writer(ctx, mwl.month(), opts);
+        ctx.out() += '/';
+        formatter<std::chrono::weekday_last, CharT>::default_value_writer(ctx, mwl.weekday_last(), opts);
+    }
+};
+
+template<typename CharT>
+struct formatter<std::chrono::year_month, CharT>
+    : detail::chrono_formatter<formatter<std::chrono::year_month, CharT>, std::chrono::year_month, CharT> {
+ private:
+    using value_type = std::chrono::year_month;
+    friend struct detail::chrono_formatter<formatter, value_type, CharT>;
+
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
+        return spec >= detail::chrono_specifier::century && spec <= detail::chrono_specifier::month_mm;
+    }
+
+    template<typename FmtCtx>
+    static void value_writer(FmtCtx& ctx, value_type ym, const detail::chrono_specs& specs) {
+        if (specs.spec >= detail::chrono_specifier::century && specs.spec <= detail::chrono_specifier::year_yyyy) {
+            detail::format_chrono_year(ctx, ym.year(), specs);
+        } else {
+            detail::format_chrono_month(ctx, ym.month(), specs);
+        }
+    }
+
+    template<typename FmtCtx>
+    static void default_value_writer(FmtCtx& ctx, value_type ym, fmt_opts opts) {
+        formatter<std::chrono::year, CharT>::default_value_writer(ctx, ym.year(), opts);
+        ctx.out() += '/';
+        formatter<std::chrono::month, CharT>::default_value_writer(ctx, ym.month(), opts);
     }
 };
 
@@ -1045,7 +1223,7 @@ struct formatter<std::chrono::year_month_day, CharT>
     using value_type = std::chrono::year_month_day;
     friend struct detail::chrono_formatter<formatter, value_type, CharT>;
 
-    static UXS_CONSTEXPR bool spec_checker(detail::chrono_specifier spec) {
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
         return spec >= detail::chrono_specifier::century && spec <= detail::chrono_specifier::locale_date;
     }
 
@@ -1059,8 +1237,89 @@ struct formatter<std::chrono::year_month_day, CharT>
     static void default_value_writer(FmtCtx& ctx, value_type ymd, fmt_opts) {
         detail::format_chrono_yyyy_mm_dd(ctx, ymd);
         if (ymd.ok()) { return; }
-        ctx.out() += string_literal<typename FmtCtx::char_type, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v',
-                                    'a', 'l', 'i', 'd', ' ', 'd', 'a', 't', 'e'>{}();
+        ctx.out() += string_literal<CharT, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v', 'a', 'l', 'i', 'd',
+                                    ' ', 'd', 'a', 't', 'e'>{}();
+    }
+};
+
+template<typename CharT>
+struct formatter<std::chrono::year_month_day_last, CharT>
+    : detail::chrono_formatter<formatter<std::chrono::year_month_day_last, CharT>, std::chrono::year_month_day_last,
+                               CharT> {
+ private:
+    using value_type = std::chrono::year_month_day_last;
+    friend struct detail::chrono_formatter<formatter, value_type, CharT>;
+
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
+        return spec >= detail::chrono_specifier::century && spec <= detail::chrono_specifier::locale_date;
+    }
+
+    template<typename FmtCtx>
+    static void value_writer(FmtCtx& ctx, value_type ymdl, const detail::chrono_specs& specs) {
+        if (!ymdl.ok()) { detail::format_chrono_out_of_bounds(); }
+        detail::format_chrono_date(ctx, ymdl, specs);
+    }
+
+    template<typename FmtCtx>
+    static void default_value_writer(FmtCtx& ctx, value_type ymdl, fmt_opts opts) {
+        formatter<std::chrono::year, CharT>::default_value_writer(ctx, ymdl.year(), opts);
+        ctx.out() += '/';
+        formatter<std::chrono::month_day_last, CharT>::default_value_writer(ctx, ymdl.month_day_last(), opts);
+    }
+};
+
+template<typename CharT>
+struct formatter<std::chrono::year_month_weekday, CharT>
+    : detail::chrono_formatter<formatter<std::chrono::year_month_weekday, CharT>, std::chrono::year_month_weekday, CharT> {
+ private:
+    using value_type = std::chrono::year_month_weekday;
+    friend struct detail::chrono_formatter<formatter, value_type, CharT>;
+
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
+        return spec >= detail::chrono_specifier::century && spec <= detail::chrono_specifier::locale_date;
+    }
+
+    template<typename FmtCtx>
+    static void value_writer(FmtCtx& ctx, value_type ymw, const detail::chrono_specs& specs) {
+        if (!ymw.ok()) { detail::format_chrono_out_of_bounds(); }
+        detail::format_chrono_date(ctx, std::chrono::sys_days{ymw}, specs);
+    }
+
+    template<typename FmtCtx>
+    static void default_value_writer(FmtCtx& ctx, value_type ymw, fmt_opts opts) {
+        formatter<std::chrono::year, CharT>::default_value_writer(ctx, ymw.year(), opts);
+        ctx.out() += '/';
+        formatter<std::chrono::month, CharT>::default_value_writer(ctx, ymw.month(), opts);
+        ctx.out() += '/';
+        formatter<std::chrono::weekday_indexed, CharT>::default_value_writer(ctx, ymw.weekday_indexed(), opts);
+    }
+};
+
+template<typename CharT>
+struct formatter<std::chrono::year_month_weekday_last, CharT>
+    : detail::chrono_formatter<formatter<std::chrono::year_month_weekday_last, CharT>,
+                               std::chrono::year_month_weekday_last, CharT> {
+ private:
+    using value_type = std::chrono::year_month_weekday_last;
+    friend struct detail::chrono_formatter<formatter, value_type, CharT>;
+
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
+        return spec >= detail::chrono_specifier::century && spec <= detail::chrono_specifier::locale_date;
+    }
+
+    template<typename FmtCtx>
+    static void value_writer(FmtCtx& ctx, value_type ymwl, const detail::chrono_specs& specs) {
+        if (!ymwl.ok()) { detail::format_chrono_out_of_bounds(); }
+        detail::format_chrono_date(ctx, std::chrono::sys_days{ymwl}, specs);
+    }
+
+    template<typename FmtCtx>
+    static void default_value_writer(FmtCtx& ctx, value_type ymwl, fmt_opts opts) {
+        formatter<std::chrono::year, CharT>::default_value_writer(ctx, ymwl.year(), opts);
+        ctx.out() += '/';
+        formatter<std::chrono::month, CharT>::default_value_writer(ctx, ymwl.month(), opts);
+        ctx.out() += '/';
+        formatter<std::chrono::weekday_last, CharT>::default_value_writer(ctx, ymwl.weekday_last(), opts);
     }
 };
 
@@ -1071,7 +1330,7 @@ struct formatter<std::chrono::hh_mm_ss<Duration>, CharT>
     using value_type = std::chrono::hh_mm_ss<Duration>;
     friend struct detail::chrono_formatter<formatter, value_type, CharT>;
 
-    static UXS_CONSTEXPR bool spec_checker(detail::chrono_specifier spec) {
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
         return spec >= detail::chrono_specifier::hours && spec <= detail::chrono_specifier::locale_time;
     }
 
@@ -1086,31 +1345,46 @@ struct formatter<std::chrono::hh_mm_ss<Duration>, CharT>
     }
 };
 
-template<typename CharT, typename Duration>
-struct formatter<std::chrono::sys_time<Duration>, CharT>
-    : detail::chrono_formatter<formatter<std::chrono::sys_time<Duration>, CharT>, std::chrono::sys_time<Duration>, CharT> {
+template<typename CharT, typename Duration, bool PrintZoneByDefault>
+struct formatter<detail::local_time_format_t<CharT, Duration, PrintZoneByDefault>, CharT>
+    : detail::chrono_formatter<formatter<detail::local_time_format_t<CharT, Duration, PrintZoneByDefault>, CharT>,
+                               detail::local_time_format_t<CharT, Duration, PrintZoneByDefault>, CharT> {
  private:
-    using value_type = std::chrono::sys_time<Duration>;
+    using value_type = detail::local_time_format_t<CharT, Duration, PrintZoneByDefault>;
     friend struct detail::chrono_formatter<formatter, value_type, CharT>;
 
-    static UXS_CONSTEXPR bool spec_checker(detail::chrono_specifier spec) {
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
         return spec != detail::chrono_specifier::ticks && spec != detail::chrono_specifier::unit_suffix;
     }
 
     template<typename FmtCtx>
     static void value_writer(FmtCtx& ctx, value_type t, const detail::chrono_specs& specs) {
         if (specs.spec == detail::chrono_specifier::time_zone) {
-            ctx.out() += string_literal<typename FmtCtx::char_type, '+', '0', '0', '0', '0'>{}();
+            detail::format_chrono_time_zone(ctx, t.tz_offset, specs);
         } else if (specs.spec == detail::chrono_specifier::time_zone_abbreviation) {
-            ctx.out() += string_literal<typename FmtCtx::char_type, 'U', 'T', 'C'>{}();
+            ctx.out() += t.tz_abbrev;
         } else {
-            detail::format_chrono_date_time(ctx, t, specs);
+            detail::format_chrono_date_time(ctx, t.time, specs);
         }
     }
 
     template<typename FmtCtx>
     static void default_value_writer(FmtCtx& ctx, value_type t, fmt_opts opts) {
-        detail::format_chrono_yyyy_mm_dd_hh_mm_ss(ctx, t, opts);
+        detail::format_chrono_yyyy_mm_dd_hh_mm_ss(ctx, t.time, opts);
+        if constexpr (PrintZoneByDefault) {
+            ctx.out() += ' ';
+            ctx.out() += t.tz_abbrev;
+        }
+    }
+};
+
+template<typename CharT, typename Duration>
+struct formatter<std::chrono::sys_time<Duration>, CharT>
+    : formatter<detail::local_time_format_t<CharT, Duration>, CharT> {
+    template<typename FmtCtx>
+    void format(FmtCtx& ctx, std::chrono::sys_time<Duration> t) const {
+        using formatter_type = formatter<detail::local_time_format_t<CharT, Duration>, CharT>;
+        formatter_type::format(ctx, {t, string_literal<CharT, 'U', 'T', 'C'>{}()});
     }
 };
 
@@ -1122,7 +1396,7 @@ struct formatter<std::chrono::local_time<Duration>, CharT>
     using value_type = std::chrono::local_time<Duration>;
     friend struct detail::chrono_formatter<formatter, value_type, CharT>;
 
-    static UXS_CONSTEXPR bool spec_checker(detail::chrono_specifier spec) {
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
         return spec != detail::chrono_specifier::ticks && spec != detail::chrono_specifier::unit_suffix &&
                spec != detail::chrono_specifier::time_zone && spec != detail::chrono_specifier::time_zone_abbreviation;
     }
@@ -1138,46 +1412,36 @@ struct formatter<std::chrono::local_time<Duration>, CharT>
     }
 };
 
+#if _MSC_VER >= 1930 || __GLIBCXX__ >= 20240904
 template<typename CharT, typename Duration>
-struct formatter<detail::local_time_format_t<Duration>, CharT>
-    : detail::chrono_formatter<formatter<detail::local_time_format_t<Duration>, CharT>,
-                               detail::local_time_format_t<Duration>, CharT> {
- private:
-    using value_type = detail::local_time_format_t<Duration>;
-    friend struct detail::chrono_formatter<formatter, value_type, CharT>;
-
-    static UXS_CONSTEXPR bool spec_checker(detail::chrono_specifier spec) {
-        return spec != detail::chrono_specifier::ticks && spec != detail::chrono_specifier::unit_suffix;
-    }
-
+struct formatter<std::chrono::utc_time<Duration>, CharT>
+    : formatter<detail::local_time_format_t<CharT, Duration>, CharT> {
     template<typename FmtCtx>
-    static void value_writer(FmtCtx& ctx, value_type t, const detail::chrono_specs& specs) {
-        if (specs.spec == detail::chrono_specifier::time_zone) {
-            std::chrono::hh_mm_ss offset{t.offset};
-            ctx.out() += offset.is_negative() ? '-' : '+';
-            detail::format_append_2digs(ctx, static_cast<int>(offset.hours().count() % 100));
-            detail::format_append_2digs(ctx, static_cast<int>(offset.minutes().count()));
-        } else if (specs.spec == detail::chrono_specifier::time_zone_abbreviation) {
-            ctx.out() += t.abbrev;
-        } else {
-            detail::format_chrono_date_time(ctx, t.time, specs);
-        }
-    }
-
-    template<typename FmtCtx>
-    static void default_value_writer(FmtCtx& ctx, value_type t, fmt_opts opts) {
-        detail::format_chrono_yyyy_mm_dd_hh_mm_ss(ctx, t.time, opts);
-        ctx.out() += ' ';
-        ctx.out() += t.abbrev;
+    void format(FmtCtx& ctx, std::chrono::utc_time<Duration> t) const {
+        using formatter_type = formatter<detail::local_time_format_t<CharT, Duration>, CharT>;
+        formatter_type::format(ctx, {std::chrono::utc_clock::to_sys(t), string_literal<CharT, 'U', 'T', 'C'>{}()});
     }
 };
 
-#if _MSC_VER >= 1930 || __GLIBCXX__ >= 20240904
 template<typename CharT, typename Duration>
-struct formatter<std::chrono::utc_time<Duration>, CharT> : formatter<std::chrono::sys_time<Duration>, CharT> {
+struct formatter<std::chrono::tai_time<Duration>, CharT>
+    : formatter<detail::local_time_format_t<CharT, Duration>, CharT> {
     template<typename FmtCtx>
-    void format(FmtCtx& ctx, std::chrono::utc_time<Duration> t) const {
-        formatter<std::chrono::sys_time<Duration>, CharT>::format(ctx, std::chrono::utc_clock::to_sys(t));
+    void format(FmtCtx& ctx, std::chrono::tai_time<Duration> t) const {
+        using formatter_type = formatter<detail::local_time_format_t<CharT, Duration>, CharT>;
+        formatter_type::format(ctx, {std::chrono::sys_time<Duration>(t.time_since_epoch()) - std::chrono::days(4383),
+                                     string_literal<CharT, 'T', 'A', 'I'>{}()});
+    }
+};
+
+template<typename CharT, typename Duration>
+struct formatter<std::chrono::gps_time<Duration>, CharT>
+    : formatter<detail::local_time_format_t<CharT, Duration>, CharT> {
+    template<typename FmtCtx>
+    void format(FmtCtx& ctx, std::chrono::gps_time<Duration> t) const {
+        using formatter_type = formatter<detail::local_time_format_t<CharT, Duration>, CharT>;
+        formatter_type::format(ctx, {std::chrono::sys_time<Duration>(t.time_since_epoch()) + std::chrono::days(3657),
+                                     string_literal<CharT, 'G', 'P', 'S'>{}()});
     }
 };
 #endif
@@ -1203,16 +1467,101 @@ struct formatter<std::chrono::file_time<Duration>, CharT> : formatter<std::chron
 };
 
 #if _MSC_VER >= 1930 || __GLIBCXX__ >= 20240904
+template<typename CharT>
+struct formatter<std::chrono::sys_info, CharT>
+    : detail::chrono_formatter<formatter<std::chrono::sys_info, CharT>, std::chrono::sys_info, CharT> {
+ private:
+    using value_type = std::chrono::sys_info;
+    friend struct detail::chrono_formatter<formatter, value_type, CharT>;
+    friend struct formatter<std::chrono::local_info, CharT>;
+
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
+        return spec == detail::chrono_specifier::time_zone || spec == detail::chrono_specifier::time_zone_abbreviation;
+    }
+
+    template<typename FmtCtx>
+    static void value_writer(FmtCtx& ctx, value_type si, const detail::chrono_specs& specs) {
+        if (specs.spec == detail::chrono_specifier::time_zone) {
+            detail::format_chrono_time_zone(ctx, si.offset, specs);
+        } else {
+            ctx.out() += utf_string_adapter<CharT>{}(si.abbrev);
+        }
+    }
+
+    template<typename FmtCtx>
+    static void default_value_writer(FmtCtx& ctx, value_type si, fmt_opts opts) {
+        ctx.out() += string_literal<CharT, 'b', 'e', 'g', 'i', 'n', ':', ' '>{}();
+        detail::format_chrono_yyyy_mm_dd_hh_mm_ss(ctx, std::chrono::sys_time<std::chrono::seconds>{si.begin}, opts);
+        ctx.out() += string_literal<CharT, ',', ' ', 'e', 'n', 'd', ':', ' '>{}();
+        detail::format_chrono_yyyy_mm_dd_hh_mm_ss(ctx, std::chrono::sys_time<std::chrono::seconds>{si.end}, opts);
+        ctx.out() += string_literal<CharT, ',', ' ', 'o', 'f', 'f', 's', 'e', 't', ':', ' '>{}();
+        detail::duration_default_writer(ctx, si.offset, opts);
+        ctx.out() += string_literal<CharT, ',', ' ', 's', 'a', 'v', 'e', ':', ' '>{}();
+        detail::duration_default_writer(ctx, si.save, opts);
+        ctx.out() += string_literal<CharT, ',', ' ', 'a', 'b', 'b', 'r', 'e', 'v', ':', ' '>{}();
+        ctx.out() += utf_string_adapter<CharT>{}(si.abbrev);
+    }
+};
+
+template<typename CharT>
+struct formatter<std::chrono::local_info, CharT>
+    : detail::chrono_formatter<formatter<std::chrono::local_info, CharT>, std::chrono::local_info, CharT> {
+ private:
+    using value_type = std::chrono::local_info;
+    friend struct detail::chrono_formatter<formatter, value_type, CharT>;
+
+    static constexpr bool spec_checker(detail::chrono_specifier spec) {
+        return spec == detail::chrono_specifier::time_zone || spec == detail::chrono_specifier::time_zone_abbreviation;
+    }
+
+    template<typename FmtCtx>
+    static void value_writer(FmtCtx& ctx, value_type li, const detail::chrono_specs& specs) {
+        if (li.result != std::chrono::local_info::unique) { throw format_error("cannot print non-unique local_info"); }
+        if (specs.spec == detail::chrono_specifier::time_zone) {
+            detail::format_chrono_time_zone(ctx, li.first.offset, specs);
+        } else {
+            ctx.out() += utf_string_adapter<CharT>{}(li.first.abbrev);
+        }
+    }
+
+    template<typename FmtCtx>
+    static void default_value_writer(FmtCtx& ctx, value_type li, fmt_opts opts) {
+        ctx.out() += string_literal<CharT, 'r', 'e', 's', 'u', 'l', 't', ':', ' '>{}();
+        switch (li.result) {
+            case std::chrono::local_info::unique: {
+                ctx.out() += string_literal<CharT, 'u', 'n', 'i', 'q', 'u', 'e'>{}();
+            } break;
+            case std::chrono::local_info::nonexistent: {
+                ctx.out() += string_literal<CharT, 'n', 'o', 'n', 'e', 'x', 'i', 's', 't', 'e', 'n', 't'>{}();
+            } break;
+            case std::chrono::local_info::ambiguous: {
+                ctx.out() += string_literal<CharT, 'a', 'm', 'b', 'i', 'g', 'u', 'o', 'u', 's'>{}();
+            } break;
+            default: {
+                scvt::fmt_integer(ctx.out(), li.result);
+            } break;
+        }
+        ctx.out() += string_literal<CharT, ',', ' ', 'f', 'i', 'r', 's', 't', ':', ' ', '('>{}();
+        formatter<std::chrono::sys_info, CharT>::default_value_writer(ctx, li.first, opts);
+        ctx.out() += ')';
+        if (li.result != std::chrono::local_info::unique) {
+            ctx.out() += string_literal<CharT, ',', ' ', 's', 'e', 'c', 'o', 'n', 'd', ':', ' ', '('>{}();
+            formatter<std::chrono::sys_info, CharT>::default_value_writer(ctx, li.second, opts);
+            ctx.out() += ')';
+        }
+    }
+};
+
 template<typename CharT, typename Duration, typename TimeZonePtr>
 struct formatter<std::chrono::zoned_time<Duration, TimeZonePtr>, CharT>
-    : formatter<detail::local_time_format_t<std::common_type_t<Duration, std::chrono::seconds>>, CharT> {
+    : formatter<detail::local_time_format_t<CharT, std::common_type_t<Duration, std::chrono::seconds>, true>, CharT> {
     template<typename FmtCtx>
     void format(FmtCtx& ctx, std::chrono::zoned_time<Duration, TimeZonePtr> t) const {
         using common_duration_type = std::common_type_t<Duration, std::chrono::seconds>;
-        using formatter_type = formatter<detail::local_time_format_t<common_duration_type>, CharT>;
+        using formatter_type = formatter<detail::local_time_format_t<CharT, common_duration_type, true>, CharT>;
         const auto zone_info = t.get_info();
         formatter_type::format(ctx, {std::chrono::sys_time<Duration>{t.get_local_time().time_since_epoch()},
-                                     zone_info.abbrev, zone_info.offset});
+                                     utf_string_adapter<CharT>{}(zone_info.abbrev), zone_info.offset});
     }
 };
 #endif
