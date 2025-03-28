@@ -4,7 +4,7 @@
 #include "cow_ptr.h"
 #include "io/stream.h"  // NOLINT
 #include "optional.h"
-#include "stringcvt.h"  // NOLINT
+#include "string_cvt.h"  // NOLINT
 
 #define UXS_DECLARE_VARIANT_TYPE(ty, id) \
     template<> \
