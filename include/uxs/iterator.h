@@ -499,7 +499,7 @@ const_value_iterator<Val> const_value(const Val& v) noexcept {
 //-----------------------------------------------------------------------------
 // Limited output iterator
 
-template<typename BaseIt, typename = void>
+template<typename BaseIt>
 class limited_output_iterator {
  public:
     using iterator_type = BaseIt;
@@ -520,7 +520,7 @@ class limited_output_iterator {
 
     limited_output_iterator& operator*() { return *this; }
     limited_output_iterator& operator++() {
-        ++base_, --limit_;
+        if (limit_) { ++base_, --limit_; }
         return *this;
     }
     limited_output_iterator operator++(int) {
@@ -534,42 +534,6 @@ class limited_output_iterator {
  private:
     iterator_type base_;
     difference_type limit_;
-};
-
-template<typename BaseIt>
-class limited_output_iterator<BaseIt, std::enable_if_t<is_random_access_iterator<BaseIt>::value>> {
- public:
-    using iterator_type = BaseIt;
-    using iterator_category = std::output_iterator_tag;
-    using value_type = void;
-    using difference_type = std::ptrdiff_t;
-    using reference = void;
-    using pointer = void;
-
-    limited_output_iterator() : first_(), last_() {}
-    limited_output_iterator(iterator_type base, difference_type limit) : first_(base), last_(base + limit) {}
-
-    template<typename Ty>
-    limited_output_iterator& operator=(Ty&& v) {
-        if (first_ != last_) { *first_ = std::forward<Ty>(v); }
-        return *this;
-    }
-
-    limited_output_iterator& operator*() { return *this; }
-    limited_output_iterator& operator++() {
-        ++first_;
-        return *this;
-    }
-    limited_output_iterator operator++(int) {
-        limited_output_iterator it = *this;
-        ++*this;
-        return it;
-    }
-
-    iterator_type base() const { return first_; }
-
- private:
-    iterator_type first_, last_;
 };
 
 template<typename BaseIt>
