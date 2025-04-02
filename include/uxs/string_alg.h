@@ -422,9 +422,10 @@ std::size_t unpack_strings(std::wstring_view s, wchar_t sep, OutputFn fn, Output
 
 // --------------------------
 
-template<typename CharT, typename FlagsTy>
-std::pair<FlagsTy, FlagsTy> parse_basic_flag_string(
-    std::basic_string_view<CharT> s, const std::vector<std::pair<std::basic_string_view<CharT>, FlagsTy>>& flag_tbl) {
+template<typename CharT, typename Range>
+auto parse_basic_flag_string(std::basic_string_view<CharT> s, const Range& flag_tbl)
+    -> std::pair<decltype(std::begin(flag_tbl)->second), decltype(std::begin(flag_tbl)->second)> {
+    using FlagsTy = decltype(std::begin(flag_tbl)->second);
     auto flags = std::make_pair(static_cast<FlagsTy>(0), static_cast<FlagsTy>(0));
     string_to_words(s, ' ', nofunc(), function_caller([&](std::basic_string_view<CharT> flag) {
                         bool add_flag = (flag[0] != '-');
@@ -441,15 +442,15 @@ std::pair<FlagsTy, FlagsTy> parse_basic_flag_string(
     return flags;
 }
 
-template<typename FlagsTy>
-std::pair<FlagsTy, FlagsTy> parse_flag_string(std::string_view s,
-                                              const std::vector<std::pair<std::string_view, FlagsTy>>& flag_tbl) {
+template<typename Range>
+auto parse_flag_string(std::string_view s, const Range& flag_tbl)
+    -> std::pair<decltype(std::begin(flag_tbl)->second), decltype(std::begin(flag_tbl)->second)> {
     return parse_basic_flag_string(s, flag_tbl);
 }
 
-template<typename FlagsTy>
-std::pair<FlagsTy, FlagsTy> parse_flag_string(std::wstring_view s,
-                                              const std::vector<std::pair<std::wstring_view, FlagsTy>>& flag_tbl) {
+template<typename Range>
+auto parse_flag_string(std::wstring_view s, const Range& flag_tbl)
+    -> std::pair<decltype(std::begin(flag_tbl)->second), decltype(std::begin(flag_tbl)->second)> {
     return parse_basic_flag_string(s, flag_tbl);
 }
 
