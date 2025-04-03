@@ -122,7 +122,7 @@ using wibuf = basic_ibuf<wchar_t>;
 using u8ibuf = basic_ibuf<std::uint8_t>;
 
 namespace stdbuf {
-extern UXS_EXPORT ibuf& in;
+extern UXS_EXPORT ibuf& in();
 }  // namespace stdbuf
 
 }  // namespace uxs

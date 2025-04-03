@@ -4,27 +4,31 @@
 
 using namespace uxs;
 
-static filebuf g_outbuf(::GetStdHandle(STD_OUTPUT_HANDLE),
-                        iomode::out | iomode::append | iomode::cr_lf | iomode::ctrl_esc);
-static filebuf g_inbuf(::GetStdHandle(STD_INPUT_HANDLE), iomode::in | iomode::cr_lf, &stdbuf::out);
-static filebuf g_logbuf(::GetStdHandle(STD_ERROR_HANDLE),
-                        iomode::out | iomode::append | iomode::cr_lf | iomode::ctrl_esc, &stdbuf::out);
-static filebuf g_errbuf(::GetStdHandle(STD_ERROR_HANDLE),
-                        iomode::out | iomode::append | iomode::cr_lf | iomode::ctrl_esc, &stdbuf::log);
-iobuf& stdbuf::out = g_outbuf;
-ibuf& stdbuf::in = g_inbuf;
-iobuf& stdbuf::log = g_logbuf;
-iobuf& stdbuf::err = g_errbuf;
-
-static struct stdfile_initializer {
-    stdfile_initializer() {
+struct stdfile_buffers {
+    filebuf out;
+    filebuf in;
+    filebuf log;
+    filebuf err;
+    stdfile_buffers()
+        : out(::GetStdHandle(STD_OUTPUT_HANDLE), iomode::out | iomode::append | iomode::cr_lf | iomode::ctrl_esc),
+          in(::GetStdHandle(STD_INPUT_HANDLE), iomode::in | iomode::cr_lf, &out),
+          log(::GetStdHandle(STD_ERROR_HANDLE), iomode::out | iomode::append | iomode::cr_lf | iomode::ctrl_esc, &out),
+          err(::GetStdHandle(STD_ERROR_HANDLE), iomode::out | iomode::append | iomode::cr_lf | iomode::ctrl_esc, &log) {
         ::SetConsoleCP(CP_UTF8);
         ::SetConsoleOutputCP(CP_UTF8);
     }
-    ~stdfile_initializer() {
-        g_errbuf.detach();
-        g_logbuf.detach();
-        g_inbuf.detach();
-        g_outbuf.detach();
-    }
-} g_stdinit;
+};
+
+namespace {
+stdfile_buffers& get_stdfile_buffers() {
+    static stdfile_buffers bufs;
+    return bufs;
+}
+}  // namespace
+
+namespace stdbuf {
+ibuf& in() { return get_stdfile_buffers().in; }
+iobuf& out() { return get_stdfile_buffers().out; }
+iobuf& log() { return get_stdfile_buffers().log; }
+iobuf& err() { return get_stdfile_buffers().err; }
+}  // namespace stdbuf
