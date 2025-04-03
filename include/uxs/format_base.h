@@ -1272,7 +1272,7 @@ wiobuf& print(wiobuf& out, wformat_string<Args...> fmt, const Args&... args) {
 
 template<typename... Args>
 iobuf& print(format_string<Args...> fmt, const Args&... args) {
-    return vprint(stdbuf::out, fmt.get(), make_format_args(args...));
+    return vprint(stdbuf::out(), fmt.get(), make_format_args(args...));
 }
 
 template<typename... Args>
@@ -1287,7 +1287,7 @@ wiobuf& print(wiobuf& out, const std::locale& loc, wformat_string<Args...> fmt, 
 
 template<typename... Args>
 iobuf& print(const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
-    return vprint(stdbuf::out, loc, fmt.get(), make_format_args(args...));
+    return vprint(stdbuf::out(), loc, fmt.get(), make_format_args(args...));
 }
 
 // ---- println
@@ -1304,7 +1304,7 @@ wiobuf& println(wiobuf& out, wformat_string<Args...> fmt, const Args&... args) {
 
 template<typename... Args>
 iobuf& println(format_string<Args...> fmt, const Args&... args) {
-    return vprint(stdbuf::out, fmt.get(), make_format_args(args...)).endl();
+    return vprint(stdbuf::out(), fmt.get(), make_format_args(args...)).endl();
 }
 
 template<typename... Args>
@@ -1319,7 +1319,7 @@ wiobuf& println(wiobuf& out, const std::locale& loc, wformat_string<Args...> fmt
 
 template<typename... Args>
 iobuf& println(const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
-    return vprint(stdbuf::out, loc, fmt.get(), make_format_args(args...)).endl();
+    return vprint(stdbuf::out(), loc, fmt.get(), make_format_args(args...)).endl();
 }
 
 }  // namespace uxs
