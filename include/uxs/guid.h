@@ -7,7 +7,20 @@
 namespace uxs {
 
 struct guid {
+    using data8_t = std::array<std::uint8_t, 16>;
+    using data16_t = std::array<std::uint16_t, 8>;
+    using data32_t = std::array<std::uint32_t, 4>;
+
+    struct data64_t : std::array<std::uint64_t, 2> {
+        bool valid() const noexcept { return (*this)[0] || (*this)[1]; }
+        friend bool operator==(data64_t lhs, data64_t rhs) noexcept { return lhs[0] == rhs[0] && lhs[1] == rhs[1]; }
+        friend bool operator<(data64_t lhs, data64_t rhs) noexcept {
+            return lhs[0] < rhs[0] || (lhs[0] == rhs[0] && lhs[1] < rhs[1]);
+        }
+    };
+
     struct layout_t {
+        layout_t() noexcept = default;
         UXS_CONSTEXPR layout_t(std::uint32_t l, std::uint16_t w1, std::uint16_t w2, std::uint8_t b1, std::uint8_t b2,
                                std::uint8_t b3, std::uint8_t b4, std::uint8_t b5, std::uint8_t b6, std::uint8_t b7,
                                std::uint8_t b8) noexcept
@@ -17,38 +30,54 @@ struct guid {
         std::array<std::uint8_t, 8> b;
     };
 
-    union {
-        layout_t layout;
-        std::array<std::uint8_t, 16> data8;
-        std::array<std::uint16_t, 8> data16;
-        std::array<std::uint32_t, 4> data32;
-        std::array<std::uint64_t, 2> data64;
-    };
+    static_assert(sizeof(data8_t) == sizeof(data64_t), "type size mismatch");
+    static_assert(sizeof(data16_t) == sizeof(data64_t), "type size mismatch");
+    static_assert(sizeof(data32_t) == sizeof(data64_t), "type size mismatch");
+    static_assert(sizeof(layout_t) == sizeof(data64_t), "type size mismatch");
 
-    UXS_CONSTEXPR guid() noexcept : data64{0, 0} {}
-    UXS_CONSTEXPR guid(std::array<std::uint32_t, 4> l) noexcept : data32{l} {}
+    layout_t data;
+
+    UXS_CONSTEXPR guid() noexcept : data{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0} {}
     UXS_CONSTEXPR guid(std::uint32_t l, std::uint16_t w1, std::uint16_t w2, std::uint8_t b1, std::uint8_t b2,
                        std::uint8_t b3, std::uint8_t b4, std::uint8_t b5, std::uint8_t b6, std::uint8_t b7,
                        std::uint8_t b8) noexcept
-        : layout{l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8} {}
+        : data{l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8} {}
 
-    bool valid() const noexcept { return data64[0] || data64[1]; }
-    guid make_xor(std::uint32_t a) const noexcept {
-        guid id;
-        id.data32[0] = data32[0] ^ a, id.data32[1] = data32[1] ^ a;
-        id.data32[2] = data32[2] ^ a, id.data32[3] = data32[3] ^ a;
-        return id;
+    explicit guid(data8_t b) noexcept { std::memcpy(&data, &b, sizeof(data)); }
+    explicit guid(data16_t w) noexcept { std::memcpy(&data, &w, sizeof(data)); }
+    explicit guid(data32_t l) noexcept { std::memcpy(&data, &l, sizeof(data)); }
+    explicit guid(data64_t q) noexcept { std::memcpy(&data, &q, sizeof(data)); }
+
+    bool valid() const noexcept { return data64().valid(); }
+
+    data8_t data8() const {
+        data8_t b;
+        std::memcpy(&b, &data, sizeof(data));
+        return b;
+    }
+    data16_t data16() const {
+        data16_t w;
+        std::memcpy(&w, &data, sizeof(data));
+        return w;
+    }
+    data32_t data32() const {
+        data32_t l;
+        std::memcpy(&l, &data, sizeof(data));
+        return l;
+    }
+    data64_t data64() const {
+        data64_t q;
+        std::memcpy(&q, &data, sizeof(data));
+        return q;
     }
 
-    bool operator==(const guid& id) const noexcept { return data64[0] == id.data64[0] && data64[1] == id.data64[1]; }
-    bool operator!=(const guid& id) const noexcept { return !(*this == id); }
+    friend bool operator==(guid lhs, guid rhs) noexcept { return lhs.data64() == rhs.data64(); }
+    friend bool operator!=(guid lhs, guid rhs) noexcept { return !(lhs.data64() == rhs.data64()); }
 
-    bool operator<(const guid& id) const noexcept {
-        return data64[0] < id.data64[0] || (data64[0] == id.data64[0] && data64[1] < id.data64[1]);
-    }
-    bool operator<=(const guid& id) const noexcept { return !(id < *this); }
-    bool operator>(const guid& id) const noexcept { return id < *this; }
-    bool operator>=(const guid& id) const noexcept { return !(*this < id); }
+    friend bool operator<(guid lhs, guid rhs) noexcept { return lhs.data64() < rhs.data64(); }
+    friend bool operator<=(guid lhs, guid rhs) noexcept { return !(rhs.data64() < lhs.data64()); }
+    friend bool operator>(guid lhs, guid rhs) noexcept { return rhs.data64() < lhs.data64(); }
+    friend bool operator>=(guid lhs, guid rhs) noexcept { return !(lhs.data64() < rhs.data64()); }
 
     template<typename CharT, typename Traits, typename Alloc>
     void to_per_byte_basic_string(std::basic_string<CharT, Traits, Alloc>& s) const;
@@ -76,16 +105,16 @@ template<typename CharT, typename Traits, typename Alloc>
 void guid::to_per_byte_basic_string(std::basic_string<CharT, Traits, Alloc>& s) const {
     s.resize(32);
     auto* p = &s[0];
-    for (const std::uint8_t b : data8) { to_hex(b, p, 2, true), p += 2; }
+    for (const std::uint8_t b : data8()) { to_hex(b, p, 2, true), p += 2; }
 }
 
 template<typename CharT, typename Traits>
 /*static*/ guid guid::from_per_byte_basic_string(std::basic_string_view<CharT, Traits> s) noexcept {
-    guid id;
-    if (s.size() < 32) { return id; }
+    if (s.size() < 32) { return guid{}; }
     const auto* p = s.data();
-    for (std::uint8_t& b : id.data8) { b = from_hex(p, 2), p += 2; }
-    return id;
+    guid::data8_t data;
+    for (std::uint8_t& b : data) { b = from_hex(p, 2), p += 2; }
+    return guid{data};
 }
 
 template<typename CharT>
@@ -94,13 +123,13 @@ struct from_string_impl<guid, CharT> {
         const std::size_t len = 38;
         if (static_cast<std::size_t>(last - first) < len) { return 0; }
         const auto* p = first;
-        val.layout.l = from_hex(p + 1, 8);
-        val.layout.w[0] = from_hex(p + 10, 4);
-        val.layout.w[1] = from_hex(p + 15, 4);
-        val.layout.b[0] = from_hex(p + 20, 2);
-        val.layout.b[1] = from_hex(p + 22, 2);
+        val.data.l = from_hex(p + 1, 8);
+        val.data.w[0] = from_hex(p + 10, 4);
+        val.data.w[1] = from_hex(p + 15, 4);
+        val.data.b[0] = from_hex(p + 20, 2);
+        val.data.b[1] = from_hex(p + 22, 2);
         p += 25;
-        for (unsigned i = 2; i < 8; ++i, p += 2) { val.layout.b[i] = from_hex(p, 2); }
+        for (unsigned i = 2; i < 8; ++i, p += 2) { val.data.b[i] = from_hex(p, 2); }
         return first + len;
     }
 };
@@ -108,19 +137,19 @@ struct from_string_impl<guid, CharT> {
 template<typename CharT>
 struct to_string_impl<guid, CharT> {
     template<typename StrTy>
-    void operator()(StrTy& s, const guid& val, fmt_opts fmt) const {
+    void operator()(StrTy& s, guid val, fmt_opts fmt) const {
         const unsigned len = 38;
         const bool upper = !!(fmt.flags & fmt_flags::uppercase);
         std::array<typename StrTy::value_type, len> buf;
         auto* p = buf.data();
         p[0] = '{', p[9] = '-', p[14] = '-', p[19] = '-', p[24] = '-', p[37] = '}';
-        to_hex(val.layout.l, p + 1, 8, upper);
-        to_hex(val.layout.w[0], p + 10, 4, upper);
-        to_hex(val.layout.w[1], p + 15, 4, upper);
-        to_hex(val.layout.b[0], p + 20, 2, upper);
-        to_hex(val.layout.b[1], p + 22, 2, upper);
+        to_hex(val.data.l, p + 1, 8, upper);
+        to_hex(val.data.w[0], p + 10, 4, upper);
+        to_hex(val.data.w[1], p + 15, 4, upper);
+        to_hex(val.data.b[0], p + 20, 2, upper);
+        to_hex(val.data.b[1], p + 22, 2, upper);
         p += 25;
-        for (unsigned i = 2; i < 8; ++i, p += 2) { to_hex(val.layout.b[i], p, 2, upper); }
+        for (unsigned i = 2; i < 8; ++i, p += 2) { to_hex(val.data.b[i], p, 2, upper); }
         const auto fn = [&buf](StrTy& s) { s.append(buf.data(), buf.size()); };
         fmt.width > len ? append_adjusted(s, fn, len, fmt) : fn(s);
     }
@@ -145,7 +174,7 @@ struct formatter<guid, CharT> {
         return it + 1;
     }
     template<typename FmtCtx>
-    void format(FmtCtx& ctx, const guid& val) const {
+    void format(FmtCtx& ctx, guid val) const {
         fmt_opts opts = opts_;
         if (width_arg_id_ != unspecified_size) {
             opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>();
@@ -160,7 +189,8 @@ namespace std {
 template<>
 struct hash<uxs::guid> {
     std::size_t operator()(uxs::guid id) const {
-        return hash<std::uint64_t>{}(id.data64[0]) ^ (hash<std::uint64_t>{}(id.data64[1]) << 1);
+        const auto q = id.data64();
+        return hash<std::uint64_t>{}(q[0]) ^ (hash<std::uint64_t>{}(q[1]) << 1);
     }
 };
 }  // namespace std

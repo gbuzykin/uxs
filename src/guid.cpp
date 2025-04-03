@@ -7,19 +7,27 @@ using namespace uxs;
 //---------------------------------------------------------------------------------
 // Guid implementation
 
-namespace {
-std::random_device g_rd;
-std::seed_seq g_seed{g_rd(), g_rd(), g_rd(), g_rd(), g_rd()};
-std::mt19937 g_generator(g_seed);
-}  // namespace
+struct guid_random_generator {
+    std::mt19937 generator;
+    std::uniform_int_distribution<std::uint32_t> distribution;
+    guid_random_generator() : distribution(0, std::numeric_limits<std::uint32_t>::max()) {
+        std::random_device r;
+        std::seed_seq seed{r(), r(), r(), r(), r()};
+        generator.seed(seed);
+    }
+    guid operator()() {
+        guid::data32_t data;
+        for (std::uint32_t& l : data) { l = distribution(generator); }
+        guid id{data};
+        // set version: must be 0b0100xxxx
+        id.data.w[1] = (id.data.w[1] & 0x4FFF) | 0x4000;
+        // set variant: must be 0b10xxxxxx
+        id.data.b[0] = (id.data.b[0] & 0xBF) | 0x80;
+        return id;
+    }
+};
 
 /*static*/ guid guid::generate() {
-    guid id;
-    std::uniform_int_distribution<std::uint32_t> distribution(0, std::numeric_limits<std::uint32_t>::max());
-    for (std::uint32_t& l : id.data32) { l = distribution(g_generator); }
-    // set version: must be 0b0100xxxx
-    id.data8[7] = (id.data8[7] & 0x4F) | 0x40;
-    // set variant: must be 0b10xxxxxx
-    id.data8[8] = (id.data8[8] & 0xBF) | 0x80;
-    return id;
+    static guid_random_generator generator;
+    return generator();
 }
