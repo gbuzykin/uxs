@@ -76,9 +76,9 @@ using wiobuf = basic_iobuf<wchar_t>;
 using u8iobuf = basic_iobuf<std::uint8_t>;
 
 namespace stdbuf {
-extern UXS_EXPORT iobuf& out;
-extern UXS_EXPORT iobuf& log;
-extern UXS_EXPORT iobuf& err;
+extern UXS_EXPORT iobuf& out();
+extern UXS_EXPORT iobuf& log();
+extern UXS_EXPORT iobuf& err();
 }  // namespace stdbuf
 
 }  // namespace uxs
