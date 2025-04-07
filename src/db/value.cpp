@@ -3,10 +3,10 @@
 namespace uxs {
 namespace db {
 namespace detail {
-template struct flexarray_t<char, std::allocator<char>>;
-template struct flexarray_t<wchar_t, std::allocator<wchar_t>>;
-template struct UXS_EXPORT_ALL_STUFF_FOR_GNUC flexarray_t<basic_value<char>, std::allocator<char>>;
-template struct UXS_EXPORT_ALL_STUFF_FOR_GNUC flexarray_t<basic_value<wchar_t>, std::allocator<wchar_t>>;
+template class flexarray_t<char, std::allocator<char>>;
+template class flexarray_t<wchar_t, std::allocator<wchar_t>>;
+template class UXS_EXPORT_ALL_STUFF_FOR_GNUC flexarray_t<basic_value<char>, std::allocator<char>>;
+template class UXS_EXPORT_ALL_STUFF_FOR_GNUC flexarray_t<basic_value<wchar_t>, std::allocator<wchar_t>>;
 template struct record_t<char, std::allocator<char>>;
 template struct record_t<wchar_t, std::allocator<wchar_t>>;
 template class record_value<char, std::allocator<char>>;

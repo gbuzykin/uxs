@@ -9,6 +9,7 @@ struct stdfile_buffers {
     filebuf in;
     filebuf log;
     filebuf err;
+    static stdfile_buffers& instance();
     stdfile_buffers()
         : out(::GetStdHandle(STD_OUTPUT_HANDLE), iomode::out | iomode::append | iomode::cr_lf | iomode::ctrl_esc),
           in(::GetStdHandle(STD_INPUT_HANDLE), iomode::in | iomode::cr_lf, &out),
@@ -19,16 +20,12 @@ struct stdfile_buffers {
     }
 };
 
-namespace {
-stdfile_buffers& get_stdfile_buffers() {
-    static stdfile_buffers bufs;
-    return bufs;
+stdfile_buffers& stdfile_buffers::instance() {
+    static stdfile_buffers instance;
+    return instance;
 }
-}  // namespace
 
-namespace stdbuf {
-ibuf& in() { return get_stdfile_buffers().in; }
-iobuf& out() { return get_stdfile_buffers().out; }
-iobuf& log() { return get_stdfile_buffers().log; }
-iobuf& err() { return get_stdfile_buffers().err; }
-}  // namespace stdbuf
+ibuf& stdbuf::in() { return stdfile_buffers::instance().in; }
+iobuf& stdbuf::out() { return stdfile_buffers::instance().out; }
+iobuf& stdbuf::log() { return stdfile_buffers::instance().log; }
+iobuf& stdbuf::err() { return stdfile_buffers::instance().err; }

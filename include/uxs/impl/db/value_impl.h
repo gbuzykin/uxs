@@ -8,7 +8,7 @@
 namespace uxs {
 namespace db {
 
-// --------------------------
+//-----------------------------------------------------------------------------
 
 template<typename CharT, typename Alloc>
 UXS_EXPORT bool operator==(const basic_value<CharT, Alloc>& lhs, const basic_value<CharT, Alloc>& rhs) noexcept {
@@ -58,8 +58,8 @@ UXS_EXPORT bool operator==(const basic_value<CharT, Alloc>& lhs, const basic_val
     }
 }
 
-// --------------------------
-
+//-----------------------------------------------------------------------------
+// Flexible array implementation
 namespace detail {
 
 template<typename Alloc, typename Ty,
@@ -87,31 +87,34 @@ static void destruct_moved_values(Ty* first, Ty* last, Dummy&&...) {
 }
 
 template<typename Ty, typename Alloc>
-/*static*/ auto flexarray_t<Ty, Alloc>::alloc(alloc_type& arr_al, std::size_t cap) -> flexarray_t* {
+/*static*/ auto flexarray_t<Ty, Alloc>::alloc(alloc_type& al, std::size_t cap) -> flexarray_t* {
     const std::size_t alloc_sz = get_alloc_sz(cap);
-    flexarray_t* arr = arr_al.allocate(alloc_sz);
-    arr->capacity = (alloc_sz * sizeof(flexarray_t) - offsetof(flexarray_t, x)) / sizeof(Ty);
-    assert(arr->capacity >= cap && get_alloc_sz(arr->capacity) == alloc_sz);
+    flexarray_t* arr = al.allocate(alloc_sz);
+    arr->capacity_ = (alloc_sz * sizeof(flexarray_t) - offsetof(flexarray_t, x)) / sizeof(Ty);
+    assert(arr->capacity_ >= cap && get_alloc_sz(arr->capacity_) == alloc_sz);
     return arr;
 }
 
 template<typename Ty, typename Alloc>
-/*static*/ auto flexarray_t<Ty, Alloc>::grow(alloc_type& arr_al, flexarray_t* arr, std::size_t extra) -> flexarray_t* {
-    std::size_t delta_sz = std::max(extra, arr->size >> 1);
-    const std::size_t max_sz = max_size(arr_al);
-    if (delta_sz > max_sz - arr->size) {
-        if (extra > max_sz - arr->size) { throw std::length_error("too much to reserve"); }
-        delta_sz = std::max(extra, (max_sz - arr->size) >> 1);
+/*static*/ auto flexarray_t<Ty, Alloc>::grow(alloc_type& al, flexarray_t* arr, std::size_t extra) -> flexarray_t* {
+    std::size_t delta_sz = std::max(extra, arr->size_ >> 1);
+    const std::size_t max_sz = max_size(al);
+    if (delta_sz > max_sz - arr->size_) {
+        if (extra > max_sz - arr->size_) { throw std::length_error("too much to reserve"); }
+        delta_sz = std::max(extra, (max_sz - arr->size_) >> 1);
     }
-    flexarray_t* new_arr = alloc(arr_al, arr->size + delta_sz);
-    detail::move_values<alloc_type>(&(*arr)[0], &(*arr)[arr->size], &(*new_arr)[0]);
-    new_arr->size = arr->size;
-    detail::destruct_moved_values<alloc_type>(&(*arr)[0], &(*arr)[arr->size]);
-    dealloc(arr_al, arr);
+    flexarray_t* new_arr = alloc(al, arr->size_ + delta_sz);
+    detail::move_values<alloc_type>(&(*arr)[0], &(*arr)[arr->size_], &(*new_arr)[0]);
+    new_arr->size_ = arr->size_;
+    detail::destruct_moved_values<alloc_type>(&(*arr)[0], &(*arr)[arr->size_]);
+    dealloc(al, arr);
     return new_arr;
 }
+}  // namespace detail
 
-// --------------------------
+//-----------------------------------------------------------------------------
+// Record container implementation
+namespace detail {
 
 template<typename CharT, typename Alloc>
 void record_t<CharT, Alloc>::init() {
@@ -342,15 +345,17 @@ template<typename CharT, typename Alloc>
     return node;
 }
 
-// --------------------------
+}  // namespace detail
 
+//-----------------------------------------------------------------------------
+
+namespace detail {
 template<typename CharT, typename Alloc>
 bool is_record(const std::initializer_list<basic_value<CharT, Alloc>>& init) {
     return std::all_of(init.begin(), init.end(), [](const basic_value<CharT, Alloc>& v) {
         return v.is_array() && v.size() == 2 && v[0].is_string();
     });
 }
-
 }  // namespace detail
 
 template<typename CharT, typename Alloc>
@@ -361,7 +366,7 @@ basic_value<CharT, Alloc>::basic_value(std::initializer_list<basic_value> init, 
         value_.rec = record_t::create(rec_al, init);
         type_ = dtype::record;
     } else {
-        value_.arr = alloc_array(init.size(), init.begin());
+        value_.arr = create_array(init.begin(), init.end());
     }
 }
 
@@ -383,10 +388,10 @@ void basic_value<CharT, Alloc>::assign(std::initializer_list<basic_value> init) 
         }
     } else if (type_ != dtype::array) {
         if (type_ != dtype::null) { destroy(); }
-        value_.arr = alloc_array(init.size(), init.begin());
+        value_.arr = create_array(init.begin(), init.end());
         type_ = dtype::array;
     } else {
-        assign_array(init.size(), init.begin());
+        assign_array(init.begin(), init.end());
     }
 }
 
@@ -394,10 +399,10 @@ template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::insert(std::size_t pos, std::initializer_list<basic_value> init) {
     if (type_ != dtype::array) {
         if (type_ != dtype::null) { throw database_error("not an array"); }
-        value_.arr = alloc_array(init.size(), init.begin());
+        value_.arr = create_array(init.begin(), init.end());
         type_ = dtype::array;
     } else if (init.size()) {
-        append_array(init.size(), init.begin());
+        append_array(init.begin(), init.end());
         if (pos < value_.arr->size - init.size()) {
             std::rotate(&(*value_.arr)[pos], &(*value_.arr)[value_.arr->size - init.size()],
                         &(*value_.arr)[value_.arr->size]);
@@ -422,7 +427,7 @@ void basic_value<CharT, Alloc>::insert(
     }
 }
 
-// --------------------------
+//-----------------------------------------------------------------------------
 
 namespace detail {
 inline bool is_integral(double d) {
@@ -852,7 +857,7 @@ template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::init_from(const basic_value& other) {
     switch (other.type_) {
         case dtype::string: value_.str = alloc_string(other.str_view()); break;
-        case dtype::array: value_.arr = alloc_array(other.array_view()); break;
+        case dtype::array: value_.arr = create_array(other.array_view()); break;
         case dtype::record: {
             typename record_t::alloc_type rec_al(*this);
             value_.rec = record_t::create(rec_al, *other.value_.rec);
