@@ -109,22 +109,22 @@ class parser {
         }
 
         void increment() {
-            uxs_iterator_assert(parser_);
+            assert(parser_);
             if (parser_->next() == token_t::eof) { parser_ = nullptr; }
         }
 
         const attributes_t& attributes() const {
-            uxs_iterator_assert(parser_);
+            assert(parser_);
             return parser_->attributes();
         }
 
         attributes_t& attributes() {
-            uxs_iterator_assert(parser_);
+            assert(parser_);
             return parser_->attributes();
         }
 
         reference dereference() const {
-            uxs_iterator_assert(parser_);
+            assert(parser_);
             return parser_->token();
         }
 
