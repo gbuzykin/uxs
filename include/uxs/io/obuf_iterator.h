@@ -20,7 +20,7 @@ class basic_obuf_iterator {
     explicit basic_obuf_iterator(obuf_type& buf) noexcept : buf_(&buf) {}
 
     basic_obuf_iterator& operator=(char_type ch) {
-        uxs_iterator_assert(buf_);
+        assert(buf_);
         buf_->put(ch);
         return *this;
     }

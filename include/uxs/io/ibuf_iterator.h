@@ -20,13 +20,13 @@ class basic_ibuf_iterator : public iterator_facade<basic_ibuf_iterator<CharT>, C
     }
 
     void increment() {
-        uxs_iterator_assert(buf_);
+        assert(buf_);
         buf_->advance(1);
         if ((val_ = buf_->peek()) == traits_type::eof()) { buf_ = nullptr; }
     }
 
     char_type dereference() const noexcept {
-        uxs_iterator_assert(buf_);
+        assert(buf_);
         return traits_type::to_char_type(val_);
     }
     bool is_equal_to(const basic_ibuf_iterator& it) const noexcept { return buf_ == it.buf_; }
