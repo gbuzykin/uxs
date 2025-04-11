@@ -289,24 +289,24 @@ class value_iterator : public container_iterator_facade<basic_value<CharT, Alloc
     explicit value_iterator(list_links_t* node) noexcept : is_record_(true), ptr_(node) {}
 
     void increment() noexcept {
-        uxs_iterator_assert(is_record_ || (begin_ <= ptr_ && ptr_ < end_));
-        uxs_iterator_assert(!is_record_ || (ptr_ && ptr_ != head()));
+        assert(ptr_);
+        uxs_iterator_assert(is_record_ ? ptr_ != head() : begin_ <= ptr_ && ptr_ < end_);
         ptr_ = is_record_ ? static_cast<void*>(static_cast<list_links_t*>(ptr_)->next) :
                             static_cast<void*>(static_cast<value_type*>(ptr_) + 1);
     }
 
     void decrement() noexcept {
-        uxs_iterator_assert(is_record_ || (begin_ < ptr_ && ptr_ <= end_));
-        uxs_iterator_assert(!is_record_ || (ptr_ && ptr_ != head()->next));
+        assert(ptr_);
+        uxs_iterator_assert(is_record_ ? ptr_ != head()->next : begin_ < ptr_ && ptr_ <= end_);
         ptr_ = is_record_ ? static_cast<void*>(static_cast<list_links_t*>(ptr_)->prev) :
                             static_cast<void*>(static_cast<value_type*>(ptr_) - 1);
     }
 
     template<bool Const2>
     bool is_equal_to(const value_iterator<CharT, Alloc, Const2>& it) const noexcept {
-        uxs_iterator_assert(is_record_ == it.is_record_);
-        uxs_iterator_assert(is_record_ || (begin_ == it.begin_ && end_ == it.end_));
-        uxs_iterator_assert(!is_record_ || (!ptr_ && !it.ptr_) || (ptr_ && it.ptr_ && head() == it.head()));
+        assert(is_record_ == it.is_record_);
+        assert(!is_record_ || (!ptr_ && !it.ptr_) || (ptr_ && it.ptr_));
+        uxs_iterator_assert(is_record_ ? !ptr_ || head() == it.head() : begin_ == it.begin_ && end_ == it.end_);
         return ptr_ == it.ptr_;
     }
 
@@ -320,8 +320,8 @@ class value_iterator : public container_iterator_facade<basic_value<CharT, Alloc
     }
 
     std::conditional_t<Const, const value_type&, value_type&> value() const noexcept {
-        uxs_iterator_assert(is_record_ || (begin_ <= ptr_ && ptr_ < end_));
-        uxs_iterator_assert(!is_record_ || (ptr_ && ptr_ != head()));
+        assert(ptr_);
+        uxs_iterator_assert(is_record_ ? ptr_ != head() : begin_ <= ptr_ && ptr_ < end_);
         return is_record_ ? record_value<CharT, Alloc>::from_links(static_cast<list_links_t*>(ptr_))->value() :
                             *static_cast<value_type*>(ptr_);
     }
