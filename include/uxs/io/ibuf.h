@@ -18,6 +18,7 @@ class basic_ibuf : public iostate {
     using char_type = CharT;
     using traits_type = iotraits<CharT>;
     using size_type = std::size_t;
+    using difference_type = std::ptrdiff_t;
     using int_type = typename traits_type::int_type;
     using pos_type = typename traits_type::pos_type;
     using off_type = typename traits_type::off_type;
@@ -58,10 +59,9 @@ class basic_ibuf : public iostate {
         return *this;
     }
 
-    basic_ibuf& advance(size_type n) noexcept {
-        assert(n <= static_cast<size_type>(last_ - curr_));
+    void advance(difference_type n) noexcept {
+        assert(first_ - curr_ <= n && n <= last_ - curr_);
         curr_ += n;
-        return *this;
     }
 
     template<typename OutputIt, typename = std::enable_if_t<is_random_access_iterator<OutputIt>::value &&

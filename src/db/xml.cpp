@@ -133,7 +133,9 @@ parser::lex_token_t parser::lex(std::string_view& lval) {
                 last = first + stack_.avail();
                 stack_limitation = true;
             }
-            pat = lex_detail::lex(first, last, stack_.p_curr(), &llen, stack_limitation || in_);
+            auto* sptr = stack_.curr();
+            pat = lex_detail::lex(first, last, &sptr, &llen, stack_limitation || in_);
+            stack_.advance(sptr - stack_.curr());
             if (pat >= lex_detail::predef_pat_default) { break; }
             if (stack_limitation) {
                 // enlarge state stack and continue analysis
@@ -164,7 +166,7 @@ parser::lex_token_t parser::lex(std::string_view& lval) {
             } else {
                 // at least one character in stash is yet unused
                 // put unused chars back to `ibuf`
-                for (const char* p = stash_.curr(); p != stash_.last(); ++p) { in_.unget(); }
+                for (std::size_t n = 0; n < stash_.size() - llen; ++n) { in_.unget(); }
             }
             lexeme = stash_.data();
             stash_.clear();  // it resets end pointer, but retains the contents

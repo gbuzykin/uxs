@@ -21,7 +21,7 @@ token_t detail::parser::lex(std::string_view& lval) {
         const char* first = in.first_avail();
         if (stack.back() == lex_detail::sc_initial) {
             while (true) {  // skip whitespaces
-                first = std::find_if<const char*>(first, in.last_avail(), [this](char ch) {
+                first = std::find_if(first, in.last_avail(), [this](char ch) {
                     if (ch != '\n') {
                         return !(uxs::detail::char_tbl_t{}.flags()[static_cast<std::uint8_t>(ch)] &
                                  uxs::detail::char_bits::is_json_ws);
@@ -49,7 +49,9 @@ token_t detail::parser::lex(std::string_view& lval) {
                 last = first + stack.avail();
                 stack_limitation = true;
             }
-            pat = lex_detail::lex(first, last, stack.p_curr(), &llen, stack_limitation || in);
+            auto* sptr = stack.curr();
+            pat = lex_detail::lex(first, last, &sptr, &llen, stack_limitation || in);
+            stack.advance(sptr - stack.curr());
             if (pat >= lex_detail::predef_pat_default) { break; }
             if (stack_limitation) {
                 // enlarge state stack and continue analysis
@@ -80,7 +82,7 @@ token_t detail::parser::lex(std::string_view& lval) {
             } else {
                 // at least one character in stash is yet unused
                 // put unused chars back to `ibuf`
-                for (const char* p = stash.curr(); p != stash.last(); ++p) { in.unget(); }
+                for (std::size_t n = 0; n < stash.size() - llen; ++n) { in.unget(); }
             }
             lexeme = stash.data();
             stash.clear();  // it resets end pointer, but retains the contents
