@@ -15,10 +15,7 @@ escape_n        <string> \\n
 escape_r        <string> \\r
 escape_t        <string> \\t
 escape_unicode  <string> \\u{hdig}{4}
-escape_other    <string> \\.
-string_seq      <string> [^"\\\n]+
-string_close    <string> [^"\\\n]*\"
-string_nl       <string> \n
+escape_invalid  <string> \\
 
 null           "null"
 true           "true"
