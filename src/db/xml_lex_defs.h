@@ -25,12 +25,7 @@ enum {
     pat_entity,
     pat_dcode,
     pat_hcode,
-    pat_string_seq_quot,
-    pat_string_close_quot,
-    pat_string_seq_apos,
-    pat_string_close_apos,
-    pat_string_other,
-    pat_string_nl,
+    pat_ent_invalid,
     pat_name,
     pat_start_element_open,
     pat_end_element_open,
@@ -38,13 +33,10 @@ enum {
     pat_pi_open,
     pat_pi_close,
     pat_comment,
-    pat_whitespace,
     total_pattern_count
 };
 
 enum {
     sc_initial = 0,
-    sc_string_quot,
-    sc_string_apos,
     sc_value
 };

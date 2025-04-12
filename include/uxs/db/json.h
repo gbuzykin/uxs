@@ -27,13 +27,13 @@ enum class token_t : int {
 enum class parse_step { into = 0, over, stop };
 
 namespace detail {
-struct parser {
+struct lexer {
     ibuf& in;
     unsigned ln = 1;
     inline_dynbuffer str;
-    inline_dynbuffer stash;
-    inline_basic_dynbuffer<std::int8_t> stack;
-    UXS_EXPORT explicit parser(ibuf& in);
+    inline_basic_dynbuffer<char, 32> stash;
+    inline_basic_dynbuffer<std::int8_t, 32> stack;
+    UXS_EXPORT explicit lexer(ibuf& in);
     UXS_EXPORT token_t lex(std::string_view& lval);
 };
 }  // namespace detail
@@ -41,18 +41,16 @@ struct parser {
 template<typename ValueFunc, typename ArrItemFunc, typename ObjItemFunc, typename PopFunc>
 void read(ibuf& in, const ValueFunc& fn_value, const ArrItemFunc& fn_arr_item, const ObjItemFunc& fn_obj_item,
           const PopFunc& fn_pop) {
-    if (in.peek() == ibuf::traits_type::eof()) { throw database_error("empty input"); }
-
-    std::string_view lval;
-    detail::parser state(in);
+    detail::lexer lexer(in);
     inline_basic_dynbuffer<char, 32> stack;
 
-    const auto fn_value_checked = [&state, &fn_value](token_t tt, std::string_view lval) -> parse_step {
+    const auto fn_value_checked = [&lexer, &fn_value](token_t tt, std::string_view lval) -> parse_step {
         if (tt >= token_t::null_value || tt == token_t('[') || tt == token_t('{')) { return fn_value(tt, lval); }
-        throw database_error(to_string(state.ln) + ": invalid value or unexpected character");
+        throw database_error(to_string(lexer.ln) + ": invalid value or unexpected character");
     };
 
-    auto tt = state.lex(lval);
+    std::string_view lval;
+    auto tt = lexer.lex(lval);
     if (fn_value_checked(tt, lval) != parse_step::into) { return; }
     if (tt >= token_t::null_value) { return; }
 
@@ -60,7 +58,7 @@ void read(ibuf& in, const ValueFunc& fn_value, const ArrItemFunc& fn_arr_item, c
     auto current = tt;
 
 loop:
-    tt = state.lex(lval);
+    tt = lexer.lex(lval);
     if (current == token_t('[')) {
         if (comma || tt != token_t(']')) {
             while (true) {
@@ -75,17 +73,17 @@ loop:
                 } else if (ret == parse_step::stop) {
                     return;
                 }
-                if ((tt = state.lex(lval)) == token_t(']')) { break; }
-                if (tt != token_t(',')) { throw database_error(to_string(state.ln) + ": expected `,` or `]`"); }
-                tt = state.lex(lval);
+                if ((tt = lexer.lex(lval)) == token_t(']')) { break; }
+                if (tt != token_t(',')) { throw database_error(to_string(lexer.ln) + ": expected `,` or `]`"); }
+                tt = lexer.lex(lval);
             }
         }
     } else if (comma || tt != token_t('}')) {
         while (true) {
-            if (tt != token_t::string) { throw database_error(to_string(state.ln) + ": expected valid string"); }
+            if (tt != token_t::string) { throw database_error(to_string(lexer.ln) + ": expected valid string"); }
             fn_obj_item(lval);
-            if (state.lex(lval) != token_t(':')) { throw database_error(to_string(state.ln) + ": expected `:`"); }
-            tt = state.lex(lval);
+            if (lexer.lex(lval) != token_t(':')) { throw database_error(to_string(lexer.ln) + ": expected `:`"); }
+            tt = lexer.lex(lval);
             const auto ret = fn_value_checked(tt, lval);
             if (ret == parse_step::into) {
                 if (tt < token_t::null_value) {
@@ -96,9 +94,9 @@ loop:
             } else if (ret == parse_step::stop) {
                 return;
             }
-            if ((tt = state.lex(lval)) == token_t('}')) { break; }
-            if (tt != token_t(',')) { throw database_error(to_string(state.ln) + ": expected `,` or `}`"); }
-            tt = state.lex(lval);
+            if ((tt = lexer.lex(lval)) == token_t('}')) { break; }
+            if (tt != token_t(',')) { throw database_error(to_string(lexer.ln) + ": expected `,` or `}`"); }
+            tt = lexer.lex(lval);
         }
     }
 
@@ -107,9 +105,9 @@ loop:
         stack.pop_back();
         fn_pop();
         const char close_char = current == token_t('[') ? ']' : '}';
-        if ((tt = state.lex(lval)) != token_t(close_char)) {
+        if ((tt = lexer.lex(lval)) != token_t(close_char)) {
             if (tt != token_t(',')) {
-                throw database_error(to_string(state.ln) + ": expected `,` or `" + close_char + "`");
+                throw database_error(to_string(lexer.ln) + ": expected `,` or `" + close_char + "`");
             }
             comma = true;
             goto loop;

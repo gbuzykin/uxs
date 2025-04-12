@@ -34,6 +34,34 @@ enum class value_class : int {
     other,
 };
 
+namespace detail {
+enum class lex_token_t : int {
+    eof = 0,
+    eq = '=',
+    close = '>',
+    name = 256,
+    predef_entity,
+    entity,
+    string,
+    start_element_open,
+    end_element_open,
+    pi_open,
+    comment,
+    end_element_close,
+    pi_close,
+};
+
+struct lexer {
+    ibuf& in;
+    unsigned ln = 1;
+    inline_dynbuffer str;
+    inline_basic_dynbuffer<char, 32> stash;
+    inline_basic_dynbuffer<std::int8_t, 32> stack;
+    UXS_EXPORT explicit lexer(ibuf& in);
+    UXS_EXPORT lex_token_t lex(std::string_view& lval);
+};
+}  // namespace detail
+
 class attributes_t : public std::map<std::string_view, std::string> {
  public:
     using underlying_t = std::map<std::string_view, std::string>;
@@ -135,34 +163,13 @@ class parser {
     };
 
  private:
-    ibuf& in_;
-    int ln_ = 1;
+    detail::lexer lexer_;
     bool is_end_element_pending_ = false;
-    inline_dynbuffer str_;
-    inline_dynbuffer stash_;
-    inline_basic_dynbuffer<std::int8_t> stack_;
     std::forward_list<std::string> name_cache_;
     std::pair<token_t, std::string_view> token_;
     attributes_t attrs_;
 
-    enum class lex_token_t : int {
-        eof = 0,
-        eq = '=',
-        close = '>',
-        name = 256,
-        predef_entity,
-        entity,
-        string,
-        start_element_open,
-        end_element_open,
-        pi_open,
-        comment,
-        end_element_close,
-        pi_close,
-    };
-
     UXS_EXPORT std::pair<token_t, std::string_view> next_impl();
-    lex_token_t lex(std::string_view& lval);
 };
 
 namespace detail {

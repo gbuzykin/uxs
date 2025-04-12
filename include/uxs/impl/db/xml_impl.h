@@ -13,8 +13,6 @@ namespace xml {
 
 template<typename CharT, typename Alloc>
 basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Alloc& al) {
-    if (in_.peek() == ibuf::traits_type::eof()) { throw database_error("empty input"); }
-
     static const auto text_to_value = [](std::string_view sval, const Alloc& al) -> basic_value<CharT, Alloc> {
         switch (classify_value(sval)) {
             case value_class::empty:
@@ -72,9 +70,9 @@ basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Allo
     while (true) {
         auto& top = stack.back();
         switch (tt) {
-            case token_t::eof: throw database_error(to_string(ln_) + ": unexpected end of file");
-            case token_t::preamble: throw database_error(to_string(ln_) + ": unexpected document preamble");
-            case token_t::entity: throw database_error(to_string(ln_) + ": unknown entity name");
+            case token_t::eof: throw database_error(to_string(lexer_.ln) + ": unexpected end of file");
+            case token_t::preamble: throw database_error(to_string(lexer_.ln) + ": unexpected document preamble");
+            case token_t::entity: throw database_error(to_string(lexer_.ln) + ": unknown entity name");
             case token_t::plain_text: {
                 if (!top.first->is_record()) { txt += text(); }
             } break;
@@ -90,7 +88,7 @@ basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Allo
             } break;
             case token_t::end_element: {
                 if (top.second != name()) {
-                    throw database_error(to_string(ln_) + ": unterminated element " + top.second);
+                    throw database_error(to_string(lexer_.ln) + ": unterminated element " + top.second);
                 }
                 if (!top.first->is_record() && !txt.empty()) {
                     *(top.first) = text_to_value(std::string_view(txt.data(), txt.size()), al);

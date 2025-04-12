@@ -1,5 +1,3 @@
-%start string_quot
-%start string_apos
 %start value
 
 dig       [0-9]
@@ -20,21 +18,15 @@ real          <value> {ws}?(-|\+?)(({dig}+(\.{dig}*)?)|(\.{dig}+))((e|E)(\+?|\-?
 ws_with_nl    <value> {ws}?(\n{ws}?)+
 other_value   <value> (.|\n)+
 
-amp      &amp;
-lt       &lt;
-gt       &gt;
-apos     &apos;
-quot     &quot;
-entity   &{name};
-dcode    &#{dig}+;
-hcode    &#(x|X){hdig}+;
-
-string_seq_quot     <string_quot> [^"<&\n]+
-string_close_quot   <string_quot> [^"<&\n]*\"
-string_seq_apos     <string_apos> [^'<&\n]+
-string_close_apos   <string_apos> [^'<&\n]*\'
-string_other        <string_quot, string_apos> .
-string_nl           <string_quot, string_apos> \n
+amp          &amp;
+lt           &lt;
+gt           &gt;
+apos         &apos;
+quot         &quot;
+entity       &{name};
+dcode        &#{dig}+;
+hcode        &#(x|X){hdig}+;
+ent_invalid  &
 
 name                {name}
 start_element_open  <{name}
@@ -43,6 +35,5 @@ end_element_close   \/>
 pi_open             <\?{name}
 pi_close            \?>
 comment             <\!--
-whitespace          {ws}
 
 %%
