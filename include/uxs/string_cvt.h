@@ -70,12 +70,12 @@ class basic_membuffer {
     size_type avail() const noexcept { return capacity_ - size_; }
     const_pointer data() const noexcept { return data_; }
     pointer data() noexcept { return data_; }
-    const_pointer curr() const noexcept { return data_ + size_; }
-    pointer curr() noexcept { return data_ + size_; }
+    const_pointer endp() const noexcept { return data_ + size_; }
+    pointer endp() noexcept { return data_ + size_; }
     const_reference back() const noexcept { return data_[size_ - 1]; }
     reference back() noexcept { return data_[size_ - 1]; }
-    const_iterator begin() const noexcept { return const_iterator(data_, data_, curr()); }
-    const_iterator end() const noexcept { return const_iterator(curr(), data_, curr()); }
+    const_iterator begin() const noexcept { return const_iterator(data_, data_, endp()); }
+    const_iterator end() const noexcept { return const_iterator(endp(), data_, endp()); }
     void clear() noexcept { size_ = 0; }
 
     const_reference operator[](std::size_t n) const noexcept {
@@ -104,11 +104,11 @@ class basic_membuffer {
         size_type count = static_cast<size_type>(last - first);
         size_type n_avail = avail();
         while (count > n_avail) {
-            std::copy_n(first, n_avail, curr());
+            std::copy_n(first, n_avail, endp());
             first += n_avail, count -= n_avail, size_ += n_avail;
             if (!(n_avail = try_grow(count))) { return *this; }
         }
-        std::copy(first, last, curr());
+        std::copy(first, last, endp());
         size_ += count;
         return *this;
     }
@@ -116,11 +116,11 @@ class basic_membuffer {
     basic_membuffer& append(size_type count, value_type val) {
         size_type n_avail = avail();
         while (count > n_avail) {
-            std::fill_n(curr(), n_avail, val);
+            std::fill_n(endp(), n_avail, val);
             count -= n_avail, size_ += n_avail;
             if (!(n_avail = try_grow(count))) { return *this; }
         }
-        std::fill_n(curr(), count, val);
+        std::fill_n(endp(), count, val);
         size_ += count;
         return *this;
     }
@@ -202,7 +202,7 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
         }
         sz += delta_sz;
         Ty* data = this->allocate(sz);
-        std::copy(this->data(), this->curr(), data);
+        std::copy(this->data(), this->endp(), data);
         if (is_allocated_) { this->deallocate(this->data(), this->capacity()); }
         this->reset(data, this->size(), sz);
         is_allocated_ = true;
@@ -732,25 +732,25 @@ std::wstring to_wstring(const std::locale& loc, const Ty& val, fmt_opts fmt = {}
 template<typename Ty>
 char* to_chars(char* p, const Ty& val, fmt_opts fmt = {}) {
     membuffer buf(p);
-    return to_basic_string(buf, val, fmt).curr();
+    return to_basic_string(buf, val, fmt).endp();
 }
 
 template<typename Ty>
 char* to_chars(char* p, const std::locale& loc, const Ty& val, fmt_opts fmt = {}) {
     membuffer buf(p);
-    return to_basic_string(buf, loc, val, fmt).curr();
+    return to_basic_string(buf, loc, val, fmt).endp();
 }
 
 template<typename Ty>
 wchar_t* to_wchars(wchar_t* p, const Ty& val, fmt_opts fmt = {}) {
     wmembuffer buf(p);
-    return to_basic_string(buf, val, fmt).curr();
+    return to_basic_string(buf, val, fmt).endp();
 }
 
 template<typename Ty>
 wchar_t* to_wchars(wchar_t* p, const std::locale& loc, const Ty& val, fmt_opts fmt = {}) {
     wmembuffer buf(p);
-    return to_basic_string(buf, loc, val, fmt).curr();
+    return to_basic_string(buf, loc, val, fmt).endp();
 }
 
 // ---- to_chars_n
@@ -767,26 +767,26 @@ struct chars_to_n_result {
 template<typename Ty>
 chars_to_n_result<char> to_chars_n(char* p, std::size_t n, const Ty& val, fmt_opts fmt = {}) {
     membuffer_with_size_tracker buf(p, n);
-    return {to_basic_string(buf, val, fmt).curr(), buf.tracked_size()};
+    return {to_basic_string(buf, val, fmt).endp(), buf.tracked_size()};
 }
 
 template<typename Ty>
 chars_to_n_result<char> to_chars_n(char* p, std::size_t n, const std::locale& loc, const Ty& val, fmt_opts fmt = {}) {
     membuffer_with_size_tracker buf(p, n);
-    return {to_basic_string(buf, loc, val, fmt).curr(), buf.tracked_size()};
+    return {to_basic_string(buf, loc, val, fmt).endp(), buf.tracked_size()};
 }
 
 template<typename Ty>
 chars_to_n_result<wchar_t> to_wchars_n(wchar_t* p, std::size_t n, const Ty& val, fmt_opts fmt = {}) {
     wmembuffer_with_size_tracker buf(p, n);
-    return {to_basic_string(buf, val, fmt).curr(), buf.tracked_size()};
+    return {to_basic_string(buf, val, fmt).endp(), buf.tracked_size()};
 }
 
 template<typename Ty>
 chars_to_n_result<wchar_t> to_wchars_n(wchar_t* p, std::size_t n, const std::locale& loc, const Ty& val,
                                        fmt_opts fmt = {}) {
     wmembuffer_with_size_tracker buf(p, n);
-    return {to_basic_string(buf, loc, val, fmt).curr(), buf.tracked_size()};
+    return {to_basic_string(buf, loc, val, fmt).endp(), buf.tracked_size()};
 }
 
 }  // namespace uxs
