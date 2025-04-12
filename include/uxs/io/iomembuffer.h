@@ -12,7 +12,7 @@ class basic_iomembuffer final : public basic_membuffer<Ty> {
     explicit basic_iomembuffer(basic_iobuf<Ty>& out) noexcept
         : basic_membuffer<Ty>(out.first_avail(), out.avail()), out_(out) {}
     ~basic_iomembuffer() override { flush(); }
-    void flush() noexcept { out_.advance(this->curr() - out_.first_avail()); }
+    void flush() noexcept { out_.advance(this->endp() - out_.first_avail()); }
 
  private:
     basic_iobuf<Ty>& out_;
