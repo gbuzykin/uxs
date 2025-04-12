@@ -133,9 +133,9 @@ parser::lex_token_t parser::lex(std::string_view& lval) {
                 last = first + stack_.avail();
                 stack_limitation = true;
             }
-            auto* sptr = stack_.curr();
+            auto* sptr = stack_.endp();
             pat = lex_detail::lex(first, last, &sptr, &llen, stack_limitation || in_);
-            stack_.advance(sptr - stack_.curr());
+            stack_.setsize(sptr - stack_.data());
             if (pat >= lex_detail::predef_pat_default) { break; }
             if (stack_limitation) {
                 // enlarge state stack and continue analysis

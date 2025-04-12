@@ -49,9 +49,9 @@ token_t detail::parser::lex(std::string_view& lval) {
                 last = first + stack.avail();
                 stack_limitation = true;
             }
-            auto* sptr = stack.curr();
+            auto* sptr = stack.endp();
             pat = lex_detail::lex(first, last, &sptr, &llen, stack_limitation || in);
-            stack.advance(sptr - stack.curr());
+            stack.setsize(sptr - stack.data());
             if (pat >= lex_detail::predef_pat_default) { break; }
             if (stack_limitation) {
                 // enlarge state stack and continue analysis

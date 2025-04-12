@@ -1070,7 +1070,7 @@ std::wstring format(const std::locale& loc, wformat_string<Args...> fmt, const A
 
 inline char* vformat_to(char* p, std::string_view fmt, format_args args) {
     membuffer buf(p);
-    return basic_vformat(buf, fmt, args).curr();
+    return basic_vformat(buf, fmt, args).endp();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
@@ -1082,7 +1082,7 @@ OutputIt vformat_to(OutputIt out, std::string_view fmt, format_args args) {
 
 inline wchar_t* vformat_to(wchar_t* p, std::wstring_view fmt, wformat_args args) {
     wmembuffer buf(p);
-    return basic_vformat(buf, fmt, args).curr();
+    return basic_vformat(buf, fmt, args).endp();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
@@ -1094,7 +1094,7 @@ OutputIt vformat_to(OutputIt out, std::wstring_view fmt, wformat_args args) {
 
 inline char* vformat_to(char* p, const std::locale& loc, std::string_view fmt, format_args args) {
     membuffer buf(p);
-    return basic_vformat(buf, loc, fmt, args).curr();
+    return basic_vformat(buf, loc, fmt, args).endp();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
@@ -1106,7 +1106,7 @@ OutputIt vformat_to(OutputIt out, const std::locale& loc, std::string_view fmt, 
 
 inline wchar_t* vformat_to(wchar_t* p, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     wmembuffer buf(p);
-    return basic_vformat(buf, loc, fmt, args).curr();
+    return basic_vformat(buf, loc, fmt, args).endp();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
@@ -1155,7 +1155,7 @@ struct format_to_n_result {
 
 inline format_to_n_result<char*> vformat_to_n(char* p, std::size_t n, std::string_view fmt, format_args args) {
     membuffer_with_size_tracker buf(p, n);
-    return {basic_vformat(buf, fmt, args).curr(), buf.tracked_size()};
+    return {basic_vformat(buf, fmt, args).endp(), buf.tracked_size()};
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
@@ -1167,7 +1167,7 @@ format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, std::stri
 
 inline format_to_n_result<wchar_t*> vformat_to_n(wchar_t* p, std::size_t n, std::wstring_view fmt, wformat_args args) {
     wmembuffer_with_size_tracker buf(p, n);
-    return {basic_vformat(buf, fmt, args).curr(), buf.tracked_size()};
+    return {basic_vformat(buf, fmt, args).endp(), buf.tracked_size()};
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
@@ -1180,7 +1180,7 @@ format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, std::wstr
 inline format_to_n_result<char*> vformat_to_n(char* p, std::size_t n, const std::locale& loc, std::string_view fmt,
                                               format_args args) {
     membuffer_with_size_tracker buf(p, n);
-    return {basic_vformat(buf, loc, fmt, args).curr(), buf.tracked_size()};
+    return {basic_vformat(buf, loc, fmt, args).endp(), buf.tracked_size()};
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
@@ -1194,7 +1194,7 @@ format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, const std
 inline format_to_n_result<wchar_t*> vformat_to_n(wchar_t* p, std::size_t n, const std::locale& loc,
                                                  std::wstring_view fmt, wformat_args args) {
     wmembuffer_with_size_tracker buf(p, n);
-    return {basic_vformat(buf, loc, fmt, args).curr(), buf.tracked_size()};
+    return {basic_vformat(buf, loc, fmt, args).endp(), buf.tracked_size()};
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>

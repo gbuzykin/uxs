@@ -328,8 +328,8 @@ struct print_functor {
     UXS_FORCE_INLINE void operator()(unsigned len, numeric_prefix prefix, Args&&... args) const {
         len += prefix.len;
         if (s.avail() >= len) {
-            prefix.print(s.curr());
-            generate_fn(s.curr() + len, val, std::forward<Args>(args)...);
+            prefix.print(s.endp());
+            generate_fn(s.endp() + len, val, std::forward<Args>(args)...);
             s.advance(len);
         } else {
             std::array<CharT, 256> buf;
@@ -658,7 +658,7 @@ void fmt_character(basic_membuffer<CharT>& s, CharT val, fmt_opts fmt, locale_re
             std::array<CharT, 16> buf;
             basic_membuffer<CharT> membuf(buf.data());
             const std::size_t width = append_escaped_text(membuf, &val, &val + 1, true);
-            const auto fn = [&buf, &membuf](basic_membuffer<CharT>& s) { s.append(buf.data(), membuf.curr()); };
+            const auto fn = [&buf, &membuf](basic_membuffer<CharT>& s) { s.append(buf.data(), membuf.endp()); };
             return fmt.width > width ? append_adjusted(s, fn, static_cast<unsigned>(width), fmt) : fn(s);
         } break;
     }
@@ -912,8 +912,8 @@ struct print_float_functor {
     UXS_FORCE_INLINE void operator()(unsigned len, numeric_prefix prefix, Args&&... args) const {
         len += prefix.len;
         if (s.avail() >= len) {
-            if (prefix.len) { *s.curr() = prefix.chars[0]; }
-            fp.generate(s.curr() + len, uppercase, dec_point, std::forward<Args>(args)...);
+            if (prefix.len) { *s.endp() = prefix.chars[0]; }
+            fp.generate(s.endp() + len, uppercase, dec_point, std::forward<Args>(args)...);
             s.advance(len);
         } else {
             inline_basic_dynbuffer<CharT> buf;
