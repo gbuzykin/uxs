@@ -24,13 +24,18 @@ template<typename CharT>
 basic_iobuf<CharT>& basic_iobuf<CharT>::fill_n(size_type count, char_type ch) {
     if (!count) { return *this; }
     for (size_type n_avail = this->avail(); count > n_avail; n_avail = this->avail()) {
-        if (n_avail) { this->setcurr(std::fill_n(this->curr(), n_avail, ch)), count -= n_avail; }
+        if (n_avail) {
+            std::fill_n(curr(), n_avail, ch);
+            this->setpos(this->capacity());
+            count -= n_avail;
+        }
         if (!this->good() || overflow() < 0) {
             this->setstate(iostate_bits::bad);
             return *this;
         }
     }
-    this->setcurr(std::fill_n(this->curr(), count, ch));
+    std::fill_n(curr(), count, ch);
+    this->advance(count);
     return *this;
 }
 

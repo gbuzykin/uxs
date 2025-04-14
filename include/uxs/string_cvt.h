@@ -60,6 +60,8 @@ class basic_membuffer {
     basic_membuffer() noexcept = default;
     explicit basic_membuffer(Ty* data) noexcept : data_(data), capacity_(std::numeric_limits<size_type>::max()) {}
     basic_membuffer(Ty* data, std::size_t capacity) noexcept : data_(data), capacity_(capacity) {}
+    basic_membuffer(Ty* data, std::size_t size, std::size_t capacity) noexcept
+        : data_(data), size_(size), capacity_(capacity) {}
     virtual ~basic_membuffer() = default;
     basic_membuffer(const basic_membuffer&) = delete;
     basic_membuffer& operator=(const basic_membuffer&) = delete;
