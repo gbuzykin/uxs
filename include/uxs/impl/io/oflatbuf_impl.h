@@ -8,14 +8,12 @@ namespace uxs {
 
 template<typename CharT, typename Alloc>
 basic_oflatbuf<CharT, Alloc>::~basic_oflatbuf() {
-    if (this->first() != nullptr) { this->deallocate(this->first(), this->last() - this->first()); }
+    if (this->first() != nullptr) { this->deallocate(this->first(), this->capacity()); }
 }
 
 template<typename CharT, typename Alloc>
 basic_oflatbuf<CharT, Alloc>::basic_oflatbuf(basic_oflatbuf&& other) noexcept
-    : alloc_type(std::move(other)), basic_iobuf<CharT>(std::move(other)), top_(other.top_) {
-    other.top_ = nullptr;
-}
+    : alloc_type(std::move(other)), basic_iobuf<CharT>(std::move(other)), top_(other.top_) {}
 
 template<typename CharT, typename Alloc>
 basic_oflatbuf<CharT, Alloc>& basic_oflatbuf<CharT, Alloc>::operator=(basic_oflatbuf&& other) noexcept {
@@ -23,7 +21,6 @@ basic_oflatbuf<CharT, Alloc>& basic_oflatbuf<CharT, Alloc>::operator=(basic_ofla
     alloc_type::operator=(std::move(other));
     basic_iobuf<CharT>::operator=(std::move(other));
     top_ = other.top_;
-    other.top_ = nullptr;
     return *this;
 }
 
@@ -40,53 +37,48 @@ int basic_oflatbuf<CharT, Alloc>::sync() {
 
 template<typename CharT, typename Alloc>
 int basic_oflatbuf<CharT, Alloc>::truncate_impl() {
-    top_ = this->curr();
+    top_ = this->pos();
     return 0;
 }
 
 template<typename CharT, typename Alloc>
-typename basic_oflatbuf<CharT, Alloc>::pos_type basic_oflatbuf<CharT, Alloc>::seek_impl(off_type off, seekdir dir) {
-    top_ = std::max(top_, this->curr());
-    const size_type sz = top_ - this->first();
-    size_type pos = this->curr() - this->first();
+auto basic_oflatbuf<CharT, Alloc>::seek_impl(off_type off, seekdir dir) -> pos_type {
+    top_ = size();
+    size_type pos = this->pos();
     switch (dir) {
         case seekdir::beg: {
             pos = off > 0 ? static_cast<size_type>(off) : 0;
         } break;
         case seekdir::curr: {
             if (off == 0) { return pos; }
-            pos = static_cast<std::size_t>(off > 0 || static_cast<size_type>(-off) < pos ? pos + off : 0);
+            pos = off > 0 || -off < static_cast<off_type>(pos) ? static_cast<size_type>(pos + off) : size_type(0);
         } break;
         case seekdir::end: {
-            pos = static_cast<std::size_t>(off > 0 || static_cast<size_type>(-off) < sz ? sz + off : 0);
+            pos = off > 0 || -off < static_cast<off_type>(top_) ? static_cast<size_type>(top_ + off) : size_type(0);
         } break;
     }
-    const size_type capacity = this->last() - this->first();
-    if (pos > capacity) { grow(pos - sz); }
-    this->setcurr(this->first() + pos);
-    if (this->curr() > top_) { std::fill(top_, this->curr(), '\0'); }
+    if (pos > this->capacity()) { grow(pos - top_); }
+    if (pos > top_) { std::fill_n(this->first() + top_, pos - top_, '\0'); }
+    this->setpos(pos);
     return static_cast<pos_type>(pos);
 }
 
 template<typename CharT, typename Alloc>
 void basic_oflatbuf<CharT, Alloc>::grow(size_type extra) {
-    top_ = std::max(top_, this->curr());
-    size_type sz = top_ - this->first();
-    size_type delta_sz = std::max(extra, sz >> 1);
-    const size_type max_avail = std::allocator_traits<alloc_type>::max_size(*this) - sz;
+    top_ = size();
+    size_type delta_sz = std::max(extra, top_ >> 1);
+    const size_type max_avail = std::allocator_traits<alloc_type>::max_size(*this) - top_;
     if (delta_sz > max_avail) {
         if (extra > max_avail) { throw std::length_error("too much to reserve"); }
         delta_sz = std::max(extra, max_avail >> 1);
     }
-    sz = std::max<size_type>(sz + delta_sz, min_buf_size);
+    const size_type sz = std::max<size_type>(top_ + delta_sz, min_buf_size);
     char_type* first = this->allocate(sz);
     if (this->first() != nullptr) {
-        top_ = std::copy(this->first(), top_, first);
-        this->deallocate(this->first(), this->last() - this->first());
-    } else {
-        top_ = first;
+        std::copy_n(this->first(), top_, first);
+        this->deallocate(this->first(), this->capacity());
     }
-    this->setview(first, first + static_cast<size_type>(this->curr() - this->first()), first + sz);
+    this->reset(first, this->pos(), sz);
 }
 
 }  // namespace uxs

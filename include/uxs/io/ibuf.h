@@ -32,27 +32,35 @@ class basic_ibuf : public iostate {
     UXS_EXPORT basic_ibuf(basic_ibuf&& other) noexcept;
     UXS_EXPORT basic_ibuf& operator=(basic_ibuf&& other) noexcept;
 
-    size_type avail() const noexcept { return last_ - curr_; }
-    const char_type* first_avail() const noexcept { return curr_; }
-    const char_type* last_avail() const noexcept { return last_; }
-    est::span<const char_type> view_avail() const noexcept { return est::as_span(curr_, avail()); }
+    size_type pos() const noexcept { return pos_; }
+    size_type capacity() const noexcept { return capacity_; }
+    size_type avail() const noexcept { return capacity_ - pos_; }
+    const char_type* first() const noexcept { return pbase_; }
+    const char_type* curr() const noexcept { return pbase_ + pos_; }
+    const char_type* last() const noexcept { return pbase_ + capacity_; }
+    est::span<const char_type> avail_view() const noexcept { return est::as_span(curr(), avail()); }
+
+    void setpos(size_type pos) noexcept {
+        assert(pos <= capacity_);
+        pos_ = pos;
+    }
 
     int_type peek() {
-        if (curr_ != last_ || (this->good() && underflow() >= 0)) { return traits_type::to_int_type(*curr_); }
+        if (avail() || (this->good() && underflow() >= 0)) { return traits_type::to_int_type(*curr()); }
         this->setstate(iostate_bits::eof | iostate_bits::fail);
         return traits_type::eof();
     }
 
     int_type get() {
-        if (curr_ != last_ || (this->good() && underflow() >= 0)) { return traits_type::to_int_type(*curr_++); }
+        if (avail() || (this->good() && underflow() >= 0)) { return traits_type::to_int_type(next()); }
         this->setstate(iostate_bits::eof | iostate_bits::fail);
         return traits_type::eof();
     }
 
     basic_ibuf& unget() {
         this->setstate(this->rdstate() & ~iostate_bits::eof);
-        if (curr_ != first_ || (this->good() && ungetfail() >= 0)) {
-            --curr_;
+        if (pos_ || (this->good() && ungetfail() >= 0)) {
+            --pos_;
             return *this;
         }
         this->setstate(iostate_bits::fail);
@@ -60,8 +68,8 @@ class basic_ibuf : public iostate {
     }
 
     void advance(difference_type n) noexcept {
-        assert(first_ - curr_ <= n && n <= last_ - curr_);
-        curr_ += n;
+        assert(n >= 0 ? static_cast<size_type>(n) <= avail() : static_cast<size_type>(-n) <= pos_);
+        pos_ += n;
     }
 
     template<typename OutputIt, typename = std::enable_if_t<is_random_access_iterator<OutputIt>::value &&
@@ -72,13 +80,13 @@ class basic_ibuf : public iostate {
         size_type count = sz;
         if (!count) { return 0; }
         for (size_type n_avail = avail(); count > n_avail; n_avail = avail()) {
-            if (n_avail) { first = std::copy_n(curr_, n_avail, first), curr_ = last_, count -= n_avail; }
+            if (n_avail) { first = std::copy_n(curr(), n_avail, first), pos_ = capacity_, count -= n_avail; }
             if (!this->good() || underflow() < 0) {
                 this->setstate(iostate_bits::eof | iostate_bits::fail);
                 return sz - count;
             }
         }
-        std::copy_n(curr_, count, first), curr_ += count;
+        std::copy_n(curr(), count, first), pos_ += count;
         return sz;
     }
 
@@ -99,22 +107,21 @@ class basic_ibuf : public iostate {
     UXS_EXPORT virtual pos_type seek_impl(off_type off, seekdir dir);
     UXS_EXPORT virtual int sync();
 
-    char_type* first() const noexcept { return first_; }
-    char_type* curr() const noexcept { return curr_; }
-    char_type* last() const noexcept { return last_; }
+    char_type* pbase() const noexcept { return pbase_; }
 
-    void putcurr(char_type ch) noexcept { *curr_++ = ch; }
-    void setcurr(char_type* curr) noexcept { curr_ = curr; }
-    void setview(char_type* first, char_type* curr, char_type* last) noexcept {
-        first_ = first;
-        curr_ = curr;
-        last_ = last;
+    char_type& next() noexcept {
+        assert(avail());
+        return pbase_[pos_++];
+    }
+
+    void reset(char_type* pbase, size_type pos, size_type capacity) noexcept {
+        pbase_ = pbase, pos_ = pos, capacity_ = capacity;
     }
 
  private:
-    char_type* first_ = nullptr;
-    char_type* curr_ = nullptr;
-    char_type* last_ = nullptr;
+    char_type* pbase_ = nullptr;
+    size_type pos_ = 0;
+    size_type capacity_ = 0;
 };
 
 using ibuf = basic_ibuf<char>;

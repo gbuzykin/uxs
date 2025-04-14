@@ -24,8 +24,8 @@ struct basic_devbuf<CharT, Alloc>::flexbuf_t {
     std::size_t sz;
 
 #if defined(UXS_USE_ZLIB)
-    Bytef* z_first;
-    Bytef* z_last;
+    Bytef* z_buf;
+    uLong z_buf_sz;
     z_stream zstr;
 #endif  // defined(UXS_USE_ZLIB)
 
@@ -86,17 +86,17 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
                 if (!mappable) {
                     const std::size_t tot_sz = buf_->sz;
                     buf_->sz /= 2;
-                    buf_->z_first = reinterpret_cast<Bytef*>(&buf_->data[buf_->sz]);
-                    buf_->z_last = reinterpret_cast<Bytef*>(&buf_->data[tot_sz]);
-                    buf_->zstr.next_out = buf_->z_first;
-                    buf_->zstr.avail_out = static_cast<uLong>(buf_->z_last - buf_->z_first);
+                    buf_->z_buf = reinterpret_cast<Bytef*>(buf_->data + buf_->sz);
+                    buf_->z_buf_sz = static_cast<uLong>(tot_sz - buf_->sz);
+                    buf_->zstr.next_out = buf_->z_buf;
+                    buf_->zstr.avail_out = buf_->z_buf_sz;
                 }
             }
 #endif  // defined(UXS_USE_ZLIB)
 
             // reserve additional space for Lf->CrLf expansion
             const std::size_t cr_reserve_sz = !!(mode & iomode::cr_lf) ? buf_->sz / cr_reserve_ratio : 0;
-            this->setview(&buf_->data[cr_reserve_sz], &buf_->data[cr_reserve_sz], &buf_->data[buf_->sz]);
+            this->reset(buf_->data + cr_reserve_sz, 0, buf_->sz - cr_reserve_sz);
         }
     } else if (!mappable || !!(mode & (iomode::cr_lf | iomode::z_compr))) {
         buf_ = flexbuf_t::alloc(*this, bufsz);
@@ -107,8 +107,8 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
             if (!mappable) {
                 const std::size_t tot_sz = buf_->sz;
                 buf_->sz /= 2;
-                buf_->z_first = reinterpret_cast<Bytef*>(&buf_->data[buf_->sz]);
-                buf_->z_last = reinterpret_cast<Bytef*>(&buf_->data[tot_sz]);
+                buf_->z_buf = reinterpret_cast<Bytef*>(buf_->data + buf_->sz);
+                buf_->z_buf_sz = static_cast<uLong>(tot_sz - buf_->sz);
             }
         }
 #endif  // defined(UXS_USE_ZLIB)
@@ -138,7 +138,7 @@ void basic_devbuf<CharT, Alloc>::freebuf() noexcept {
         typename flexbuf_t::alloc_type(*this).deallocate(buf_, buf_->alloc_sz);
         buf_ = nullptr;
     }
-    this->setview(nullptr, nullptr, nullptr);
+    this->reset(nullptr, 0, 0);
     this->setmode(iomode::none);
     this->setstate(iostate_bits::fail);
 }
@@ -212,15 +212,15 @@ int basic_devbuf<CharT, Alloc>::read_buf(void* data, std::size_t sz, std::size_t
 template<typename CharT, typename Alloc>
 int basic_devbuf<CharT, Alloc>::flush_compressed_buf() {
     if (!(dev_->caps() & iodevcaps::mappable)) {
-        const int ret = detail::write_all<Bytef>(dev_, buf_->z_first, buf_->zstr.next_out - buf_->z_first);
+        const int ret = detail::write_all<Bytef>(dev_, buf_->z_buf, buf_->zstr.next_out - buf_->z_buf);
         if (ret < 0) { return ret; }
-        buf_->zstr.next_out = buf_->z_first;
-        buf_->zstr.avail_out = static_cast<uLong>(buf_->z_last - buf_->z_first);
+        buf_->zstr.next_out = buf_->z_buf;
+        buf_->zstr.avail_out = buf_->z_buf_sz;
         return 0;
     }
     std::size_t sz = 0;
-    dev_->advance(static_cast<std::size_t>(buf_->zstr.next_out - buf_->z_first));
-    buf_->zstr.next_out = buf_->z_first = static_cast<Bytef*>(dev_->map(sz, true));
+    dev_->advance(buf_->zstr.next_out - buf_->z_buf);
+    buf_->zstr.next_out = buf_->z_buf = static_cast<Bytef*>(dev_->map(sz, true));
     buf_->zstr.avail_out = static_cast<uLong>(sz);
     return sz ? 0 : -1;
 }
@@ -246,9 +246,9 @@ void basic_devbuf<CharT, Alloc>::finish_compressed() {
     } while (z_ret == Z_OK);
     if (z_ret != Z_STREAM_END) { return; }
     if (!(dev_->caps() & iodevcaps::mappable)) {
-        detail::write_all<Bytef>(dev_, buf_->z_first, buf_->zstr.next_out - buf_->z_first);
+        detail::write_all<Bytef>(dev_, buf_->z_buf, buf_->zstr.next_out - buf_->z_buf);
     } else {
-        dev_->advance(static_cast<std::size_t>(buf_->zstr.next_out - buf_->z_first));
+        dev_->advance(buf_->zstr.next_out - buf_->z_buf);
     }
 }
 
@@ -260,13 +260,13 @@ int basic_devbuf<CharT, Alloc>::read_compressed(void* data, std::size_t sz, std:
         if (!(buf_->flags & detail::devbuf_impl_flags::z_in_finish) && !buf_->zstr.avail_in) {
             if (!(dev_->caps() & iodevcaps::mappable)) {
                 std::size_t n_raw_read = 0;
-                detail::read_at_least_one<Bytef>(dev_, buf_->z_first, buf_->z_last - buf_->z_first, n_raw_read);
-                buf_->zstr.next_in = buf_->z_first;
+                detail::read_at_least_one<Bytef>(dev_, buf_->z_buf, buf_->z_buf_sz, n_raw_read);
+                buf_->zstr.next_in = buf_->z_buf;
                 buf_->zstr.avail_in = static_cast<uLong>(n_raw_read);
             } else {
-                dev_->advance(static_cast<std::size_t>(buf_->zstr.next_in - buf_->z_first));
+                dev_->advance(buf_->zstr.next_in - buf_->z_buf);
                 std::size_t sz = 0;
-                buf_->zstr.next_in = buf_->z_first = static_cast<Bytef*>(dev_->map(sz, false));
+                buf_->zstr.next_in = buf_->z_buf = static_cast<Bytef*>(dev_->map(sz, false));
                 buf_->zstr.avail_in = static_cast<uLong>(sz);
             }
             if (!buf_->zstr.avail_in) { buf_->flags |= detail::devbuf_impl_flags::z_in_finish; }
@@ -325,25 +325,26 @@ template<typename CharT, typename Alloc>
 int basic_devbuf<CharT, Alloc>::flush_buffer() {
     int ret = 0;
     const char_type* from = this->first();
-    const char_type* top = this->curr();
     if (!(this->mode() & (iomode::cr_lf | iomode::ctrl_esc))) {
-        if ((ret = write_buf(from, top - from)) < 0) { return ret; }
-        this->setcurr(this->first());
+        if ((ret = write_buf(from, this->pos())) < 0) { return ret; }
+        this->setpos(0);
         return 0;
     }
     do {
         char_type* to0 = buf_->data;
         char_type* to = to0;
-        while (from != top) {
+        while (from != this->curr()) {
             if (*from == '\n' && !!(this->mode() & iomode::cr_lf)) {
                 if (to == from) { break; }
                 *to++ = '\r';
             } else if (*from == '\033' && !!(this->mode() & iomode::ctrl_esc)) {
-                const char_type* end_of_esc = find_end_of_ctrlesc(from + 1, top);
+                const char_type* end_of_esc = find_end_of_ctrlesc(from + 1, this->curr());
                 if (end_of_esc == from + 1) {                  // escape sequence is unfinished
                     if (from == this->first()) { return -1; }  // too long escape sequence
                     if ((ret = write_buf(to0, to - to0)) < 0) { return ret; }
-                    this->setcurr(std::copy(from, top, this->first()));  // move it to the beginning
+                    const std::size_t pos = this->curr() - from;
+                    std::copy_n(from, pos, this->first());  // move it to the beginning
+                    this->setpos(pos);
                     return 0;
                 }
                 if ((this->mode() & iomode::skip_ctrl_esc) != iomode::skip_ctrl_esc) {
@@ -357,8 +358,8 @@ int basic_devbuf<CharT, Alloc>::flush_buffer() {
             *to++ = *from++;
         }
         if ((ret = write_buf(to0, to - to0)) < 0) { return ret; }
-    } while (from != top);
-    this->setcurr(this->first());
+    } while (from != this->curr());
+    this->setpos(0);
     return 0;
 }
 
@@ -388,7 +389,7 @@ int basic_devbuf<CharT, Alloc>::underflow() {
         char_type* p = static_cast<char_type*>(dev_->map(sz, false));
         sz /= sizeof(char_type);
         dev_->advance(sz * sizeof(char_type));
-        this->setview(p, p, p + sz);
+        this->reset(p, 0, sz);
         return sz ? 0 : -1;
     }
     int ret = 0;
@@ -400,7 +401,7 @@ int basic_devbuf<CharT, Alloc>::underflow() {
             *p++ = '\r', --sz, buf_->flags &= ~detail::devbuf_impl_flags::pending_cr;
         }
         if ((ret = read_buf(p, sz, n_read)) < 0) { return ret; }
-        n_read = remove_crlf(buf_->data, static_cast<std::size_t>((p + n_read) - buf_->data));
+        n_read = remove_crlf(buf_->data, static_cast<std::size_t>(p - buf_->data) + n_read);
         if (n_read && buf_->data[n_read - 1] == '\r') {
             --n_read, buf_->flags |= detail::devbuf_impl_flags::pending_cr;
         }
@@ -408,7 +409,7 @@ int basic_devbuf<CharT, Alloc>::underflow() {
         return ret;
     }
     assert(n_read);
-    this->setview(buf_->data, buf_->data, buf_->data + n_read);
+    this->reset(buf_->data, 0, n_read);
     return 0;
 }
 
@@ -418,11 +419,10 @@ int basic_devbuf<CharT, Alloc>::overflow() {
     if (!(this->mode() & iomode::out)) { return -1; }
     if (tie_buf_) { tie_buf_->flush(); }
     if (!buf_) {  // no buffer - can use mapping
-        const std::size_t count = this->curr() - this->first();
-        dev_->advance(count * sizeof(char_type));
+        dev_->advance(this->pos() * sizeof(char_type));
         std::size_t sz = 0;
         char_type* p = static_cast<char_type*>(dev_->map(sz, true));
-        this->setview(p, p, p + sz / sizeof(char_type));
+        this->reset(p, 0, sz / sizeof(char_type));
         return sz ? 0 : -1;
     }
     return flush_buffer();
@@ -434,9 +434,8 @@ int basic_devbuf<CharT, Alloc>::sync() {
     if (!(this->mode() & iomode::out)) { return -1; }
     if (tie_buf_) { tie_buf_->flush(); }
     if (!buf_) {  // no buffer - can use mapping
-        const std::size_t count = this->curr() - this->first();
-        dev_->advance(count * sizeof(char_type));
-        this->setview(this->curr(), this->curr(), this->last());
+        dev_->advance(this->pos() * sizeof(char_type));
+        this->reset(this->curr(), 0, this->avail());
     } else {
         const int ret = flush_buffer();
         if (ret < 0) { return ret; }
@@ -451,12 +450,12 @@ int basic_devbuf<CharT, Alloc>::truncate_impl() {
 }
 
 template<typename CharT, typename Alloc>
-typename basic_devbuf<CharT, Alloc>::pos_type basic_devbuf<CharT, Alloc>::seek_impl(off_type off, seekdir dir) {
+auto basic_devbuf<CharT, Alloc>::seek_impl(off_type off, seekdir dir) -> pos_type {
     assert(dev_);
     if (!!(this->mode() & (iomode::z_compr | iomode::append))) { off = 0, dir = seekdir::curr; }
     if (dir == seekdir::curr) {
-        const off_type delta = static_cast<off_type>(!!(this->mode() & iomode::out) ? this->curr() - this->first() :
-                                                                                      this->curr() - this->last());
+        const off_type delta = !!(this->mode() & iomode::out) ? static_cast<off_type>(this->pos()) :
+                                                                -static_cast<off_type>(this->avail());
         if (off == 0) {
             const std::int64_t dev_pos = dev_->seek(0, seekdir::curr);
             if (dev_pos < 0) { return traits_type::npos(); }
@@ -464,9 +463,9 @@ typename basic_devbuf<CharT, Alloc>::pos_type basic_devbuf<CharT, Alloc>::seek_i
         }
         off += delta;
     }
-    const std::int64_t dev_pos = dev_->seek(off * sizeof(char_type), dir);
+    const std::int64_t dev_pos = dev_->seek(static_cast<std::int64_t>(off) * sizeof(char_type), dir);
     if (dev_pos < 0) { return traits_type::npos(); }
-    if (!buf_ || !!(this->mode() & iomode::in)) { this->setview(nullptr, nullptr, nullptr); }
+    if (!buf_ || !!(this->mode() & iomode::in)) { this->reset(nullptr, 0, 0); }
     return static_cast<pos_type>(dev_pos / sizeof(char_type));
 }
 
