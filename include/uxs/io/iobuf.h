@@ -8,29 +8,26 @@ template<typename CharT>
 class basic_iobuf : public basic_ibuf<CharT> {
  public:
     using char_type = typename basic_ibuf<CharT>::char_type;
-    using traits_type = typename basic_ibuf<CharT>::traits_type;
     using size_type = typename basic_ibuf<CharT>::size_type;
-    using int_type = typename basic_ibuf<CharT>::int_type;
-    using pos_type = typename basic_ibuf<CharT>::pos_type;
-    using off_type = typename basic_ibuf<CharT>::off_type;
 
     basic_iobuf() noexcept = default;
     explicit basic_iobuf(iomode mode) noexcept : basic_ibuf<CharT>(mode) {}
     basic_iobuf(iomode mode, iostate_bits state) noexcept : basic_ibuf<CharT>(mode, state) {}
 
-    char_type* first_avail() const noexcept { return this->curr(); }
-    char_type* last_avail() const noexcept { return this->last(); }
-    est::span<char_type> view_avail() const noexcept { return est::as_span(this->curr(), this->avail()); }
+    char_type* first() const noexcept { return this->pbase(); }
+    char_type* curr() const noexcept { return this->pbase() + this->pos(); }
+    char_type* last() const noexcept { return this->pbase() + this->capacity(); }
+    est::span<char_type> avail_view() const noexcept { return est::as_span(curr(), this->avail()); }
 
     basic_iobuf& reserve() {
-        if (this->curr() != this->last() || (this->good() && overflow() >= 0)) { return *this; }
+        if (this->avail() || (this->good() && overflow() >= 0)) { return *this; }
         this->setstate(iostate_bits::bad);
         return *this;
     }
 
     basic_iobuf& put(char_type ch) {
-        if (this->curr() != this->last() || (this->good() && overflow() >= 0)) {
-            this->putcurr(ch);
+        if (this->avail() || (this->good() && overflow() >= 0)) {
+            this->next() = ch;
             return *this;
         }
         this->setstate(iostate_bits::bad);
@@ -44,7 +41,8 @@ class basic_iobuf : public basic_ibuf<CharT> {
         if (!count) { return *this; }
         for (size_type n_avail = this->avail(); count > n_avail; n_avail = this->avail()) {
             if (n_avail) {
-                this->setcurr(std::copy_n(first, n_avail, this->curr()));
+                std::copy_n(first, n_avail, curr());
+                this->setpos(this->capacity());
                 first += n_avail, count -= n_avail;
             }
             if (!this->good() || overflow() < 0) {
@@ -52,7 +50,8 @@ class basic_iobuf : public basic_ibuf<CharT> {
                 return *this;
             }
         }
-        this->setcurr(std::copy(first, last, this->curr()));
+        std::copy(first, last, curr());
+        this->advance(count);
         return *this;
     }
 

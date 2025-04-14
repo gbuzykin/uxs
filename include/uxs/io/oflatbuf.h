@@ -13,7 +13,6 @@ class basic_oflatbuf : protected std::allocator_traits<Alloc>::template rebind_a
     using char_type = typename basic_iobuf<CharT>::char_type;
     using traits_type = typename basic_iobuf<CharT>::traits_type;
     using size_type = typename basic_iobuf<CharT>::size_type;
-    using int_type = typename basic_iobuf<CharT>::int_type;
     using pos_type = typename basic_iobuf<CharT>::pos_type;
     using off_type = typename basic_iobuf<CharT>::off_type;
     using allocator_type = Alloc;
@@ -25,7 +24,7 @@ class basic_oflatbuf : protected std::allocator_traits<Alloc>::template rebind_a
     UXS_EXPORT basic_oflatbuf& operator=(basic_oflatbuf&& other) noexcept;
 
     const char_type* data() const noexcept { return this->first(); }
-    size_type size() const noexcept { return std::max(top_, this->curr()) - this->first(); }
+    size_type size() const noexcept { return std::max(top_, this->pos()); }
     est::span<const char_type> view() const noexcept { return est::as_span(this->first(), size()); }
     allocator_type get_allocator() const noexcept { return allocator_type(*this); }
 
@@ -43,7 +42,7 @@ class basic_oflatbuf : protected std::allocator_traits<Alloc>::template rebind_a
         min_buf_size = 7
 #endif  // defined(NDEBUG) || !defined(UXS_DEBUG_REDUCED_BUFFERS)
     };
-    char_type* top_ = nullptr;
+    size_type top_ = 0;
 
     UXS_EXPORT void grow(size_type extra);
 };

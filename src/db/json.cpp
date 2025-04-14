@@ -18,10 +18,10 @@ token_t detail::parser::lex(std::string_view& lval) {
     while (true) {
         int pat = 0;
         unsigned llen = 0;
-        const char* first = in.first_avail();
+        const char* first = in.curr();
         if (stack.back() == lex_detail::sc_initial) {
             while (true) {  // skip whitespaces
-                first = std::find_if(first, in.last_avail(), [this](char ch) {
+                first = std::find_if(first, in.last(), [this](char ch) {
                     if (ch != '\n') {
                         return !(uxs::detail::char_tbl_t{}.flags()[static_cast<std::uint8_t>(ch)] &
                                  uxs::detail::char_bits::is_json_ws);
@@ -29,10 +29,10 @@ token_t detail::parser::lex(std::string_view& lval) {
                     ++ln;
                     return false;
                 });
-                in.advance(first - in.first_avail());
-                if (first != in.last_avail()) { break; }
+                in.advance(first - in.curr());
+                if (first != in.last()) { break; }
                 if (in.peek() == ibuf::traits_type::eof()) { return token_t::eof; }
-                first = in.first_avail();
+                first = in.curr();
             }
             // just process a single character if it can't be recognized with analyzer
             if (lex_detail::Dtran[lex_detail::symb2meta[static_cast<std::uint8_t>(*first)]] < 0) {
@@ -44,7 +44,7 @@ token_t detail::parser::lex(std::string_view& lval) {
         }
         while (true) {
             bool stack_limitation = false;
-            const char* last = in.last_avail();
+            const char* last = in.last();
             if (stack.avail() < static_cast<std::size_t>(last - first)) {
                 last = first + stack.avail();
                 stack_limitation = true;
@@ -62,14 +62,14 @@ token_t detail::parser::lex(std::string_view& lval) {
             if (!in) { return token_t::eof; }  // end of sequence, first_ == last_
             if (in.avail()) {
                 // append read buffer to stash
-                stash.append(in.first_avail(), in.last_avail());
-                in.advance(in.avail());
+                stash.append(in.curr(), in.last());
+                in.setpos(in.capacity());
             }
             // read more characters from input
             in.peek();
-            first = in.first_avail();
+            first = in.curr();
         }
-        const char* lexeme = in.first_avail();
+        const char* lexeme = in.curr();
         if (stash.empty()) {  // the stash is empty
             in.advance(llen);
         } else {
@@ -77,7 +77,7 @@ token_t detail::parser::lex(std::string_view& lval) {
                 // all characters in stash buffer are used
                 // concatenate full lexeme in stash
                 const std::size_t len_rest = llen - stash.size();
-                stash.append(in.first_avail(), len_rest);
+                stash.append(in.curr(), len_rest);
                 in.advance(len_rest);
             } else {
                 // at least one character in stash is yet unused

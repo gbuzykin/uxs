@@ -23,8 +23,8 @@ std::pair<token_t, std::string_view> parser::next_impl() {
     }
     if (!in_) { return {token_t::eof, {}}; }
     while (in_.avail() || in_.peek() != ibuf::traits_type::eof()) {
-        const char* first = in_.first_avail();
-        const char* last = in_.last_avail();
+        const char* first = in_.curr();
+        const char* last = in_.last();
         std::string_view lval;
         if (*first == '<') {  // found '<'
             auto name_cache_it = name_cache_.begin();
@@ -125,10 +125,10 @@ parser::lex_token_t parser::lex(std::string_view& lval) {
     while (true) {
         int pat = 0;
         unsigned llen = 0;
-        const char* first = in_.first_avail();
+        const char* first = in_.curr();
         while (true) {
             bool stack_limitation = false;
-            const char* last = in_.last_avail();
+            const char* last = in_.last();
             if (stack_.avail() < static_cast<std::size_t>(last - first)) {
                 last = first + stack_.avail();
                 stack_limitation = true;
@@ -146,14 +146,14 @@ parser::lex_token_t parser::lex(std::string_view& lval) {
             if (!in_) { return lex_token_t::eof; }  // end of sequence, first_ == last_
             if (in_.avail()) {
                 // append read buffer to stash
-                stash_.append(in_.first_avail(), in_.last_avail());
-                in_.advance(in_.avail());
+                stash_.append(in_.curr(), in_.last());
+                in_.setpos(in_.capacity());
             }
             // read more characters from input
             in_.peek();
-            first = in_.first_avail();
+            first = in_.curr();
         }
-        const char* lexeme = in_.first_avail();
+        const char* lexeme = in_.curr();
         if (stash_.empty()) {  // the stash is empty
             in_.advance(llen);
         } else {
@@ -161,7 +161,7 @@ parser::lex_token_t parser::lex(std::string_view& lval) {
                 // all characters in stash buffer are used
                 // concatenate full lexeme in stash
                 const std::size_t len_rest = llen - stash_.size();
-                stash_.append(in_.first_avail(), len_rest);
+                stash_.append(in_.curr(), len_rest);
                 in_.advance(len_rest);
             } else {
                 // at least one character in stash is yet unused

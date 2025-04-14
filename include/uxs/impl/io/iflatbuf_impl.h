@@ -6,8 +6,8 @@ namespace uxs {
 
 template<typename CharT>
 typename basic_iflatbuf<CharT>::pos_type basic_iflatbuf<CharT>::seek_impl(off_type off, seekdir dir) {
-    const size_type sz = this->last() - this->first();
-    size_type pos = this->curr() - this->first();
+    const size_type sz = this->capacity();
+    size_type pos = this->pos();
     switch (dir) {
         case seekdir::beg: {
             pos = static_cast<std::size_t>(off > 0 ? (static_cast<size_type>(off) < sz ? off : sz) : 0);
@@ -21,7 +21,7 @@ typename basic_iflatbuf<CharT>::pos_type basic_iflatbuf<CharT>::seek_impl(off_ty
             pos = static_cast<std::size_t>(off < 0 ? (static_cast<size_type>(-off) < sz ? sz + off : 0) : sz);
         } break;
     }
-    this->setcurr(this->first() + pos);
+    this->setpos(pos);
     return static_cast<pos_type>(pos);
 }
 

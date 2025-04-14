@@ -6,16 +6,16 @@ namespace uxs {
 
 template<typename CharT>
 basic_ibuf<CharT>::basic_ibuf(basic_ibuf&& other) noexcept
-    : iostate(other), first_(other.first_), curr_(other.curr_), last_(other.last_) {
-    other.first_ = other.curr_ = other.last_ = nullptr;
+    : iostate(other), pbase_(other.pbase_), pos_(other.pos_), capacity_(other.capacity_) {
+    other.pbase_ = nullptr;
 }
 
 template<typename CharT>
 basic_ibuf<CharT>& basic_ibuf<CharT>::operator=(basic_ibuf&& other) noexcept {
     if (&other == this) { return *this; }
     iostate::operator=(other);
-    first_ = other.first_, curr_ = other.curr_, last_ = other.last_;
-    other.first_ = other.curr_ = other.last_ = nullptr;
+    pbase_ = other.pbase_, pos_ = other.pos_, capacity_ = other.capacity_;
+    other.pbase_ = nullptr;
     return *this;
 }
 
@@ -41,13 +41,13 @@ typename basic_ibuf<CharT>::size_type basic_ibuf<CharT>::skip(size_type count) {
     if (!count) { return 0; }
     const size_type n0 = count;
     for (size_type n_avail = avail(); count > n_avail; n_avail = avail()) {
-        curr_ = last_, count -= n_avail;
+        pos_ = capacity_, count -= n_avail;
         if (!this->good() || underflow() < 0) {
             this->setstate(iostate_bits::eof | iostate_bits::fail);
             return n0 - count;
         }
     }
-    curr_ += count;
+    pos_ += count;
     return n0;
 }
 
