@@ -105,10 +105,8 @@ std::pair<token_t, std::string_view> parser::next_impl() {
             return {token_t::entity, lval};
         } else if (*first != 0) {
             last = std::find_if(first, last, [this](char ch) {
-                if (ch != '\n') {
-                    return !!(uxs::detail::char_tbl_t{}.flags()[static_cast<std::uint8_t>(ch)] &
-                              uxs::detail::char_bits::is_xml_special);
-                }
+                using tbl = uxs::detail::char_tbl_t;
+                if (ch != '\n') { return !!(tbl{}.flags()[static_cast<std::uint8_t>(ch)] & tbl::is_xml_special); }
                 ++ln_;
                 return false;
             });

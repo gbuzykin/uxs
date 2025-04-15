@@ -22,10 +22,8 @@ token_t detail::parser::lex(std::string_view& lval) {
         if (stack.back() == lex_detail::sc_initial) {
             while (true) {  // skip whitespaces
                 first = std::find_if(first, in.last(), [this](char ch) {
-                    if (ch != '\n') {
-                        return !(uxs::detail::char_tbl_t{}.flags()[static_cast<std::uint8_t>(ch)] &
-                                 uxs::detail::char_bits::is_json_ws);
-                    }
+                    using tbl = uxs::detail::char_tbl_t;
+                    if (ch != '\n') { return !(tbl{}.flags()[static_cast<std::uint8_t>(ch)] & tbl::is_json_ws); }
                     ++ln;
                     return false;
                 });
