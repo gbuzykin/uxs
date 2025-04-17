@@ -93,7 +93,7 @@ class basic_membuffer {
     }
 
     void advance(difference_type n) noexcept {
-        assert(n >= 0 ? n <= avail() : -n <= size());
+        assert(n >= 0 ? n <= avail() : -n <= size_);
         size_ += n;
     }
 
