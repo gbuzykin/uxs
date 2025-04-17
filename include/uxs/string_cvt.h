@@ -93,7 +93,7 @@ class basic_membuffer {
     }
 
     void advance(difference_type n) noexcept {
-        assert(n >= 0 ? static_cast<std::size_t>(n) <= avail() : static_cast<std::size_t>(-n) <= size());
+        assert(n >= 0 ? static_cast<std::size_t>(n) <= avail() : static_cast<std::size_t>(-n) <= size_);
         size_ += n;
     }
 
