@@ -1,6 +1,5 @@
 #pragma once
 
-#include "chars.h"
 #include "iterator.h"
 #include "string_view.h"
 #include "utf.h"
