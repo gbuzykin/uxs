@@ -73,7 +73,14 @@ class flexarray_t {
     template<typename InputIt>
     void init(alloc_type& al, InputIt first, InputIt last) {
         p_ = nullptr;
-        if (first != last) { create_impl(al, first, last, is_random_access_iterator<InputIt>()); }
+        if (first == last) { return; }
+        try {
+            create_impl(al, first, last, is_random_access_iterator<InputIt>());
+        }  catch (...) {
+            dealloc(al, p_);
+            p_ = nullptr;
+            throw;
+        }
     }
 
     template<typename InputIt>
