@@ -61,11 +61,20 @@ using range_element_t = typename range_element<Range>::type;
 
 template<typename Range, typename Ty, typename = void>
 struct is_contiguous_range : std::false_type {};
+#if __cplusplus < 201703L
 template<typename Range, typename Ty>
 struct is_contiguous_range<Range, Ty,
                            std::enable_if_t<std::is_convertible<
                                decltype(std::declval<Range&>().data() + std::declval<Range&>().size()), Ty*>::value>>
     : std::true_type {};
+#else   // __cplusplus < 201703L
+template<typename Range, typename Ty>
+struct is_contiguous_range<
+    Range, Ty,
+    std::enable_if_t<
+        std::is_convertible<decltype(std::data(std::declval<Range&>()) + std::size(std::declval<Range&>())), Ty*>::value>>
+    : std::true_type {};
+#endif  // __cplusplus < 201703L
 
 template<typename Iter, typename = void>
 class iterator_range;

@@ -8,7 +8,7 @@
 namespace uxs {
 namespace db {
 
-// --------------------------
+//-----------------------------------------------------------------------------
 
 template<typename CharT, typename Alloc>
 UXS_EXPORT bool operator==(const basic_value<CharT, Alloc>& lhs, const basic_value<CharT, Alloc>& rhs) noexcept {
@@ -43,13 +43,8 @@ UXS_EXPORT bool operator==(const basic_value<CharT, Alloc>& lhs, const basic_val
         case dtype::long_integer: return compare_long_integer(lhs.value_.i64, rhs);
         case dtype::unsigned_long_integer: return compare_unsigned_long_integer(lhs.value_.u64, rhs);
         case dtype::double_precision: return rhs.type_ == dtype::double_precision && lhs.value_.dbl == rhs.value_.dbl;
-        case dtype::string: return rhs.type_ == dtype::string && lhs.str_view() == rhs.str_view();
-        case dtype::array: {
-            if (rhs.type_ != dtype::array) { return false; }
-            auto lha = lhs.array_view();
-            auto rha = rhs.array_view();
-            return lha.size() == rha.size() && std::equal(lha.begin(), lha.begin(), rha.begin());
-        } break;
+        case dtype::string: return rhs.type_ == dtype::string && lhs.value_.str == rhs.value_.str;
+        case dtype::array: return rhs.type_ == dtype::array && lhs.value_.arr == rhs.value_.arr;
         case dtype::record: {
             if (rhs.type_ != dtype::record || lhs.value_.rec->size != rhs.value_.rec->size) { return false; }
             return std::equal(lhs.value_.rec->begin(), lhs.value_.rec->end(), rhs.value_.rec->begin());
@@ -58,8 +53,8 @@ UXS_EXPORT bool operator==(const basic_value<CharT, Alloc>& lhs, const basic_val
     }
 }
 
-// --------------------------
-
+//-----------------------------------------------------------------------------
+// Flexible array implementation
 namespace detail {
 
 template<typename Alloc, typename Ty,
@@ -87,31 +82,118 @@ static void destruct_moved_values(Ty* first, Ty* last, Dummy&&...) {
 }
 
 template<typename Ty, typename Alloc>
-/*static*/ auto flexarray_t<Ty, Alloc>::alloc(alloc_type& arr_al, std::size_t cap) -> flexarray_t* {
+/*static*/ auto flexarray_t<Ty, Alloc>::alloc(alloc_type& al, std::size_t sz, std::size_t cap) -> data_t* {
     const std::size_t alloc_sz = get_alloc_sz(cap);
-    flexarray_t* arr = arr_al.allocate(alloc_sz);
-    arr->capacity = (alloc_sz * sizeof(flexarray_t) - offsetof(flexarray_t, x)) / sizeof(Ty);
-    assert(arr->capacity >= cap && get_alloc_sz(arr->capacity) == alloc_sz);
-    return arr;
+    data_t* p = al.allocate(alloc_sz);
+    p->size = sz;
+    p->capacity = (alloc_sz * sizeof(data_t) - offsetof(data_t, x)) / sizeof(Ty);
+    assert(p->capacity >= cap && get_alloc_sz(p->capacity) == alloc_sz);
+    return p;
 }
 
 template<typename Ty, typename Alloc>
-/*static*/ auto flexarray_t<Ty, Alloc>::grow(alloc_type& arr_al, flexarray_t* arr, std::size_t extra) -> flexarray_t* {
-    std::size_t delta_sz = std::max(extra, arr->size >> 1);
-    const std::size_t max_sz = max_size(arr_al);
-    if (delta_sz > max_sz - arr->size) {
-        if (extra > max_sz - arr->size) { throw std::length_error("too much to reserve"); }
-        delta_sz = std::max(extra, (max_sz - arr->size) >> 1);
+void flexarray_t<Ty, Alloc>::grow(alloc_type& al, std::size_t extra) {
+    assert(p_);
+    std::size_t delta_sz = std::max(extra, p_->size >> 1);
+    const std::size_t max_sz = max_size(al);
+    if (delta_sz > max_sz - p_->size) {
+        if (extra > max_sz - p_->size) { throw std::length_error("too much to reserve"); }
+        delta_sz = std::max(extra, (max_sz - p_->size) >> 1);
     }
-    flexarray_t* new_arr = alloc(arr_al, arr->size + delta_sz);
-    detail::move_values<alloc_type>(&(*arr)[0], &(*arr)[arr->size], &(*new_arr)[0]);
-    new_arr->size = arr->size;
-    detail::destruct_moved_values<alloc_type>(&(*arr)[0], &(*arr)[arr->size]);
-    dealloc(arr_al, arr);
-    return new_arr;
+    data_t* p_new = alloc(al, p_->size, p_->size + delta_sz);
+    detail::move_values<alloc_type>(p_->data(), p_->data() + p_->size, p_new->data());
+    detail::destruct_moved_values<alloc_type>(p_->data(), p_->data() + p_->size);
+    dealloc(al, p_);
+    p_ = p_new;
 }
 
-// --------------------------
+template<typename Ty, typename Alloc>
+void flexarray_t<Ty, Alloc>::rotate_back(std::size_t pos) noexcept {
+    assert(p_ && pos < p_->size - 1);
+    Ty* item = p_->data() + p_->size;
+    Ty t(std::move(*(item - 1)));
+    while (--item != p_->data() + pos) { *item = std::move(*(item - 1)); }
+    *item = std::move(t);
+}
+
+template<typename Ty, typename Alloc>
+void flexarray_t<Ty, Alloc>::construct(alloc_type& al, const_view_type init) {
+    p_ = nullptr;
+    try {
+        create_impl(al, init.size(), init.data());
+    } catch (...) {
+        destruct(al);
+        throw;
+    }
+}
+
+#if __cplusplus < 201703L
+template<typename Ty, typename Alloc>
+void flexarray_t<Ty, Alloc>::construct(alloc_type& al, std::initializer_list<Ty> init) {
+    construct(al, init.begin(), init.end());
+}
+#endif  // __cplusplus < 201703L
+
+template<typename Ty, typename Alloc>
+void flexarray_t<Ty, Alloc>::assign(alloc_type& al, const_view_type init) {
+    if (!p_) { return create_impl(al, init.size(), init.data()); }
+    assign_impl(al, init.size(), init.data());
+}
+
+template<typename Ty, typename Alloc>
+void flexarray_t<Ty, Alloc>::append(alloc_type& al, const_view_type init) {
+    if (!p_) { return create_impl(al, init.size(), init.data()); }
+    append_impl(al, init.size(), init.data());
+}
+
+template<typename Ty, typename Alloc>
+void flexarray_t<Ty, Alloc>::clear() noexcept {
+    if (!p_) { return; }
+    destruct_items(p_->data(), p_->data() + p_->size);
+    p_->size = 0;
+}
+
+template<typename Ty, typename Alloc>
+void flexarray_t<Ty, Alloc>::reserve(alloc_type& al, std::size_t sz) {
+    if (!p_) {
+        if (!sz) { return; }
+        p_ = alloc_checked(al, 0, sz);
+    } else if (sz > p_->capacity) {
+        grow(al, sz - p_->size);
+    }
+}
+
+template<typename Ty, typename Alloc>
+void flexarray_t<Ty, Alloc>::resize(alloc_type& al, std::size_t sz, const Ty& v) {
+    reserve(al, sz);
+    if (!p_) { return; }
+    if (sz <= p_->size) {
+        destruct_items(p_->data() + sz, p_->data() + p_->size);
+        p_->size = sz;
+    } else {
+        for (Ty* item = p_->data() + p_->size; item != p_->data() + sz; ++item) {
+            new (item) Ty(v);
+            ++p_->size;
+        }
+    }
+}
+
+template<typename Ty, typename Alloc>
+Ty* flexarray_t<Ty, Alloc>::erase(const Ty* item_to_erase) {
+    assert(p_ && item_to_erase >= p_->data() && item_to_erase < p_->data() + p_->size);
+    const std::size_t pos = item_to_erase - p_->data();
+    Ty* next_item = p_->data() + pos;
+    Ty* last = p_->data() + --p_->size;
+    for (Ty* item = next_item; item != last; ++item) { *item = std::move(*(item + 1)); }
+    last->~Ty();
+    return next_item;
+}
+
+}  // namespace detail
+
+//-----------------------------------------------------------------------------
+// Record container implementation
+namespace detail {
 
 template<typename CharT, typename Alloc>
 void record_t<CharT, Alloc>::init() {
@@ -165,8 +247,8 @@ template<typename CharT, typename Alloc>
     rec->init();
     try {
         std::for_each(init.begin(), init.end(), [&rec_al, &rec](const basic_value<CharT, Alloc>& v) {
-            const std::basic_string_view<CharT> key = (*v.value_.arr)[0].str_view();
-            list_links_t* node = rec->new_node(rec_al, key, (*v.value_.arr)[1]);
+            const auto key = v.value_.arr[0].value_.str.cview();
+            list_links_t* node = rec->new_node(rec_al, key, v.value_.arr[1]);
             rec = insert(rec_al, rec, hasher{}(key), node);
         });
         return rec;
@@ -342,27 +424,49 @@ template<typename CharT, typename Alloc>
     return node;
 }
 
-// --------------------------
+}  // namespace detail
 
+//-----------------------------------------------------------------------------
+
+namespace detail {
 template<typename CharT, typename Alloc>
 bool is_record(const std::initializer_list<basic_value<CharT, Alloc>>& init) {
     return std::all_of(init.begin(), init.end(), [](const basic_value<CharT, Alloc>& v) {
         return v.is_array() && v.size() == 2 && v[0].is_string();
     });
 }
-
 }  // namespace detail
 
 template<typename CharT, typename Alloc>
 basic_value<CharT, Alloc>::basic_value(std::initializer_list<basic_value> init, const Alloc& al)
-    : alloc_type(al), type_(dtype::array) {
-    if (detail::is_record(init)) {
+    : alloc_type(al), type_(detail::is_record(init) ? dtype::record : dtype::array) {
+    if (type_ == dtype::record) {
         typename record_t::alloc_type rec_al(*this);
         value_.rec = record_t::create(rec_al, init);
-        type_ = dtype::record;
     } else {
-        value_.arr = alloc_array(init.size(), init.begin());
+        typename value_array_t::alloc_type arr_al(*this);
+        value_.arr.construct(arr_al, init);
     }
+}
+
+template<typename CharT, typename Alloc>
+basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::operator=(std::basic_string_view<char_type> s) {
+    if (type_ != dtype::string) {
+        if (type_ != dtype::null) { destroy(); }
+        value_.str.construct();
+        type_ = dtype::string;
+    }
+    typename char_array_t::alloc_type str_al(*this);
+    value_.str.assign(str_al, s);
+    return *this;
+}
+
+template<typename CharT, typename Alloc>
+basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::append_string(std::basic_string_view<char_type> s) {
+    if (type_ != dtype::string) { init_as_string(); }
+    typename char_array_t::alloc_type str_al(*this);
+    value_.str.append(str_al, s);
+    return *this;
 }
 
 template<typename CharT, typename Alloc>
@@ -376,33 +480,36 @@ void basic_value<CharT, Alloc>::assign(std::initializer_list<basic_value> init) 
         } else {
             value_.rec->clear(rec_al);
             std::for_each(init.begin(), init.end(), [this, &rec_al](const basic_value& v) {
-                const std::basic_string_view<char_type> key = (*v.value_.arr)[0].str_view();
-                detail::list_links_t* node = value_.rec->new_node(rec_al, key, (*v.value_.arr)[1]);
+                const auto key = v.value_.arr[0].value_.str.cview();
+                detail::list_links_t* node = value_.rec->new_node(rec_al, key, v.value_.arr[1]);
                 value_.rec = record_t::insert(rec_al, value_.rec, typename record_t::hasher{}(key), node);
             });
         }
-    } else if (type_ != dtype::array) {
-        if (type_ != dtype::null) { destroy(); }
-        value_.arr = alloc_array(init.size(), init.begin());
-        type_ = dtype::array;
     } else {
-        assign_array(init.size(), init.begin());
+        if (type_ != dtype::array) {
+            if (type_ != dtype::null) { destroy(); }
+            value_.arr.construct();
+            type_ = dtype::array;
+        }
+        typename value_array_t::alloc_type arr_al(*this);
+        value_.arr.assign(arr_al, init.begin(), init.end());
     }
 }
 
 template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::assign(array_construct_t, std::initializer_list<basic_value> init) {
+    assign(array_construct_t{}, init.begin(), init.end());
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::assign(
+    record_construct_t, std::initializer_list<std::pair<std::basic_string_view<char_type>, basic_value>> init) {
+    assign(record_construct_t{}, init.begin(), init.end());
+}
+
+template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::insert(std::size_t pos, std::initializer_list<basic_value> init) {
-    if (type_ != dtype::array) {
-        if (type_ != dtype::null) { throw database_error("not an array"); }
-        value_.arr = alloc_array(init.size(), init.begin());
-        type_ = dtype::array;
-    } else if (init.size()) {
-        append_array(init.size(), init.begin());
-        if (pos < value_.arr->size - init.size()) {
-            std::rotate(&(*value_.arr)[pos], &(*value_.arr)[value_.arr->size - init.size()],
-                        &(*value_.arr)[value_.arr->size]);
-        }
-    }
+    insert(pos, init.begin(), init.end());
 }
 
 template<typename CharT, typename Alloc>
@@ -422,7 +529,7 @@ void basic_value<CharT, Alloc>::insert(
     }
 }
 
-// --------------------------
+//-----------------------------------------------------------------------------
 
 namespace detail {
 inline bool is_integral(double d) {
@@ -443,7 +550,7 @@ est::optional<bool> basic_value<CharT, Alloc>::get_bool() const {
         case dtype::double_precision: return value_.dbl != 0;
         case dtype::string: {
             est::optional<bool> result(est::in_place());
-            return from_basic_string(str_view(), *result) ? result : est::nullopt();
+            return from_basic_string(value_.str.cview(), *result) ? result : est::nullopt();
         } break;
         case dtype::array: return est::nullopt();
         case dtype::record: return est::nullopt();
@@ -477,7 +584,7 @@ est::optional<std::int32_t> basic_value<CharT, Alloc>::get_int() const {
                        est::nullopt();
         case dtype::string: {
             est::optional<std::int32_t> result(est::in_place());
-            return from_basic_string(str_view(), *result) ? result : est::nullopt();
+            return from_basic_string(value_.str.cview(), *result) ? result : est::nullopt();
         } break;
         case dtype::array: return est::nullopt();
         case dtype::record: return est::nullopt();
@@ -508,7 +615,7 @@ est::optional<std::uint32_t> basic_value<CharT, Alloc>::get_uint() const {
                        est::nullopt();
         case dtype::string: {
             est::optional<std::uint32_t> result(est::in_place());
-            return from_basic_string(str_view(), *result) ? result : est::nullopt();
+            return from_basic_string(value_.str.cview(), *result) ? result : est::nullopt();
         } break;
         case dtype::array: return est::nullopt();
         case dtype::record: return est::nullopt();
@@ -536,7 +643,7 @@ est::optional<std::int64_t> basic_value<CharT, Alloc>::get_int64() const {
                        est::nullopt();
         case dtype::string: {
             est::optional<std::int64_t> result(est::in_place());
-            return from_basic_string(str_view(), *result) ? result : est::nullopt();
+            return from_basic_string(value_.str.cview(), *result) ? result : est::nullopt();
         } break;
         case dtype::array: return est::nullopt();
         case dtype::record: return est::nullopt();
@@ -562,7 +669,7 @@ est::optional<std::uint64_t> basic_value<CharT, Alloc>::get_uint64() const {
                        est::nullopt();
         case dtype::string: {
             est::optional<std::uint64_t> result(est::in_place());
-            return from_basic_string(str_view(), *result) ? result : est::nullopt();
+            return from_basic_string(value_.str.cview(), *result) ? result : est::nullopt();
         } break;
         case dtype::array: return est::nullopt();
         case dtype::record: return est::nullopt();
@@ -582,7 +689,7 @@ est::optional<double> basic_value<CharT, Alloc>::get_double() const {
         case dtype::double_precision: return value_.dbl;
         case dtype::string: {
             est::optional<double> result(est::in_place());
-            return from_basic_string(str_view(), *result) ? result : est::nullopt();
+            return from_basic_string(value_.str.cview(), *result) ? result : est::nullopt();
         } break;
         case dtype::array: return est::nullopt();
         case dtype::record: return est::nullopt();
@@ -626,7 +733,7 @@ est::optional<std::basic_string<CharT>> basic_value<CharT, Alloc>::get_string() 
             to_basic_string(buf, value_.dbl, fmt_opts{fmt_flags::json_compat});
             return est::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
-        case dtype::string: return est::make_optional<std::basic_string<CharT>>(str_view());
+        case dtype::string: return est::make_optional<std::basic_string<CharT>>(value_.str.cview());
         case dtype::array: return est::nullopt();
         case dtype::record: return est::nullopt();
         default: UXS_UNREACHABLE_CODE;
@@ -728,7 +835,7 @@ template<typename CharT, typename Alloc>
 std::size_t basic_value<CharT, Alloc>::size() const noexcept {
     switch (type_) {
         case dtype::null: return 0;
-        case dtype::array: return value_.arr ? value_.arr->size : 0;
+        case dtype::array: return value_.arr.size();
         case dtype::record: return value_.rec->size;
         default: break;
     }
@@ -757,61 +864,54 @@ void basic_value<CharT, Alloc>::clear() noexcept {
     if (type_ == dtype::record) {
         typename record_t::alloc_type rec_al(*this);
         value_.rec->clear(rec_al);
-    } else if (type_ == dtype::array && value_.arr) {
-        value_.arr->clear();
+    } else if (type_ == dtype::array) {
+        value_.arr.clear();
     }
 }
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::reserve(std::size_t sz) {
-    if (type_ != dtype::array || !value_.arr) {
-        if (type_ != dtype::array && type_ != dtype::null) { throw database_error("not an array"); }
-        if (sz) {
-            typename value_flexarray_t::alloc_type arr_al(*this);
-            value_.arr = value_flexarray_t::alloc_checked(arr_al, sz);
-            value_.arr->size = 0;
-        } else {
-            value_.arr = nullptr;
-        }
-        type_ = dtype::array;
-    } else if (sz > value_.arr->capacity) {
-        typename value_flexarray_t::alloc_type arr_al(*this);
-        value_.arr = value_flexarray_t::grow(arr_al, value_.arr, sz - value_.arr->size);
-    }
+    if (type_ != dtype::array) { init_as_array(); }
+    typename value_array_t::alloc_type arr_al(*this);
+    value_.arr.reserve(arr_al, sz);
 }
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::resize(std::size_t sz) {
-    reserve(sz);
-    if (!value_.arr) { return; }
-    if (sz <= value_.arr->size) {
-        value_.arr->destroy(sz);
-    } else {
-        std::for_each(&(*value_.arr)[value_.arr->size], &(*value_.arr)[sz],
-                      [this](basic_value& v) { new (&v) basic_value(static_cast<const Alloc&>(*this)); });
-    }
-    value_.arr->size = sz;
+    if (type_ != dtype::array) { init_as_array(); }
+    typename value_array_t::alloc_type arr_al(*this);
+    value_.arr.resize(arr_al, sz, basic_value());
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::resize(std::size_t sz, const basic_value& v) {
+    if (type_ != dtype::array) { init_as_array(); }
+    typename value_array_t::alloc_type arr_al(*this);
+    value_.arr.resize(arr_al, sz, v);
 }
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::erase(std::size_t pos) {
     if (type_ != dtype::array) { throw database_error("not an array"); }
-    assert(value_.arr && pos < value_.arr->size);
-    basic_value* v = &(*value_.arr)[pos];
-    basic_value* v_end = &(*value_.arr)[--value_.arr->size];
-    for (; v != v_end; ++v) { *v = std::move(*(v + 1)); }
-    v->~basic_value();
+    assert(pos < value_.arr.size());
+    value_.arr.erase(value_.arr.cbegin() + pos);
 }
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::erase(const_iterator it) -> iterator {
-    if (type_ != dtype::record) { throw database_error("not a record"); }
-    if (!it.is_record()) { throw database_error("non-record iterator"); }
-    detail::list_links_t* node = static_cast<detail::list_links_t*>(it.ptr_);
-    uxs_iterator_assert(record_t::node_traits::get_head(node) == &value_.rec->head);
-    assert(node != &value_.rec->head);
-    typename record_t::alloc_type rec_al(*this);
-    return iterator(value_.rec->erase(rec_al, node));
+    if (it.is_record()) {
+        if (type_ != dtype::record) { throw database_error("not a record"); }
+        detail::list_links_t* node = static_cast<detail::list_links_t*>(it.ptr_);
+        uxs_iterator_assert(record_t::node_traits::get_head(node) == &value_.rec->head);
+        assert(node != &value_.rec->head);
+        typename record_t::alloc_type rec_al(*this);
+        return iterator(value_.rec->erase(rec_al, node));
+    }
+    if (type_ != dtype::array) { throw database_error("not an array"); }
+    basic_value* item = static_cast<basic_value*>(it.ptr_);
+    uxs_iterator_assert(it.begin_ == value_.arr.cbegin() && it.end_ == value_.arr.cend());
+    item = value_.arr.erase(item);
+    return iterator(item, value_.arr.cbegin(), value_.arr.cend());
 }
 
 template<typename CharT, typename Alloc>
@@ -824,35 +924,16 @@ std::size_t basic_value<CharT, Alloc>::erase(std::basic_string_view<char_type> k
 // --------------------------
 
 template<typename CharT, typename Alloc>
-auto basic_value<CharT, Alloc>::alloc_string(std::basic_string_view<char_type> s) -> char_flexarray_t* {
-    if (!s.size()) { return nullptr; }
-    typename char_flexarray_t::alloc_type arr_al(*this);
-    char_flexarray_t* str = char_flexarray_t::alloc_checked(arr_al, s.size());
-    str->size = s.size();
-    std::copy_n(s.data(), s.size(), &(*str)[0]);
-    return str;
-}
-
-template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::assign_string(std::basic_string_view<char_type> s) {
-    if (!value_.str || s.size() > value_.str->capacity) {
-        if (!s.size()) { return; }
-        typename char_flexarray_t::alloc_type arr_al(*this);
-        char_flexarray_t* new_str = char_flexarray_t::alloc_checked(arr_al, s.size());
-        if (value_.str) { char_flexarray_t::dealloc(arr_al, value_.str); }
-        value_.str = new_str;
-    }
-    value_.str->size = s.size();
-    std::copy_n(s.data(), s.size(), &(*value_.str)[0]);
-}
-
-// --------------------------
-
-template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::init_from(const basic_value& other) {
     switch (other.type_) {
-        case dtype::string: value_.str = alloc_string(other.str_view()); break;
-        case dtype::array: value_.arr = alloc_array(other.array_view()); break;
+        case dtype::string: {
+            typename char_array_t::alloc_type str_al(*this);
+            value_.str.construct(str_al, other.value_.str.cview());
+        } break;
+        case dtype::array: {
+            typename value_array_t::alloc_type arr_al(*this);
+            value_.arr.construct(arr_al, other.value_.arr.cview());
+        } break;
         case dtype::record: {
             typename record_t::alloc_type rec_al(*this);
             value_.rec = record_t::create(rec_al, *other.value_.rec);
@@ -862,21 +943,27 @@ void basic_value<CharT, Alloc>::init_from(const basic_value& other) {
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::assign_impl(const basic_value& other) {
+void basic_value<CharT, Alloc>::assign_from(const basic_value& other) {
     if (type_ != other.type_) {
         if (type_ != dtype::null) { destroy(); }
         init_from(other);
         type_ = other.type_;
-    } else {
-        switch (other.type_) {
-            case dtype::string: assign_string(other.str_view()); break;
-            case dtype::array: assign_array(other.array_view()); break;
-            case dtype::record: {
-                typename record_t::alloc_type rec_al(*this);
-                value_.rec = record_t::assign(rec_al, value_.rec, *other.value_.rec);
-            } break;
-            default: value_ = other.value_; break;
-        }
+        return;
+    }
+    switch (other.type_) {
+        case dtype::string: {
+            typename char_array_t::alloc_type str_al(*this);
+            value_.str.assign(str_al, other.value_.str.cview());
+        } break;
+        case dtype::array: {
+            typename value_array_t::alloc_type arr_al(*this);
+            value_.arr.assign(arr_al, other.value_.arr.cview());
+        } break;
+        case dtype::record: {
+            typename record_t::alloc_type rec_al(*this);
+            value_.rec = record_t::assign(rec_al, value_.rec, *other.value_.rec);
+        } break;
+        default: value_ = other.value_; break;
     }
 }
 
@@ -884,17 +971,12 @@ template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::destroy() {
     switch (type_) {
         case dtype::string: {
-            if (value_.str) {
-                typename char_flexarray_t::alloc_type arr_al(*this);
-                char_flexarray_t::dealloc(arr_al, value_.str);
-            }
+            typename char_array_t::alloc_type str_al(*this);
+            value_.str.destruct(str_al);
         } break;
         case dtype::array: {
-            if (value_.arr) {
-                typename value_flexarray_t::alloc_type arr_al(*this);
-                value_.arr->destroy();
-                value_flexarray_t::dealloc(arr_al, value_.arr);
-            }
+            typename value_array_t::alloc_type arr_al(*this);
+            value_.arr.destruct(arr_al);
         } break;
         case dtype::record: {
             typename record_t::alloc_type rec_al(*this);
@@ -907,45 +989,29 @@ void basic_value<CharT, Alloc>::destroy() {
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::reserve_back() {
-    typename value_flexarray_t::alloc_type arr_al(*this);
-    if (type_ != dtype::array || !value_.arr) {
-        value_flexarray_t* arr = value_flexarray_t::alloc(arr_al, 1);
-        if (type_ != dtype::array && type_ != dtype::null) {
-            basic_value* p = &(*arr)[0];
-            new (p) basic_value(static_cast<const Alloc&>(*this));
-            p->type_ = type_, p->value_ = value_;
-            arr->size = 1;
-        } else {
-            arr->size = 0;
-        }
-        value_.arr = arr;
-        type_ = dtype::array;
-    } else {
-        value_.arr = value_flexarray_t::grow(arr_al, value_.arr, 1);
-    }
+void basic_value<CharT, Alloc>::init_as_string() {
+    if (type_ != dtype::null) { throw database_error("not a string"); }
+    value_.str.construct();
+    type_ = dtype::string;
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::reserve_string(std::size_t extra) {
-    typename char_flexarray_t::alloc_type arr_al(*this);
-    if (type_ != dtype::string || !value_.str) {
-        if (type_ != dtype::string && type_ != dtype::null) { throw database_error("not a string"); }
-        value_.str = char_flexarray_t::alloc_checked(arr_al, extra);
-        value_.str->size = 0;
-        type_ = dtype::string;
-    } else {
-        value_.str = char_flexarray_t::grow(arr_al, value_.str, extra);
-    }
+void basic_value<CharT, Alloc>::init_as_array() {
+    if (type_ != dtype::null) { throw database_error("not an array"); }
+    value_.arr.construct();
+    type_ = dtype::array;
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::rotate_back(std::size_t pos) {
-    assert(pos != value_.arr->size - 1);
-    basic_value* v = &(*value_.arr)[value_.arr->size];
-    basic_value t(std::move(*(v - 1)));
-    while (--v != &(*value_.arr)[pos]) { *v = std::move(*(v - 1)); }
-    *v = std::move(t);
+void basic_value<CharT, Alloc>::convert_to_array() {
+    value_array_t arr;
+    arr.construct();
+    if (type_ != dtype::null) {
+        typename value_array_t::alloc_type arr_al(*this);
+        arr.emplace_back(arr_al, std::move(*this));
+    }
+    value_.arr = arr;
+    type_ = dtype::array;
 }
 
 }  // namespace db
