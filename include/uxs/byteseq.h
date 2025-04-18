@@ -21,17 +21,19 @@ struct byteseq_chunk {
 
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<byteseq_chunk>;
 
-    std::size_t size() const { return static_cast<std::size_t>(end - data); }
-    std::size_t capacity() const { return static_cast<std::size_t>(boundary - data); }
-    std::size_t avail() const { return static_cast<std::size_t>(boundary - end); }
-    static std::size_t get_alloc_sz(std::size_t cap) {
+    std::size_t size() const noexcept { return static_cast<std::size_t>(end - data); }
+    std::size_t capacity() const noexcept { return static_cast<std::size_t>(boundary - data); }
+    std::size_t avail() const noexcept { return static_cast<std::size_t>(boundary - end); }
+    static std::size_t get_alloc_sz(std::size_t cap) noexcept {
         return (offsetof(byteseq_chunk, data) + cap + sizeof(byteseq_chunk) - 1) / sizeof(byteseq_chunk);
     }
-    static std::size_t max_size(const alloc_type& al) {
+    static std::size_t max_size(const alloc_type& al) noexcept {
         return (std::allocator_traits<alloc_type>::max_size(al) * sizeof(byteseq_chunk) - offsetof(byteseq_chunk, data));
     }
-    static void dealloc(alloc_type& al, byteseq_chunk* chunk) { al.deallocate(chunk, get_alloc_sz(chunk->capacity())); }
     static byteseq_chunk* alloc(alloc_type& al, std::size_t cap);
+    static void dealloc(alloc_type& al, byteseq_chunk* chunk) noexcept {
+        al.deallocate(chunk, get_alloc_sz(chunk->capacity()));
+    }
 };
 }  // namespace detail
 

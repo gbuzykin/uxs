@@ -33,60 +33,255 @@ enum class dtype {
 template<typename CharT, typename Alloc>
 class basic_value;
 
+//-----------------------------------------------------------------------------
+// Flexible array implementation
 namespace detail {
 
-template<typename CharT, typename Alloc, typename Ty, typename = void>
-struct is_record_value : std::false_type {};
-template<typename CharT, typename Alloc, typename FirstTy, typename SecondTy>
-struct is_record_value<CharT, Alloc, std::pair<FirstTy, SecondTy>,
-                       std::enable_if_t<std::is_convertible<FirstTy, std::basic_string_view<CharT>>::value &&
-                                        std::is_convertible<SecondTy, basic_value<CharT, Alloc>>::value>>
-    : std::true_type {};
+template<typename Ty, typename Alloc>
+class flexarray_t {
+ private:
+    struct data_t {
+        std::size_t size;
+        std::size_t capacity;
+        alignas(std::alignment_of<Ty>::value) std::uint8_t x[4 * sizeof(Ty)];
+        Ty* data() noexcept { return reinterpret_cast<Ty*>(&x); }
+    };
+
+ public:
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<data_t>;
+    using const_view_type = std::conditional_t<is_character<Ty>::value, std::basic_string_view<Ty>, est::span<const Ty>>;
+    using view_type = est::span<Ty>;
+
+    std::size_t size() const noexcept { return p_ ? p_->size : 0; }
+    const_view_type cview() const noexcept { return p_ ? const_view_type(p_->data(), p_->size) : const_view_type(); }
+
+    const Ty* cbegin() const noexcept {
+        assert(p_);
+        return p_->data();
+    }
+
+    const Ty* cend() const noexcept {
+        assert(p_);
+        return p_->data() + p_->size;
+    }
+
+    const Ty& operator[](std::size_t i) const noexcept {
+        assert(p_ && i < p_->size);
+        return *(p_->data() + i);
+    }
+
+    friend bool operator==(const flexarray_t& lhs, const flexarray_t& rhs) noexcept {
+        const auto lhv = lhs.cview();
+        const auto rhv = rhs.cview();
+        return lhv.size() == rhv.size() && std::equal(lhv.begin(), lhv.end(), rhv.begin());
+    }
+
+    void construct() noexcept { p_ = nullptr; }
+    UXS_EXPORT void construct(alloc_type& al, const_view_type init);
+#if __cplusplus < 201703L
+    UXS_EXPORT void construct(alloc_type& al, std::initializer_list<Ty> init);
+#endif  // __cplusplus < 201703L
+
+    template<typename InputIt>
+    void construct(alloc_type& al, InputIt first, InputIt last) {
+        p_ = nullptr;
+        try {
+            create_impl(al, first, last, is_random_access_iterator<InputIt>());
+        } catch (...) {
+            destruct(al);
+            throw;
+        }
+    }
+
+    view_type view() { return p_ ? view_type(p_->data(), p_->size) : view_type(); }
+
+    void assign(alloc_type& al, const_view_type init);
+    void append(alloc_type& al, const_view_type init);
+
+    template<typename InputIt>
+    void assign(alloc_type& al, InputIt first, InputIt last) {
+        if (!p_) { return create_impl(al, first, last, is_random_access_iterator<InputIt>()); }
+        assign_impl(al, first, last, is_random_access_iterator<InputIt>());
+    }
+
+    template<typename InputIt>
+    void insert(alloc_type& al, std::size_t pos, InputIt first, InputIt last) {
+        if (!p_) { return create_impl(al, first, last, is_random_access_iterator<InputIt>()); }
+        const std::size_t old_sz = p_->size;
+        append_impl(al, first, last, is_random_access_iterator<InputIt>());
+        if (pos < old_sz) { std::rotate(p_->data() + pos, p_->data() + old_sz, p_->data() + p_->size); }
+    }
+
+    template<typename... Args>
+    Ty& emplace_back(alloc_type& al, Args&&... args) {
+        if (!p_) {
+            p_ = alloc(al, 0, 0);
+        } else if (p_->size == p_->capacity) {
+            grow(al, 1);
+        }
+        Ty* item = new (p_->data() + p_->size) Ty(std::forward<Args>(args)...);
+        ++p_->size;
+        return *item;
+    }
+
+    template<typename... Args>
+    Ty& emplace(alloc_type& al, std::size_t pos, Args&&... args) {
+        emplace_back(al, std::forward<Args>(args)...);
+        if (pos < p_->size - 1) {
+            rotate_back(pos);
+        } else {
+            pos = p_->size - 1;
+        }
+        return *(p_->data() + pos);
+    }
+
+    void pop_back() {
+        assert(p_ && p_->size);
+        (p_->data() + --p_->size)->~Ty();
+    }
+
+    void clear() noexcept;
+    void reserve(alloc_type& al, std::size_t sz);
+    void resize(alloc_type& al, std::size_t sz, const Ty& v);
+    Ty* erase(const Ty* item_to_erase);
+
+    void destruct(alloc_type& al) noexcept {
+        if (!p_) { return; }
+        destruct_items(p_->data(), p_->data() + p_->size);
+        dealloc(al, p_);
+    }
+
+ private:
+    data_t* p_;
+
+    template<typename RandIt>
+    void create_impl(alloc_type& al, std::size_t count, RandIt first);
+
+    template<typename RandIt>
+    void create_impl(alloc_type& al, RandIt first, RandIt last, std::true_type /* random access iterator */) {
+        create_impl(al, static_cast<std::size_t>(last - first), first);
+    }
+    template<typename InputIt>
+    void create_impl(alloc_type& al, InputIt first, InputIt last, std::false_type /* random access iterator */);
+
+    template<typename RandIt>
+    void assign_impl(alloc_type& al, std::size_t count, RandIt first);
+
+    template<typename RandIt>
+    void assign_impl(alloc_type& al, RandIt first, RandIt last, std::true_type /* random access iterator */) {
+        assign_impl(al, static_cast<std::size_t>(last - first), first);
+    }
+    template<typename InputIt>
+    void assign_impl(alloc_type& al, InputIt first, InputIt last, std::false_type /* random access iterator */);
+
+    template<typename RandIt>
+    void append_impl(alloc_type& al, std::size_t count, RandIt first);
+
+    template<typename RandIt>
+    void append_impl(alloc_type& al, RandIt first, RandIt last, std::true_type /* random access iterator */) {
+        append_impl(al, static_cast<std::size_t>(last - first), first);
+    }
+    template<typename InputIt>
+    void append_impl(alloc_type& al, InputIt first, InputIt last, std::false_type /* random access iterator */);
+
+    template<typename Ty_ = Ty, typename = std::enable_if_t<std::is_trivially_destructible<Ty_>::value>>
+    static void destruct_items(Ty_* first, Ty_* last) noexcept {}
+
+    template<typename Ty_ = Ty, typename... Dummy>
+    static void destruct_items(Ty_* first, Ty_* last, Dummy&&...) noexcept {
+        for (; first != last; ++first) { first->~Ty(); };
+    }
+
+    UXS_EXPORT void grow(alloc_type& al, std::size_t extra);
+    UXS_EXPORT void rotate_back(std::size_t pos) noexcept;
+
+    static std::size_t max_size(const alloc_type& al) noexcept {
+        return (std::allocator_traits<alloc_type>::max_size(al) * sizeof(data_t) - offsetof(data_t, x)) / sizeof(Ty);
+    }
+
+    static std::size_t get_alloc_sz(std::size_t cap) noexcept {
+        return (offsetof(data_t, x) + cap * sizeof(Ty) + sizeof(data_t) - 1) / sizeof(data_t);
+    }
+
+    UXS_NODISCARD UXS_EXPORT static data_t* alloc(alloc_type& al, std::size_t sz, std::size_t cap);
+    UXS_NODISCARD static data_t* alloc_checked(alloc_type& al, std::size_t sz, std::size_t cap) {
+        if (cap > max_size(al)) { throw std::length_error("too much to reserve"); }
+        return alloc(al, sz, cap);
+    }
+
+    static void dealloc(alloc_type& al, data_t* arr) noexcept { al.deallocate(arr, get_alloc_sz(arr->capacity)); }
+};
 
 template<typename Ty, typename Alloc>
-struct flexarray_t {
-    std::size_t size;
-    std::size_t capacity;
-    alignas(std::alignment_of<Ty>::value) std::uint8_t x[4 * sizeof(Ty)];
+template<typename RandIt>
+void flexarray_t<Ty, Alloc>::create_impl(alloc_type& al, std::size_t count, RandIt first) {
+    if (!count) { return; }
+    p_ = alloc_checked(al, 0, count);
+    std::uninitialized_copy_n(first, count, p_->data());
+    p_->size = count;
+}
 
-    flexarray_t(const flexarray_t&) = delete;
-    flexarray_t& operator=(const flexarray_t&) = delete;
+template<typename Ty, typename Alloc>
+template<typename InputIt>
+void flexarray_t<Ty, Alloc>::create_impl(alloc_type& al, InputIt first, InputIt last,
+                                         std::false_type /* random access iterator */) {
+    if (first == last) { return; }
+    p_ = alloc(al, 0, 0);
+    append_impl(al, first, last, std::false_type{});
+}
 
-    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<flexarray_t>;
-
-    est::span<const Ty> view() const { return est::as_span(reinterpret_cast<const Ty*>(&x), size); }
-    est::span<Ty> view() { return est::as_span(reinterpret_cast<Ty*>(&x), size); }
-    const Ty& operator[](std::size_t i) const { return reinterpret_cast<const Ty*>(&x)[i]; }
-    Ty& operator[](std::size_t i) { return reinterpret_cast<Ty*>(&x)[i]; }
-
-    void clear() {
-        destroy();
-        size = 0;
+template<typename Ty, typename Alloc>
+template<typename RandIt>
+void flexarray_t<Ty, Alloc>::assign_impl(alloc_type& al, std::size_t count, RandIt first) {
+    if (count > p_->capacity) { grow(al, count - p_->size); }
+    Ty* item = std::copy_n(first, std::min(count, p_->size), p_->data());
+    if (count <= p_->size) {
+        destruct_items(item, p_->data() + p_->size);
+    } else {
+        std::uninitialized_copy_n(first + p_->size, count - p_->size, item);
     }
+    p_->size = count;
+}
 
-    static std::size_t max_size(const alloc_type& arr_al) {
-        return (std::allocator_traits<alloc_type>::max_size(arr_al) * sizeof(flexarray_t) - offsetof(flexarray_t, x)) /
-               sizeof(Ty);
+template<typename Ty, typename Alloc>
+template<typename InputIt>
+void flexarray_t<Ty, Alloc>::assign_impl(alloc_type& al, InputIt first, InputIt last,
+                                         std::false_type /* random access iterator */) {
+    Ty* item = p_->data();
+    Ty* end = p_->data() + p_->size;
+    for (; item != end && first != last; ++first) { *item++ = *first; }
+    if (item != end) {
+        destruct_items(item, end);
+        p_->size = static_cast<std::size_t>(item - p_->data());
+    } else {
+        append_impl(al, first, last, std::false_type{});
     }
+}
 
-    static std::size_t get_alloc_sz(std::size_t cap) {
-        return (offsetof(flexarray_t, x) + cap * sizeof(Ty) + sizeof(flexarray_t) - 1) / sizeof(flexarray_t);
+template<typename Ty, typename Alloc>
+template<typename RandIt>
+void flexarray_t<Ty, Alloc>::append_impl(alloc_type& al, std::size_t count, RandIt first) {
+    if (count > p_->capacity - p_->size) { grow(al, count); }
+    std::uninitialized_copy_n(first, count, p_->data() + p_->size);
+    p_->size += count;
+}
+
+template<typename Ty, typename Alloc>
+template<typename InputIt>
+void flexarray_t<Ty, Alloc>::append_impl(alloc_type& al, InputIt first, InputIt last,
+                                         std::false_type /* random access iterator */) {
+    for (; first != last; ++first) {
+        if (p_->size == p_->capacity) { grow(al, 1); }
+        new (p_->data() + p_->size) Ty(*first);
+        ++p_->size;
     }
+}
 
-    UXS_EXPORT static flexarray_t* alloc(alloc_type& arr_al, std::size_t cap);
-    UXS_EXPORT static flexarray_t* grow(alloc_type& arr_al, flexarray_t* arr, std::size_t extra);
+}  // namespace detail
 
-    void destroy(std::size_t start_from = 0) {
-        std::for_each(&(*this)[start_from], &(*this)[size], [](Ty& v) { v.~Ty(); });
-    }
-
-    static void dealloc(alloc_type& arr_al, flexarray_t* arr) { arr_al.deallocate(arr, get_alloc_sz(arr->capacity)); }
-
-    static flexarray_t* alloc_checked(alloc_type& arr_al, std::size_t cap) {
-        if (cap > max_size(arr_al)) { throw std::length_error("too much to reserve"); }
-        return alloc(arr_al, cap);
-    }
-};
+//-----------------------------------------------------------------------------
+// Record container implementation
+namespace detail {
 
 #if UXS_ITERATOR_DEBUG_LEVEL != 0
 struct list_links_t {
@@ -251,6 +446,48 @@ struct record_t {
     }
 };
 
+template<typename CharT, typename Alloc>
+template<typename InputIt>
+/*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::create(alloc_type& rec_al, InputIt first, InputIt last) {
+    record_t* rec = create(rec_al);
+    try {
+        for (; first != last; ++first) {
+            list_links_t* node = rec->new_node(rec_al, first->first, first->second);
+            rec = insert(rec_al, rec, hasher{}(first->first), node);
+        }
+        return rec;
+    } catch (...) {
+        rec->destroy(rec_al, rec->head.next);
+        dealloc(rec_al, rec);
+        throw;
+    }
+}
+
+template<typename CharT, typename Alloc>
+template<typename... Args>
+list_links_t* record_t<CharT, Alloc>::new_node(alloc_type& rec_al, std::basic_string_view<CharT> key, Args&&... args) {
+    typename node_t::alloc_type node_al(rec_al);
+    node_t* node = node_t::alloc_checked(node_al, key);
+    try {
+        new (&node->value()) basic_value<CharT, Alloc>(std::forward<Args>(args)...);
+        return &node->links_;
+    } catch (...) {
+        node_t::dealloc(node_al, node);
+        throw;
+    }
+}
+
+template<typename CharT, typename Alloc>
+/*static*/ void record_t<CharT, Alloc>::delete_node(alloc_type& rec_al, list_links_t* links) {
+    node_t* node = node_t::from_links(links);
+    node->value().~basic_value<CharT, Alloc>();
+    typename node_t::alloc_type node_al(rec_al);
+    node_t::dealloc(node_al, node);
+}
+
+//-----------------------------------------------------------------------------
+// Universal value iterator
+
 template<typename CharT, typename Alloc, bool Const>
 class value_iterator : public container_iterator_facade<basic_value<CharT, Alloc>, value_iterator<CharT, Alloc, Const>,
                                                         std::bidirectional_iterator_tag, Const> {
@@ -259,10 +496,11 @@ class value_iterator : public container_iterator_facade<basic_value<CharT, Alloc
 
     template<typename, typename, bool>
     friend class value_iterator;
+    friend class basic_value<CharT, Alloc>;
 
     value_iterator() noexcept = default;
 #if UXS_ITERATOR_DEBUG_LEVEL != 0
-    explicit value_iterator(value_type* ptr, value_type* begin, value_type* end) noexcept
+    explicit value_iterator(value_type* ptr, const value_type* begin, const value_type* end) noexcept
         : ptr_(ptr), begin_(begin), end_(end) {}
     template<bool Const_ = Const>
     value_iterator(const std::enable_if_t<Const_, value_iterator<CharT, Alloc, false>>& it) noexcept
@@ -273,7 +511,7 @@ class value_iterator : public container_iterator_facade<basic_value<CharT, Alloc
         return *this;
     }
 #else   // UXS_ITERATOR_DEBUG_LEVEL != 0
-    explicit value_iterator(value_type* ptr, value_type* begin, value_type* end) noexcept
+    explicit value_iterator(value_type* ptr, const value_type* begin, const value_type* end) noexcept
         : is_record_(false), ptr_(ptr) {
         (void)begin, (void)end;
     }
@@ -327,13 +565,11 @@ class value_iterator : public container_iterator_facade<basic_value<CharT, Alloc
     }
 
  private:
-    friend class basic_value<CharT, Alloc>;
-
     bool is_record_ = false;
     void* ptr_ = nullptr;
 #if UXS_ITERATOR_DEBUG_LEVEL != 0
-    void* begin_ = nullptr;
-    void* end_ = nullptr;
+    const void* begin_ = nullptr;
+    const void* end_ = nullptr;
     list_links_t* head() const noexcept { return static_cast<list_links_t*>(ptr_)->head; }
 #endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
 };
@@ -349,30 +585,42 @@ class value_reverse_iterator : public std::reverse_iterator<Iter> {
 
 }  // namespace detail
 
-template<typename CharT = char, typename Alloc = std::allocator<CharT>, typename InputIt,
-         typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
-basic_value<CharT, Alloc> make_array(InputIt first, InputIt last, const Alloc& al = Alloc());
+//-----------------------------------------------------------------------------
+// uxs::basic_value<> implementation
 
-template<typename CharT = char, typename Alloc = std::allocator<CharT>>
-basic_value<CharT, Alloc> make_array(std::initializer_list<basic_value<CharT, Alloc>>, const Alloc& al = Alloc());
+struct array_construct_t {
+    explicit array_construct_t() = default;
+};
+struct record_construct_t {
+    explicit record_construct_t() = default;
+};
 
-template<typename CharT = char, typename Alloc = std::allocator<CharT>, typename InputIt,
-         typename = std::enable_if_t<is_input_iterator<InputIt>::value>,
-         typename = std::enable_if_t<
-             detail::is_record_value<CharT, Alloc, typename std::iterator_traits<InputIt>::value_type>::value>>
-basic_value<CharT, Alloc> make_record(InputIt first, InputIt last, const Alloc& al = Alloc());
+#if __cplusplus >= 201703L
+constexpr array_construct_t array_construct{};
+constexpr record_construct_t record_construct{};
+#endif  // __cplusplus >= 201703L
 
-template<typename CharT = char, typename Alloc = std::allocator<CharT>>
-basic_value<CharT, Alloc> make_record(
-    std::initializer_list<std::pair<std::basic_string_view<CharT>, basic_value<CharT, Alloc>>>,
-    const Alloc& al = Alloc());
+namespace detail {
+template<typename CharT, typename Alloc, typename Ty, typename = void>
+struct is_record_value : std::false_type {};
+template<typename CharT, typename Alloc, typename FirstTy, typename SecondTy>
+struct is_record_value<CharT, Alloc, std::pair<FirstTy, SecondTy>,
+                       std::enable_if_t<std::is_convertible<FirstTy, std::basic_string_view<CharT>>::value &&
+                                        std::is_convertible<SecondTy, basic_value<CharT, Alloc>>::value>>
+    : std::true_type {};
+template<typename CharT, typename Alloc, typename InputIt>
+using is_record_iterator = is_record_value<CharT, Alloc, typename std::iterator_traits<InputIt>::value_type>;
+template<typename CharT, typename Alloc, typename InputIt>
+using select_construct_t =
+    std::conditional_t<is_record_iterator<CharT, Alloc, InputIt>::value, record_construct_t, array_construct_t>;
+}  // namespace detail
 
 template<typename CharT, typename Alloc = std::allocator<CharT>>
 class basic_value : protected std::allocator_traits<Alloc>::template rebind_alloc<CharT> {
  private:
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<CharT>;
-    using char_flexarray_t = detail::flexarray_t<CharT, Alloc>;
-    using value_flexarray_t = detail::flexarray_t<basic_value, Alloc>;
+    using char_array_t = detail::flexarray_t<CharT, Alloc>;
+    using value_array_t = detail::flexarray_t<basic_value, Alloc>;
     using record_t = detail::record_t<CharT, Alloc>;
 
  public:
@@ -394,29 +642,65 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         : alloc_type(), type_(dtype::null) {}
     basic_value(std::nullptr_t) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
         : alloc_type(), type_(dtype::null) {}
+    basic_value(array_construct_t) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
+        : alloc_type(), type_(dtype::array) {
+        value_.arr.construct();
+    }
+    basic_value(record_construct_t) : alloc_type(), type_(dtype::record) {
+        typename record_t::alloc_type rec_al(*this);
+        value_.rec = record_t::create(rec_al);
+    }
     basic_value(std::basic_string_view<char_type> s) : alloc_type(), type_(dtype::string) {
-        value_.str = alloc_string(s);
+        typename char_array_t::alloc_type str_al(*this);
+        value_.str.construct(str_al, s);
     }
-    basic_value(const char_type* cstr) : alloc_type(), type_(dtype::string) {
-        value_.str = alloc_string(std::basic_string_view<char_type>(cstr));
-    }
+    basic_value(const char_type* cstr) : basic_value(std::basic_string_view<char_type>(cstr)) {}
 
     explicit basic_value(const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) {}
     basic_value(std::nullptr_t, const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) {}
+    basic_value(array_construct_t, const Alloc& al) noexcept : alloc_type(al), type_(dtype::array) {
+        value_.arr.construct();
+    }
+    basic_value(record_construct_t, const Alloc& al) : alloc_type(al), type_(dtype::record) {
+        typename record_t::alloc_type rec_al(*this);
+        value_.rec = record_t::create(rec_al);
+    }
     basic_value(std::basic_string_view<char_type> s, const Alloc& al) : alloc_type(al), type_(dtype::string) {
-        value_.str = alloc_string(s);
+        typename char_array_t::alloc_type str_al(*this);
+        value_.str.construct(str_al, s);
     }
-    basic_value(const char_type* cstr, const Alloc& al) : alloc_type(al), type_(dtype::string) {
-        value_.str = alloc_string(std::basic_string_view<char_type>(cstr));
-    }
+    basic_value(const char_type* cstr, const Alloc& al) : basic_value(std::basic_string_view<char_type>(cstr), al) {}
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
-    basic_value(InputIt first, InputIt last, const Alloc& al = Alloc()) : alloc_type(al) {
-        construct_impl(first, last,
-                       detail::is_record_value<CharT, Alloc, typename std::iterator_traits<InputIt>::value_type>());
+    basic_value(InputIt first, InputIt last, const Alloc& al = Alloc())
+        : basic_value(detail::select_construct_t<CharT, Alloc, InputIt>(), first, last, al) {}
+    template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
+    basic_value(array_construct_t, InputIt first, InputIt last, const Alloc& al = Alloc())
+        : alloc_type(al), type_(dtype::array) {
+        typename value_array_t::alloc_type arr_al(*this);
+        value_.arr.construct(arr_al, first, last);
+    }
+    template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value &&
+                                                           detail::is_record_iterator<CharT, Alloc, InputIt>::value>>
+    basic_value(record_construct_t, InputIt first, InputIt last, const Alloc& al = Alloc())
+        : alloc_type(al), type_(dtype::record) {
+        typename record_t::alloc_type rec_al(*this);
+        value_.rec = record_t::create(rec_al, first, last);
     }
 
     UXS_EXPORT basic_value(std::initializer_list<basic_value> init, const Alloc& al = Alloc());
+    basic_value(array_construct_t, std::initializer_list<basic_value> init, const Alloc& al = Alloc())
+        : alloc_type(al), type_(dtype::array) {
+        typename value_array_t::alloc_type arr_al(al);
+        value_.arr.construct(arr_al, init);
+    }
+    basic_value(record_construct_t,
+                std::initializer_list<std::pair<std::basic_string_view<char_type>, basic_value>> init,
+                const Alloc& al = Alloc())
+        : alloc_type(al), type_(dtype::record) {
+        typename record_t::alloc_type rec_al(*this);
+        value_.rec = record_t::create(rec_al, init);
+    }
 
     ~basic_value() {
         if (type_ != dtype::null) { destroy(); }
@@ -426,7 +710,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     basic_value(const basic_value& other, const Alloc& al) : alloc_type(al), type_(other.type_) { init_from(other); }
     basic_value& operator=(const basic_value& other) {
         if (&other == this) { return *this; }
-        assign_impl(other);
+        assign_from(other);
         return *this;
     }
 
@@ -435,7 +719,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
     basic_value(basic_value&& other, const Alloc& al) noexcept(is_alloc_always_equal<alloc_type>::value)
         : alloc_type(al), type_(other.type_) {
-        construct_impl(std::move(other), is_alloc_always_equal<alloc_type>());
+        move_construct_impl(std::move(other), is_alloc_always_equal<alloc_type>());
     }
     basic_value& operator=(basic_value&& other) noexcept {
         if (&other == this) { return *this; }
@@ -453,11 +737,18 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     void assign(InputIt first, InputIt last) {
-        assign_impl(first, last,
-                    detail::is_record_value<CharT, Alloc, typename std::iterator_traits<InputIt>::value_type>());
+        assign(detail::select_construct_t<CharT, Alloc, InputIt>(), first, last);
     }
+    template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
+    void assign(array_construct_t, InputIt first, InputIt last);
+    template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value &&
+                                                           detail::is_record_iterator<CharT, Alloc, InputIt>::value>>
+    void assign(record_construct_t, InputIt first, InputIt last);
 
     UXS_EXPORT void assign(std::initializer_list<basic_value> init);
+    UXS_EXPORT void assign(array_construct_t, std::initializer_list<basic_value> init);
+    UXS_EXPORT void assign(record_construct_t,
+                           std::initializer_list<std::pair<std::basic_string_view<char_type>, basic_value>> init);
 
 #define UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(ty, id, field) \
     basic_value(ty v) : alloc_type(), type_(id) { value_.field = static_cast<decltype(value_.field)>(v); } \
@@ -486,7 +777,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(long double, dtype::double_precision, dbl)
 #undef UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT
 
-    basic_value& operator=(std::basic_string_view<char_type> s);
+    UXS_EXPORT basic_value& operator=(std::basic_string_view<char_type> s);
     basic_value& operator=(const char_type* cstr) { return (*this = std::basic_string_view<char_type>(cstr)); }
 
     basic_value& operator=(std::nullptr_t) {
@@ -502,7 +793,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         std::swap(type_, other.type_);
     }
 
-    basic_value& append_string(std::basic_string_view<char_type> s);
+    UXS_EXPORT basic_value& append_string(std::basic_string_view<char_type> s);
     basic_value& append_string(const char_type* cstr) { return append_string(std::basic_string_view<char_type>(cstr)); }
 
     template<typename CharT_, typename Alloc_>
@@ -607,41 +898,42 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     UXS_EXPORT est::optional<double> get_double() const;
     UXS_EXPORT est::optional<std::basic_string<char_type>> get_string() const;
     est::optional<std::basic_string_view<char_type>> get_string_view() const {
-        return type_ == dtype::string ? est::make_optional(str_view()) : est::nullopt();
+        return type_ == dtype::string ? est::make_optional(value_.str.cview()) : est::nullopt();
     }
 
     bool empty() const noexcept { return size() == 0; }
     UXS_EXPORT std::size_t size() const noexcept;
 
-    iterator begin() noexcept {
+    iterator begin() {
         if (type_ == dtype::record) { return iterator(value_.rec->head.next); }
         const auto range = as_array();
         return iterator(range.data(), range.data(), range.data() + range.size());
     }
     const_iterator begin() const noexcept {
         if (type_ == dtype::record) { return const_iterator(value_.rec->head.next); }
-        const auto range = const_cast<basic_value&>(*this).as_array();
-        return const_iterator(range.data(), range.data(), range.data() + range.size());
+        const auto range = as_array();
+        return const_iterator(const_cast<value_type*>(range.data()), range.data(), range.data() + range.size());
     }
     const_iterator cbegin() const noexcept { return begin(); }
 
-    iterator end() noexcept {
+    iterator end() {
         if (type_ == dtype::record) { return iterator(&value_.rec->head); }
         const auto range = as_array();
         return iterator(range.data() + range.size(), range.data(), range.data() + range.size());
     }
     const_iterator end() const noexcept {
         if (type_ == dtype::record) { return const_iterator(&value_.rec->head); }
-        const auto range = const_cast<basic_value&>(*this).as_array();
-        return const_iterator(range.data() + range.size(), range.data(), range.data() + range.size());
+        const auto range = as_array();
+        return const_iterator(const_cast<value_type*>(range.data()) + range.size(), range.data(),
+                              range.data() + range.size());
     }
     const_iterator cend() const noexcept { return end(); }
 
-    reverse_iterator rbegin() noexcept { return reverse_iterator(end()); }
+    reverse_iterator rbegin() { return reverse_iterator(end()); }
     const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
     const_reverse_iterator crbegin() const noexcept { return rbegin(); }
 
-    reverse_iterator rend() noexcept { return reverse_iterator(begin()); }
+    reverse_iterator rend() { return reverse_iterator(begin()); }
     const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
     const_reverse_iterator crend() const noexcept { return rend(); }
 
@@ -652,7 +944,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     const_reference back() const { return std::prev(end()); }
 
     est::span<const basic_value> as_array() const noexcept;
-    est::span<basic_value> as_array() noexcept;
+    est::span<basic_value> as_array();
 
     iterator_range<typename record_t::const_iterator> as_record() const;
     iterator_range<typename record_t::iterator> as_record();
@@ -696,7 +988,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
             case dtype::long_integer: return func(value_.i64);
             case dtype::unsigned_long_integer: return func(value_.u64);
             case dtype::double_precision: return func(value_.dbl);
-            case dtype::string: return func(str_view());
+            case dtype::string: return func(value_.str.cview());
             case dtype::array:
             case dtype::record: return func(make_range(begin(), end()));
             default: UXS_UNREACHABLE_CODE;
@@ -711,6 +1003,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     UXS_EXPORT void clear() noexcept;
     UXS_EXPORT void reserve(std::size_t sz);
     UXS_EXPORT void resize(std::size_t sz);
+    UXS_EXPORT void resize(std::size_t sz, const basic_value& v);
 
     template<typename... Args>
     basic_value& emplace_back(Args&&... args);
@@ -741,9 +1034,8 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     void insert(std::size_t pos, InputIt first, InputIt last);
     UXS_EXPORT void insert(std::size_t pos, std::initializer_list<basic_value> init);
 
-    template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>,
-             typename = std::enable_if_t<
-                 detail::is_record_value<CharT, Alloc, typename std::iterator_traits<InputIt>::value_type>::value>>
+    template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value &&
+                                                           detail::is_record_iterator<CharT, Alloc, InputIt>::value>>
     void insert(InputIt first, InputIt last);
     UXS_EXPORT void insert(std::initializer_list<std::pair<std::basic_string_view<char_type>, basic_value>> init);
 
@@ -753,23 +1045,6 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
  private:
     friend struct detail::record_t<CharT, Alloc>;
-    template<typename CharT_, typename Alloc_>
-    friend basic_value<CharT_, Alloc_> make_array();
-    template<typename CharT_, typename Alloc_>
-    friend basic_value<CharT_, Alloc_> make_array(const Alloc_&);
-    template<typename CharT_, typename Alloc_, typename InputIt, typename>
-    friend basic_value<CharT_, Alloc_> make_array(InputIt, InputIt, const Alloc_&);
-    template<typename CharT_, typename Alloc_>
-    friend basic_value<CharT_, Alloc_> make_array(std::initializer_list<basic_value<CharT_, Alloc_>>, const Alloc_&);
-    template<typename CharT_, typename Alloc_>
-    friend basic_value<CharT_, Alloc_> make_record();
-    template<typename CharT_, typename Alloc_>
-    friend basic_value<CharT_, Alloc_> make_record(const Alloc_&);
-    template<typename CharT_, typename Alloc_, typename InputIt, typename, typename>
-    friend basic_value<CharT_, Alloc_> make_record(InputIt, InputIt, const Alloc_&);
-    template<typename CharT_, typename Alloc_>
-    friend basic_value<CharT_, Alloc_> make_record(
-        std::initializer_list<std::pair<std::basic_string_view<CharT_>, basic_value<CharT_, Alloc_>>>, const Alloc_&);
 
     dtype type_;
 
@@ -780,64 +1055,24 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         std::int64_t i64;
         std::uint64_t u64;
         double dbl;
-        char_flexarray_t* str;
-        value_flexarray_t* arr;
+        char_array_t str;
+        value_array_t arr;
         record_t* rec;
     } value_;
 
-    std::basic_string_view<char_type> str_view() const {
-        return value_.str ? std::basic_string_view<char_type>(&(*value_.str)[0], value_.str->size) :
-                            std::basic_string_view<char_type>();
-    }
-    est::span<const basic_value> array_view() const {
-        return value_.arr ? value_.arr->view() : est::span<basic_value>();
-    }
-    est::span<basic_value> array_view() { return value_.arr ? value_.arr->view() : est::span<basic_value>(); }
-
-    UXS_EXPORT char_flexarray_t* alloc_string(std::basic_string_view<char_type> s);
-    UXS_EXPORT void assign_string(std::basic_string_view<char_type> s);
-
-    template<typename RandIt>
-    value_flexarray_t* alloc_array(std::size_t sz, RandIt src);
-    template<typename RandIt>
-    value_flexarray_t* alloc_array(RandIt first, RandIt last, std::true_type /* random access iterator */) {
-        return alloc_array(static_cast<std::size_t>(last - first), first);
-    }
-    template<typename InputIt>
-    value_flexarray_t* alloc_array(InputIt first, InputIt last, std::false_type);
-    value_flexarray_t* alloc_array(est::span<const basic_value> v) { return alloc_array(v.size(), v.data()); }
-
-    template<typename RandIt>
-    void assign_array(std::size_t sz, RandIt src);
-    template<typename RandIt>
-    void assign_array(RandIt first, RandIt last, std::true_type /* random access iterator */) {
-        assign_array(static_cast<std::size_t>(last - first), first);
-    }
-    template<typename InputIt>
-    void assign_array(InputIt first, InputIt last, std::false_type /* random access iterator */);
-    void assign_array(est::span<const basic_value> v) { assign_array(v.size(), v.data()); }
-
-    template<typename RandIt>
-    void append_array(std::size_t sz, RandIt src);
-    template<typename RandIt>
-    std::size_t append_array(RandIt first, RandIt last, std::true_type /* random access iterator */) {
-        const std::size_t count = static_cast<std::size_t>(last - first);
-        append_array(count, first);
-        return count;
-    }
-    template<typename InputIt>
-    std::size_t append_array(InputIt first, InputIt last, std::false_type /* random access iterator */);
-
     UXS_EXPORT void init_from(const basic_value& other);
-    UXS_EXPORT void assign_impl(const basic_value& other);
+    UXS_EXPORT void assign_from(const basic_value& other);
     UXS_EXPORT void destroy();
+    UXS_EXPORT void init_as_string();
+    UXS_EXPORT void init_as_array();
+    UXS_EXPORT void convert_to_array();
 
-    void construct_impl(basic_value&& other, std::true_type) noexcept {
+    void move_construct_impl(basic_value&& other, std::true_type) noexcept {
         type_ = other.type_, value_ = other.value_;
         other.type_ = dtype::null;
     }
 
-    void construct_impl(basic_value&& other, std::false_type) {
+    void move_construct_impl(basic_value&& other, std::false_type) {
         if (static_cast<alloc_type&>(*this) == static_cast<alloc_type&>(other)) {
             type_ = other.type_, value_ = other.value_;
             other.type_ = dtype::null;
@@ -845,152 +1080,60 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
             init_from(other);
         }
     }
-
-    template<typename InputIt>
-    void construct_impl(InputIt first, InputIt last, std::true_type /* range of pairs */) {
-        typename record_t::alloc_type rec_al(*this);
-        type_ = dtype::record, value_.rec = record_t::create(rec_al, first, last);
-    }
-
-    template<typename InputIt>
-    void construct_impl(InputIt first, InputIt last, std::false_type /* range of pairs */) {
-        type_ = dtype::array, value_.arr = alloc_array(first, last, is_random_access_iterator<InputIt>());
-    }
-
-    template<typename InputIt>
-    void assign_impl(InputIt first, InputIt last, std::true_type /* range of pairs */);
-
-    template<typename InputIt>
-    void assign_impl(InputIt first, InputIt last, std::false_type /* range of pairs */);
-
-    UXS_EXPORT void reserve_back();
-    UXS_EXPORT void reserve_string(std::size_t extra);
-    UXS_EXPORT void rotate_back(std::size_t pos);
 };
 
 // --------------------------
 
-template<typename CharT = char, typename Alloc = std::allocator<CharT>>
-basic_value<CharT, Alloc> make_array() {
-    basic_value<CharT, Alloc> v;
-    v.type_ = dtype::array, v.value_.arr = nullptr;
-    return v;
-}
-
-template<typename CharT = char, typename Alloc = std::allocator<CharT>>
-basic_value<CharT, Alloc> make_array(const Alloc& al) {
-    basic_value<CharT, Alloc> v(al);
-    v.type_ = dtype::array, v.value_.arr = nullptr;
-    return v;
-}
-
-template<typename CharT, typename Alloc, typename InputIt, typename>
-basic_value<CharT, Alloc> make_array(InputIt first, InputIt last, const Alloc& al) {
-    basic_value<CharT, Alloc> v(al);
-    v.value_.arr = v.alloc_array(first, last, is_random_access_iterator<InputIt>());
-    v.type_ = dtype::array;
-    return v;
-}
-
 template<typename CharT, typename Alloc>
-basic_value<CharT, Alloc> make_array(std::initializer_list<basic_value<CharT, Alloc>> init, const Alloc& al) {
-    basic_value<CharT, Alloc> v(al);
-    v.value_.arr = v.alloc_array(init.size(), init.begin());
-    v.type_ = dtype::array;
-    return v;
-}
-
-template<typename CharT = char, typename Alloc = std::allocator<CharT>>
-basic_value<CharT, Alloc> make_record() {
-    basic_value<CharT, Alloc> v;
-    typename basic_value<CharT, Alloc>::record_t::alloc_type rec_al(v);
-    v.value_.rec = basic_value<CharT, Alloc>::record_t::create(rec_al);
-    v.type_ = dtype::record;
-    return v;
-}
-
-template<typename CharT = char, typename Alloc = std::allocator<CharT>>
-basic_value<CharT, Alloc> make_record(const Alloc& al) {
-    basic_value<CharT, Alloc> v(al);
-    typename basic_value<CharT, Alloc>::record_t::alloc_type rec_al(v);
-    v.value_.rec = basic_value<CharT, Alloc>::record_t::create(rec_al);
-    v.type_ = dtype::record;
-    return v;
-}
-
-template<typename CharT, typename Alloc, typename InputIt, typename, typename>
-basic_value<CharT, Alloc> make_record(InputIt first, InputIt last, const Alloc& al) {
-    basic_value<CharT, Alloc> v(al);
-    typename basic_value<CharT, Alloc>::record_t::alloc_type rec_al(v);
-    v.value_.rec = basic_value<CharT, Alloc>::record_t::create(rec_al, first, last);
-    v.type_ = dtype::record;
-    return v;
-}
-
-template<typename CharT, typename Alloc>
-basic_value<CharT, Alloc> make_record(
-    std::initializer_list<std::pair<std::basic_string_view<CharT>, basic_value<CharT, Alloc>>> init, const Alloc& al) {
-    basic_value<CharT, Alloc> v(al);
-    typename basic_value<CharT, Alloc>::record_t::alloc_type rec_al(v);
-    v.value_.rec = basic_value<CharT, Alloc>::record_t::create(rec_al, init);
-    v.type_ = dtype::record;
-    return v;
-}
-
-// --------------------------
-
-template<typename CharT, typename Alloc>
-basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::operator=(std::basic_string_view<char_type> s) {
-    if (type_ != dtype::string) {
+template<typename InputIt, typename>
+void basic_value<CharT, Alloc>::assign(array_construct_t, InputIt first, InputIt last) {
+    if (type_ != dtype::array) {
         if (type_ != dtype::null) { destroy(); }
-        value_.str = alloc_string(s);
-        type_ = dtype::string;
-    } else {
-        assign_string(s);
+        value_.arr.construct();
+        type_ = dtype::array;
     }
-    return *this;
+    typename value_array_t::alloc_type arr_al(*this);
+    value_.arr.assign(arr_al, first, last);
 }
 
 template<typename CharT, typename Alloc>
-basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::append_string(std::basic_string_view<char_type> s) {
-    if (type_ != dtype::string || !value_.str || value_.str->capacity - value_.str->size < s.size()) {
-        reserve_string(s.size());
+template<typename InputIt, typename>
+void basic_value<CharT, Alloc>::assign(record_construct_t, InputIt first, InputIt last) {
+    typename record_t::alloc_type rec_al(*this);
+    if (type_ != dtype::record) {
+        if (type_ != dtype::null) { destroy(); }
+        value_.rec = record_t::create(rec_al, first, last);
+        type_ = dtype::record;
+    } else {
+        value_.rec->clear(rec_al);
+        for (; first != last; ++first) {
+            detail::list_links_t* node = value_.rec->new_node(rec_al, first->first, first->second);
+            value_.rec = record_t::insert(rec_al, value_.rec, typename record_t::hasher{}(first->first), node);
+        }
     }
-    std::copy_n(s.data(), s.size(), &(*value_.str)[value_.str->size]);
-    value_.str->size += s.size();
-    return *this;
 }
-
-// --------------------------
 
 template<typename CharT, typename Alloc>
 template<typename... Args>
 basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::emplace_back(Args&&... args) {
-    if (type_ != dtype::array || !value_.arr || value_.arr->size == value_.arr->capacity) { reserve_back(); }
-    basic_value& v = *new (&(*value_.arr)[value_.arr->size]) basic_value(std::forward<Args>(args)...);
-    ++value_.arr->size;
-    return v;
+    if (type_ != dtype::array) { convert_to_array(); }
+    typename value_array_t::alloc_type arr_al(*this);
+    return value_.arr.emplace_back(arr_al, std::forward<Args>(args)...);
 }
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::pop_back() {
     if (type_ != dtype::array) { throw database_error("not an array"); }
-    assert(value_.arr && value_.arr->size);
-    (*value_.arr)[--value_.arr->size].~basic_value();
+    value_.arr.pop_back();
 }
 
 template<typename CharT, typename Alloc>
 template<typename... Args>
 auto basic_value<CharT, Alloc>::emplace(std::size_t pos, Args&&... args) -> iterator {
-    if (type_ != dtype::array || !value_.arr || value_.arr->size == value_.arr->capacity) { reserve_back(); }
-    new (&(*value_.arr)[value_.arr->size]) basic_value(std::forward<Args>(args)...);
-    ++value_.arr->size;
-    if (pos < value_.arr->size - 1) {
-        rotate_back(pos);
-    } else {
-        pos = value_.arr->size - 1;
-    }
-    return iterator(&(*value_.arr)[pos], &(*value_.arr)[0], &(*value_.arr)[value_.arr->size]);
+    if (type_ != dtype::array) { init_as_array(); }
+    typename value_array_t::alloc_type arr_al(*this);
+    basic_value& item = value_.arr.emplace(arr_al, pos, std::forward<Args>(args)...);
+    return iterator(&item, value_.arr.cbegin(), value_.arr.cend());
 }
 
 template<typename CharT, typename Alloc>
@@ -1030,20 +1173,13 @@ auto basic_value<CharT, Alloc>::emplace_unique(std::basic_string_view<char_type>
 template<typename CharT, typename Alloc>
 template<typename InputIt, typename>
 void basic_value<CharT, Alloc>::insert(std::size_t pos, InputIt first, InputIt last) {
-    if (type_ != dtype::array) {
-        if (type_ != dtype::null) { throw database_error("not an array"); }
-        value_.arr = alloc_array(first, last, is_random_access_iterator<InputIt>());
-        type_ = dtype::array;
-    } else if (first != last) {
-        const std::size_t count = append_array(first, last, is_random_access_iterator<InputIt>());
-        if (pos < value_.arr->size - count) {
-            std::rotate(&(*value_.arr)[pos], &(*value_.arr)[value_.arr->size - count], &(*value_.arr)[value_.arr->size]);
-        }
-    }
+    if (type_ != dtype::array) { init_as_array(); }
+    typename value_array_t::alloc_type arr_al(*this);
+    value_.arr.insert(arr_al, pos, first, last);
 }
 
 template<typename CharT, typename Alloc>
-template<typename InputIt, typename, typename>
+template<typename InputIt, typename>
 void basic_value<CharT, Alloc>::insert(InputIt first, InputIt last) {
     typename record_t::alloc_type rec_al(*this);
     if (type_ != dtype::record) {
@@ -1058,15 +1194,17 @@ void basic_value<CharT, Alloc>::insert(InputIt first, InputIt last) {
     }
 }
 
+// --------------------------
+
 template<typename CharT, typename Alloc>
 est::span<const basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() const noexcept {
-    if (type_ == dtype::array) { return array_view(); }
+    if (type_ == dtype::array) { return value_.arr.cview(); }
     return type_ != dtype::null ? est::as_span(this, 1) : est::span<basic_value>();
 }
 
 template<typename CharT, typename Alloc>
-est::span<basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() noexcept {
-    if (type_ == dtype::array) { return array_view(); }
+est::span<basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() {
+    if (type_ == dtype::array) { return value_.arr.view(); }
     return type_ != dtype::null ? est::as_span(this, 1) : est::span<basic_value>();
 }
 
@@ -1104,160 +1242,6 @@ std::size_t basic_value<CharT, Alloc>::count(std::basic_string_view<char_type> k
 
 // --------------------------
 
-template<typename CharT, typename Alloc>
-template<typename RandIt>
-auto basic_value<CharT, Alloc>::alloc_array(std::size_t sz, RandIt src) -> value_flexarray_t* {
-    if (!sz) { return nullptr; }
-    typename value_flexarray_t::alloc_type arr_al(*this);
-    value_flexarray_t* arr = value_flexarray_t::alloc_checked(arr_al, sz);
-    try {
-        std::uninitialized_copy_n(src, sz, &(*arr)[0]);
-        arr->size = sz;
-        return arr;
-    } catch (...) {
-        value_flexarray_t::dealloc(arr_al, arr);
-        throw;
-    }
-}
-
-template<typename CharT, typename Alloc>
-template<typename InputIt>
-auto basic_value<CharT, Alloc>::alloc_array(InputIt first, InputIt last, std::false_type /* random access iterator */)
-    -> value_flexarray_t* {
-    if (first == last) { return nullptr; }
-    typename value_flexarray_t::alloc_type arr_al(*this);
-    value_flexarray_t* arr = value_flexarray_t::alloc(arr_al, 1);
-    arr->size = 0;
-    try {
-        do {
-            if (arr->size == arr->capacity) { arr = value_flexarray_t::grow(arr_al, arr, 1); }
-            new (&(*arr)[arr->size]) basic_value(*first);
-            ++arr->size;
-            ++first;
-        } while (first != last);
-        return arr;
-    } catch (...) {
-        arr->destroy();
-        value_flexarray_t::dealloc(arr_al, arr);
-        throw;
-    }
-}
-
-template<typename CharT, typename Alloc>
-template<typename RandIt>
-void basic_value<CharT, Alloc>::assign_array(std::size_t sz, RandIt src) {
-    if (value_.arr && sz <= value_.arr->capacity) {
-        if (sz <= value_.arr->size) {
-            basic_value* p = sz ? std::copy_n(src, sz, &(*value_.arr)[0]) : &(*value_.arr)[0];
-            std::for_each(p, &p[value_.arr->size - sz], [](basic_value& v) { v.~basic_value(); });
-        } else {
-            basic_value* p = std::copy_n(src, value_.arr->size, &(*value_.arr)[0]);
-            std::uninitialized_copy_n(src + value_.arr->size, sz - value_.arr->size, p);
-        }
-        value_.arr->size = sz;
-    } else {
-        value_flexarray_t* new_arr = alloc_array(sz, src);
-        if (value_.arr) {
-            typename value_flexarray_t::alloc_type arr_al(*this);
-            value_.arr->destroy();
-            value_flexarray_t::dealloc(arr_al, value_.arr);
-        }
-        value_.arr = new_arr;
-    }
-}
-
-template<typename CharT, typename Alloc>
-template<typename InputIt>
-void basic_value<CharT, Alloc>::assign_array(InputIt first, InputIt last,
-                                             std::false_type /* random access iterator */) {
-    if (value_.arr) {
-        basic_value* p0 = &(*value_.arr)[0];
-        basic_value* p = p0;
-        basic_value* p_end = &(*value_.arr)[value_.arr->size];
-        for (; p != p_end && first != last; ++first) { *p++ = *first; }
-        value_.arr->size = p - p0;
-        if (p != p_end) {
-            std::for_each(p, p_end, [](basic_value& v) { v.~basic_value(); });
-        } else {
-            typename value_flexarray_t::alloc_type arr_al(*this);
-            for (; first != last; ++first) {
-                if (value_.arr->size == value_.arr->capacity) {
-                    value_.arr = value_flexarray_t::grow(arr_al, value_.arr, 1);
-                }
-                new (&(*value_.arr)[value_.arr->size]) basic_value(*first);
-                ++value_.arr->size;
-            }
-        }
-    } else {
-        value_.arr = alloc_array(first, last, std::false_type());
-    }
-}
-
-template<typename CharT, typename Alloc>
-template<typename RandIt>
-void basic_value<CharT, Alloc>::append_array(std::size_t sz, RandIt src) {
-    if (value_.arr) {
-        if (sz > value_.arr->capacity - value_.arr->size) {
-            typename value_flexarray_t::alloc_type arr_al(*this);
-            value_.arr = value_flexarray_t::grow(arr_al, value_.arr, sz);
-        }
-        std::uninitialized_copy_n(src, sz, &(*value_.arr)[value_.arr->size]);
-        value_.arr->size += sz;
-    } else {
-        value_.arr = alloc_array(sz, src);
-    }
-}
-
-template<typename CharT, typename Alloc>
-template<typename InputIt>
-std::size_t basic_value<CharT, Alloc>::append_array(InputIt first, InputIt last,
-                                                    std::false_type /* random access iterator */) {
-    if (first == last) { return 0; }
-    if (value_.arr) {
-        typename value_flexarray_t::alloc_type arr_al(*this);
-        const std::size_t old_sz = value_.arr->size;
-        for (; first != last; ++first) {
-            if (value_.arr->size == value_.arr->capacity) {
-                value_.arr = value_flexarray_t::grow(arr_al, value_.arr, 1);
-            }
-            new (&(*value_.arr)[value_.arr->size]) basic_value(*first);
-            ++value_.arr->size;
-        }
-        return value_.arr->size - old_sz;
-    }
-    value_.arr = alloc_array(first, last, std::false_type());
-    return value_.arr->size;
-}
-
-template<typename CharT, typename Alloc>
-template<typename InputIt>
-void basic_value<CharT, Alloc>::assign_impl(InputIt first, InputIt last, std::true_type /* range of pairs */) {
-    typename record_t::alloc_type rec_al(*this);
-    if (type_ != dtype::record) {
-        if (type_ != dtype::null) { destroy(); }
-        value_.rec = record_t::create(rec_al, first, last);
-        type_ = dtype::record;
-    } else {
-        value_.rec->clear(rec_al);
-        for (; first != last; ++first) {
-            detail::list_links_t* node = value_.rec->new_node(rec_al, first->first, first->second);
-            value_.rec = record_t::insert(rec_al, value_.rec, typename record_t::hasher{}(first->first), node);
-        }
-    }
-}
-
-template<typename CharT, typename Alloc>
-template<typename InputIt>
-void basic_value<CharT, Alloc>::assign_impl(InputIt first, InputIt last, std::false_type /* range of pairs */) {
-    if (type_ != dtype::array) {
-        if (type_ != dtype::null) { destroy(); }
-        value_.arr = alloc_array(first, last, is_random_access_iterator<InputIt>());
-        type_ = dtype::array;
-    } else {
-        assign_array(first, last, is_random_access_iterator<InputIt>());
-    }
-}
-
 #define UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(ty, func) \
     template<typename CharT, typename Alloc> \
     ty basic_value<CharT, Alloc>::as##func() const { \
@@ -1276,45 +1260,6 @@ UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::basic_string_view<CharT>, _string_vie
 #undef UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC
 
 namespace detail {
-
-template<typename CharT, typename Alloc>
-template<typename InputIt>
-/*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::create(alloc_type& rec_al, InputIt first, InputIt last) {
-    record_t* rec = create(rec_al);
-    try {
-        for (; first != last; ++first) {
-            list_links_t* node = rec->new_node(rec_al, first->first, first->second);
-            rec = insert(rec_al, rec, hasher{}(first->first), node);
-        }
-        return rec;
-    } catch (...) {
-        rec->destroy(rec_al, rec->head.next);
-        dealloc(rec_al, rec);
-        throw;
-    }
-}
-
-template<typename CharT, typename Alloc>
-template<typename... Args>
-list_links_t* record_t<CharT, Alloc>::new_node(alloc_type& rec_al, std::basic_string_view<CharT> key, Args&&... args) {
-    typename node_t::alloc_type node_al(rec_al);
-    node_t* node = node_t::alloc_checked(node_al, key);
-    try {
-        new (&node->value()) basic_value<CharT, Alloc>(std::forward<Args>(args)...);
-        return &node->links_;
-    } catch (...) {
-        node_t::dealloc(node_al, node);
-        throw;
-    }
-}
-
-template<typename CharT, typename Alloc>
-/*static*/ void record_t<CharT, Alloc>::delete_node(alloc_type& rec_al, list_links_t* links) {
-    node_t* node = node_t::from_links(links);
-    node->value().~basic_value<CharT, Alloc>();
-    typename node_t::alloc_type node_al(rec_al);
-    node_t::dealloc(node_al, node);
-}
 
 template<typename, typename, typename>
 struct value_getters_specializer;
@@ -1371,6 +1316,53 @@ est::optional<Ty> basic_value<CharT, Alloc>::get() const {
 template<typename CharT, typename Alloc>
 bool operator!=(const basic_value<CharT, Alloc>& lhs, const basic_value<CharT, Alloc>& rhs) noexcept {
     return !(lhs == rhs);
+}
+
+// --------------------------
+
+template<typename CharT = char, typename Alloc = std::allocator<CharT>>
+basic_value<CharT, Alloc> make_array() {
+    return basic_value<CharT, Alloc>(array_construct_t{});
+}
+
+template<typename CharT = char, typename Alloc = std::allocator<CharT>>
+basic_value<CharT, Alloc> make_array(const Alloc& al) {
+    return basic_value<CharT, Alloc>(array_construct_t{}, al);
+}
+
+template<typename CharT = char, typename Alloc = std::allocator<CharT>, typename InputIt,
+         typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
+basic_value<CharT, Alloc> make_array(InputIt first, InputIt last, const Alloc& al = Alloc()) {
+    return basic_value<CharT, Alloc>(array_construct_t{}, first, last, al);
+}
+
+template<typename CharT = char, typename Alloc = std::allocator<CharT>>
+basic_value<CharT, Alloc> make_array(std::initializer_list<basic_value<CharT, Alloc>> init, const Alloc& al = Alloc()) {
+    return basic_value<CharT, Alloc>(array_construct_t{}, init, al);
+}
+
+template<typename CharT = char, typename Alloc = std::allocator<CharT>>
+basic_value<CharT, Alloc> make_record() {
+    return basic_value<CharT, Alloc>(record_construct_t{});
+}
+
+template<typename CharT = char, typename Alloc = std::allocator<CharT>>
+basic_value<CharT, Alloc> make_record(const Alloc& al) {
+    return basic_value<CharT, Alloc>(record_construct_t{}, al);
+}
+
+template<typename CharT = char, typename Alloc = std::allocator<CharT>, typename InputIt,
+         typename = std::enable_if_t<is_input_iterator<InputIt>::value &&
+                                     detail::is_record_iterator<CharT, Alloc, InputIt>::value>>
+basic_value<CharT, Alloc> make_record(InputIt first, InputIt last, const Alloc& al = Alloc()) {
+    return basic_value<CharT, Alloc>(record_construct_t{}, first, last, al);
+}
+
+template<typename CharT = char, typename Alloc = std::allocator<CharT>>
+basic_value<CharT, Alloc> make_record(
+    std::initializer_list<std::pair<std::basic_string_view<CharT>, basic_value<CharT, Alloc>>> init,
+    const Alloc& al = Alloc()) {
+    return basic_value<CharT, Alloc>(record_construct_t{}, init, al);
 }
 
 using value = basic_value<char>;

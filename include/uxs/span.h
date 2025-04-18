@@ -44,9 +44,15 @@ class span {
     UXS_CONSTEXPR span(Ty2* v, size_type count) noexcept : begin_(v), size_(count) {}
     template<typename Ty2, std::size_t N, typename = std::enable_if_t<std::is_convertible<Ty2*, Ty*>::value>>
     explicit UXS_CONSTEXPR span(Ty2 (&v)[N]) noexcept : begin_(v), size_(N) {}
+#    if __cplusplus < 201703L
     template<typename Range,
              typename = std::enable_if_t<uxs::is_contiguous_range<std::remove_reference_t<Range>, Ty>::value>>
     UXS_CONSTEXPR span(Range&& r) noexcept : begin_(r.data()), size_(r.size()) {}
+#    else   // __cplusplus < 201703L
+    template<typename Range,
+             typename = std::enable_if_t<uxs::is_contiguous_range<std::remove_reference_t<Range>, Ty>::value>>
+    UXS_CONSTEXPR span(Range&& r) noexcept : begin_(std::data(r)), size_(std::size(r)) {}
+#    endif  // __cplusplus < 201703L
 
     UXS_CONSTEXPR size_type size() const noexcept { return size_; }
     UXS_CONSTEXPR bool empty() const noexcept { return size_ == 0; }
@@ -101,9 +107,16 @@ UXS_CONSTEXPR span<Ty> as_span(Ty (&v)[N]) noexcept {
     return span<Ty>(v, N);
 }
 
+#if __cplusplus < 201703L
 template<typename Range>
 UXS_CONSTEXPR auto as_span(Range&& r) noexcept -> span<std::remove_pointer_t<decltype(r.data() + r.size())>> {
     return span<std::remove_pointer_t<decltype(r.data())>>(r.data(), r.size());
 }
+#else   // __cplusplus < 201703L
+template<typename Range>
+UXS_CONSTEXPR auto as_span(Range&& r) noexcept -> span<std::remove_pointer_t<decltype(std::data(r) + std::size(r))>> {
+    return span<std::remove_pointer_t<decltype(std::data(r))>>(std::data(r), std::size(r));
+}
+#endif  // __cplusplus < 201703L
 
 }  // namespace est
