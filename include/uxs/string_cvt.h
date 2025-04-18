@@ -1,5 +1,6 @@
 #pragma once
 
+#include "chars.h"
 #include "string_util.h"
 
 #include <algorithm>

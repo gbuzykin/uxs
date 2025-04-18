@@ -3,8 +3,6 @@
 #include "devbuf.h"
 #include "zipfile.h"
 
-#include "uxs/chars.h"
-
 namespace uxs {
 
 template<typename CharT>
