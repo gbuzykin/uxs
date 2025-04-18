@@ -163,6 +163,19 @@ struct is_boolean : std::false_type {};
 template<typename Ty>
 struct is_boolean<Ty, std::enable_if_t<std::is_same<std::remove_cv_t<Ty>, bool>::value>> : std::true_type {};
 
+template<typename CharT, typename = void>
+struct is_character : std::false_type {};
+template<typename CharT>
+struct is_character<CharT, std::enable_if_t<std::is_same<std::remove_cv_t<CharT>, char>::value ||
+                                            std::is_same<std::remove_cv_t<CharT>, wchar_t>::value ||
+                                            std::is_same<std::remove_cv_t<CharT>, char16_t>::value ||
+                                            std::is_same<std::remove_cv_t<CharT>, char32_t>::value>> : std::true_type {
+};
+#if __cplusplus >= 202002L
+template<typename CharT>
+struct is_character<CharT, std::enable_if_t<std::is_same<std::remove_cv_t<CharT>, char8_t>::value>> : std::true_type {};
+#endif  // __cplusplus >= 202002L
+
 namespace detail {
 template<typename... Ts>
 void dummy_variadic(Ts&&...) {}
