@@ -159,7 +159,17 @@ void flexarray_t<Ty, Alloc>::erase(Ty* item) {
 namespace detail {
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::init() {
+/*static*/ record_value<CharT, Alloc>* record_value<CharT, Alloc>::alloc_checked(alloc_type& al, key_type key) {
+    if (key.size() > max_name_size(al)) { throw std::length_error("too much to reserve"); }
+    const std::size_t alloc_sz = get_alloc_sz(key.size());
+    record_value* node = al.allocate(alloc_sz);
+    node->key_sz_ = key.size();
+    std::copy_n(key.data(), key.size(), node->key_chars_);
+    return node;
+}
+
+template<typename CharT, typename Alloc>
+void record_t<CharT, Alloc>::data_t::init() {
     dllist_make_cycle(&head);
     node_traits::set_head(&head, &head);
     for (auto& item : est::as_span(hashtbl, bucket_count)) { item = nullptr; }
@@ -167,16 +177,26 @@ void record_t<CharT, Alloc>::init() {
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::destroy(alloc_type& rec_al, list_links_t* node) {
+/*static*/ auto record_t<CharT, Alloc>::alloc(alloc_type& al, std::size_t bckt_cnt) -> data_t* {
+    const std::size_t alloc_sz = get_alloc_sz(bckt_cnt);
+    record_t* rec = al.allocate(alloc_sz);
+    rec->bucket_count = (alloc_sz * sizeof(record_t) - offsetof(record_t, hashtbl)) / sizeof(list_links_t*);
+    assert(rec->bucket_count >= bckt_cnt && get_alloc_sz(rec->bucket_count) == alloc_sz);
+    return rec;
+}
+
+#if 0
+template<typename CharT, typename Alloc>
+void record_t<CharT, Alloc>::destroy(alloc_type& al, list_links_t* node) {
     while (node != &head) {
         list_links_t* next = node->next;
-        delete_node(rec_al, node);
+        delete_node(al, node);
         node = next;
     }
 }
 
 template<typename CharT, typename Alloc>
-list_links_t* record_t<CharT, Alloc>::find(std::basic_string_view<CharT> key, std::size_t hash_code) const {
+list_links_t* record_t<CharT, Alloc>::find(key_type key, std::size_t hash_code) const {
     list_links_t* next_bucket = hashtbl[hash_code % bucket_count];
     while (next_bucket) {
         if (node_t::from_links(next_bucket)->hash_code_ == hash_code &&
@@ -189,9 +209,9 @@ list_links_t* record_t<CharT, Alloc>::find(std::basic_string_view<CharT> key, st
 }
 
 template<typename CharT, typename Alloc>
-std::size_t record_t<CharT, Alloc>::count(std::basic_string_view<CharT> key) const {
+std::size_t record_t<CharT, Alloc>::count(key_type key) const {
     std::size_t count = 0;
-    const std::size_t hash_code = hasher{}(key);
+    const std::size_t hash_code = hasher_t{}(key);
     list_links_t* next_bucket = hashtbl[hash_code % bucket_count];
     while (next_bucket) {
         if (node_t::from_links(next_bucket)->hash_code_ == hash_code &&
@@ -205,70 +225,69 @@ std::size_t record_t<CharT, Alloc>::count(std::basic_string_view<CharT> key) con
 
 template<typename CharT, typename Alloc>
 /*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::create(
-    alloc_type& rec_al, const std::initializer_list<basic_value<CharT, Alloc>>& init) {
-    record_t* rec = alloc(rec_al, init.size() ? std::min(init.size(), max_size(rec_al)) : 1);
+    alloc_type& al, const std::initializer_list<basic_value<CharT, Alloc>>& init) {
+    record_t* rec = alloc(al, init.size() ? std::min(init.size(), max_size(al)) : 1);
     rec->init();
     try {
-        std::for_each(init.begin(), init.end(), [&rec_al, &rec](const basic_value<CharT, Alloc>& v) {
+        std::for_each(init.begin(), init.end(), [&al, &rec](const basic_value<CharT, Alloc>& v) {
             const auto key = v.value_.arr[0].value_.str.view();
-            list_links_t* node = rec->new_node(rec_al, key, v.value_.arr[1]);
-            rec = insert(rec_al, rec, hasher{}(key), node);
+            list_links_t* node = rec->new_node(al, key, v.value_.arr[1]);
+            rec = insert(al, rec, hasher_t{}(key), node);
         });
         return rec;
     } catch (...) {
-        rec->destroy(rec_al, rec->head.next);
-        dealloc(rec_al, rec);
+        rec->destroy(al, rec->head.next);
+        dealloc(al, rec);
         throw;
     }
 }
 
 template<typename CharT, typename Alloc>
 /*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::create(
-    alloc_type& rec_al,
+    alloc_type& al,
     const std::initializer_list<std::pair<std::basic_string_view<CharT>, basic_value<CharT, Alloc>>>& init) {
-    record_t* rec = alloc(rec_al, init.size() ? std::min(init.size(), max_size(rec_al)) : 1);
+    record_t* rec = alloc(al, init.size() ? std::min(init.size(), max_size(al)) : 1);
     rec->init();
     try {
         std::for_each(init.begin(), init.end(),
-                      [&rec_al, &rec](const std::pair<std::basic_string_view<CharT>, basic_value<CharT, Alloc>>& v) {
-                          list_links_t* node = rec->new_node(rec_al, v.first, v.second);
-                          rec = insert(rec_al, rec, hasher{}(v.first), node);
+                      [&al, &rec](const std::pair<std::basic_string_view<CharT>, basic_value<CharT, Alloc>>& v) {
+                          list_links_t* node = rec->new_node(al, v.first, v.second);
+                          rec = insert(al, rec, hasher_t{}(v.first), node);
                       });
         return rec;
     } catch (...) {
-        rec->destroy(rec_al, rec->head.next);
-        dealloc(rec_al, rec);
+        rec->destroy(al, rec->head.next);
+        dealloc(al, rec);
         throw;
     }
 }
 
 template<typename CharT, typename Alloc>
-/*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::create(alloc_type& rec_al, const record_t& src) {
-    record_t* rec = alloc(rec_al, src.size ? std::min(src.size, max_size(rec_al)) : 0);
+/*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::create(alloc_type& al, const record_t& src) {
+    record_t* rec = alloc(al, src.size ? std::min(src.size, max_size(al)) : 0);
     rec->init();
     try {
         list_links_t* node = src.head.next;
         while (node != &src.head) {
             const auto& v = node_traits::get_value(node);
-            rec = insert(rec_al, rec, node_t::from_links(node)->hash_code_, rec->new_node(rec_al, v.key(), v.value()));
+            rec = insert(al, rec, node_t::from_links(node)->hash_code_, rec->new_node(al, v.key(), v.value()));
             node = node->next;
         }
         return rec;
     } catch (...) {
-        rec->destroy(rec_al, rec->head.next);
-        dealloc(rec_al, rec);
+        rec->destroy(al, rec->head.next);
+        dealloc(al, rec);
         throw;
     }
 }
 
 template<typename CharT, typename Alloc>
-/*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::assign(alloc_type& rec_al, record_t* rec,
-                                                                  const record_t& src) {
-    rec->clear(rec_al);
+/*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::assign(alloc_type& al, record_t* rec, const record_t& src) {
+    rec->clear(al);
     list_links_t* node = src.head.next;
     while (node != &src.head) {
         const auto& v = node_traits::get_value(node);
-        rec = insert(rec_al, rec, node_t::from_links(node)->hash_code_, rec->new_node(rec_al, v.key(), v.value()));
+        rec = insert(al, rec, node_t::from_links(node)->hash_code_, rec->new_node(al, v.key(), v.value()));
         node = node->next;
     }
     return rec;
@@ -282,12 +301,12 @@ void record_t<CharT, Alloc>::add_to_hash(list_links_t* node, std::size_t hash_co
 }
 
 template<typename CharT, typename Alloc>
-/*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::insert(alloc_type& rec_al, record_t* rec,
-                                                                  std::size_t hash_code, list_links_t* node) {
+/*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::insert(alloc_type& al, record_t* rec, std::size_t hash_code,
+                                                                  list_links_t* node) {
     if (rec->size == rec->bucket_count) {
-        const std::size_t new_bckt_cnt = next_bucket_count(rec_al, rec->size);
+        const std::size_t new_bckt_cnt = next_bucket_count(al, rec->size);
         if (new_bckt_cnt > rec->size) {
-            rec = record_t::rehash(rec_al, rec, new_bckt_cnt);
+            rec = record_t::rehash(al, rec, new_bckt_cnt);
             assert(rec->size < rec->bucket_count);
         }
     }
@@ -300,7 +319,7 @@ template<typename CharT, typename Alloc>
 }
 
 template<typename CharT, typename Alloc>
-list_links_t* record_t<CharT, Alloc>::erase(alloc_type& rec_al, list_links_t* node) {
+list_links_t* record_t<CharT, Alloc>::erase(alloc_type& al, list_links_t* node) {
     list_links_t** p_next_bucket = &hashtbl[node_t::from_links(node)->hash_code_ % bucket_count];
     while (*p_next_bucket != node) {
         assert(*p_next_bucket);
@@ -308,15 +327,15 @@ list_links_t* record_t<CharT, Alloc>::erase(alloc_type& rec_al, list_links_t* no
     }
     *p_next_bucket = node_t::from_links(*p_next_bucket)->next_bucket_;
     list_links_t* next = dllist_remove(node);
-    delete_node(rec_al, node);
+    delete_node(al, node);
     --size;
     return next;
 }
 
 template<typename CharT, typename Alloc>
-std::size_t record_t<CharT, Alloc>::erase(alloc_type& rec_al, std::basic_string_view<CharT> key) {
+std::size_t record_t<CharT, Alloc>::erase(alloc_type& al, std::basic_string_view<CharT> key) {
     const std::size_t old_sz = size;
-    const std::size_t hash_code = hasher{}(key);
+    const std::size_t hash_code = hasher_t{}(key);
     list_links_t** p_next_bucket = &hashtbl[hash_code % bucket_count];
     while (*p_next_bucket) {
         if (node_t::from_links(*p_next_bucket)->hash_code_ == hash_code &&
@@ -325,7 +344,7 @@ std::size_t record_t<CharT, Alloc>::erase(alloc_type& rec_al, std::basic_string_
             *p_next_bucket = node_t::from_links(*p_next_bucket)->next_bucket_;
             --size;
             dllist_remove(erased_node);
-            delete_node(rec_al, erased_node);
+            delete_node(al, erased_node);
         } else {
             p_next_bucket = &node_t::from_links(*p_next_bucket)->next_bucket_;
         }
@@ -334,9 +353,9 @@ std::size_t record_t<CharT, Alloc>::erase(alloc_type& rec_al, std::basic_string_
 }
 
 template<typename CharT, typename Alloc>
-/*static*/ std::size_t record_t<CharT, Alloc>::next_bucket_count(const alloc_type& rec_al, std::size_t count) {
+/*static*/ std::size_t record_t<CharT, Alloc>::next_bucket_count(const alloc_type& al, std::size_t count) {
     std::size_t delta_count = count >> 1;
-    const std::size_t max_count = (std::allocator_traits<alloc_type>::max_size(rec_al) * sizeof(record_t) -
+    const std::size_t max_count = (std::allocator_traits<alloc_type>::max_size(al) * sizeof(record_t) -
                                    offsetof(record_t, hashtbl)) /
                                   sizeof(list_links_t*);
     if (delta_count > max_count - count) {
@@ -347,22 +366,12 @@ template<typename CharT, typename Alloc>
 }
 
 template<typename CharT, typename Alloc>
-/*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::alloc(alloc_type& rec_al, std::size_t bckt_cnt) {
-    const std::size_t alloc_sz = get_alloc_sz(bckt_cnt);
-    record_t* rec = rec_al.allocate(alloc_sz);
-    rec->bucket_count = (alloc_sz * sizeof(record_t) - offsetof(record_t, hashtbl)) / sizeof(list_links_t*);
-    assert(rec->bucket_count >= bckt_cnt && get_alloc_sz(rec->bucket_count) == alloc_sz);
-    return rec;
-}
-
-template<typename CharT, typename Alloc>
-/*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::rehash(alloc_type& rec_al, record_t* rec,
-                                                                  std::size_t bckt_cnt) {
+/*static*/ record_t<CharT, Alloc>* record_t<CharT, Alloc>::rehash(alloc_type& al, record_t* rec, std::size_t bckt_cnt) {
     assert(rec->size);
-    record_t* new_rec = alloc(rec_al, bckt_cnt);
+    record_t* new_rec = alloc(al, bckt_cnt);
     new_rec->head = rec->head;
     new_rec->size = rec->size;
-    dealloc(rec_al, rec);
+    dealloc(al, rec);
     node_traits::set_head(&new_rec->head, &new_rec->head);
     for (auto& item : est::as_span(new_rec->hashtbl, new_rec->bucket_count)) { item = nullptr; }
     list_links_t* node = new_rec->head.next;
@@ -376,16 +385,7 @@ template<typename CharT, typename Alloc>
     return new_rec;
 }
 
-template<typename CharT, typename Alloc>
-/*static*/ record_value<CharT, Alloc>* record_value<CharT, Alloc>::alloc_checked(alloc_type& node_al,
-                                                                                 std::basic_string_view<CharT> key) {
-    if (key.size() > max_name_size(node_al)) { throw std::length_error("too much to reserve"); }
-    const std::size_t alloc_sz = get_alloc_sz(key.size());
-    record_value* node = node_al.allocate(alloc_sz);
-    node->key_sz_ = key.size();
-    std::copy_n(key.data(), key.size(), node->key_chars_);
-    return node;
-}
+#endif
 
 }  // namespace detail
 
@@ -425,7 +425,7 @@ void basic_value<CharT, Alloc>::assign(std::initializer_list<basic_value> init) 
             std::for_each(init.begin(), init.end(), [this, &rec_al](const basic_value& v) {
                 const auto key = v.value_.arr[0].value_.str.view();
                 detail::list_links_t* node = value_.rec->new_node(rec_al, key, v.value_.arr[1]);
-                value_.rec = record_t::insert(rec_al, value_.rec, typename record_t::hasher{}(key), node);
+                value_.rec = record_t::insert(rec_al, value_.rec, typename record_t::hasher_t{}(key), node);
             });
         }
     } else {
@@ -462,7 +462,8 @@ void basic_value<CharT, Alloc>::insert(
         std::for_each(init.begin(), init.end(),
                       [this, &rec_al](const std::pair<std::basic_string_view<char_type>, basic_value>& v) {
                           detail::list_links_t* node = value_.rec->new_node(rec_al, v.first, v.second);
-                          value_.rec = record_t::insert(rec_al, value_.rec, typename record_t::hasher{}(v.first), node);
+                          value_.rec = record_t::insert(rec_al, value_.rec, typename record_t::hasher_t{}(v.first),
+                                                        node);
                       });
     }
 }
@@ -788,7 +789,7 @@ basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::operator[](std::basic_stri
         value_.rec = record_t::create(rec_al);
         type_ = dtype::record;
     }
-    const std::size_t hash_code = typename record_t::hasher{}(key);
+    const std::size_t hash_code = typename record_t::hasher_t{}(key);
     detail::list_links_t* node = value_.rec->find(key, hash_code);
     if (node == &value_.rec->head) {
         node = value_.rec->new_node(rec_al, key, static_cast<const Alloc&>(*this));
