@@ -19,6 +19,12 @@ struct stdfile_buffers {
               iomode::out | iomode::append | (isatty(fileno(stderr)) ? iomode::none : iomode::skip_ctrl_esc), &out),
           err(fileno(stderr),
               iomode::out | iomode::append | (isatty(fileno(stderr)) ? iomode::none : iomode::skip_ctrl_esc), &log) {}
+    ~stdfile_buffers() {
+        err.detach();
+        log.detach();
+        in.detach();
+        out.detach();
+    }
 };
 
 stdfile_buffers& stdfile_buffers::instance() {
