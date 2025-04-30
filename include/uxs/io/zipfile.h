@@ -48,8 +48,7 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC zipfile : public iodevice {
  private:
     struct writing_desc_t {
 #if __cplusplus < 201703L
-        writing_desc_t(std::string fname, void* zip_arch, void* zip_source)
-            : fname(std::move(fname)), zip_arch(zip_arch), zip_source(zip_source) {}
+        writing_desc_t(std::string fname, void* zip_arch) : fname(std::move(fname)), zip_arch(zip_arch) {}
 #endif  // __cplusplus < 201703L
         std::string fname;
         void* zip_arch = nullptr;

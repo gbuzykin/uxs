@@ -12,15 +12,17 @@ enum class iomode : std::uint16_t {
     append = 8,
     create = 0x10,
     exclusive = 0x20,
-    z_compr = 0x40,
-    cr_lf = 0x80,
+    cr_lf = 0x40,
 #if defined(WIN32)
     text = cr_lf,
 #else   // defined(WIN32)
     text = 0,
 #endif  // defined(WIN32)
-    ctrl_esc = 0x100,
-    skip_ctrl_esc = 0x300,
+    z_compr = 0x80,
+    z_compr_level = 0x100,
+    z_compr_level_mask = 0xf00,
+    ctrl_esc = 0x1000,
+    skip_ctrl_esc = 0x3000,
     invert_endian = 0x8000,
 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iomode);

@@ -99,9 +99,9 @@ class basic_byteseq : protected detail::byteseq_chunk<Alloc>::alloc_type {
     UXS_EXPORT static basic_byteseq from_vector(est::span<const std::uint8_t> v);
 
     UXS_EXPORT void resize(std::size_t sz);
-    UXS_NODISCARD UXS_EXPORT basic_byteseq make_compressed() const;
+    UXS_NODISCARD UXS_EXPORT basic_byteseq make_compressed(unsigned level = 0) const;
     UXS_NODISCARD UXS_EXPORT basic_byteseq make_uncompressed() const;
-    UXS_EXPORT bool compress();
+    UXS_EXPORT bool compress(unsigned level = 0);
     UXS_EXPORT bool uncompress();
 
  private:

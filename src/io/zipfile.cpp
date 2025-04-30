@@ -14,17 +14,15 @@ bool zipfile::open(ziparch& arch, const char* fname, iomode mode) {
     zip_t* zip = static_cast<zip_t*>(arch.zip_);
     if (!!(mode & iomode::out)) {
         mode &= ~iomode::in;
+        writing_desc_t* wr_desc = new writing_desc_t{std::string{fname}, zip};
         zip_source_t* source = ::zip_source_buffer_create(nullptr, 0, 0, nullptr);
         if (!source || ::zip_source_begin_write(source) != 0) {
             ::zip_source_free(source);
+            delete wr_desc;
             return false;
         }
-        try {
-            zip_fdesc_ = new writing_desc_t{std::string{fname}, zip, source};
-        } catch (...) {
-            ::zip_source_free(source);
-            throw;
-        }
+        wr_desc->zip_source = source;
+        zip_fdesc_ = wr_desc;
     } else if (!!(mode & iomode::in)) {
         zip_fdesc_ = ::zip_fopen(zip, fname, ZIP_FL_ENC_UTF_8 | ZIP_FL_UNCHANGED);
         if (!zip_fdesc_) { return false; }
@@ -52,7 +50,7 @@ bool zipfile::open(ziparch& arch, std::uint64_t index, iomode mode) {
 void zipfile::close() noexcept {
     if (!zip_fdesc_) { return; }
     if (!!(mode_ & iomode::out)) {
-        const writing_desc_t* wr_desc = static_cast<const writing_desc_t*>(zip_fdesc_);
+        writing_desc_t* wr_desc = static_cast<writing_desc_t*>(zip_fdesc_);
         zip_t* zip = static_cast<zip_t*>(wr_desc->zip_arch);
         zip_source_t* source = static_cast<zip_source_t*>(wr_desc->zip_source);
         std::int64_t index = -1;
