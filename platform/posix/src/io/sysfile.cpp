@@ -8,6 +8,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <cstdio>
+
 using namespace uxs;
 
 sysfile::sysfile() noexcept : fd_(-1) {}

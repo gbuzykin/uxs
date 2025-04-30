@@ -92,9 +92,9 @@ void basic_byteseq<Alloc>::resize(std::size_t sz) {
 }
 
 template<typename Alloc>
-bool basic_byteseq<Alloc>::compress() {
+bool basic_byteseq<Alloc>::compress(unsigned level) {
     if (empty()) { return true; }
-    auto seq = make_compressed();
+    auto seq = make_compressed(level);
     if (seq.empty()) { return false; }
     *this = std::move(seq);
     return true;
@@ -111,7 +111,7 @@ bool basic_byteseq<Alloc>::uncompress() {
 
 #if defined(UXS_USE_ZLIB)
 template<typename Alloc>
-basic_byteseq<Alloc> basic_byteseq<Alloc>::make_compressed() const {
+basic_byteseq<Alloc> basic_byteseq<Alloc>::make_compressed(unsigned level) const {
     if (empty()) { return {}; }
 
     basic_byteseq seq;
@@ -119,7 +119,7 @@ basic_byteseq<Alloc> basic_byteseq<Alloc>::make_compressed() const {
 
     z_stream zstr;
     std::memset(&zstr, 0, sizeof(z_stream));
-    ::deflateInit(&zstr, Z_DEFAULT_COMPRESSION);
+    ::deflateInit(&zstr, level > 0 ? static_cast<int>(level) : Z_DEFAULT_COMPRESSION);
 
     try {
         const chunk_t* chunk = head_->next;
