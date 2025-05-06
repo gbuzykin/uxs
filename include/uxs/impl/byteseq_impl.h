@@ -207,7 +207,7 @@ basic_byteseq<Alloc> basic_byteseq<Alloc>::make_uncompressed() const {
 }
 #else   // defined(UXS_USE_ZLIB)
 template<typename Alloc>
-basic_byteseq<Alloc> basic_byteseq<Alloc>::make_compressed() const {
+basic_byteseq<Alloc> basic_byteseq<Alloc>::make_compressed(unsigned /*level*/) const {
     return *this;
 }
 template<typename Alloc>
