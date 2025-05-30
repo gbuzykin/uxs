@@ -844,7 +844,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     basic_value& operator=(basic_value&& other) noexcept {
         if (&other == this) { return *this; }
         if (type_ != dtype::null) { destroy(); }
-        alloc_type::operator=(std::move(other));
+        static_cast<alloc_type&>(*this) = std::move(other);
         type_ = other.type_, value_ = other.value_;
         other.type_ = dtype::null;
         return *this;
