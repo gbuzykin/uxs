@@ -105,14 +105,16 @@ using index_sequence_for = make_index_sequence<sizeof...(Ts)>;
 }  // namespace std
 #endif  // __cplusplus < 201703L
 
-#if !defined(__cpp_lib_remove_cvref)
+#if __cplusplus < 202002L
+#    if !defined(__cpp_lib_remove_cvref)
 namespace std {
 template<typename Ty>
 using remove_cvref = remove_cv<remove_reference_t<Ty>>;
 template<typename Ty>
 using remove_cvref_t = typename remove_cvref<Ty>::type;
 }  // namespace std
-#endif  // remove_cvref
+#    endif  // remove_cvref
+#endif      // __cplusplus < 202002L
 
 namespace est {
 

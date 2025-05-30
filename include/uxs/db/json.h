@@ -189,7 +189,7 @@ struct formatter<db::basic_value<ValueCharT, Alloc>, CharT> {
         if (indent_size_arg_id_ != unspecified_size) {
             indent_size = ctx.arg(indent_size_arg_id_).template get_unsigned<decltype(indent_size)>();
         }
-        db::json::write(ctx.out(), val, indent_size_, object_ws_char_, array_ws_char_, indent_char_);
+        db::json::write(ctx.out(), val, indent_size, object_ws_char_, array_ws_char_, indent_char_);
     }
 };
 
