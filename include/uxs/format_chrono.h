@@ -1,5 +1,9 @@
 #pragma once
 
+#if __cplusplus < 202002L
+#    error Header file `format_chrono.h` requires C++20
+#endif  // __cplusplus < 202002L
+
 #include "format_base.h"
 
 #include <chrono>

@@ -37,6 +37,6 @@ class basic_obuf_iterator {
 
 using obuf_iterator = basic_obuf_iterator<char>;
 using wobuf_iterator = basic_obuf_iterator<wchar_t>;
-using u8obuf_iterator = basic_obuf_iterator<std::uint8_t>;
+using bobuf_iterator = basic_obuf_iterator<std::uint8_t>;
 
 }  // namespace uxs

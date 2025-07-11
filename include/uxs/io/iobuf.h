@@ -72,7 +72,7 @@ class basic_iobuf : public basic_ibuf<CharT> {
 
 using iobuf = basic_iobuf<char>;
 using wiobuf = basic_iobuf<wchar_t>;
-using u8iobuf = basic_iobuf<std::uint8_t>;
+using biobuf = basic_iobuf<std::uint8_t>;
 
 namespace stdbuf {
 extern UXS_EXPORT iobuf& out();

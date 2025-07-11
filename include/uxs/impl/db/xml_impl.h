@@ -108,13 +108,34 @@ namespace detail {
 
 template<typename ValueCharT, typename Alloc>
 struct writer_stack_item_t {
+ public:
     using value_t = basic_value<ValueCharT, Alloc>;
-    using iterator = typename value_t::const_iterator;
-    writer_stack_item_t() = default;
-    writer_stack_item_t(iterator f, iterator l) : first(f), last(l) {}
-    std::basic_string_view<ValueCharT> element;
-    iterator first;
-    iterator last;
+    using record_iterator = typename value_t::const_record_iterator;
+
+    writer_stack_item_t(const value_t* first, const value_t* last) : is_record_(false), f_arr_(first), l_arr_(last) {}
+    writer_stack_item_t(record_iterator first, record_iterator last) : is_record_(true), f_rec_(first), l_rec_(last) {}
+
+    bool is_record() const { return is_record_; }
+    bool empty() const { return is_record_ ? f_rec_ == l_rec_ : f_arr_ == l_arr_; }
+    typename value_t::key_type key() const { return f_rec_->key(); }
+    const value_t& prev() const { return is_record_ ? std::prev(f_rec_)->value() : *std::prev(f_arr_); }
+    const value_t& get_and_advance() { return is_record_ ? (f_rec_++)->value() : *f_arr_++; }
+
+    std::basic_string_view<ValueCharT> element() const { return element_; }
+    void set_element(std::basic_string_view<ValueCharT> element) { element_ = element; }
+
+ private:
+    bool is_record_;
+    union {
+        const value_t* f_arr_;
+        record_iterator f_rec_;
+    };
+    union {
+        const value_t* l_arr_;
+        record_iterator l_rec_;
+    };
+
+    std::basic_string_view<ValueCharT> element_;
 };
 
 template<typename CharT>
@@ -175,6 +196,12 @@ struct value_visitor {
         return false;
     }
 
+    template<typename ValTy>
+    bool operator()(est::span<const ValTy> r) const {
+        stack.emplace_back(r.data(), r.data() + r.size());
+        return true;
+    }
+
     template<typename Iter>
     bool operator()(iterator_range<Iter> r) const {
         stack.emplace_back(r.begin(), r.end());
@@ -194,7 +221,7 @@ void writer<CharT>::do_write(const basic_value<ValueCharT, Alloc>& v, std::basic
     using stack_item_t = detail::writer_stack_item_t<ValueCharT, Alloc>;
     inline_basic_dynbuffer<stack_item_t, 32> stack;
 
-    auto visitor = make_value_visitor(out, stack);
+    const auto visitor = make_value_visitor(out, stack);
 
     out += '<';
     utf_string_adapter<CharT>{}.append(out, element);
@@ -207,44 +234,45 @@ void writer<CharT>::do_write(const basic_value<ValueCharT, Alloc>& v, std::basic
     }
 
     bool is_first_element = true;
-    stack.back().element = element;
+    stack.back().set_element(element);
 
 loop:
     auto& top = stack.back();
 
-    if (is_first_element && top.first.is_record()) { indent += indent_size; }
+    if (is_first_element && top.is_record()) { indent += indent_size; }
 
     while (true) {
-        if (!is_first_element && !std::prev(top.first).value().is_array()) {
+        if (!is_first_element && !top.prev().is_array()) {
             out += string_literal<CharT, '<', '/'>{}();
             utf_string_adapter<CharT>{}.append(out, element);
             out += '>';
         }
-        if (top.first == top.last) { break; }
-        if (top.first.is_record()) { element = top.first.key(); }
-        if (!top.first.value().is_array()) {
+        if (top.empty()) { break; }
+        if (top.is_record()) { element = top.key(); }
+        const auto& value = top.get_and_advance();
+        if (!value.is_array()) {
             out += '\n';
             out.append(indent, indent_char);
             out += '<';
             utf_string_adapter<CharT>{}.append(out, element);
             out += '>';
         }
-        if ((top.first++).value().visit(visitor)) {
+        if (value.visit(visitor)) {
             is_first_element = true;
-            stack.back().element = element;
+            stack.back().set_element(element);
             goto loop;
         }
         is_first_element = false;
     }
 
-    if (top.first.is_record()) {
+    if (top.is_record()) {
         indent -= indent_size;
         out += '\n';
         out.append(indent, indent_char);
     }
 
     is_first_element = false;
-    element = top.element;
+    element = top.element();
     stack.pop_back();
     if (!stack.empty()) { goto loop; }
 

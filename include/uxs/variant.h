@@ -2,7 +2,7 @@
 
 #include "alignment.h"
 #include "cow_ptr.h"
-#include "io/stream.h"  // NOLINT
+#include "io/serialize.h"  // NOLINT
 #include "optional.h"
 #include "string_cvt.h"  // NOLINT
 
@@ -99,8 +99,8 @@ struct variant_vtable_t {
     const void* (*get_value_const_ptr)(const void*) noexcept;
     void* (*get_value_ptr)(void*) noexcept;
     bool (*is_equal)(const void*, const void*);
-    void (*serialize)(u8iobuf&, const void*);
-    void (*deserialize)(u8ibuf&, void*);
+    void (*serialize)(biobuf&, const void*);
+    void (*deserialize)(bibuf&, void*);
     bool (*convert_from)(variant_id, void*, const void*);
     bool (*convert_to)(variant_id, void*, const void*);
 };
@@ -138,8 +138,8 @@ struct variant_type_base_impl {
     static const void* get_value_const_ptr(const void* p) noexcept { return &*deref(p); }
     static void* get_value_ptr(void* p) noexcept { return &*deref(p); }
     static bool is_equal(const void* lhs, const void* rhs) { return *deref(lhs) == *deref(rhs); }
-    static void serialize(u8iobuf& os, const void* p) { os << *deref(p); }
-    static void deserialize(u8ibuf& is, void* p) {
+    static void serialize(biobuf& os, const void* p) { os << *deref(p); }
+    static void deserialize(bibuf& is, void* p) {
         if (!deref(p)) { deref(p) = make_cow<Ty>(); }
         is >> *deref(p);
     }
@@ -176,8 +176,8 @@ struct variant_type_base_impl<
     static const void* get_value_const_ptr(const void* p) noexcept { return p; }
     static void* get_value_ptr(void* p) noexcept { return p; }
     static bool is_equal(const void* lhs, const void* rhs) { return deref(lhs) == deref(rhs); }
-    static void serialize(u8iobuf& os, const void* p) { os << deref(p); }
-    static void deserialize(u8ibuf& is, void* p) { is >> deref(p); }
+    static void serialize(biobuf& os, const void* p) { os << deref(p); }
+    static void deserialize(bibuf& is, void* p) { is >> deref(p); }
 };
 
 UXS_DECLARE_VARIANT_TYPE(std::string, variant_id::string);
@@ -285,7 +285,7 @@ class variant {
     UXS_EXPORT bool is_equal_to(const variant& v) const;
 
 #define UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(ty, internal_ty) \
-    variant(ty val) : variant(est::in_place_type<internal_ty>(), static_cast<internal_ty>(val)) {} \
+    variant(ty val) : variant(est::in_place_type_t<internal_ty>{}, static_cast<internal_ty>(val)) {} \
     variant& operator=(ty val) { \
         assign_impl<internal_ty>(static_cast<internal_ty>(val)); \
         return *this; \
@@ -336,8 +336,8 @@ class variant {
     template<typename Ty, typename = std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
     est::optional<Ty> get_impl() const;
 
-    friend UXS_EXPORT u8ibuf& operator>>(u8ibuf& is, variant& v);
-    friend UXS_EXPORT u8iobuf& operator<<(u8iobuf& os, const variant& v);
+    friend UXS_EXPORT bibuf& operator>>(bibuf& is, variant& v);
+    friend UXS_EXPORT biobuf& operator<<(biobuf& os, const variant& v);
 
     template<typename>
     friend struct variant_type_impl;
@@ -480,7 +480,7 @@ est::optional<Ty> variant::get_impl() const {
     auto* val_vtable = get_vtable(variant_type_impl<Ty>::type_id);
     assert(vtable_ && val_vtable);
     if (vtable_ == val_vtable) { return *static_cast<const Ty*>(vtable_->get_value_const_ptr(&data_)); }
-    est::optional<Ty> result(est::in_place());
+    est::optional<Ty> result(est::in_place_t{});
     if (vtable_->type > val_vtable->type) {
         if (vtable_->convert_to &&
             vtable_->convert_to(val_vtable->type, &*result, vtable_->get_value_const_ptr(&data_))) {

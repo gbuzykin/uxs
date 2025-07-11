@@ -80,12 +80,28 @@ namespace detail {
 
 template<typename ValueCharT, typename Alloc>
 struct writer_stack_item_t {
+ public:
     using value_t = basic_value<ValueCharT, Alloc>;
-    using iterator = typename value_t::const_iterator;
-    writer_stack_item_t() = default;
-    writer_stack_item_t(iterator f, iterator l) : first(f), last(l) {}
-    iterator first;
-    iterator last;
+    using record_iterator = typename value_t::const_record_iterator;
+
+    writer_stack_item_t(const value_t* first, const value_t* last) : is_record_(false), f_arr_(first), l_arr_(last) {}
+    writer_stack_item_t(record_iterator first, record_iterator last) : is_record_(true), f_rec_(first), l_rec_(last) {}
+
+    bool is_record() const { return is_record_; }
+    bool empty() const { return is_record_ ? f_rec_ == l_rec_ : f_arr_ == l_arr_; }
+    typename value_t::key_type key() const { return f_rec_->key(); }
+    const value_t& get_and_advance() { return is_record_ ? (f_rec_++)->value() : *f_arr_++; }
+
+ private:
+    bool is_record_;
+    union {
+        const value_t* f_arr_;
+        record_iterator f_rec_;
+    };
+    union {
+        const value_t* l_arr_;
+        record_iterator l_rec_;
+    };
 };
 
 template<typename CharT>
@@ -160,11 +176,20 @@ struct value_visitor {
         return false;
     }
 
+    template<typename ValTy>
+    bool operator()(est::span<const ValTy> r) const {
+        if (r.empty()) {
+            out += string_literal<char_type, '[', ']'>{}();
+            return false;
+        }
+        stack.emplace_back(r.data(), r.data() + r.size());
+        return true;
+    }
+
     template<typename Iter>
     bool operator()(iterator_range<Iter> r) const {
         if (r.empty()) {
-            out += r.begin().is_record() ? string_literal<char_type, '{', '}'>{}() :
-                                           string_literal<char_type, '[', ']'>{}();
+            out += string_literal<char_type, '{', '}'>{}();
             return false;
         }
         stack.emplace_back(r.begin(), r.end());
@@ -183,17 +208,17 @@ void writer<CharT>::do_write(const basic_value<ValueCharT, Alloc>& v, unsigned i
     using stack_item_t = detail::writer_stack_item_t<ValueCharT, Alloc>;
     inline_basic_dynbuffer<stack_item_t, 32> stack;
 
-    auto visitor = make_value_visitor(out, stack);
+    const auto visitor = make_value_visitor(out, stack);
     if (!v.visit(visitor)) { return; }
 
     bool is_first_element = true;
 
 loop:
     auto& top = stack.back();
-    const char ws_char = top.first.is_record() ? object_ws_char : array_ws_char;
+    const char ws_char = top.is_record() ? object_ws_char : array_ws_char;
 
     if (is_first_element) {
-        out += top.first.is_record() ? '{' : '[';
+        out += top.is_record() ? '{' : '[';
         if (ws_char == '\n') {
             indent += indent_size;
             out += '\n';
@@ -201,17 +226,17 @@ loop:
         }
     }
 
-    while (top.first != top.last) {
+    while (!top.empty()) {
         if (!is_first_element) {
             out += ',';
             out += ws_char;
             if (ws_char == '\n') { out.append(indent, indent_char); }
         }
-        if (top.first.is_record()) {
-            detail::write_text<CharT>(out, utf_string_adapter<CharT>{}(top.first.key()));
+        if (top.is_record()) {
+            detail::write_text<CharT>(out, utf_string_adapter<CharT>{}(top.key()));
             out += string_literal<CharT, ':', ' '>{}();
         }
-        if ((top.first++).value().visit(visitor)) {
+        if (top.get_and_advance().visit(visitor)) {
             is_first_element = true;
             goto loop;
         }
@@ -223,7 +248,7 @@ loop:
         out += '\n';
         out.append(indent, indent_char);
     }
-    out += top.first.is_record() ? '}' : ']';
+    out += top.is_record() ? '}' : ']';
 
     stack.pop_back();
     if (!stack.empty()) { goto loop; }

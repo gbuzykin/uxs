@@ -258,7 +258,6 @@ template<typename CharT, typename Alloc>
 void record_t<CharT, Alloc>::construct(alloc_type& al, record_t rec) {
     construct(al, rec.size());
     try {
-        if (p_->bucket_count - p_->size < rec.p_->size) { rehash(al, rec.p_->size); }
         typename node_t::alloc_type node_al(al);
         for (list_links_t* item = rec.p_->head.next; item != &rec.p_->head; item = item->next) {
             const auto& v = *node_t::from_links(item);
@@ -487,7 +486,28 @@ basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::operator=(std::basic_strin
 }
 
 template<typename CharT, typename Alloc>
-basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::append_string(std::basic_string_view<char_type> s) {
+void basic_value<CharT, Alloc>::string_reserve(std::size_t sz) {
+    if (type_ != dtype::string) { init_as_string(); }
+    typename char_array_t::alloc_type str_al(*this);
+    value_.str.reserve(str_al, sz);
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::string_resize(std::size_t sz) {
+    if (type_ != dtype::string) { init_as_string(); }
+    typename char_array_t::alloc_type str_al(*this);
+    value_.str.resize(str_al, sz, '\0');
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::string_resize(std::size_t sz, char_type ch) {
+    if (type_ != dtype::string) { init_as_string(); }
+    typename char_array_t::alloc_type str_al(*this);
+    value_.str.resize(str_al, sz, ch);
+}
+
+template<typename CharT, typename Alloc>
+basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::string_append(std::basic_string_view<char_type> s) {
     if (type_ != dtype::string) { init_as_string(); }
     typename char_array_t::alloc_type str_al(*this);
     value_.str.append(str_al, s);
@@ -496,7 +516,7 @@ basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::append_string(std::basic_s
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::assign(std::initializer_list<basic_value> init) {
-    if (!detail::is_record(init)) { return assign(array_construct_t{}, init.begin(), init.end()); }
+    if (!detail::is_record(init)) { return assign(array_variant_t{}, init.begin(), init.end()); }
     typename record_t::alloc_type rec_al(*this);
     if (type_ != dtype::record) {
         if (type_ != dtype::null) { destroy(); }
@@ -507,14 +527,13 @@ void basic_value<CharT, Alloc>::assign(std::initializer_list<basic_value> init) 
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::assign(array_construct_t, std::initializer_list<basic_value> init) {
-    assign(array_construct_t{}, init.begin(), init.end());
+void basic_value<CharT, Alloc>::assign(array_variant_t, std::initializer_list<basic_value> init) {
+    assign(array_variant_t{}, init.begin(), init.end());
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::assign(record_construct_t,
-                                       std::initializer_list<std::pair<key_type, basic_value>> init) {
-    assign(record_construct_t{}, init.begin(), init.end());
+void basic_value<CharT, Alloc>::assign(record_variant_t, std::initializer_list<std::pair<key_type, basic_value>> init) {
+    assign(record_variant_t{}, init.begin(), init.end());
 }
 
 template<typename CharT, typename Alloc>
@@ -547,7 +566,7 @@ est::optional<bool> basic_value<CharT, Alloc>::get_bool() const {
         case dtype::unsigned_long_integer: return value_.u64 != 0;
         case dtype::double_precision: return value_.dbl != 0;
         case dtype::string: {
-            est::optional<bool> result(est::in_place());
+            est::optional<bool> result(est::in_place_t{});
             return from_basic_string(value_.str.cview(), *result) ? result : est::nullopt();
         } break;
         case dtype::array: return est::nullopt();
@@ -581,7 +600,7 @@ est::optional<std::int32_t> basic_value<CharT, Alloc>::get_int() const {
                        est::make_optional(static_cast<std::int32_t>(value_.dbl)) :
                        est::nullopt();
         case dtype::string: {
-            est::optional<std::int32_t> result(est::in_place());
+            est::optional<std::int32_t> result(est::in_place_t{});
             return from_basic_string(value_.str.cview(), *result) ? result : est::nullopt();
         } break;
         case dtype::array: return est::nullopt();
@@ -612,7 +631,7 @@ est::optional<std::uint32_t> basic_value<CharT, Alloc>::get_uint() const {
                        est::make_optional(static_cast<std::uint32_t>(value_.dbl)) :
                        est::nullopt();
         case dtype::string: {
-            est::optional<std::uint32_t> result(est::in_place());
+            est::optional<std::uint32_t> result(est::in_place_t{});
             return from_basic_string(value_.str.cview(), *result) ? result : est::nullopt();
         } break;
         case dtype::array: return est::nullopt();
@@ -640,7 +659,7 @@ est::optional<std::int64_t> basic_value<CharT, Alloc>::get_int64() const {
                        est::make_optional(static_cast<std::int64_t>(value_.dbl)) :
                        est::nullopt();
         case dtype::string: {
-            est::optional<std::int64_t> result(est::in_place());
+            est::optional<std::int64_t> result(est::in_place_t{});
             return from_basic_string(value_.str.cview(), *result) ? result : est::nullopt();
         } break;
         case dtype::array: return est::nullopt();
@@ -666,7 +685,7 @@ est::optional<std::uint64_t> basic_value<CharT, Alloc>::get_uint64() const {
                        est::make_optional(static_cast<std::uint64_t>(value_.dbl)) :
                        est::nullopt();
         case dtype::string: {
-            est::optional<std::uint64_t> result(est::in_place());
+            est::optional<std::uint64_t> result(est::in_place_t{});
             return from_basic_string(value_.str.cview(), *result) ? result : est::nullopt();
         } break;
         case dtype::array: return est::nullopt();
@@ -686,7 +705,7 @@ est::optional<double> basic_value<CharT, Alloc>::get_double() const {
         case dtype::unsigned_long_integer: return static_cast<double>(value_.u64);
         case dtype::double_precision: return value_.dbl;
         case dtype::string: {
-            est::optional<double> result(est::in_place());
+            est::optional<double> result(est::in_place_t{});
             return from_basic_string(value_.str.cview(), *result) ? result : est::nullopt();
         } break;
         case dtype::array: return est::nullopt();

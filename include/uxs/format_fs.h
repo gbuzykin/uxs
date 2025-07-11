@@ -1,5 +1,9 @@
 #pragma once
 
+#if __cplusplus < 201703L
+#    error Header file `format_fs.h` requires C++17
+#endif  // __cplusplus < 201703L
+
 #include "format_base.h"
 
 #include <filesystem>
