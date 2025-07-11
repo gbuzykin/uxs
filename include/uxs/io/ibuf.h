@@ -126,7 +126,7 @@ class basic_ibuf : public iostate {
 
 using ibuf = basic_ibuf<char>;
 using wibuf = basic_ibuf<wchar_t>;
-using u8ibuf = basic_ibuf<std::uint8_t>;
+using bibuf = basic_ibuf<std::uint8_t>;
 
 namespace stdbuf {
 extern UXS_EXPORT ibuf& in();

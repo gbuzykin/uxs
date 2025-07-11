@@ -21,8 +21,10 @@ using bad_optional_access = std::bad_optional_access;
 
 namespace est {
 
-struct nullopt_t {};
-inline nullopt_t nullopt() { return nullopt_t{}; }
+struct nullopt_t {
+    explicit nullopt_t(int) {}
+};
+inline nullopt_t nullopt() { return nullopt_t{0}; }
 
 class bad_optional_access : public std::exception {
  public:
@@ -131,7 +133,7 @@ optional<std::decay_t<Ty>> make_optional(Ty&& value) {
 
 template<typename Ty, typename... Args>
 optional<Ty> make_optional(Args&&... args) {
-    return optional<Ty>(in_place(), std::forward<Args>(args)...);
+    return optional<Ty>(in_place_t{}, std::forward<Args>(args)...);
 }
 
 }  // namespace est

@@ -22,6 +22,6 @@ class basic_iflatbuf : public basic_ibuf<CharT> {
 
 using iflatbuf = basic_iflatbuf<char>;
 using wiflatbuf = basic_iflatbuf<wchar_t>;
-using u8iflatbuf = basic_iflatbuf<std::uint8_t>;
+using biflatbuf = basic_iflatbuf<std::uint8_t>;
 
 }  // namespace uxs

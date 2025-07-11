@@ -82,6 +82,6 @@ class basic_filebuf : public basic_devbuf<CharT> {
 
 using filebuf = basic_filebuf<char>;
 using wfilebuf = basic_filebuf<wchar_t>;
-using u8filebuf = basic_filebuf<std::uint8_t>;
+using bfilebuf = basic_filebuf<std::uint8_t>;
 
 }  // namespace uxs

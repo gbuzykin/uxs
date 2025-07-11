@@ -70,6 +70,6 @@ class basic_zipfilebuf : public basic_devbuf<CharT> {
 
 using zipfilebuf = basic_zipfilebuf<char>;
 using wzipfilebuf = basic_zipfilebuf<wchar_t>;
-using u8zipfilebuf = basic_zipfilebuf<std::uint8_t>;
+using bzipfilebuf = basic_zipfilebuf<std::uint8_t>;
 
 }  // namespace uxs

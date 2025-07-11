@@ -79,6 +79,6 @@ class basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_all
 
 using devbuf = basic_devbuf<char>;
 using wdevbuf = basic_devbuf<wchar_t>;
-using u8devbuf = basic_devbuf<std::uint8_t>;
+using bdevbuf = basic_devbuf<std::uint8_t>;
 
 }  // namespace uxs
