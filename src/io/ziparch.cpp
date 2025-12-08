@@ -4,7 +4,7 @@
 
 #include <cstdio>
 
-#if defined(UXS_USE_LIBZIP)
+#if UXS_USE_LIBZIP != 0
 
 #    include <zip.h>
 
@@ -123,7 +123,7 @@ bool ziparch::stat_file(std::uint64_t index, zipfile_info& info) const {
     return true;
 }
 
-#else  // defined(UXS_USE_LIBZIP)
+#else  // UXS_USE_LIBZIP != 0
 
 using namespace uxs;
 bool ziparch::open(const char* /*name*/, iomode /*mode*/) { return false; }
@@ -135,7 +135,7 @@ std::int64_t ziparch::add_file(const char* /*fname*/, const void* /*data*/, std:
 bool ziparch::stat_file(const char* /*fname*/, zipfile_info& /*info*/) const { return false; }
 bool ziparch::stat_file(std::uint64_t /*index*/, zipfile_info& /*info*/) const { return false; }
 
-#endif  // defined(UXS_USE_LIBZIP)
+#endif  // UXS_USE_LIBZIP != 0
 
 bool ziparch::open(const wchar_t* name, iomode mode) { return open(from_wide_to_utf8(name).c_str(), mode); }
 std::int64_t ziparch::add_file(const wchar_t* fname, const void* data, std::size_t sz, zipfile_compression compr,

@@ -9,9 +9,9 @@
 #define UXS_TOKENPASTE(x, y)  x##y
 #define UXS_TOKENPASTE2(x, y) UXS_TOKENPASTE(x, y)
 
-#if defined(_MSC_VER)
+#if !defined(UXS_ITERATOR_DEBUG_LEVEL) && defined(_MSC_VER)
 #    define UXS_ITERATOR_DEBUG_LEVEL _ITERATOR_DEBUG_LEVEL
-#endif  // _MSC_VER
+#endif
 
 #if !defined(UXS_HAS_INCLUDE)
 #    if defined(__has_include) || _MSC_VER >= 1900

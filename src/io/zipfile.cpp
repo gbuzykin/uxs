@@ -2,7 +2,7 @@
 
 #include "uxs/string_util.h"
 
-#if defined(UXS_USE_LIBZIP)
+#if UXS_USE_LIBZIP != 0
 
 #    include <zip.h>
 
@@ -88,7 +88,7 @@ int zipfile::write(const void* data, std::size_t sz, std::size_t& n_written) {
     return 0;
 }
 
-#else  // defined(UXS_USE_LIBZIP)
+#else  // UXS_USE_LIBZIP != 0
 
 using namespace uxs;
 bool zipfile::open(ziparch& /*arch*/, const char* /*fname*/, iomode /*mode*/) { return false; }
@@ -97,7 +97,7 @@ void zipfile::close() noexcept {}
 int zipfile::read(void* /*data*/, std::size_t /*sz*/, std::size_t& /*n_read*/) { return -1; }
 int zipfile::write(const void* /*data*/, std::size_t /*sz*/, std::size_t& /*n_written*/) { return -1; }
 
-#endif  // defined(UXS_USE_LIBZIP)
+#endif  // UXS_USE_LIBZIP != 0
 
 bool zipfile::open(ziparch& arch, const wchar_t* fname, iomode mode) {
     return open(arch, from_wide_to_utf8(fname).c_str(), mode);
