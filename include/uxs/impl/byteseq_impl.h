@@ -4,10 +4,10 @@
 #include "uxs/crc32.h"
 #include "uxs/dllist.h"
 
-#if defined(UXS_USE_ZLIB)
+#if UXS_USE_ZLIB != 0
 #    define ZLIB_CONST
 #    include <zlib.h>
-#endif  // defined(UXS_USE_ZLIB)
+#endif  // UXS_USE_ZLIB != 0
 
 #include <algorithm>
 #include <cassert>
@@ -109,7 +109,7 @@ bool basic_byteseq<Alloc>::uncompress() {
     return true;
 }
 
-#if defined(UXS_USE_ZLIB)
+#if UXS_USE_ZLIB != 0
 template<typename Alloc>
 basic_byteseq<Alloc> basic_byteseq<Alloc>::make_compressed(unsigned level) const {
     if (empty()) { return {}; }
@@ -205,7 +205,7 @@ basic_byteseq<Alloc> basic_byteseq<Alloc>::make_uncompressed() const {
 
     return {};
 }
-#else   // defined(UXS_USE_ZLIB)
+#else   // UXS_USE_ZLIB != 0
 template<typename Alloc>
 basic_byteseq<Alloc> basic_byteseq<Alloc>::make_compressed(unsigned /*level*/) const {
     return *this;
@@ -214,7 +214,7 @@ template<typename Alloc>
 basic_byteseq<Alloc> basic_byteseq<Alloc>::make_uncompressed() const {
     return *this;
 }
-#endif  // defined(UXS_USE_ZLIB)
+#endif  // UXS_USE_ZLIB != 0
 
 template<typename Alloc>
 void basic_byteseq<Alloc>::delete_chunks() noexcept {

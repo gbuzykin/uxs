@@ -69,6 +69,10 @@ IncludeCategories:
     Priority:        20
   - Regex:           '^<uxs/.*>'
     Priority:        21
+  - Regex:           '^"uxs-legacy/.*"'
+    Priority:        22
+  - Regex:           '^<uxs-legacy/.*>'
+    Priority:        23
   - Regex:           '^".*\.hpp"'
     Priority:        10
   - Regex:           '^".*\.hxx"'
