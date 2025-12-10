@@ -211,8 +211,13 @@ if(WIN32)
 endif()
 
 install(
-  DIRECTORY include/uxs
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/include
+  DIRECTORY include
+  DESTINATION ${CMAKE_INSTALL_PREFIX}
+  COMPONENT headers)
+
+install(
+  DIRECTORY cmake/uxs
+  DESTINATION ${CMAKE_INSTALL_PREFIX}/share/cmake
   COMPONENT headers)
 
 install(
@@ -223,5 +228,5 @@ install(
 # ##############################################################################
 # Auxiliary
 
-include("cmake/macros.cmake")
+include("cmake/uxs/macros.cmake")
 add_compile_defs_and_include_dirs_targets(uxs ${CMAKE_CURRENT_SOURCE_DIR})
