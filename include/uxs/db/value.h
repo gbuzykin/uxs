@@ -97,7 +97,7 @@ class flexarray_t {
 
     view_type view(alloc_type& al) {
         if (!p_) { return view_type(); }
-        unique(al);
+        make_unique(al);
         return view_type(p_->data(), p_->size);
     }
 
@@ -115,7 +115,7 @@ class flexarray_t {
     template<typename InputIt>
     void insert(alloc_type& al, std::size_t pos, InputIt first, InputIt last) {
         if (!p_) { return create_impl(al, first, last, is_random_access_iterator<InputIt>()); }
-        unique(al);
+        make_unique(al);
         const std::size_t old_sz = p_->size;
         append_impl(al, first, last, is_random_access_iterator<InputIt>());
         if (pos < old_sz) { std::rotate(p_->data() + pos, p_->data() + old_sz, p_->data() + p_->size); }
@@ -126,7 +126,7 @@ class flexarray_t {
         if (!p_) {
             p_ = alloc(al, 0, 0);
         } else {
-            unique(al);
+            make_unique(al);
             if (p_->size == p_->capacity) { grow(al, 1); }
         }
         Ty* item = new (p_->data() + p_->size) Ty(std::forward<Args>(args)...);
@@ -147,7 +147,7 @@ class flexarray_t {
 
     void pop_back(alloc_type& al) {
         assert(p_ && p_->size);
-        unique(al);
+        make_unique(al);
         (p_->data() + --p_->size)->~Ty();
     }
 
@@ -164,8 +164,8 @@ class flexarray_t {
         if (p_ && --p_->ref_count == 0) { destruct(al); }
     }
 
-    void unique(alloc_type& al) {
-        if (p_->ref_count != 1) { unique_impl(al); }
+    void make_unique(alloc_type& al) {
+        if (p_->ref_count > 1) { make_unique_impl(al); }
     }
 
  private:
@@ -211,7 +211,7 @@ class flexarray_t {
 
     UXS_EXPORT void grow(alloc_type& al, std::size_t extra);
     UXS_EXPORT void rotate_back(std::size_t pos) noexcept;
-    UXS_EXPORT void unique_impl(alloc_type& al);
+    UXS_EXPORT void make_unique_impl(alloc_type& al);
     UXS_EXPORT void destruct(alloc_type& al) noexcept;
 
     void reset(alloc_type& al, data_t* p) noexcept {
@@ -453,7 +453,7 @@ class record_t {
     }
 
     iterator_range<iterator> range(alloc_type& al) {
-        unique(al);
+        make_unique(al);
         return make_range(iterator(cbegin()), iterator(cend()));
     }
 
@@ -498,13 +498,13 @@ class record_t {
 
     template<typename InputIt>
     void insert(alloc_type& al, InputIt first, InputIt last) {
-        unique(al);
+        make_unique(al);
         insert_impl(al, first, last, is_random_access_iterator<InputIt>());
     }
 
     template<typename... Args>
     list_links_t* emplace(alloc_type& al, key_type key, Args&&... args) {
-        unique(al);
+        make_unique(al);
         if (p_->size == p_->bucket_count) { rehash(al, 1); }
         typename node_t::alloc_type node_al(al);
         node_t* node = node_t::create(node_al, key, std::forward<Args>(args)...);
@@ -514,7 +514,7 @@ class record_t {
 
     template<typename... Args>
     std::pair<list_links_t*, bool> emplace_unique(alloc_type& al, key_type key, Args&&... args) {
-        unique(al);
+        make_unique(al);
         const std::size_t hash_code = hasher_t{}(key);
         list_links_t* node = find_impl(key, hash_code);
         if (node != &p_->head) { return std::make_pair(node, false); }
@@ -535,8 +535,8 @@ class record_t {
         if (--p_->ref_count == 0) { destruct(al); }
     }
 
-    void unique(alloc_type& al) {
-        if (p_->ref_count != 1) { unique_impl(al); }
+    void make_unique(alloc_type& al) {
+        if (p_->ref_count > 1) { make_unique_impl(al); }
     }
 
  private:
@@ -553,7 +553,7 @@ class record_t {
     void add_to_hash(node_t* node) noexcept;
     UXS_EXPORT void insert_node(node_t* node, std::size_t hash_code) noexcept;
     UXS_EXPORT void rehash(alloc_type& al, std::size_t extra);
-    UXS_EXPORT void unique_impl(alloc_type& al);
+    UXS_EXPORT void make_unique_impl(alloc_type& al);
     UXS_EXPORT void clear_impl(alloc_type& al, std::false_type = {});
     UXS_EXPORT void clear_impl(alloc_type& al, std::size_t bucket_count);
     UXS_EXPORT void destruct(alloc_type& al) noexcept;

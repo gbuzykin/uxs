@@ -15,7 +15,7 @@ class cow_ptr {
     struct object_body_t {
         template<typename... Args>
         object_body_t(Args&&... args) : obj(std::forward<Args>(args)...) {}
-        std::atomic<std::uint32_t> ref_count{1};
+        std::atomic<std::size_t> ref_count{1};
         Ty obj;
     };
 

@@ -115,7 +115,7 @@ void flexarray_t<Ty, Alloc>::rotate_back(std::size_t pos) noexcept {
 }
 
 template<typename Ty, typename Alloc>
-void flexarray_t<Ty, Alloc>::unique_impl(alloc_type& al) {
+void flexarray_t<Ty, Alloc>::make_unique_impl(alloc_type& al) {
     flexarray_t new_arr;
     new_arr.construct(al, p_->data(), p_->data() + p_->size);
     reset(al, new_arr.p_);
@@ -156,7 +156,7 @@ void flexarray_t<Ty, Alloc>::assign(alloc_type& al, const_view_type init) {
 template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::append(alloc_type& al, const_view_type init) {
     if (!p_) { return create_impl(al, init.size(), init.data()); }
-    unique(al);
+    make_unique(al);
     append_impl(al, init.size(), init.data());
 }
 
@@ -174,7 +174,7 @@ void flexarray_t<Ty, Alloc>::reserve(alloc_type& al, std::size_t sz) {
         if (!sz) { return; }
         p_ = alloc_checked(al, 0, sz);
     } else {
-        unique(al);
+        make_unique(al);
         if (sz > p_->capacity) { grow(al, sz - p_->size); }
     }
 }
@@ -198,7 +198,7 @@ template<typename Ty, typename Alloc>
 Ty* flexarray_t<Ty, Alloc>::erase(alloc_type& al, const Ty* item_to_erase) {
     assert(p_ && item_to_erase >= p_->data() && item_to_erase < p_->data() + p_->size);
     const std::size_t pos = item_to_erase - p_->data();
-    unique(al);
+    make_unique(al);
     Ty* next_item = p_->data() + pos;
     Ty* last = p_->data() + --p_->size;
     for (Ty* item = next_item; item != last; ++item) { *item = std::move(*(item + 1)); }
@@ -348,7 +348,7 @@ void record_t<CharT, Alloc>::rehash(alloc_type& al, std::size_t extra) {
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::unique_impl(alloc_type& al) {
+void record_t<CharT, Alloc>::make_unique_impl(alloc_type& al) {
     record_t new_rec;
     new_rec.construct(al, *this);
     reset(al, new_rec.p_);
@@ -429,7 +429,7 @@ list_links_t* record_t<CharT, Alloc>::erase(alloc_type& al, list_links_t* node) 
 
 template<typename CharT, typename Alloc>
 std::size_t record_t<CharT, Alloc>::erase(alloc_type& al, key_type key) {
-    unique(al);
+    make_unique(al);
     const std::size_t old_sz = p_->size;
     const std::size_t hash_code = hasher_t{}(key);
     typename node_t::alloc_type node_al(al);
@@ -863,7 +863,7 @@ template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::begin() -> iterator {
     if (type_ == dtype::record) {
         typename record_t::alloc_type rec_al(*this);
-        value_.rec.unique(rec_al);
+        value_.rec.make_unique(rec_al);
         return iterator(value_.rec.cbegin());
     }
     const auto range = as_array();
@@ -881,7 +881,7 @@ template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::end() -> iterator {
     if (type_ == dtype::record) {
         typename record_t::alloc_type rec_al(*this);
-        value_.rec.unique(rec_al);
+        value_.rec.make_unique(rec_al);
         return iterator(value_.rec.cend());
     }
     const auto range = as_array();
@@ -905,7 +905,7 @@ template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::find(key_type key) -> iterator {
     if (type_ != dtype::record) { return end(); }
     typename record_t::alloc_type rec_al(*this);
-    value_.rec.unique(rec_al);
+    value_.rec.make_unique(rec_al);
     return iterator(value_.rec.find(key));
 }
 
