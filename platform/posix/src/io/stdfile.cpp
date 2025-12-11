@@ -12,13 +12,14 @@ struct stdfile_buffers {
     filebuf err;
     static stdfile_buffers& instance();
     stdfile_buffers()
-        : out(fileno(stdout),
-              iomode::out | iomode::append | (isatty(fileno(stdout)) ? iomode::none : iomode::skip_ctrl_esc)),
-          in(fileno(stdin), iomode::in, &out),
-          log(fileno(stderr),
-              iomode::out | iomode::append | (isatty(fileno(stderr)) ? iomode::none : iomode::skip_ctrl_esc), &out),
-          err(fileno(stderr),
-              iomode::out | iomode::append | (isatty(fileno(stderr)) ? iomode::none : iomode::skip_ctrl_esc), &log) {}
+        : out(::fileno(stdout),
+              iomode::out | iomode::append | (::isatty(::fileno(stdout)) ? iomode::none : iomode::skip_ctrl_esc)),
+          in(::fileno(stdin), iomode::in, &out),
+          log(::fileno(stderr),
+              iomode::out | iomode::append | (::isatty(::fileno(stderr)) ? iomode::none : iomode::skip_ctrl_esc), &out),
+          err(::fileno(stderr),
+              iomode::out | iomode::append | (::isatty(::fileno(stderr)) ? iomode::none : iomode::skip_ctrl_esc),
+              &log) {}
     ~stdfile_buffers() {
         err.detach();
         log.detach();
