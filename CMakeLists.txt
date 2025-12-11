@@ -223,7 +223,7 @@ install(
 install(
   FILES ${PROJECT_BINARY_DIR}/generated/uxs/config.h
   DESTINATION ${CMAKE_INSTALL_PREFIX}/include/uxs
-  COMPONENT headers)
+  COMPONENT share)
 
 # ##############################################################################
 # Auxiliary
