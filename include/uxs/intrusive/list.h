@@ -81,7 +81,7 @@ struct list_node_traits {
         return 0;
     }
     template<typename... Dummy>
-    static void reset_pointer(hook_t* h, owning_pointer_t p, Dummy&&...) {}
+    static void reset_pointer(hook_t* /*h*/, owning_pointer_t /*p*/, Dummy&&...) {}
 
     template<typename HookTraits_ = HookTraits>
     static auto dispose(owning_pointer_t p) -> decltype(HookTraits_{}.dispose(std::move(p)), int{}) {
@@ -109,6 +109,7 @@ struct list_node_traits {
     }
     template<typename... Dummy>
     static void dispose_all(list_links_t* head, Dummy&&...) {
+        (void)head;
 #if UXS_ITERATOR_DEBUG_LEVEL != 0
         auto* item = head->next;
         while (item != head) {
@@ -124,7 +125,7 @@ struct list_node_traits {
     static list_links_t* get_head(list_links_t* node) { return node->head; }
     static list_links_t* get_front(list_links_t* head) { return head->next; }
 #else   // UXS_ITERATOR_DEBUG_LEVEL != 0
-    static void set_head(list_links_t* node, list_links_t* head) {}
+    static void set_head(list_links_t* /*node*/, list_links_t* /*head*/) {}
 #endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
 };
 

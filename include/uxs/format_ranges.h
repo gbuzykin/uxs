@@ -92,7 +92,7 @@ struct formatter<Tuple, CharT, std::enable_if_t<tuple_formattable<Tuple, CharT>:
     }
 
     template<typename ParseCtx>
-    UXS_CONSTEXPR void parse_element(ParseCtx& ctx, typename std::tuple_size<Tuple>::type) {}
+    UXS_CONSTEXPR void parse_element(ParseCtx& /*ctx*/, typename std::tuple_size<Tuple>::type) {}
 
     template<typename ParseCtx, std::size_t I>
     UXS_CONSTEXPR void parse_element(ParseCtx& ctx, std::integral_constant<std::size_t, I>) {
@@ -102,7 +102,7 @@ struct formatter<Tuple, CharT, std::enable_if_t<tuple_formattable<Tuple, CharT>:
     }
 
     template<typename FmtCtx>
-    void format_element(FmtCtx& ctx, const Tuple& val, typename std::tuple_size<Tuple>::type) const {}
+    void format_element(FmtCtx& /*ctx*/, const Tuple& /*val*/, typename std::tuple_size<Tuple>::type) const {}
 
     template<typename FmtCtx, std::size_t I>
     void format_element(FmtCtx& ctx, const Tuple& val, std::integral_constant<std::size_t, I>) const {

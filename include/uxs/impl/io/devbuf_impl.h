@@ -61,7 +61,7 @@ template<typename CharT, typename Alloc>
 basic_devbuf<CharT, Alloc>& basic_devbuf<CharT, Alloc>::operator=(basic_devbuf&& other) noexcept {
     if (&other == this) { return *this; }
     freebuf();
-    static_cast<alloc_type&>(*this) = std::move(other);
+    alloc_type::operator=(std::move(other));
     basic_iobuf<CharT>::operator=(std::move(other));
     dev_ = other.dev_, buf_ = other.buf_, tie_buf_ = other.tie_buf_;
     other.dev_ = nullptr, other.buf_ = nullptr, other.tie_buf_ = nullptr;

@@ -17,8 +17,9 @@ class basic_oflatbuf : protected std::allocator_traits<Alloc>::template rebind_a
     using off_type = typename basic_iobuf<CharT>::off_type;
     using allocator_type = Alloc;
 
-    basic_oflatbuf() : alloc_type(), basic_iobuf<CharT>(iomode::out) {}
-    explicit basic_oflatbuf(const Alloc& al) : alloc_type(al), basic_iobuf<CharT>(iomode::out) {}
+    basic_oflatbuf() noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
+        : alloc_type(), basic_iobuf<CharT>(iomode::out) {}
+    explicit basic_oflatbuf(const Alloc& al) noexcept : alloc_type(al), basic_iobuf<CharT>(iomode::out) {}
     UXS_EXPORT ~basic_oflatbuf() override;
     UXS_EXPORT basic_oflatbuf(basic_oflatbuf&& other) noexcept;
     UXS_EXPORT basic_oflatbuf& operator=(basic_oflatbuf&& other) noexcept;

@@ -71,7 +71,7 @@ template<typename Alloc, typename Ty,
          typename = std::enable_if_t<
              std::is_trivially_destructible<Ty>::value ||
              std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value>>
-static void destruct_moved_values(Ty* first, Ty* last) noexcept {}
+static void destruct_moved_values(Ty* /*first*/, Ty* /*last*/) noexcept {}
 
 template<typename Alloc, typename Ty, typename... Dummy>
 static void destruct_moved_values(Ty* first, Ty* last, Dummy&&...) noexcept {

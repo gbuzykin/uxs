@@ -202,7 +202,7 @@ class flexarray_t {
     void append_impl(alloc_type& al, InputIt first, InputIt last, std::false_type /* random access iterator */);
 
     template<typename Ty_ = Ty, typename = std::enable_if_t<std::is_trivially_destructible<Ty_>::value>>
-    static void destruct_items(Ty_* first, Ty_* last) noexcept {}
+    static void destruct_items(Ty_* /*first*/, Ty_* /*last*/) noexcept {}
 
     template<typename Ty_ = Ty, typename... Dummy>
     static void destruct_items(Ty_* first, Ty_* last, Dummy&&...) noexcept {
@@ -397,7 +397,7 @@ struct record_node_traits {
     static list_links_t* get_head(list_links_t* node) { return node->head; }
     static list_links_t* get_front(list_links_t* head) { return head->next; }
 #else   // UXS_ITERATOR_DEBUG_LEVEL != 0
-    static void set_head(list_links_t* node, list_links_t* head) {}
+    static void set_head(list_links_t* /*node*/, list_links_t* /*head*/) {}
 #endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
     static record_value<CharT, Alloc>& get_value(list_links_t* node) { return *node_t::from_links(node); }
 };
@@ -408,7 +408,7 @@ std::size_t initial_alloc_size(RandIt first, RandIt last, std::true_type /* rand
 }
 
 template<typename InputIt>
-std::false_type initial_alloc_size(InputIt first, InputIt last, std::false_type /* random access iterator */) {
+std::false_type initial_alloc_size(InputIt /*first*/, InputIt /*last*/, std::false_type /* random access iterator */) {
     return {};
 }
 
@@ -895,7 +895,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     basic_value& operator=(basic_value&& other) noexcept {
         if (&other == this) { return *this; }
         if (type_ != dtype::null) { destroy(); }
-        static_cast<alloc_type&>(*this) = std::move(other);
+        alloc_type::operator=(std::move(other));
         type_ = other.type_, value_ = other.value_;
         other.type_ = dtype::null;
         return *this;

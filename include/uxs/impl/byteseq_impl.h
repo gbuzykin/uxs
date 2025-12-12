@@ -17,13 +17,6 @@
 namespace uxs {
 
 template<typename Alloc>
-basic_byteseq<Alloc>::~basic_byteseq() {
-    if (!head_) { return; }
-    delete_chunks();
-    chunk_t::dealloc(*this, head_);
-}
-
-template<typename Alloc>
 void basic_byteseq<Alloc>::clear() noexcept {
     if (!head_) { return; }
     delete_chunks();
@@ -215,6 +208,12 @@ basic_byteseq<Alloc> basic_byteseq<Alloc>::make_uncompressed() const {
     return *this;
 }
 #endif  // UXS_USE_ZLIB != 0
+
+template<typename Alloc>
+void basic_byteseq<Alloc>::tidy() noexcept {
+    delete_chunks();
+    chunk_t::dealloc(*this, head_);
+}
 
 template<typename Alloc>
 void basic_byteseq<Alloc>::delete_chunks() noexcept {
