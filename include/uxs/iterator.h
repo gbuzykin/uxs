@@ -499,9 +499,10 @@ class const_value_iterator : public iterator_facade<const_value_iterator<Val>, V
     explicit const_value_iterator(const Val& v) noexcept : v_(std::addressof(v)) {}
 
     void increment() noexcept {}
-    void advance(std::ptrdiff_t j) noexcept {}
+    void advance(std::ptrdiff_t /*j*/) noexcept {}
     const Val& dereference() const noexcept { return *v_; }
     bool is_equal_to(const const_value_iterator& it) const noexcept {
+        (void)it;
         assert(v_ == it.v_);
         return true;
     }

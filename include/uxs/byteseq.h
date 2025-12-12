@@ -46,19 +46,29 @@ class basic_byteseq : protected detail::byteseq_chunk<Alloc>::alloc_type {
  public:
     using allocator_type = Alloc;
 
-    basic_byteseq() noexcept = default;
-    basic_byteseq(const basic_byteseq& other) { assign(other); }
-    basic_byteseq(basic_byteseq&& other) noexcept : size_(other.size_), head_(other.head_) {
+    basic_byteseq() noexcept(std::is_nothrow_default_constructible<alloc_type>::value) : alloc_type() {}
+    explicit basic_byteseq(const Alloc& al) noexcept : alloc_type(al) {}
+    basic_byteseq(const basic_byteseq& other) : alloc_type(other) { assign(other); }
+    basic_byteseq(basic_byteseq&& other) noexcept
+        : alloc_type(std::move(other)), size_(other.size_), head_(other.head_) {
         other.size_ = 0, other.head_ = nullptr;
     }
-    UXS_EXPORT ~basic_byteseq();
+    ~basic_byteseq() {
+        if (head_) { tidy(); }
+    }
 
-    basic_byteseq& operator=(const basic_byteseq& other) { return &other != this ? assign(other) : *this; }
+    basic_byteseq& operator=(const basic_byteseq& other) {
+        if (&other == this) { return *this; }
+        assign(other);
+        return *this;
+    }
+
     basic_byteseq& operator=(basic_byteseq&& other) noexcept {
-        if (&other != this) {
-            size_ = other.size_, head_ = other.head_;
-            other.size_ = 0, other.head_ = nullptr;
-        }
+        if (&other == this) { return *this; }
+        if (head_) { tidy(); }
+        alloc_type::operator=(std::move(other));
+        size_ = other.size_, head_ = other.head_;
+        other.size_ = 0, other.head_ = nullptr;
         return *this;
     }
 
@@ -112,6 +122,7 @@ class basic_byteseq : protected detail::byteseq_chunk<Alloc>::alloc_type {
     std::size_t size_ = 0;
     chunk_t* head_ = nullptr;
 
+    UXS_EXPORT void tidy() noexcept;
     UXS_EXPORT void delete_chunks() noexcept;
     UXS_EXPORT void clear_and_reserve(std::size_t cap);
     UXS_EXPORT void create_head(std::size_t cap);
