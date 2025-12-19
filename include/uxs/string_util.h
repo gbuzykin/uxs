@@ -39,13 +39,17 @@ struct is_contiguous_string_iterator<
 
 template<typename Iter, typename = std::enable_if_t<detail::is_contiguous_string_iterator<Iter>::value>>
 UXS_CONSTEXPR std::basic_string_view<iterator_value_t<Iter>> to_string_view(Iter first, Iter last) {
-#if __cplusplus >= 202002L && !defined(__LCC__)
-    return std::basic_string_view<iterator_value_t<Iter>>{first, last};
-#else   // __cplusplus >= 202002L && !defined(__LCC__)
-    const std::size_t size = static_cast<std::size_t>(last - first);
-    if (!size) { return {}; }
-    return std::basic_string_view<iterator_value_t<Iter>>(&*first, size);
-#endif  // __cplusplus >= 202002L && !defined(__LCC__)
+#if __cplusplus >= 202002L
+    if constexpr (std::is_constructible_v<std::basic_string_view<iterator_value_t<Iter>>, Iter, Iter>) {
+        return std::basic_string_view<iterator_value_t<Iter>>{first, last};
+    } else {
+#endif  // __cplusplus >= 202002L
+        const std::size_t size = static_cast<std::size_t>(last - first);
+        if (!size) { return {}; }
+        return std::basic_string_view<iterator_value_t<Iter>>(&*first, size);
+#if __cplusplus >= 202002L
+    }
+#endif  // __cplusplus >= 202002L
 }
 
 UXS_EXPORT std::wstring from_utf8_to_wide(std::string_view s);
