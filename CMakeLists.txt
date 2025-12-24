@@ -162,17 +162,11 @@ endif()
 set(UXS_CUSTOM_CONFIG "\n")
 
 if(USE_ZLIB)
-  if(ZLIB_DEP)
-    add_dependencies(uxs ${ZLIB_DEP})
-  endif()
   set(UXS_CUSTOM_CONFIG "${UXS_CUSTOM_CONFIG}#define UXS_USE_ZLIB 1\n")
   target_include_directories(uxs PRIVATE ${ZLIB_INCLUDE_DIR})
 endif()
 
 if(USE_LIBZIP)
-  if(LIBZIP_DEP)
-    add_dependencies(uxs ${LIBZIP_DEP})
-  endif()
   set(UXS_CUSTOM_CONFIG "${UXS_CUSTOM_CONFIG}#define UXS_USE_LIBZIP 1\n")
   target_include_directories(uxs PRIVATE ${LIBZIP_INCLUDE_DIR})
   target_link_libraries(uxs PRIVATE ${LIBZIP_LIBRARY})
@@ -219,13 +213,13 @@ install(
   COMPONENT headers)
 
 install(
-  DIRECTORY cmake/uxs
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/share/cmake
+  FILES ${PROJECT_BINARY_DIR}/generated/uxs/config.h
+  DESTINATION ${CMAKE_INSTALL_PREFIX}/include/uxs
   COMPONENT headers)
 
 install(
-  FILES ${PROJECT_BINARY_DIR}/generated/uxs/config.h
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/include/uxs
+  DIRECTORY cmake/uxs
+  DESTINATION ${CMAKE_INSTALL_PREFIX}/share/cmake
   COMPONENT share)
 
 # ##############################################################################

@@ -19,7 +19,8 @@
         "value": "x64",
         "strategy": "external"
       },
-      "binaryDir": ".\\build"
+      "binaryDir": ".\\build",
+      "installDir": ".\\install"
     }
   ],
   "buildPresets": [
