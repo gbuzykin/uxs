@@ -37,11 +37,11 @@ class basic_oflatbuf : protected std::allocator_traits<Alloc>::template rebind_a
 
  private:
     enum : unsigned {
-#if !defined(NDEBUG) && UXS_DEBUG_REDUCED_BUFFERS != 0
+#if UXS_DEBUG_REDUCED_BUFFERS != 0
         min_buf_size = 7
-#else   // !defined(NDEBUG) && UXS_DEBUG_REDUCED_BUFFERS != 0
+#else   // UXS_DEBUG_REDUCED_BUFFERS != 0
         min_buf_size = 512 / sizeof(char_type)
-#endif  // !defined(NDEBUG) && UXS_DEBUG_REDUCED_BUFFERS != 0
+#endif  // UXS_DEBUG_REDUCED_BUFFERS != 0
     };
 
     size_type top_ = 0;
