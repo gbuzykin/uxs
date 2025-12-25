@@ -12,11 +12,22 @@ option(USE_ZLIB "Use ZLib" ON)
 option(USE_LIBZIP "Use LibZip" ON)
 option(USE_LIBCPP "Use LibC++" OFF)
 option(USE_SANITIZERS_FOR_DEBUG "Use Sanitizers for Debug build" ON)
+option(OPTION_TREAT_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 option(OPTION_EXPORT_COMPILE_DEFS_AND_INCLUDE_DIRS
        "Export compile definitions and include directories" OFF)
 
-set(CMAKE_CXX_VISIBILITY_PRESET hidden)
-set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
+if(MSVC)
+  set(DEFAULT_ITERATOR_DEBUG_LEVEL _ITERATOR_DEBUG_LEVEL)
+else()
+  set(DEFAULT_ITERATOR_DEBUG_LEVEL 2)
+endif()
+
+set(ITERATOR_DEBUG_LEVEL
+    ${DEFAULT_ITERATOR_DEBUG_LEVEL}
+    CACHE STRING "Iterator debug level for Debug build")
+set(DEBUG_REDUCED_BUFFERS
+    1
+    CACHE STRING "Use reduced buffers for Debug build")
 
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 20)
@@ -25,11 +36,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 message("Using C++${CMAKE_CXX_STANDARD} standard")
 
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
+
 foreach(var_name CMAKE_C_COMPILER CMAKE_C_FLAGS CMAKE_BUILD_TYPE)
   if(DEFINED ${var_name})
     list(APPEND EXT_PROJECT_CMAKE_ARGS "-D${var_name}=${${var_name}}")
   endif()
 endforeach()
+
+get_property(IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+set(CONFIG_SUBDIR $<$<BOOL:${IS_MULTI_CONFIG}>:$<CONFIG>>)
 
 # ##############################################################################
 # Prepare `zlib` library
@@ -37,25 +54,30 @@ endforeach()
 if((USE_ZLIB OR USE_LIBZIP) AND NOT ZLIB_LIBRARY)
   if(NOT ZLIB_SOURCE_DIR)
     set(ZLIB_GIT_REPOSITORY "https://github.com/madler/zlib.git")
+    set(ZLIB_GIT_TAG 51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf)
   endif()
+  set(ZLIB_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/zlib/${CONFIG_SUBDIR})
+  set(ZLIB_INCLUDE_DIR ${ZLIB_INSTALL_DIR}/include)
   set(ZLIB_LIBRARY_NAME
       $<IF:$<BOOL:${WIN32}>,zlibstatic$<$<CONFIG:Debug>:d>.lib,libz.a>)
+  set(ZLIB_LIBRARY ${ZLIB_INSTALL_DIR}/lib/${ZLIB_LIBRARY_NAME})
+  set(ZLIB_DEP libz)
   ExternalProject_Add(
     libz
     GIT_REPOSITORY ${ZLIB_GIT_REPOSITORY}
-    GIT_TAG 51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf
+    GIT_TAG ${ZLIB_GIT_TAG}
     SOURCE_DIR ${ZLIB_SOURCE_DIR}
     PREFIX ${CMAKE_CURRENT_BINARY_DIR}/zlib
-    BUILD_BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/zlib/lib/${ZLIB_LIBRARY_NAME}
+    BUILD_BYPRODUCTS ${ZLIB_LIBRARY}
+    CMAKE_CACHE_ARGS
+      -DCMAKE_INSTALL_PREFIX:PATH=${LIBZIP_INSTALL_DIR} #
+      -DINSTALL_LIB_DIR:PATH=${ZLIB_INSTALL_DIR}/lib #
+      -DINSTALL_BIN_DIR:PATH=${ZLIB_INSTALL_DIR}/bin #
+      -DINSTALL_INC_DIR:PATH=${ZLIB_INSTALL_DIR}/include
     CMAKE_ARGS -DZLIB_BUILD_EXAMPLES=Off #
                -DSKIP_INSTALL_FILES=On #
                -DCMAKE_POSITION_INDEPENDENT_CODE=On #
-               -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR> #
                ${EXT_PROJECT_CMAKE_ARGS})
-  ExternalProject_Get_Property(libz INSTALL_DIR)
-  set(ZLIB_INCLUDE_DIR ${INSTALL_DIR}/include)
-  set(ZLIB_LIBRARY ${INSTALL_DIR}/lib/${ZLIB_LIBRARY_NAME})
-  set(ZLIB_DEP libz)
 endif()
 
 # ##############################################################################
@@ -64,17 +86,22 @@ endif()
 if(USE_LIBZIP AND NOT LIBZIP_LIBRARY)
   if(NOT LIBZIP_SOURCE_DIR)
     set(LIBZIP_GIT_REPOSITORY "https://github.com/nih-at/libzip.git")
+    set(LIBZIP_GIT_TAG a1364389320754b437234c30989e37e1881b4fef)
   endif()
+  set(LIBZIP_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/libzip/${CONFIG_SUBDIR})
+  set(LIBZIP_INCLUDE_DIR ${LIBZIP_INSTALL_DIR}/include)
   set(LIBZIP_LIBRARY_NAME $<IF:$<BOOL:${WIN32}>,zip.lib,libzip.a>)
+  set(LIBZIP_LIBRARY ${LIBZIP_INSTALL_DIR}/lib/${LIBZIP_LIBRARY_NAME})
+  set(LIBZIP_DEP libzip)
   ExternalProject_Add(
     libzip
     DEPENDS ${ZLIB_DEP}
     GIT_REPOSITORY ${LIBZIP_GIT_REPOSITORY}
-    GIT_TAG a1364389320754b437234c30989e37e1881b4fef
+    GIT_TAG ${LIBZIP_GIT_TAG}
     SOURCE_DIR ${LIBZIP_SOURCE_DIR}
     PREFIX ${CMAKE_CURRENT_BINARY_DIR}/libzip
-    BUILD_BYPRODUCTS
-      ${CMAKE_CURRENT_BINARY_DIR}/libzip/lib/${LIBZIP_LIBRARY_NAME}
+    BUILD_BYPRODUCTS ${LIBZIP_LIBRARY}
+    CMAKE_CACHE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${LIBZIP_INSTALL_DIR}
     CMAKE_ARGS -DZLIB_INCLUDE_DIR=${ZLIB_INCLUDE_DIR} #
                -DZLIB_LIBRARY=${ZLIB_LIBRARY} #
                -DENABLE_COMMONCRYPTO=Off #
@@ -92,22 +119,23 @@ if(USE_LIBZIP AND NOT LIBZIP_LIBRARY)
                -DBUILD_DOC=Off #
                -DBUILD_SHARED_LIBS=Off #
                -DCMAKE_POSITION_INDEPENDENT_CODE=On #
-               -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR> #
                -DCMAKE_INSTALL_LIBDIR=lib #
                ${EXT_PROJECT_CMAKE_ARGS})
-  ExternalProject_Get_Property(libzip INSTALL_DIR)
-  set(LIBZIP_INCLUDE_DIR ${INSTALL_DIR}/include)
-  set(LIBZIP_LIBRARY ${INSTALL_DIR}/lib/${LIBZIP_LIBRARY_NAME})
-  set(LIBZIP_DEP libzip)
 endif()
 
 # ##############################################################################
 # Compilation flags
 
 if(MSVC)
-  add_compile_options(/Zc:__cplusplus /utf-8 /WX)
+  add_compile_options(/Zc:__cplusplus /utf-8)
+  if(OPTION_TREAT_WARNINGS_AS_ERRORS)
+    add_compile_options(/WX)
+  endif()
 else()
-  add_compile_options(-Wall -Wextra -pedantic -Werror)
+  add_compile_options(-Wall -Wextra -pedantic)
+  if(OPTION_TREAT_WARNINGS_AS_ERRORS)
+    add_compile_options(-Werror)
+  endif()
   if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     add_compile_options(-Wno-nullability-extension)
     if(CMAKE_CXX_STANDARD LESS 17)
@@ -178,11 +206,11 @@ endif()
 
 set(UXS_CUSTOM_CONFIG "${UXS_CUSTOM_CONFIG}#ifndef NDEBUG\n")
 set(UXS_CUSTOM_CONFIG
-    "${UXS_CUSTOM_CONFIG}#  define UXS_DEBUG_REDUCED_BUFFERS 1\n")
-if(NOT MSVC)
-  set(UXS_CUSTOM_CONFIG
-      "${UXS_CUSTOM_CONFIG}#  define UXS_ITERATOR_DEBUG_LEVEL 2\n")
-endif()
+    "${UXS_CUSTOM_CONFIG}#  define UXS_ITERATOR_DEBUG_LEVEL ${ITERATOR_DEBUG_LEVEL}\n"
+)
+set(UXS_CUSTOM_CONFIG
+    "${UXS_CUSTOM_CONFIG}#  define UXS_DEBUG_REDUCED_BUFFERS ${DEBUG_REDUCED_BUFFERS}\n"
+)
 set(UXS_CUSTOM_CONFIG "${UXS_CUSTOM_CONFIG}#endif\n")
 
 generate_export_header(
@@ -199,27 +227,25 @@ target_include_directories(uxs PRIVATE include ${PROJECT_BINARY_DIR}/generated)
 # ##############################################################################
 # Setup `uxs` installation
 
-install(TARGETS uxs LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-                            COMPONENT library)
+install(TARGETS uxs LIBRARY DESTINATION lib COMPONENT library)
 
 if(WIN32)
-  install(TARGETS uxs RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
-                              COMPONENT binary)
+  install(TARGETS uxs RUNTIME DESTINATION bin COMPONENT binary)
 endif()
 
 install(
   DIRECTORY include
-  DESTINATION ${CMAKE_INSTALL_PREFIX}
+  DESTINATION .
   COMPONENT headers)
 
 install(
   FILES ${PROJECT_BINARY_DIR}/generated/uxs/config.h
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/include/uxs
+  DESTINATION include/uxs
   COMPONENT headers)
 
 install(
   DIRECTORY cmake/uxs
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/share/cmake
+  DESTINATION share/cmake
   COMPONENT share)
 
 # ##############################################################################

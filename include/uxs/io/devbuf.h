@@ -50,13 +50,13 @@ class basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_all
 
  private:
     enum : unsigned {
-#if !defined(NDEBUG) && UXS_DEBUG_REDUCED_BUFFERS != 0
+#if UXS_DEBUG_REDUCED_BUFFERS != 0
         min_buf_size = 15,
         cr_reserve_ratio = 7,
-#else   // !defined(NDEBUG) && UXS_DEBUG_REDUCED_BUFFERS != 0
+#else   // UXS_DEBUG_REDUCED_BUFFERS != 0
         min_buf_size = 16384 / sizeof(char_type),
         cr_reserve_ratio = 16,
-#endif  // !defined(NDEBUG) && UXS_DEBUG_REDUCED_BUFFERS != 0
+#endif  // UXS_DEBUG_REDUCED_BUFFERS != 0
         max_buf_size = 1024 * 1024 * 1024 / sizeof(char_type),
     };
 

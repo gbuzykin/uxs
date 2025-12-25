@@ -11,16 +11,12 @@
       "displayName": "'default' config",
       "description": "'default' configure using 'Ninja Multi-Config' generator",
       "generator": "Ninja Multi-Config",
-      "cacheVariables": {
-        "USE_ZLIB": "On",
-        "USE_LIBZIP": "On"
-      },
+      "cacheVariables": {},
       "architecture": {
         "value": "x64",
         "strategy": "external"
       },
-      "binaryDir": ".\\build",
-      "installDir": ".\\install"
+      "binaryDir": "${sourceDir}/build"
     }
   ],
   "buildPresets": [

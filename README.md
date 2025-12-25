@@ -71,12 +71,10 @@ Perform these steps to build the project:
 2. Create compilation script using `cmake` tool
 
     ```bash
-    cmake --config default
+    cmake --preset default
     ```
    
     Default C & C++ compilers will be used.
-
-    Library installation path prefix can be specified via defining `-DCMAKE_INSTALL_PATH=<path>` variable.
 
 3. Build library
 
@@ -90,8 +88,8 @@ Perform these steps to build the project:
     cmake --build build --config Release -j 8
     ```
 
-4. Install the library
+4. Install library
 
     ```bash
-    cmake --build build --config Release --target install
+    cmake --install build --config Release --prefix <install-dir>
     ```

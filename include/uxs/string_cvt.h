@@ -223,11 +223,11 @@ class inline_basic_dynbuffer final : public basic_dynbuffer<Ty, Alloc> {
 
  private:
     enum : unsigned {
-#if !defined(NDEBUG) && UXS_DEBUG_REDUCED_BUFFERS != 0
+#if UXS_DEBUG_REDUCED_BUFFERS != 0
         inline_buf_size = 7
-#else   // !defined(NDEBUG) && UXS_DEBUG_REDUCED_BUFFERS != 0
+#else   // UXS_DEBUG_REDUCED_BUFFERS != 0
         inline_buf_size = InlineBufSize != 0 ? InlineBufSize : 256 / sizeof(Ty)
-#endif  // !defined(NDEBUG) && UXS_DEBUG_REDUCED_BUFFERS != 0
+#endif  // UXS_DEBUG_REDUCED_BUFFERS != 0
     };
 
     alignas(std::alignment_of<Ty>::value) std::uint8_t buf_[inline_buf_size * sizeof(Ty)]{};
