@@ -3,11 +3,12 @@
 
 macro(add_compile_defs_and_include_dirs_targets TargetName ExportDir)
   if(OPTION_EXPORT_COMPILE_DEFS_AND_INCLUDE_DIRS)
+    string(MAKE_C_IDENTIFIER ${TargetName} TargetNameCIdentifier)
     add_custom_target(
       ${TargetName}_compile_defs
       COMMAND
         ${CMAKE_COMMAND} -E echo
-        "\"$<JOIN:$<LIST:APPEND,$<TARGET_PROPERTY:${TargetName},COMPILE_DEFINITIONS>,${TargetName}_EXPORTS>,;>\""
+        "\"$<JOIN:$<LIST:APPEND,$<TARGET_PROPERTY:${TargetName},COMPILE_DEFINITIONS>,${TargetNameCIdentifier}_EXPORTS>,;>\""
         >${ExportDir}/compile-defs.list)
     add_custom_target(
       ${TargetName}_include_dirs
