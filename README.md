@@ -64,14 +64,14 @@ Perform these steps to build the project:
 1. Clone `uxs` repository and enter it
 
     ```bash
-    git clone https://github.com/gbuzykin/uxs.git
-    cd uxs
+    $ git clone https://github.com/gbuzykin/uxs.git
+    $ cd uxs
     ```
 
 2. Create compilation script using `cmake` tool
 
     ```bash
-    cmake --preset default
+    $ cmake --preset default
     ```
    
     Default C & C++ compilers will be used.
@@ -79,17 +79,17 @@ Perform these steps to build the project:
 3. Build library
 
     ```bash
-    cmake --build build --config Release
+    $ cmake --build build --config Release
     ```
 
     To run several parallel processes (e.g. 8) for building use `-j` key
 
     ```bash
-    cmake --build build --config Release -j 8
+    $ cmake --build build --config Release -j 8
     ```
 
 4. Install library
 
     ```bash
-    cmake --install build --config Release --prefix <install-dir>
+    $ cmake --install build --config Release --prefix <install-dir>
     ```
