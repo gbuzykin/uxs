@@ -392,10 +392,10 @@ detail::lex_token_t detail::lexer::lex(std::string_view& lval) {
 
 template UXS_EXPORT basic_value<char> parser::read(std::string_view, const std::allocator<char>&);
 template UXS_EXPORT basic_value<wchar_t> parser::read(std::string_view, const std::allocator<wchar_t>&);
-template UXS_EXPORT void detail::writer<char>::do_write(const basic_value<char>&, std::string_view, unsigned);
-template UXS_EXPORT void detail::writer<char>::do_write(const basic_value<wchar_t>&, std::wstring_view, unsigned);
-template UXS_EXPORT void detail::writer<wchar_t>::do_write(const basic_value<char>&, std::string_view, unsigned);
-template UXS_EXPORT void detail::writer<wchar_t>::do_write(const basic_value<wchar_t>&, std::wstring_view, unsigned);
+template UXS_EXPORT void write(membuffer& out, const basic_value<char>&, std::string_view, xml_fmt_opts, unsigned);
+template UXS_EXPORT void write(membuffer& out, const basic_value<wchar_t>&, std::wstring_view, xml_fmt_opts, unsigned);
+template UXS_EXPORT void write(wmembuffer& out, const basic_value<char>&, std::string_view, xml_fmt_opts, unsigned);
+template UXS_EXPORT void write(wmembuffer& out, const basic_value<wchar_t>&, std::wstring_view, xml_fmt_opts, unsigned);
 }  // namespace xml
 }  // namespace db
 }  // namespace uxs

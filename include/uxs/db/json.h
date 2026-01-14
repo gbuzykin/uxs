@@ -26,6 +26,13 @@ enum class token_t : int {
 
 enum class parse_step { into = 0, over, stop };
 
+struct json_fmt_opts {
+    char object_ws_char = ' ';
+    char array_ws_char = ' ';
+    char indent_char = ' ';
+    unsigned indent_size = 2;
+};
+
 namespace detail {
 struct lexer {
     ibuf& in;
@@ -118,32 +125,24 @@ loop:
 template<typename CharT = char, typename Alloc = std::allocator<CharT>>
 UXS_EXPORT basic_value<CharT, Alloc> read(ibuf& in, const Alloc& al = Alloc());
 
-namespace detail {
-template<typename CharT>
-struct writer {
-    basic_membuffer<CharT>& out;
-    unsigned indent_size;
-    char object_ws_char;
-    char array_ws_char;
-    char indent_char;
-    template<typename ValueCharT, typename Alloc>
-    UXS_EXPORT void do_write(const basic_value<ValueCharT, Alloc>& v, unsigned indent);
-};
-}  // namespace detail
+template<typename CharT, typename ValueCharT, typename Alloc>
+UXS_EXPORT void write(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v);
 
 template<typename CharT, typename ValueCharT, typename Alloc>
-void write(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v, unsigned indent_size = 0,
-           char object_ws_char = ' ', char array_ws_char = ' ', char indent_char = ' ', unsigned indent = 0) {
-    detail::writer<CharT> writer{out, indent_size, object_ws_char, array_ws_char, indent_char};
-    writer.do_write(v, indent);
+UXS_EXPORT void write_formatted(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v,
+                                json_fmt_opts opts = {}, unsigned indent = 0);
+
+template<typename CharT, typename ValueCharT, typename Alloc>
+void write(basic_iobuf<CharT>& out, const basic_value<ValueCharT, Alloc>& v) {
+    basic_iomembuffer<CharT> buf(out);
+    write(buf, v);
 }
 
 template<typename CharT, typename ValueCharT, typename Alloc>
-void write(basic_iobuf<CharT>& out, const basic_value<ValueCharT, Alloc>& v, unsigned indent_size = 0,
-           char object_ws_char = ' ', char array_ws_char = ' ', char indent_char = ' ', unsigned indent = 0) {
+void write_formatted(basic_iobuf<CharT>& out, const basic_value<ValueCharT, Alloc>& v, json_fmt_opts opts = {},
+                     unsigned indent = 0) {
     basic_iomembuffer<CharT> buf(out);
-    detail::writer<CharT> writer{buf, indent_size, object_ws_char, array_ws_char, indent_char};
-    writer.do_write(v, indent);
+    write_formatted(buf, v, opts, indent);
 }
 
 }  // namespace json
@@ -152,11 +151,9 @@ void write(basic_iobuf<CharT>& out, const basic_value<ValueCharT, Alloc>& v, uns
 template<typename CharT, typename ValueCharT, typename Alloc>
 struct formatter<db::basic_value<ValueCharT, Alloc>, CharT> {
  private:
-    unsigned indent_size_ = 0;
-    char object_ws_char_ = ' ';
-    char array_ws_char_ = ' ';
-    char indent_char_ = ' ';
+    db::json::json_fmt_opts opts_;
     std::size_t indent_size_arg_id_ = unspecified_size;
+    bool use_condensed_ = false;
 
  public:
     template<typename ParseCtx>
@@ -166,18 +163,19 @@ struct formatter<db::basic_value<ValueCharT, Alloc>, CharT> {
         if (++it == ctx.end()) { return it; }
         if (*it == '.') {
             auto it0 = it++;
-            if (!ParseCtx::parse_integral_parameter(ctx, it, indent_size_, indent_size_arg_id_)) { return it0; }
+            if (!ParseCtx::parse_integral_parameter(ctx, it, opts_.indent_size, indent_size_arg_id_)) { return it0; }
             if (++it == ctx.end()) { return it; }
         }
         switch (*it) {
             case 't': {
-                indent_char_ = '\t';
+                opts_.indent_char = '\t';
                 if (++it == ctx.end() || (*it != 'a' && *it != 'A')) { ParseCtx::syntax_error(); }
-                object_ws_char_ = '\n';
-                if (*it == 'A') { array_ws_char_ = '\n'; }
+                opts_.object_ws_char = '\n';
+                if (*it == 'A') { opts_.array_ws_char = '\n'; }
             } break;
-            case 'a': object_ws_char_ = '\n'; break;
-            case 'A': object_ws_char_ = array_ws_char_ = '\n'; break;
+            case 'c': use_condensed_ = true; break;
+            case 'a': opts_.object_ws_char = '\n'; break;
+            case 'A': opts_.object_ws_char = opts_.array_ws_char = '\n'; break;
             default: return it;
         }
         return it + 1;
@@ -185,11 +183,11 @@ struct formatter<db::basic_value<ValueCharT, Alloc>, CharT> {
 
     template<typename FmtCtx>
     void format(FmtCtx& ctx, const db::basic_value<ValueCharT, Alloc>& val) const {
-        unsigned indent_size = indent_size_;
+        unsigned indent_size = opts_.indent_size;
         if (indent_size_arg_id_ != unspecified_size) {
             indent_size = ctx.arg(indent_size_arg_id_).template get_unsigned<decltype(indent_size)>();
         }
-        db::json::write(ctx.out(), val, indent_size, object_ws_char_, array_ws_char_, indent_char_);
+        return use_condensed_ ? db::json::write(ctx.out(), val) : db::json::write_formatted(ctx.out(), val, opts_);
     }
 };
 

@@ -207,10 +207,14 @@ token_t detail::lexer::lex(std::string_view& lval) {
 
 template UXS_EXPORT basic_value<char> read(ibuf&, const std::allocator<char>&);
 template UXS_EXPORT basic_value<wchar_t> read(ibuf&, const std::allocator<wchar_t>&);
-template UXS_EXPORT void detail::writer<char>::do_write(const basic_value<char>&, unsigned);
-template UXS_EXPORT void detail::writer<char>::do_write(const basic_value<wchar_t>&, unsigned);
-template UXS_EXPORT void detail::writer<wchar_t>::do_write(const basic_value<char>&, unsigned);
-template UXS_EXPORT void detail::writer<wchar_t>::do_write(const basic_value<wchar_t>&, unsigned);
+template UXS_EXPORT void write(membuffer& out, const basic_value<char>&);
+template UXS_EXPORT void write(membuffer& out, const basic_value<wchar_t>&);
+template UXS_EXPORT void write(wmembuffer& out, const basic_value<char>&);
+template UXS_EXPORT void write(wmembuffer& out, const basic_value<wchar_t>&);
+template UXS_EXPORT void write_formatted(membuffer& out, const basic_value<char>&, json_fmt_opts, unsigned);
+template UXS_EXPORT void write_formatted(membuffer& out, const basic_value<wchar_t>&, json_fmt_opts, unsigned);
+template UXS_EXPORT void write_formatted(wmembuffer& out, const basic_value<char>&, json_fmt_opts, unsigned);
+template UXS_EXPORT void write_formatted(wmembuffer& out, const basic_value<wchar_t>&, json_fmt_opts, unsigned);
 }  // namespace json
 }  // namespace db
 }  // namespace uxs

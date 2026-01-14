@@ -34,6 +34,11 @@ enum class value_class : int {
     other,
 };
 
+struct xml_fmt_opts {
+    char indent_char = ' ';
+    unsigned indent_size = 2;
+};
+
 namespace detail {
 enum class lex_token_t : int {
     eof = 0,
@@ -172,33 +177,17 @@ class parser {
     UXS_EXPORT std::pair<token_t, std::string_view> next_impl();
 };
 
-namespace detail {
-template<typename CharT>
-struct writer {
-    basic_membuffer<CharT>& out;
-    unsigned indent_size;
-    char indent_char;
-    template<typename ValueCharT, typename Alloc>
-    UXS_EXPORT void do_write(const basic_value<ValueCharT, Alloc>& v, std::basic_string_view<ValueCharT> element,
-                             unsigned indent);
-};
-}  // namespace detail
-
 template<typename CharT, typename ValueCharT, typename Alloc>
-void write(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v,
-           est::type_identity_t<std::basic_string_view<ValueCharT>> element, unsigned indent_size = 0,
-           char indent_char = ' ', unsigned indent = 0) {
-    detail::writer<CharT> writer{out, indent_size, indent_char};
-    writer.do_write(v, element, indent);
-}
+UXS_EXPORT void write(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v,
+                      est::type_identity_t<std::basic_string_view<ValueCharT>> element, xml_fmt_opts opts = {},
+                      unsigned indent = 0);
 
 template<typename CharT, typename ValueCharT, typename Alloc>
 void write(basic_iobuf<CharT>& out, const basic_value<ValueCharT, Alloc>& v,
-           est::type_identity_t<std::basic_string_view<ValueCharT>> element, unsigned indent_size = 0,
-           char indent_char = ' ', unsigned indent = 0) {
+           est::type_identity_t<std::basic_string_view<ValueCharT>> element, xml_fmt_opts opts = {},
+           unsigned indent = 0) {
     basic_iomembuffer<CharT> buf(out);
-    detail::writer<CharT> writer{buf, indent_size, indent_char};
-    writer.do_write(v, element, indent);
+    write(buf, v, element, opts, indent);
 }
 
 }  // namespace xml
