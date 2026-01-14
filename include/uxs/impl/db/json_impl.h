@@ -202,9 +202,10 @@ value_visitor<StrTy, StackTy> make_value_visitor(StrTy& out, StackTy& stack) {
     return {out, stack};
 }
 
-template<typename CharT>
-template<typename ValueCharT, typename Alloc>
-void writer<CharT>::do_write(const basic_value<ValueCharT, Alloc>& v, unsigned indent) {
+}  // namespace detail
+
+template<typename CharT, typename ValueCharT, typename Alloc>
+void write(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v) {
     using stack_item_t = detail::writer_stack_item_t<ValueCharT, Alloc>;
     inline_basic_dynbuffer<stack_item_t, 32> stack;
 
@@ -215,22 +216,62 @@ void writer<CharT>::do_write(const basic_value<ValueCharT, Alloc>& v, unsigned i
 
 loop:
     auto& top = stack.back();
-    const char ws_char = top.is_record() ? object_ws_char : array_ws_char;
 
-    if (is_first_element) {
-        out += top.is_record() ? '{' : '[';
-        if (ws_char == '\n') {
-            indent += indent_size;
-            out += '\n';
-            out.append(indent, indent_char);
+    if (top.is_record()) {
+        while (!top.empty()) {
+            out += is_first_element ? '{' : ',';
+            detail::write_text<CharT>(out, utf_string_adapter<CharT>{}(top.key()));
+            out += ':';
+            if (top.get_and_advance().visit(visitor)) {
+                is_first_element = true;
+                goto loop;
+            }
+            is_first_element = false;
         }
+        out += '}';
+    } else {
+        while (!top.empty()) {
+            out += is_first_element ? '[' : ',';
+            if (top.get_and_advance().visit(visitor)) {
+                is_first_element = true;
+                goto loop;
+            }
+            is_first_element = false;
+        }
+        out += ']';
     }
 
+    stack.pop_back();
+    if (!stack.empty()) { goto loop; }
+}
+
+template<typename CharT, typename ValueCharT, typename Alloc>
+void write_formatted(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v, json_fmt_opts opts,
+                     unsigned indent) {
+    using stack_item_t = detail::writer_stack_item_t<ValueCharT, Alloc>;
+    inline_basic_dynbuffer<stack_item_t, 32> stack;
+
+    const auto visitor = make_value_visitor(out, stack);
+    if (!v.visit(visitor)) { return; }
+
+    bool is_first_element = true;
+
+loop:
+    auto& top = stack.back();
+    const char ws_char = top.is_record() ? opts.object_ws_char : opts.array_ws_char;
+
     while (!top.empty()) {
-        if (!is_first_element) {
+        if (is_first_element) {
+            out += top.is_record() ? '{' : '[';
+            if (ws_char == '\n') {
+                out += '\n';
+                indent += opts.indent_size;
+                out.append(indent, opts.indent_char);
+            }
+        } else {
             out += ',';
             out += ws_char;
-            if (ws_char == '\n') { out.append(indent, indent_char); }
+            if (ws_char == '\n') { out.append(indent, opts.indent_char); }
         }
         if (top.is_record()) {
             detail::write_text<CharT>(out, utf_string_adapter<CharT>{}(top.key()));
@@ -244,17 +285,15 @@ loop:
     }
 
     if (ws_char == '\n') {
-        indent -= indent_size;
         out += '\n';
-        out.append(indent, indent_char);
+        indent -= opts.indent_size;
+        out.append(indent, opts.indent_char);
     }
     out += top.is_record() ? '}' : ']';
 
     stack.pop_back();
     if (!stack.empty()) { goto loop; }
 }
-
-}  // namespace detail
 
 }  // namespace json
 }  // namespace db

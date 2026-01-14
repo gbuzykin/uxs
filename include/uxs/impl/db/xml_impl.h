@@ -214,10 +214,11 @@ value_visitor<StrTy, StackTy> make_value_visitor(StrTy& out, StackTy& stack) {
     return {out, stack};
 }
 
-template<typename CharT>
-template<typename ValueCharT, typename Alloc>
-void writer<CharT>::do_write(const basic_value<ValueCharT, Alloc>& v, std::basic_string_view<ValueCharT> element,
-                             unsigned indent) {
+}  // namespace detail
+
+template<typename CharT, typename ValueCharT, typename Alloc>
+void write(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v,
+           est::type_identity_t<std::basic_string_view<ValueCharT>> element, xml_fmt_opts opts, unsigned indent) {
     using stack_item_t = detail::writer_stack_item_t<ValueCharT, Alloc>;
     inline_basic_dynbuffer<stack_item_t, 32> stack;
 
@@ -239,7 +240,7 @@ void writer<CharT>::do_write(const basic_value<ValueCharT, Alloc>& v, std::basic
 loop:
     auto& top = stack.back();
 
-    if (is_first_element && top.is_record()) { indent += indent_size; }
+    if (is_first_element && top.is_record()) { indent += opts.indent_size; }
 
     while (true) {
         if (!is_first_element && !top.prev().is_array()) {
@@ -252,7 +253,7 @@ loop:
         const auto& value = top.get_and_advance();
         if (!value.is_array()) {
             out += '\n';
-            out.append(indent, indent_char);
+            out.append(indent, opts.indent_char);
             out += '<';
             utf_string_adapter<CharT>{}.append(out, element);
             out += '>';
@@ -266,9 +267,9 @@ loop:
     }
 
     if (top.is_record()) {
-        indent -= indent_size;
+        indent -= opts.indent_size;
         out += '\n';
-        out.append(indent, indent_char);
+        out.append(indent, opts.indent_char);
     }
 
     is_first_element = false;
@@ -280,8 +281,6 @@ loop:
     utf_string_adapter<CharT>{}.append(out, element);
     out += '>';
 }
-
-}  // namespace detail
 
 }  // namespace xml
 }  // namespace db
