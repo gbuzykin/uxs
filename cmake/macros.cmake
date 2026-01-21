@@ -1,6 +1,16 @@
 # ##############################################################################
 # Useful macro definitions
 
+macro(install_win32_pdb TargetName)
+  if(WIN32)
+    install(
+      FILES $<TARGET_PDB_FILE:${TargetName}>
+      DESTINATION ${SYMBOLS_DIR}
+      COMPONENT symbols
+      OPTIONAL)
+  endif()
+endmacro()
+
 macro(add_compile_defs_and_include_dirs_targets TargetName ExportDir)
   if(OPTION_EXPORT_COMPILE_DEFS_AND_INCLUDE_DIRS)
     string(MAKE_C_IDENTIFIER ${TargetName} TargetNameCIdentifier)

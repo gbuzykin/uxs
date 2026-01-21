@@ -7,6 +7,7 @@ project(
 
 include(ExternalProject)
 include(GenerateExportHeader)
+include("cmake/macros.cmake")
 
 option(USE_ZLIB "Use ZLib" ON)
 option(USE_LIBZIP "Use LibZip" ON)
@@ -28,6 +29,10 @@ set(ITERATOR_DEBUG_LEVEL
 set(DEBUG_REDUCED_BUFFERS
     1
     CACHE STRING "Use reduced buffers for Debug build")
+
+if(NOT SYMBOLS_DIR)
+  set(SYMBOLS_DIR bin)
+endif()
 
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 20)
@@ -180,11 +185,14 @@ file(GLOB_RECURSE uxs_sources src/*.h;src/*.cpp)
 file(GLOB_RECURSE uxs_platform_sources
      ${uxs_platform_dir}/src/*.h;${uxs_platform_dir}/src/*.cpp)
 
-add_library(uxs SHARED .clang-format ${uxs_headers} ${uxs_sources}
-                       ${uxs_platform_sources})
+add_library(uxs SHARED ${uxs_headers} ${uxs_sources} ${uxs_platform_sources})
 
-if(ZLIB_DEP OR LIBZIP_DEP)
-  add_dependencies(uxs ${ZLIB_DEP} ${LIBZIP_DEP})
+if(ZLIB_DEP)
+  add_dependencies(uxs ${ZLIB_DEP})
+endif()
+
+if(LIBZIP_DEP)
+  add_dependencies(uxs ${LIBZIP_DEP})
 endif()
 
 set(UXS_CUSTOM_CONFIG "\n")
@@ -222,16 +230,17 @@ generate_export_header(
   CUSTOM_CONTENT_FROM_VARIABLE
   UXS_CUSTOM_CONFIG)
 
-target_include_directories(uxs PRIVATE include ${PROJECT_BINARY_DIR}/generated)
+target_include_directories(uxs PUBLIC include ${PROJECT_BINARY_DIR}/generated)
 
 # ##############################################################################
 # Setup `uxs` installation
 
-install(TARGETS uxs LIBRARY DESTINATION lib COMPONENT library)
-
-if(WIN32)
-  install(TARGETS uxs RUNTIME DESTINATION bin COMPONENT binary)
-endif()
+install(
+  TARGETS uxs
+  RUNTIME DESTINATION bin COMPONENT binaries
+  LIBRARY DESTINATION lib COMPONENT libraries
+  ARCHIVE DESTINATION lib COMPONENT libraries)
+install_win32_pdb(uxs)
 
 install(
   DIRECTORY include
@@ -243,13 +252,7 @@ install(
   DESTINATION include/uxs
   COMPONENT headers)
 
-install(
-  DIRECTORY cmake/uxs
-  DESTINATION share/cmake
-  COMPONENT share)
-
 # ##############################################################################
 # Auxiliary
 
-include("cmake/uxs/macros.cmake")
 add_compile_defs_and_include_dirs_targets(uxs ${CMAKE_CURRENT_SOURCE_DIR})
