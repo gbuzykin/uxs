@@ -16,6 +16,7 @@ option(USE_SANITIZERS_FOR_DEBUG "Use Sanitizers for Debug build" ON)
 option(OPTION_TREAT_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 option(OPTION_EXPORT_COMPILE_DEFS_AND_INCLUDE_DIRS
        "Export compile definitions and include directories" OFF)
+option(OPTION_DO_INSTALL "Install all library stuff" ON)
 
 if(MSVC)
   set(DEFAULT_ITERATOR_DEBUG_LEVEL _ITERATOR_DEBUG_LEVEL)
@@ -235,22 +236,24 @@ target_include_directories(uxs PUBLIC include ${PROJECT_BINARY_DIR}/generated)
 # ##############################################################################
 # Setup `uxs` installation
 
-install(
-  TARGETS uxs
-  RUNTIME DESTINATION bin COMPONENT binaries
-  LIBRARY DESTINATION lib COMPONENT libraries
-  ARCHIVE DESTINATION lib COMPONENT libraries)
-install_win32_pdb(uxs)
+if(OPTION_DO_INSTALL)
+  install(
+    TARGETS uxs
+    RUNTIME DESTINATION bin COMPONENT binaries
+    LIBRARY DESTINATION lib COMPONENT libraries
+    ARCHIVE DESTINATION lib COMPONENT libraries)
+  install_win32_pdb(uxs)
 
-install(
-  DIRECTORY include
-  DESTINATION .
-  COMPONENT headers)
+  install(
+    DIRECTORY include
+    DESTINATION .
+    COMPONENT headers)
 
-install(
-  FILES ${PROJECT_BINARY_DIR}/generated/uxs/config.h
-  DESTINATION include/uxs
-  COMPONENT headers)
+  install(
+    FILES ${PROJECT_BINARY_DIR}/generated/uxs/config.h
+    DESTINATION include/uxs
+    COMPONENT headers)
+endif()
 
 # ##############################################################################
 # Auxiliary
