@@ -80,7 +80,8 @@ class basic_ibuf : public iostate {
         size_type count = sz;
         if (!count) { return 0; }
         for (size_type n_avail = avail(); count > n_avail; n_avail = avail()) {
-            if (n_avail) { first = std::copy_n(curr(), n_avail, first), pos_ = capacity_, count -= n_avail; }
+            first = std::copy_n(curr(), n_avail, first);
+            pos_ = capacity_, count -= n_avail;
             if (!this->good() || underflow() < 0) {
                 this->setstate(iostate_bits::eof | iostate_bits::fail);
                 return sz - count;
