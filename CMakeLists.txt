@@ -11,12 +11,8 @@ include("cmake/macros.cmake")
 
 option(USE_ZLIB "Use ZLib" ON)
 option(USE_LIBZIP "Use LibZip" ON)
-option(USE_LIBCPP "Use LibC++" OFF)
-option(USE_SANITIZERS_FOR_DEBUG "Use Sanitizers for Debug build" ON)
-option(OPTION_TREAT_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
-option(OPTION_EXPORT_COMPILE_DEFS_AND_INCLUDE_DIRS
-       "Export compile definitions and include directories" OFF)
-option(OPTION_DO_INSTALL "Install all library stuff" ON)
+option(OPTION_DO_INSTALL "Install library" ON)
+option(OPTION_DO_INSTALL_SDK "Install library SDK" ON)
 
 if(MSVC)
   set(DEFAULT_ITERATOR_DEBUG_LEVEL _ITERATOR_DEBUG_LEVEL)
@@ -31,15 +27,14 @@ set(DEBUG_REDUCED_BUFFERS
     1
     CACHE STRING "Use reduced buffers for Debug build")
 
-if(NOT SYMBOLS_DIR)
-  set(SYMBOLS_DIR bin)
-endif()
+set(SYMBOLS_DIR
+    bin
+    CACHE STRING "Default directory for installation of symbol files")
 
-if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 20)
-endif()
+set(CMAKE_CXX_STANDARD
+    20
+    CACHE STRING "Default C++ standard")
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 message("Using C++${CMAKE_CXX_STANDARD} standard")
 
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
@@ -130,50 +125,6 @@ if(USE_LIBZIP AND NOT LIBZIP_LIBRARY)
 endif()
 
 # ##############################################################################
-# Compilation flags
-
-if(MSVC)
-  add_compile_options(/Zc:__cplusplus /utf-8)
-  if(OPTION_TREAT_WARNINGS_AS_ERRORS)
-    add_compile_options(/WX)
-  endif()
-else()
-  add_compile_options(-Wall -Wextra -pedantic)
-  if(OPTION_TREAT_WARNINGS_AS_ERRORS)
-    add_compile_options(-Werror)
-  endif()
-  if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    add_compile_options(-Wno-nullability-extension)
-    if(CMAKE_CXX_STANDARD LESS 17)
-      add_compile_options(-Wno-ignored-attributes)
-    endif()
-  elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    add_compile_options($<$<CONFIG:Release>:-Wno-array-bounds>)
-    add_compile_options($<$<CONFIG:Release>:-Wno-stringop-overflow>)
-  endif()
-  if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    add_compile_options($<$<CONFIG:Debug>:-fstandalone-debug>)
-    if(USE_LIBCPP)
-      add_compile_options(-stdlib=libc++)
-      add_link_options(-stdlib=libc++)
-    endif()
-  endif()
-endif()
-
-if(USE_SANITIZERS_FOR_DEBUG)
-  message("Using sanitizers for Debug build")
-  if(MSVC)
-    add_compile_options($<$<CONFIG:Debug>:/fsanitize=address>)
-  else()
-    add_compile_options($<$<CONFIG:Debug>:-fsanitize=address,undefined,leak>)
-    add_link_options($<$<CONFIG:Debug>:-fsanitize=address,undefined,leak>)
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-      add_link_options($<$<CONFIG:Debug>:-shared-libsan>)
-    endif()
-  endif()
-endif()
-
-# ##############################################################################
 # Add `uxs` build target
 
 if(WIN32)
@@ -231,6 +182,9 @@ generate_export_header(
   CUSTOM_CONTENT_FROM_VARIABLE
   UXS_CUSTOM_CONFIG)
 
+target_compile_options(uxs PUBLIC $<$<CXX_COMPILER_ID:MSVC>:/Zc:__cplusplus
+                                  /utf-8>)
+
 target_include_directories(uxs PUBLIC include ${PROJECT_BINARY_DIR}/generated)
 
 # ##############################################################################
@@ -240,19 +194,22 @@ if(OPTION_DO_INSTALL)
   install(
     TARGETS uxs
     RUNTIME DESTINATION bin COMPONENT binaries
-    LIBRARY DESTINATION lib COMPONENT libraries
-    ARCHIVE DESTINATION lib COMPONENT libraries)
+    LIBRARY DESTINATION lib COMPONENT libraries)
   install_win32_pdb(uxs)
 
-  install(
-    DIRECTORY include
-    DESTINATION .
-    COMPONENT headers)
+  if(OPTION_DO_INSTALL_SDK)
+    install(TARGETS uxs ARCHIVE DESTINATION lib COMPONENT libraries)
 
-  install(
-    FILES ${PROJECT_BINARY_DIR}/generated/uxs/config.h
-    DESTINATION include/uxs
-    COMPONENT headers)
+    install(
+      DIRECTORY include/
+      DESTINATION include
+      COMPONENT headers)
+
+    install(
+      FILES ${PROJECT_BINARY_DIR}/generated/uxs/config.h
+      DESTINATION include/uxs
+      COMPONENT headers)
+  endif()
 endif()
 
 # ##############################################################################
