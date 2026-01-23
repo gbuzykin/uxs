@@ -460,7 +460,7 @@ struct fp_traits<long double> : fp_traits<double> {
 
 // digit pairs
 UXS_FORCE_INLINE const char* get_digits(unsigned n) noexcept {
-    static const UXS_CONSTEXPR char digs[][2] = {
+    alignas(2) static const UXS_CONSTEXPR char digs[][2] = {
         {'0', '0'}, {'0', '1'}, {'0', '2'}, {'0', '3'}, {'0', '4'}, {'0', '5'}, {'0', '6'}, {'0', '7'}, {'0', '8'},
         {'0', '9'}, {'1', '0'}, {'1', '1'}, {'1', '2'}, {'1', '3'}, {'1', '4'}, {'1', '5'}, {'1', '6'}, {'1', '7'},
         {'1', '8'}, {'1', '9'}, {'2', '0'}, {'2', '1'}, {'2', '2'}, {'2', '3'}, {'2', '4'}, {'2', '5'}, {'2', '6'},

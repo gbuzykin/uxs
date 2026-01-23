@@ -543,10 +543,8 @@ UXS_FORCE_INLINE CharT* gen_digits(CharT* p, Ty v) noexcept {
 
 template<typename CharT, typename Ty>
 UXS_FORCE_INLINE Ty gen_digits_n(CharT* p, Ty v, unsigned n) noexcept {
-    CharT* p0 = p - (n & ~1);
-    while (p != p0) { copy2(p -= 2, get_digits(static_cast<unsigned>(divmod<100U>(v)))); }
-    if (!(n & 1)) { return v; }
-    *--p = '0' + static_cast<unsigned>(divmod<10U>(v));
+    while (n >= 2) { copy2(p -= 2, get_digits(static_cast<unsigned>(divmod<100U>(v)))), n -= 2; }
+    if (n) { *--p = '0' + static_cast<unsigned>(divmod<10U>(v)); }
     return v;
 }
 
