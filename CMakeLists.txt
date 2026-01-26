@@ -191,14 +191,17 @@ target_include_directories(uxs PUBLIC include ${PROJECT_BINARY_DIR}/generated)
 # Setup `uxs` installation
 
 if(OPTION_DO_INSTALL)
-  install(
-    TARGETS uxs
-    RUNTIME DESTINATION bin COMPONENT binaries
-    LIBRARY DESTINATION lib COMPONENT libraries)
-  install_win32_pdb(uxs)
-
-  if(OPTION_DO_INSTALL_SDK)
-    install(TARGETS uxs ARCHIVE DESTINATION lib COMPONENT libraries)
+  if(NOT OPTION_DO_INSTALL_SDK)
+    install(
+      TARGETS uxs
+      RUNTIME DESTINATION bin COMPONENT binaries
+      LIBRARY DESTINATION lib COMPONENT libraries)
+  else()
+    install(
+      TARGETS uxs
+      RUNTIME DESTINATION bin COMPONENT binaries
+      LIBRARY DESTINATION lib COMPONENT libraries
+      ARCHIVE DESTINATION lib COMPONENT libraries)
 
     install(
       DIRECTORY include/
@@ -210,6 +213,7 @@ if(OPTION_DO_INSTALL)
       DESTINATION include/uxs
       COMPONENT headers)
   endif()
+  install_win32_pdb(uxs)
 endif()
 
 # ##############################################################################
