@@ -201,7 +201,7 @@ if(OPTION_DO_INSTALL)
       TARGETS uxs
       RUNTIME DESTINATION bin COMPONENT binaries
       LIBRARY DESTINATION lib COMPONENT libraries
-      ARCHIVE DESTINATION lib COMPONENT libraries)
+      ARCHIVE DESTINATION lib COMPONENT libraries-dev)
 
     install(
       DIRECTORY include/
