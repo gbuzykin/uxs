@@ -2,9 +2,7 @@
 
 #include "iobuf.h"
 
-#include "uxs/string_view.h"
-
-#include <string>
+#include <string_view>
 
 namespace uxs {
 

@@ -72,7 +72,7 @@ template<typename CharT, typename Alloc>
 void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
     assert(dev_);
     freebuf();
-    if (!(mode & iomode::in) && !(mode & iomode::out)) { return; }
+    if (!(mode & iomode::in) && !(mode & iomode::out)) { return this->setstate(iostate_bits::fail); }
     bufsz = std::min<size_type>(std::max<size_type>(bufsz, min_buf_size), max_buf_size);
     const bool mappable = !!(dev_->caps() & iodevcaps::mappable);
     if (!!(mode & iomode::out)) {
@@ -115,8 +115,8 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
         }
 #endif  // UXS_USE_ZLIB != 0
     }
-    this->setmode(mode);
-    this->clear();
+    this->reset_mode(mode);
+    this->reset_state(iostate_bits::good);
 }
 
 template<typename CharT, typename Alloc>
@@ -141,8 +141,8 @@ void basic_devbuf<CharT, Alloc>::freebuf() noexcept {
         buf_ = nullptr;
     }
     this->reset(nullptr, 0, 0);
-    this->setmode(iomode::none);
-    this->setstate(iostate_bits::fail);
+    this->reset_mode(iomode::none);
+    this->reset_state(iostate_bits::fail);
 }
 
 template<typename CharT, typename Alloc>
