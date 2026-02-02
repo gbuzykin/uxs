@@ -66,13 +66,13 @@ ForEachMacros:
 IncludeBlocks:   Regroup
 IncludeCategories:
   - Regex:           '^"uxs/.*"'
-    Priority:        20
+    Priority:        13
   - Regex:           '^<uxs/.*>'
-    Priority:        21
-  - Regex:           '^"uxs-legacy/.*"'
-    Priority:        22
-  - Regex:           '^<uxs-legacy/.*>'
     Priority:        23
+  - Regex:           '^"uxs-legacy/.*"'
+    Priority:        14
+  - Regex:           '^<uxs-legacy/.*>'
+    Priority:        24
   - Regex:           '^".*\.hpp"'
     Priority:        10
   - Regex:           '^".*\.hxx"'
@@ -80,13 +80,13 @@ IncludeCategories:
   - Regex:           '^".*\.h"'
     Priority:        12
   - Regex:           '^<.*\.hpp>'
-    Priority:        30
+    Priority:        20
   - Regex:           '^<.*\.hxx>'
-    Priority:        31
+    Priority:        21
   - Regex:           '^<.*\.h>'
-    Priority:        32
+    Priority:        22
   - Regex:           '^<.*>'
-    Priority:        40
+    Priority:        30
 IncludeIsMainRegex: '([-_](test|unittest))?$'
 IndentCaseLabels: true
 IndentPPDirectives: AfterHash
