@@ -58,7 +58,7 @@ class basic_ibuf : public iostate {
     }
 
     basic_ibuf& unget() {
-        this->setstate(this->rdstate() & ~iostate_bits::eof);
+        this->reset_state(this->rdstate() & ~iostate_bits::eof);
         if (pos_ || (this->good() && ungetfail() >= 0)) {
             --pos_;
             return *this;

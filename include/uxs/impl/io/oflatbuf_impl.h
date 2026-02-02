@@ -2,8 +2,6 @@
 
 #include "uxs/io/oflatbuf.h"
 
-#include <stdexcept>
-
 namespace uxs {
 
 template<typename CharT, typename Alloc>

@@ -53,7 +53,7 @@ auto basic_ibuf<CharT>::skip(size_type count) -> size_type {
 
 template<typename CharT>
 auto basic_ibuf<CharT>::seek(off_type off, seekdir dir) -> pos_type {
-    this->setstate(this->rdstate() & ~iostate_bits::eof);
+    this->reset_state(this->rdstate() & ~iostate_bits::eof);
     if (this->fail()) { return traits_type::npos(); }
     if (!!(this->mode() & iomode::out) && sync() < 0) {
         this->setstate(iostate_bits::fail);
