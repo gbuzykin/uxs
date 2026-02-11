@@ -2,6 +2,7 @@
 
 #include "format_base.h"    // NOLINT
 #include "format_ranges.h"  // NOLINT
+
 #include "io/iomembuffer.h"
 
 namespace uxs {

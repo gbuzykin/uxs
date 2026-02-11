@@ -3,9 +3,10 @@
 #include "uxs/string_alg.h"
 #include "uxs/string_cvt.h"
 
-#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+
+#include <fcntl.h>
 #include <unistd.h>
 
 #include <cstdio>

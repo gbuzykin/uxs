@@ -2,9 +2,10 @@
 
 #include "alignment.h"
 #include "cow_ptr.h"
-#include "io/serialize.h"  // NOLINT
 #include "optional.h"
 #include "string_cvt.h"  // NOLINT
+
+#include "io/serialize.h"  // NOLINT
 
 #define UXS_DECLARE_VARIANT_TYPE(ty, id) \
     template<> \
