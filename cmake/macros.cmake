@@ -5,7 +5,7 @@ macro(install_win32_pdb TargetName)
   if(WIN32)
     install(
       FILES $<TARGET_PDB_FILE:${TargetName}>
-      DESTINATION ${SYMBOLS_DIR}
+      DESTINATION ${INSTALL_WIN32_SYMBOLS_DIR}
       COMPONENT symbols
       OPTIONAL)
   endif()
