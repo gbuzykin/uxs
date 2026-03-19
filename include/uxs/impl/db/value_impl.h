@@ -166,36 +166,46 @@ void flexarray_t<Ty, Alloc>::clear(alloc_type& al) noexcept {
     if (p_->ref_count != 1) { return reset(al, nullptr); }
     destruct_items(p_->data(), p_->data() + p_->size);
     p_->size = 0;
+    put_tail_zero();
 }
 
 template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::reserve(alloc_type& al, std::size_t sz) {
     if (!p_) {
         if (!sz) { return; }
-        p_ = alloc_checked(al, 0, sz);
+        p_ = alloc_checked(al, 0, sz + tail_zero);
     } else {
         make_unique(al);
-        if (sz > p_->capacity) { grow(al, sz - p_->size); }
+        if (sz + tail_zero <= p_->capacity) { return; }
+        grow(al, sz - p_->size + tail_zero);
     }
+    put_tail_zero();
 }
 
 template<typename Ty, typename Alloc>
-void flexarray_t<Ty, Alloc>::resize(alloc_type& al, std::size_t sz, const Ty& v) {
-    reserve(al, sz);
-    if (!p_) { return; }
-    if (sz <= p_->size) {
-        destruct_items(p_->data() + sz, p_->data() + p_->size);
-        p_->size = sz;
+void flexarray_t<Ty, Alloc>::resize(alloc_type& al, std::size_t sz, const Ty& v) {  // TODO:
+    if (!p_) {
+        if (!sz) { return; }
+        p_ = alloc_checked(al, 0, sz + tail_zero);
     } else {
+        make_unique(al);
+        if (sz == p_->size) { return; }
+        if (sz + tail_zero > p_->capacity) { grow(al, sz - p_->size + tail_zero); }
+    }
+    if (sz > p_->size) {
         for (Ty* item = p_->data() + p_->size; item != p_->data() + sz; ++item) {
             new (item) Ty(v);
             ++p_->size;
         }
+    } else {
+        destruct_items(p_->data() + sz, p_->data() + p_->size);
+        p_->size = sz;
     }
+    put_tail_zero();
 }
 
 template<typename Ty, typename Alloc>
-Ty* flexarray_t<Ty, Alloc>::erase(alloc_type& al, const Ty* item_to_erase) {
+Ty* flexarray_t<Ty, Alloc>::erase(alloc_type& al, const Ty* item_to_erase) {  // TODO:
     assert(p_ && item_to_erase >= p_->data() && item_to_erase < p_->data() + p_->size);
     const std::size_t pos = item_to_erase - p_->data();
     make_unique(al);
@@ -203,6 +213,7 @@ Ty* flexarray_t<Ty, Alloc>::erase(alloc_type& al, const Ty* item_to_erase) {
     Ty* last = p_->data() + --p_->size;
     for (Ty* item = next_item; item != last; ++item) { *item = std::move(*(item + 1)); }
     last->~Ty();
+    put_tail_zero();
     return next_item;
 }
 
@@ -923,6 +934,25 @@ void basic_value<CharT, Alloc>::clear() {
         case dtype::record: {
             typename record_t::alloc_type rec_al(*this);
             value_.rec.clear(rec_al);
+        } break;
+        default: break;
+    }
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::make_unique() {
+    switch (type_) {
+        case dtype::string: {
+            typename char_array_t::alloc_type str_al(*this);
+            value_.str.make_unique(str_al);
+        } break;
+        case dtype::array: {
+            typename value_array_t::alloc_type arr_al(*this);
+            value_.arr.make_unique(arr_al);
+        } break;
+        case dtype::record: {
+            typename record_t::alloc_type rec_al(*this);
+            value_.rec.make_unique(rec_al);
         } break;
         default: break;
     }
