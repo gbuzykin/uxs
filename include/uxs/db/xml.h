@@ -1,6 +1,7 @@
 #pragma once
 
 #include "uxs/io/iomembuffer.h"
+#include "uxs/string_cvt.h"
 
 #include <forward_list>
 #include <map>

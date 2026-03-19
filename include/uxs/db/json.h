@@ -3,6 +3,7 @@
 #include "database_error.h"
 
 #include "uxs/io/iomembuffer.h"
+#include "uxs/string_cvt.h"
 
 namespace uxs {
 namespace db {
