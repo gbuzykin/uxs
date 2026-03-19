@@ -54,8 +54,16 @@ class flexarray_t {
     using const_view_type = std::conditional_t<is_character<Ty>::value, std::basic_string_view<Ty>, est::span<const Ty>>;
     using view_type = est::span<Ty>;
 
+    enum : unsigned { tail_zero = is_character<Ty>::value ? 1 : 0 };
+
     std::size_t size() const noexcept { return p_ ? p_->size : 0; }
     const_view_type cview() const noexcept { return p_ ? const_view_type(p_->data(), p_->size) : const_view_type(); }
+
+    template<typename _Ty = Ty, typename = std::enable_if_t<is_character<_Ty>::value>>
+    const _Ty* c_str() const noexcept {
+        static const Ty zero = '\0';
+        return p_ ? p_->data() : &zero;
+    }
 
     const Ty* cbegin() const noexcept {
         assert(p_);
@@ -124,13 +132,14 @@ class flexarray_t {
     template<typename... Args>
     Ty& emplace_back(alloc_type& al, Args&&... args) {
         if (!p_) {
-            p_ = alloc(al, 0, 0);
+            p_ = alloc(al, 0, 1 + tail_zero);
         } else {
             make_unique(al);
-            if (p_->size == p_->capacity) { grow(al, 1); }
+            if (p_->size + tail_zero == p_->capacity) { grow(al, 1 + tail_zero); }
         }
         Ty* item = new (p_->data() + p_->size) Ty(std::forward<Args>(args)...);
         ++p_->size;
+        put_tail_zero();
         return *item;
     }
 
@@ -149,6 +158,7 @@ class flexarray_t {
         assert(p_ && p_->size);
         make_unique(al);
         (p_->data() + --p_->size)->~Ty();
+        put_tail_zero();
     }
 
     void clear(alloc_type& al) noexcept;
@@ -170,6 +180,14 @@ class flexarray_t {
 
  private:
     data_t* p_;
+
+    template<unsigned _V = tail_zero, typename = std::enable_if_t<_V != 0>>
+    void put_tail_zero() {
+        *(p_->data() + p_->size) = '\0';
+    }
+
+    template<typename... Dummy>
+    void put_tail_zero(Dummy&&...) {}
 
     template<typename RandIt>
     void create_impl(alloc_type& al, std::size_t count, RandIt first);
@@ -240,9 +258,10 @@ template<typename Ty, typename Alloc>
 template<typename RandIt>
 void flexarray_t<Ty, Alloc>::create_impl(alloc_type& al, std::size_t count, RandIt first) {
     if (!count) { return; }
-    p_ = alloc_checked(al, 0, count);
+    p_ = alloc_checked(al, 0, count + tail_zero);
     std::uninitialized_copy_n(first, count, p_->data());
     p_->size = count;
+    put_tail_zero();
 }
 
 template<typename Ty, typename Alloc>
@@ -250,14 +269,14 @@ template<typename InputIt>
 void flexarray_t<Ty, Alloc>::create_impl(alloc_type& al, InputIt first, InputIt last,
                                          std::false_type /* random access iterator */) {
     if (first == last) { return; }
-    p_ = alloc(al, 0, 0);
+    p_ = alloc(al, 0, tail_zero);
     append_impl(al, first, last, std::false_type{});
 }
 
 template<typename Ty, typename Alloc>
 template<typename RandIt>
 void flexarray_t<Ty, Alloc>::assign_impl(alloc_type& al, std::size_t count, RandIt first) {
-    if (count > p_->capacity) { grow(al, count - p_->size); }
+    if (count + tail_zero > p_->capacity) { grow(al, count - p_->size + tail_zero); }
     Ty* item = std::copy_n(first, std::min(count, p_->size), p_->data());
     if (count <= p_->size) {
         destruct_items(item, p_->data() + p_->size);
@@ -265,6 +284,7 @@ void flexarray_t<Ty, Alloc>::assign_impl(alloc_type& al, std::size_t count, Rand
         std::uninitialized_copy_n(first + p_->size, count - p_->size, item);
     }
     p_->size = count;
+    put_tail_zero();
 }
 
 template<typename Ty, typename Alloc>
@@ -277,6 +297,7 @@ void flexarray_t<Ty, Alloc>::assign_impl(alloc_type& al, InputIt first, InputIt 
     if (item != end) {
         destruct_items(item, end);
         p_->size = static_cast<std::size_t>(item - p_->data());
+        put_tail_zero();
     } else {
         append_impl(al, first, last, std::false_type{});
     }
@@ -285,9 +306,10 @@ void flexarray_t<Ty, Alloc>::assign_impl(alloc_type& al, InputIt first, InputIt 
 template<typename Ty, typename Alloc>
 template<typename RandIt>
 void flexarray_t<Ty, Alloc>::append_impl(alloc_type& al, std::size_t count, RandIt first) {
-    if (count > p_->capacity - p_->size) { grow(al, count); }
+    if (count + tail_zero > p_->capacity - p_->size) { grow(al, count + tail_zero); }
     std::uninitialized_copy_n(first, count, p_->data() + p_->size);
     p_->size += count;
+    put_tail_zero();
 }
 
 template<typename Ty, typename Alloc>
@@ -295,10 +317,11 @@ template<typename InputIt>
 void flexarray_t<Ty, Alloc>::append_impl(alloc_type& al, InputIt first, InputIt last,
                                          std::false_type /* random access iterator */) {
     for (; first != last; ++first) {
-        if (p_->size == p_->capacity) { grow(al, 1); }
+        if (p_->size + tail_zero == p_->capacity) { grow(al, 1 + tail_zero); }
         new (p_->data() + p_->size) Ty(*first);
         ++p_->size;
     }
+    put_tail_zero();
 }
 
 }  // namespace detail
@@ -1050,7 +1073,6 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     bool is_double() const noexcept { return is_numeric(); }
     bool is_numeric() const noexcept { return type_ >= dtype::integer && type_ <= dtype::double_precision; }
     bool is_string() const noexcept { return type_ == dtype::string; }
-    bool is_string_view() const noexcept { return type_ == dtype::string; }
     bool is_array() const noexcept { return type_ == dtype::array; }
     bool is_record() const noexcept { return type_ == dtype::record; }
 
@@ -1061,7 +1083,16 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     std::uint64_t as_uint64() const;
     double as_double() const;
     std::basic_string<char_type> as_string() const;
-    std::basic_string_view<char_type> as_string_view() const;
+
+    std::basic_string_view<char_type> as_string_view() const {
+        if (type_ == dtype::string) { return value_.str.cview(); }
+        throw database_error("bad value conversion");
+    }
+
+    const char_type* as_c_string() const {
+        if (type_ == dtype::string) { return value_.str.c_str(); }
+        throw database_error("bad value conversion");
+    }
 
     UXS_EXPORT est::optional<bool> get_bool() const;
     UXS_EXPORT est::optional<std::int32_t> get_int() const;
@@ -1073,6 +1104,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     est::optional<std::basic_string_view<char_type>> get_string_view() const {
         return type_ == dtype::string ? est::make_optional(value_.str.cview()) : est::nullopt();
     }
+    const char_type* get_c_string() const { return type_ == dtype::string ? value_.str.c_str() : nullptr; }
 
     bool empty() const noexcept { return size() == 0; }
     UXS_EXPORT std::size_t size() const noexcept;
@@ -1161,6 +1193,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     std::size_t count(key_type key) const noexcept { return type_ == dtype::record ? value_.rec.count(key) : 0; }
 
     UXS_EXPORT void clear();
+    UXS_EXPORT void make_unique();
     UXS_EXPORT void reserve(std::size_t sz);
     UXS_EXPORT void resize(std::size_t sz);
     UXS_EXPORT void resize(std::size_t sz, const basic_value& v);
@@ -1365,7 +1398,7 @@ auto basic_value<CharT, Alloc>::as_record() -> iterator_range<record_iterator> {
 #define UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(ty, func) \
     template<typename CharT, typename Alloc> \
     ty basic_value<CharT, Alloc>::as##func() const { \
-        const auto result = this->get##func(); \
+        const auto result = get##func(); \
         if (result) { return *result; } \
         throw database_error("bad value conversion"); \
     }
@@ -1376,7 +1409,6 @@ UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::int64_t, _int64)
 UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::uint64_t, _uint64)
 UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(double, _double)
 UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::basic_string<CharT>, _string)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::basic_string_view<CharT>, _string_view)
 #undef UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC
 
 namespace detail {
@@ -1410,7 +1442,6 @@ UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(float, _double)
 UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(double, _double)
 UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(long double, _double)
 UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::basic_string<CharT>, _string)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::basic_string_view<CharT>, _string_view)
 #undef UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS
 
 }  // namespace detail
