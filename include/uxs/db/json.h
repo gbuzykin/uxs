@@ -2,6 +2,7 @@
 
 #include "database_error.h"
 
+#include "uxs/io/iflatbuf.h"
 #include "uxs/io/iomembuffer.h"
 #include "uxs/string_cvt.h"
 
@@ -125,6 +126,12 @@ loop:
 
 template<typename CharT = char, typename Alloc = std::allocator<CharT>>
 UXS_EXPORT basic_value<CharT, Alloc> read(ibuf& in, const Alloc& al = Alloc());
+
+template<typename CharT = char, typename Alloc = std::allocator<CharT>>
+basic_value<CharT, Alloc> read_from_string(std::string_view s, const Alloc& al = Alloc()) {
+    uxs::iflatbuf in(s);
+    return read(in, al);
+}
 
 template<typename CharT, typename ValueCharT, typename Alloc>
 UXS_EXPORT void write(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v);
