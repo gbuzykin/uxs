@@ -198,7 +198,7 @@ class inline_basic_dynbuffer final : public basic_dynbuffer<Ty, Alloc> {
 #endif  // UXS_DEBUG_REDUCED_BUFFERS != 0
     };
 
-    alignas(std::alignment_of<Ty>::value) std::uint8_t buf_[inline_buf_size * sizeof(Ty)]{};
+    alignas(std::alignment_of<Ty>::value) std::uint8_t buf_[inline_buf_size * sizeof(Ty)];
 };
 
 using inline_dynbuffer = inline_basic_dynbuffer<char>;
