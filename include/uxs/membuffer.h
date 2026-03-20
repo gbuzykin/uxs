@@ -12,6 +12,8 @@ namespace uxs {
 template<typename Ty>
 class basic_membuffer {
  private:
+    static_assert(std::is_same<std::remove_cv_t<Ty>, Ty>::value,
+                  "uxs::basic_membuffer<> must have a non-const, non-volatile value type");
     static_assert(std::is_trivially_copyable<Ty>::value && std::is_trivially_destructible<Ty>::value,
                   "uxs::basic_membuffer<> must have trivially copyable and destructible value type");
 
@@ -84,7 +86,7 @@ class basic_membuffer {
         return *this;
     }
 
-    basic_membuffer& append(size_type count, value_type val) {
+    basic_membuffer& append(size_type count, const value_type& val) {
         size_type n_avail = avail();
         while (count > n_avail) {
             std::fill_n(endp(), n_avail, val);
@@ -100,7 +102,7 @@ class basic_membuffer {
     void emplace_back(Args&&... args) {
         if (size_ != capacity_ || try_grow(1)) { new (&data_[size_++]) value_type(std::forward<Args>(args)...); }
     }
-    void push_back(value_type val) { emplace_back(val); }
+    void push_back(const value_type& val) { emplace_back(val); }
     void pop_back() noexcept { --size_; }
 
     template<typename CharT = value_type>
@@ -140,6 +142,7 @@ template<typename Ty, typename Alloc>
 class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>, public basic_membuffer<Ty> {
  private:
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>;
+    using alloc_traits = std::allocator_traits<alloc_type>;
 
  public:
     using value_type = typename basic_membuffer<Ty>::value_type;
@@ -149,19 +152,27 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
     using const_pointer = typename basic_membuffer<Ty>::const_pointer;
     using reference = typename basic_membuffer<Ty>::reference;
     using const_reference = typename basic_membuffer<Ty>::const_reference;
+    using allocator_type = Alloc;
 
-    basic_dynbuffer() noexcept = default;
+    basic_dynbuffer() noexcept(std::is_nothrow_default_constructible<alloc_type>::value) : alloc_type() {}
+    explicit basic_dynbuffer(const Alloc& al) noexcept : alloc_type(al) {}
 
     ~basic_dynbuffer() override {
         if (is_allocated_) { this->deallocate(this->data(), this->capacity()); }
     }
+
+    allocator_type get_allocator() const noexcept { return allocator_type(*this); }
+    size_type max_size() const noexcept { return alloc_traits::max_size(*this); }
 
     void reserve(size_type extra) {
         if (extra > this->avail()) { try_grow(extra); }
     }
 
  protected:
-    basic_dynbuffer(Ty* data, std::size_t capacity) noexcept : basic_membuffer<Ty>(data, capacity) {}
+    basic_dynbuffer(Ty* data, std::size_t capacity) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
+        : alloc_type(), basic_membuffer<Ty>(data, capacity) {}
+    basic_dynbuffer(const Alloc& al, Ty* data, std::size_t capacity) noexcept
+        : alloc_type(al), basic_membuffer<Ty>(data, capacity) {}
 
     size_type try_grow(size_type extra) override {
         size_type sz = this->size();
@@ -187,7 +198,10 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
 template<typename Ty, std::size_t InlineBufSize = 0, typename Alloc = std::allocator<Ty>>
 class inline_basic_dynbuffer final : public basic_dynbuffer<Ty, Alloc> {
  public:
-    inline_basic_dynbuffer() noexcept : basic_dynbuffer<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), inline_buf_size) {}
+    inline_basic_dynbuffer() noexcept(std::is_nothrow_default_constructible<basic_dynbuffer<Ty, Alloc>>::value)
+        : basic_dynbuffer<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), inline_buf_size) {}
+    explicit inline_basic_dynbuffer(const Alloc& al) noexcept
+        : basic_dynbuffer<Ty, Alloc>(al, reinterpret_cast<Ty*>(buf_), inline_buf_size) {}
 
  private:
     enum : unsigned {
@@ -209,7 +223,7 @@ class basic_membuffer_with_size_tracker final : public basic_membuffer<Ty> {
  public:
     basic_membuffer_with_size_tracker(Ty* data, std::size_t capacity) noexcept
         : basic_membuffer<Ty>(data, capacity), tracked_size_(capacity) {}
-    std::size_t tracked_size() const { return this->avail() ? this->size() : tracked_size_; }
+    std::size_t tracked_size() const noexcept { return this->avail() ? this->size() : tracked_size_; }
 
  private:
     std::size_t tracked_size_;
