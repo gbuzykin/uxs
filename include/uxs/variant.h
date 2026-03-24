@@ -120,12 +120,12 @@ struct variant_type_base_impl {
 
     template<typename... Args>
     static Ty& construct(void* p, Args&&... args) {
-        new (p) cow_ptr<Ty>(make_cow<Ty>(std::forward<Args>(args)...));
+        ::new (p) cow_ptr<Ty>(make_cow<Ty>(std::forward<Args>(args)...));
         return *deref(p);
     }
-    static void* construct_default(void* p) { return &*deref(new (p) cow_ptr<Ty>()); }
-    static void construct_copy(void* p, const void* src) { new (p) cow_ptr<Ty>(deref(src)); }
-    static void construct_move(void* p, void* src) noexcept { new (p) cow_ptr<Ty>(std::move(deref(src))); }
+    static void* construct_default(void* p) { return &*deref(::new (p) cow_ptr<Ty>()); }
+    static void construct_copy(void* p, const void* src) { ::new (p) cow_ptr<Ty>(deref(src)); }
+    static void construct_move(void* p, void* src) noexcept { ::new (p) cow_ptr<Ty>(std::move(deref(src))); }
     static void destroy(void* p) noexcept { deref(p).~cow_ptr<Ty>(); }
 
     template<typename U>
@@ -160,12 +160,12 @@ struct variant_type_base_impl<
 
     template<typename... Args>
     static Ty& construct(void* p, Args&&... args) {
-        new (p) Ty(std::forward<Args>(args)...);
+        ::new (p) Ty(std::forward<Args>(args)...);
         return deref(p);
     }
-    static void* construct_default(void* p) { return new (p) Ty(); }
-    static void construct_copy(void* p, const void* src) { new (p) Ty(deref(src)); }
-    static void construct_move(void* p, void* src) noexcept { new (p) Ty(std::move(deref(src))); }
+    static void* construct_default(void* p) { return ::new (p) Ty(); }
+    static void construct_copy(void* p, const void* src) { ::new (p) Ty(deref(src)); }
+    static void construct_move(void* p, void* src) noexcept { ::new (p) Ty(std::move(deref(src))); }
     static void destroy(void* p) noexcept { deref(p).~Ty(); }
 
     template<typename U>

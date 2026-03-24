@@ -20,6 +20,7 @@ struct byteseq_chunk {
     alignas(std::alignment_of<max_align_t>::value) std::uint8_t data[1];
 
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<byteseq_chunk>;
+    using alloc_traits = std::allocator_traits<alloc_type>;
 
     std::size_t size() const noexcept { return static_cast<std::size_t>(end - data); }
     std::size_t capacity() const noexcept { return static_cast<std::size_t>(boundary - data); }
@@ -32,7 +33,7 @@ struct byteseq_chunk {
     }
     static byteseq_chunk* alloc(alloc_type& al, std::size_t cap);
     static void dealloc(alloc_type& al, byteseq_chunk* chunk) noexcept {
-        al.deallocate(chunk, get_alloc_sz(chunk->capacity()));
+        alloc_traits::deallocate(al, chunk, get_alloc_sz(chunk->capacity()));
     }
 };
 }  // namespace detail

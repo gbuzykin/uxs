@@ -8,6 +8,7 @@ template<typename CharT, typename Alloc = std::allocator<CharT>>
 class basic_oflatbuf : protected std::allocator_traits<Alloc>::template rebind_alloc<CharT>, public basic_iobuf<CharT> {
  protected:
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<CharT>;
+    using alloc_traits = std::allocator_traits<alloc_type>;
 
  public:
     using char_type = typename basic_iobuf<CharT>::char_type;
@@ -38,9 +39,9 @@ class basic_oflatbuf : protected std::allocator_traits<Alloc>::template rebind_a
  private:
     enum : unsigned {
 #if UXS_DEBUG_REDUCED_BUFFERS != 0
-        min_buf_size = 7
+        min_buf_size = 7,
 #else   // UXS_DEBUG_REDUCED_BUFFERS != 0
-        min_buf_size = 512 / sizeof(char_type)
+        min_buf_size = 512 / sizeof(char_type),
 #endif  // UXS_DEBUG_REDUCED_BUFFERS != 0
     };
 

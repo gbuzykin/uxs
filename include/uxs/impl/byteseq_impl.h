@@ -248,7 +248,7 @@ void basic_byteseq<Alloc>::clear_and_reserve(std::size_t cap) {
 template<typename Alloc>
 /*static*/ detail::byteseq_chunk<Alloc>* detail::byteseq_chunk<Alloc>::alloc(alloc_type& al, std::size_t cap) {
     const std::size_t alloc_sz = get_alloc_sz(cap);
-    byteseq_chunk* chunk = al.allocate(alloc_sz);
+    byteseq_chunk* chunk = alloc_traits::allocate(al, alloc_sz);
     chunk->boundary = chunk->data + alloc_sz * sizeof(byteseq_chunk) - offsetof(byteseq_chunk, data);
     assert(chunk->capacity() >= cap && get_alloc_sz(chunk->capacity()) == alloc_sz);
     return chunk;
