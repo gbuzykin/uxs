@@ -30,19 +30,24 @@ struct basic_devbuf<CharT, Alloc>::flexbuf_t {
 #endif  // UXS_USE_ZLIB != 0
 
     char_type data[1];
+
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<flexbuf_t>;
+    using alloc_traits = std::allocator_traits<alloc_type>;
+
     static std::size_t get_alloc_sz(std::size_t sz) {
         return (offsetof(flexbuf_t, data) + sz * sizeof(char_type) + sizeof(flexbuf_t) - 1) / sizeof(flexbuf_t);
     }
-    static flexbuf_t* alloc(alloc_type al, std::size_t sz) {
+    static flexbuf_t* alloc(alloc_type& al, std::size_t sz) {
         const std::size_t alloc_sz = get_alloc_sz(sz);
-        flexbuf_t* buf = al.allocate(alloc_sz);
+        flexbuf_t* buf = alloc_traits::allocate(al, alloc_sz);
         std::memset(buf, 0, sizeof(flexbuf_t));
         buf->alloc_sz = alloc_sz;
         buf->sz = (alloc_sz * sizeof(flexbuf_t) - offsetof(flexbuf_t, data)) / sizeof(char_type);
         assert(buf->sz >= sz && get_alloc_sz(buf->sz) == alloc_sz);
         return buf;
     }
+
+    static void dealloc(alloc_type& al, flexbuf_t* buf) { alloc_traits::deallocate(al, buf, buf->alloc_sz); }
 };
 
 template<typename CharT, typename Alloc>
@@ -78,7 +83,8 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
     if (!!(mode & iomode::out)) {
         mode &= ~iomode::in;
         if (!mappable || !!(mode & (iomode::cr_lf | iomode::ctrl_esc | iomode::z_compr))) {
-            buf_ = flexbuf_t::alloc(*this, bufsz);
+            typename flexbuf_t::alloc_type al(*this);
+            buf_ = flexbuf_t::alloc(al, bufsz);
 
 #if UXS_USE_ZLIB != 0
             if (!!(mode & iomode::z_compr)) {
@@ -101,7 +107,8 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
             this->reset(buf_->data + cr_reserve_sz, 0, buf_->sz - cr_reserve_sz);
         }
     } else if (!mappable || !!(mode & (iomode::cr_lf | iomode::z_compr))) {
-        buf_ = flexbuf_t::alloc(*this, bufsz);
+        typename flexbuf_t::alloc_type al(*this);
+        buf_ = flexbuf_t::alloc(al, bufsz);
 
 #if UXS_USE_ZLIB != 0
         if (!!(mode & iomode::z_compr)) {
@@ -137,7 +144,8 @@ void basic_devbuf<CharT, Alloc>::freebuf() noexcept {
 #endif  // UXS_USE_ZLIB != 0
     }
     if (buf_) {
-        typename flexbuf_t::alloc_type(*this).deallocate(buf_, buf_->alloc_sz);
+        typename flexbuf_t::alloc_type al(*this);
+        flexbuf_t::dealloc(al, buf_);
         buf_ = nullptr;
     }
     this->reset(nullptr, 0, 0);

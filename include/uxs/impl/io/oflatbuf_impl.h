@@ -6,7 +6,7 @@ namespace uxs {
 
 template<typename CharT, typename Alloc>
 basic_oflatbuf<CharT, Alloc>::~basic_oflatbuf() {
-    if (this->first() != nullptr) { this->deallocate(this->first(), this->capacity()); }
+    if (this->first() != nullptr) { alloc_traits::deallocate(*this, this->first(), this->capacity()); }
 }
 
 template<typename CharT, typename Alloc>
@@ -16,7 +16,7 @@ basic_oflatbuf<CharT, Alloc>::basic_oflatbuf(basic_oflatbuf&& other) noexcept
 template<typename CharT, typename Alloc>
 basic_oflatbuf<CharT, Alloc>& basic_oflatbuf<CharT, Alloc>::operator=(basic_oflatbuf&& other) noexcept {
     if (&other == this) { return *this; }
-    if (this->first() != nullptr) { this->deallocate(this->first(), this->capacity()); }
+    if (this->first() != nullptr) { alloc_traits::deallocate(*this, this->first(), this->capacity()); }
     alloc_type::operator=(std::move(other));
     basic_iobuf<CharT>::operator=(std::move(other));
     top_ = other.top_;
@@ -72,10 +72,10 @@ void basic_oflatbuf<CharT, Alloc>::grow(size_type extra) {
         delta_sz = std::max(extra, max_avail >> 1);
     }
     const size_type sz = std::max<size_type>(top_ + delta_sz, min_buf_size);
-    char_type* first = this->allocate(sz);
+    char_type* first = alloc_traits::allocate(*this, sz);
     if (this->first() != nullptr) {
         std::copy_n(this->first(), top_, first);
-        this->deallocate(this->first(), this->capacity());
+        alloc_traits::deallocate(*this, this->first(), this->capacity());
     }
     this->reset(first, this->pos(), sz);
 }

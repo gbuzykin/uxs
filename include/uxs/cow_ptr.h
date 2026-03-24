@@ -20,7 +20,7 @@ class cow_ptr {
     };
 
  public:
-    cow_ptr() : ptr_(new object_body_t) {}
+    cow_ptr() : ptr_(::new object_body_t) {}
     ~cow_ptr() { reset(nullptr); }
     cow_ptr(const cow_ptr& other) noexcept : ptr_(other.ref()) {}
     cow_ptr& operator=(const cow_ptr& other) noexcept {
@@ -45,7 +45,7 @@ class cow_ptr {
 
     Ty& operator*() {
         assert(ptr_);
-        if (ptr_->ref_count > 1) { reset(new object_body_t(ptr_->obj)); }
+        if (ptr_->ref_count > 1) { reset(::new object_body_t(ptr_->obj)); }
         return ptr_->obj;
     }
 
@@ -70,7 +70,7 @@ class cow_ptr {
 
 template<typename Ty, typename... Args>
 cow_ptr<Ty> make_cow(Args&&... args) {
-    return cow_ptr<Ty>(new typename cow_ptr<Ty>::object_body_t(std::forward<Args>(args)...));
+    return cow_ptr<Ty>(::new typename cow_ptr<Ty>::object_body_t(std::forward<Args>(args)...));
 }
 
 }  // namespace uxs

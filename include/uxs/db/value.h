@@ -51,6 +51,7 @@ class flexarray_t {
 
  public:
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<data_t>;
+    using alloc_traits = std::allocator_traits<alloc_type>;
     using const_view_type = std::conditional_t<is_character<Ty>::value, std::basic_string_view<Ty>, est::span<const Ty>>;
     using view_type = est::span<Ty>;
 
@@ -137,7 +138,8 @@ class flexarray_t {
             make_unique(al);
             if (p_->size + tail_zero == p_->capacity) { grow(al, 1 + tail_zero); }
         }
-        Ty* item = new (p_->data() + p_->size) Ty(std::forward<Args>(args)...);
+        Ty* item = p_->data() + p_->size;
+        alloc_traits::construct(al, item, std::forward<Args>(args)...);
         ++p_->size;
         put_tail_zero();
         return *item;
@@ -157,7 +159,7 @@ class flexarray_t {
     void pop_back(alloc_type& al) {
         assert(p_ && p_->size);
         make_unique(al);
-        (p_->data() + --p_->size)->~Ty();
+        alloc_traits::destroy(al, p_->data() + --p_->size);
         put_tail_zero();
     }
 
@@ -187,7 +189,9 @@ class flexarray_t {
     }
 
     template<typename... Dummy>
-    void put_tail_zero(Dummy&&...) {}
+    void put_tail_zero(Dummy&&...) {
+        static_assert(tail_zero == 0, "");
+    }
 
     template<typename RandIt>
     void create_impl(alloc_type& al, std::size_t count, RandIt first);
@@ -220,11 +224,12 @@ class flexarray_t {
     void append_impl(alloc_type& al, InputIt first, InputIt last, std::false_type /* random access iterator */);
 
     template<typename Ty_ = Ty, typename = std::enable_if_t<std::is_trivially_destructible<Ty_>::value>>
-    static void destruct_items(Ty_* /*first*/, Ty_* /*last*/) noexcept {}
+    static void destruct_items(alloc_type& /*al*/, Ty_* /*first*/, Ty_* /*last*/) noexcept {}
 
     template<typename Ty_ = Ty, typename... Dummy>
-    static void destruct_items(Ty_* first, Ty_* last, Dummy&&...) noexcept {
-        for (; first != last; ++first) { first->~Ty(); };
+    static void destruct_items(alloc_type& al, Ty_* first, Ty_* last, Dummy&&...) noexcept {
+        static_assert(!std::is_trivially_destructible<Ty>::value, "");
+        for (; first != last; ++first) { alloc_traits::destroy(al, first); }
     }
 
     UXS_EXPORT void grow(alloc_type& al, std::size_t extra);
@@ -251,7 +256,9 @@ class flexarray_t {
         return alloc(al, sz, cap);
     }
 
-    static void dealloc(alloc_type& al, data_t* arr) noexcept { al.deallocate(arr, get_alloc_sz(arr->capacity)); }
+    static void dealloc(alloc_type& al, data_t* arr) noexcept {
+        alloc_traits::deallocate(al, arr, get_alloc_sz(arr->capacity));
+    }
 };
 
 template<typename Ty, typename Alloc>
@@ -279,7 +286,7 @@ void flexarray_t<Ty, Alloc>::assign_impl(alloc_type& al, std::size_t count, Rand
     if (count + tail_zero > p_->capacity) { grow(al, count - p_->size + tail_zero); }
     Ty* item = std::copy_n(first, std::min(count, p_->size), p_->data());
     if (count <= p_->size) {
-        destruct_items(item, p_->data() + p_->size);
+        destruct_items(al, item, p_->data() + p_->size);
     } else {
         std::uninitialized_copy_n(first + p_->size, count - p_->size, item);
     }
@@ -295,7 +302,7 @@ void flexarray_t<Ty, Alloc>::assign_impl(alloc_type& al, InputIt first, InputIt 
     Ty* end = p_->data() + p_->size;
     for (; item != end && first != last; ++first) { *item++ = *first; }
     if (item != end) {
-        destruct_items(item, end);
+        destruct_items(al, item, end);
         p_->size = static_cast<std::size_t>(item - p_->data());
         put_tail_zero();
     } else {
@@ -318,7 +325,7 @@ void flexarray_t<Ty, Alloc>::append_impl(alloc_type& al, InputIt first, InputIt 
                                          std::false_type /* random access iterator */) {
     for (; first != last; ++first) {
         if (p_->size + tail_zero == p_->capacity) { grow(al, 1 + tail_zero); }
-        new (p_->data() + p_->size) Ty(*first);
+        alloc_traits::construct(al, p_->data() + p_->size, *first);
         ++p_->size;
     }
     put_tail_zero();
@@ -346,10 +353,11 @@ class record_t;
 template<typename CharT, typename Alloc>
 class record_value {
  public:
-    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<record_value>;
     using char_type = CharT;
     using key_type = std::basic_string_view<char_type>;
     using value_type = basic_value<char_type, Alloc>;
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<record_value>;
+    using alloc_traits = std::allocator_traits<alloc_type>;
 
     key_type key() const noexcept { return key_type(key_chars_, key_sz_); }
     const value_type& value() const noexcept { return *reinterpret_cast<const value_type*>(&x_); }
@@ -378,7 +386,7 @@ class record_value {
     static record_value* create(alloc_type& al, key_type key, Args&&... args) {
         record_value* node = alloc(al, key);
         try {
-            new (&node->value()) value_type(std::forward<Args>(args)...);
+            alloc_traits::construct(al, &node->value(), std::forward<Args>(args)...);
             return node;
         } catch (...) {
             dealloc(al, node);
@@ -387,7 +395,7 @@ class record_value {
     }
 
     static void destroy(alloc_type& al, record_value* node) noexcept {
-        node->value().~value_type();
+        alloc_traits::destroy(al, &node->value());
         dealloc(al, node);
     }
 
@@ -405,7 +413,7 @@ class record_value {
     UXS_NODISCARD UXS_EXPORT static record_value* alloc(alloc_type& al, key_type key);
 
     static void dealloc(alloc_type& al, record_value* node) noexcept {
-        al.deallocate(node, get_alloc_sz(node->key_sz_));
+        alloc_traits::deallocate(al, node, get_alloc_sz(node->key_sz_));
     }
 };
 
@@ -450,6 +458,7 @@ class record_t {
 
  public:
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<data_t>;
+    using alloc_traits = std::allocator_traits<alloc_type>;
     using key_type = std::basic_string_view<CharT>;
     using mapped_type = basic_value<CharT, Alloc>;
     using value_type = record_value<CharT, Alloc>;
@@ -598,7 +607,9 @@ class record_t {
 
     UXS_NODISCARD UXS_EXPORT static data_t* alloc(alloc_type& al, std::size_t bucket_count);
 
-    static void dealloc(alloc_type& al, data_t* rec) noexcept { al.deallocate(rec, get_alloc_sz(rec->bucket_count)); }
+    static void dealloc(alloc_type& al, data_t* rec) noexcept {
+        alloc_traits::deallocate(al, rec, get_alloc_sz(rec->bucket_count));
+    }
 };
 
 template<typename CharT, typename Alloc>

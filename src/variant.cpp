@@ -13,6 +13,9 @@ UXS_IMPLEMENT_VARIANT_TYPE(double, convert_from, convert_to);
 variant_error::variant_error(const char* message) : std::runtime_error(message) {}
 variant_error::variant_error(const std::string& message) : std::runtime_error(message) {}
 const char* variant_error::what() const noexcept { return std::runtime_error::what(); }
+#if __cplusplus < 201703L || !UXS_HAS_INCLUDE(<optional>)
+const char* est::bad_optional_access::what() const noexcept { return "bad optional access"; }
+#endif  // optional
 
 //---------------------------------------------------------------------------------
 // Variant type implementation

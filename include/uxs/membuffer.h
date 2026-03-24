@@ -24,14 +24,14 @@ class basic_membuffer {
     using pointer = value_type*;
     using const_pointer = const value_type*;
     using reference = value_type&;
-    using const_reference = value_type;
+    using const_reference = const value_type&;
     using const_iterator = array_iterator<basic_membuffer, const_pointer, true>;
     using iterator = const_iterator;
 
     basic_membuffer() noexcept = default;
-    explicit basic_membuffer(Ty* data) noexcept : data_(data), capacity_(std::numeric_limits<size_type>::max()) {}
-    basic_membuffer(Ty* data, std::size_t capacity) noexcept : data_(data), capacity_(capacity) {}
-    basic_membuffer(Ty* data, std::size_t size, std::size_t capacity) noexcept
+    explicit basic_membuffer(pointer data) noexcept : data_(data), capacity_(std::numeric_limits<size_type>::max()) {}
+    basic_membuffer(pointer data, size_type capacity) noexcept : data_(data), capacity_(capacity) {}
+    basic_membuffer(pointer data, size_type size, size_type capacity) noexcept
         : data_(data), size_(size), capacity_(capacity) {}
     virtual ~basic_membuffer() = default;
     basic_membuffer(const basic_membuffer&) = delete;
@@ -41,32 +41,56 @@ class basic_membuffer {
     size_type size() const noexcept { return size_; }
     size_type capacity() const noexcept { return capacity_; }
     size_type avail() const noexcept { return capacity_ - size_; }
-    const_pointer data() const noexcept { return data_; }
-    pointer data() noexcept { return data_; }
-    const_pointer endp() const noexcept { return data_ + size_; }
-    pointer endp() noexcept { return data_ + size_; }
-    const_reference back() const noexcept { return data_[size_ - 1]; }
-    reference back() noexcept { return data_[size_ - 1]; }
+
+    iterator begin() noexcept { return iterator(data_, data_, endp()); }
     const_iterator begin() const noexcept { return const_iterator(data_, data_, endp()); }
+    const_iterator cbegin() const noexcept { return begin(); }
+
+    iterator end() noexcept { return iterator(endp(), data_, endp()); }
     const_iterator end() const noexcept { return const_iterator(endp(), data_, endp()); }
+    const_iterator cend() const noexcept { return end(); }
+
+    pointer data() noexcept { return data_; }
+    const_pointer data() const noexcept { return data_; }
+    pointer endp() noexcept { return data_ + size_; }
+    const_pointer endp() const noexcept { return data_ + size_; }
+
+    reference operator[](size_type i) {
+        assert(i < size_);
+        return data_[i];
+    }
+    const_reference operator[](size_type i) const {
+        assert(i < size_);
+        return data_[i];
+    }
+
+    reference front() {
+        assert(size_ != 0);
+        return data_[0];
+    }
+    const_reference front() const {
+        assert(size_ != 0);
+        return data_[0];
+    }
+
+    reference back() {
+        assert(size_ != 0);
+        return data_[size_ - 1];
+    }
+    const_reference back() const {
+        assert(size_ != 0);
+        return data_[size_ - 1];
+    }
+
     void clear() noexcept { size_ = 0; }
 
-    const_reference operator[](std::size_t n) const noexcept {
-        assert(n < size_);
-        return data_[n];
-    }
-    reference operator[](std::size_t n) noexcept {
-        assert(n < size_);
-        return data_[n];
-    }
-
-    void setsize(std::size_t size) noexcept {
+    void setsize(size_type size) noexcept {
         assert(size <= capacity_);
         size_ = size;
     }
 
     void advance(difference_type n) noexcept {
-        assert(n >= 0 ? static_cast<std::size_t>(n) <= avail() : static_cast<std::size_t>(-n) <= size_);
+        assert(n >= 0 ? static_cast<size_type>(n) <= avail() : static_cast<size_type>(-n) <= size_);
         size_ += n;
     }
 
@@ -100,13 +124,17 @@ class basic_membuffer {
 
     template<typename... Args>
     void emplace_back(Args&&... args) {
-        if (size_ != capacity_ || try_grow(1)) { new (&data_[size_++]) value_type(std::forward<Args>(args)...); }
+        if (size_ != capacity_ || try_grow(1)) { ::new (&data_[size_++]) value_type(std::forward<Args>(args)...); }
     }
     void push_back(const value_type& val) { emplace_back(val); }
-    void pop_back() noexcept { --size_; }
+
+    void pop_back() noexcept {
+        assert(size_ != 0);
+        --size_;
+    }
 
     template<typename CharT = value_type>
-    std::enable_if_t<is_character<CharT>::value, basic_membuffer&> append(const value_type* s, size_type count) {
+    std::enable_if_t<is_character<CharT>::value, basic_membuffer&> append(const_pointer s, size_type count) {
         return append(s, s + count);
     }
     template<typename CharT = value_type>
@@ -114,7 +142,7 @@ class basic_membuffer {
         return append(s.data(), s.size());
     }
     template<typename CharT = value_type>
-    std::enable_if_t<is_character<CharT>::value, basic_membuffer&> operator+=(const value_type* s) {
+    std::enable_if_t<is_character<CharT>::value, basic_membuffer&> operator+=(const_pointer s) {
         return *this += std::basic_string_view<value_type>(s);
     }
     template<typename CharT = value_type>
@@ -124,15 +152,16 @@ class basic_membuffer {
     }
 
  protected:
-    void reset(Ty* data, std::size_t size, std::size_t capacity) noexcept {
+    void reset(Ty* data, size_type size, size_type capacity) noexcept {
         data_ = data, size_ = size, capacity_ = capacity;
     }
+
     virtual size_type try_grow(size_type /*extra*/) { return 0; }
 
  private:
     Ty* data_ = nullptr;
-    std::size_t size_ = 0;
-    std::size_t capacity_ = 0;
+    size_type size_ = 0;
+    size_type capacity_ = 0;
 };
 
 using membuffer = basic_membuffer<char>;
@@ -158,7 +187,7 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
     explicit basic_dynbuffer(const Alloc& al) noexcept : alloc_type(al) {}
 
     ~basic_dynbuffer() override {
-        if (is_allocated_) { this->deallocate(this->data(), this->capacity()); }
+        if (this->capacity() & 1) { alloc_traits::deallocate(*this, this->data(), this->capacity()); }
     }
 
     allocator_type get_allocator() const noexcept { return allocator_type(*this); }
@@ -169,31 +198,30 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
     }
 
  protected:
-    basic_dynbuffer(Ty* data, std::size_t capacity) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
+    basic_dynbuffer(Ty* data, size_type capacity) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
         : alloc_type(), basic_membuffer<Ty>(data, capacity) {}
-    basic_dynbuffer(const Alloc& al, Ty* data, std::size_t capacity) noexcept
+    basic_dynbuffer(Ty* data, size_type capacity, const Alloc& al) noexcept
         : alloc_type(al), basic_membuffer<Ty>(data, capacity) {}
 
-    size_type try_grow(size_type extra) override {
-        size_type sz = this->size();
-        size_type delta_sz = std::max(extra, sz >> 1);
-        const size_type max_avail = std::allocator_traits<alloc_type>::max_size(*this) - sz;
-        if (delta_sz > max_avail) {
-            if (extra > max_avail) { throw std::length_error("too much to reserve"); }
-            delta_sz = std::max(extra, max_avail >> 1);
-        }
-        sz += delta_sz;
-        Ty* data = this->allocate(sz);
-        std::copy(this->data(), this->endp(), data);
-        if (is_allocated_) { this->deallocate(this->data(), this->capacity()); }
-        this->reset(data, this->size(), sz);
-        is_allocated_ = true;
-        return this->avail();
-    }
-
- private:
-    bool is_allocated_ = false;
+    size_type try_grow(size_type extra) override;
 };
+
+template<typename Ty, typename Alloc>
+typename basic_dynbuffer<Ty, Alloc>::size_type basic_dynbuffer<Ty, Alloc>::try_grow(size_type extra) {
+    const size_type sz = this->size();
+    size_type delta_sz = std::max(++extra, sz >> 1);
+    const size_type max_avail = std::allocator_traits<alloc_type>::max_size(*this) - sz;
+    if (delta_sz > max_avail) {
+        if (extra > max_avail) { throw std::length_error("too much to reserve"); }
+        delta_sz = std::max(extra, max_avail >> 1);
+    }
+    const size_type capacity = ((sz + delta_sz - 1) & ~size_type(1)) + 1;  // Make new dynamic odd capacity
+    Ty* data = alloc_traits::allocate(*this, capacity);
+    std::copy(this->data(), this->endp(), data);
+    if (this->capacity() & 1) { alloc_traits::deallocate(*this, this->data(), this->capacity()); }
+    this->reset(data, this->size(), capacity);
+    return this->avail();
+}
 
 template<typename Ty, std::size_t InlineBufSize = 0, typename Alloc = std::allocator<Ty>>
 class inline_basic_dynbuffer final : public basic_dynbuffer<Ty, Alloc> {
@@ -201,14 +229,14 @@ class inline_basic_dynbuffer final : public basic_dynbuffer<Ty, Alloc> {
     inline_basic_dynbuffer() noexcept(std::is_nothrow_default_constructible<basic_dynbuffer<Ty, Alloc>>::value)
         : basic_dynbuffer<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), inline_buf_size) {}
     explicit inline_basic_dynbuffer(const Alloc& al) noexcept
-        : basic_dynbuffer<Ty, Alloc>(al, reinterpret_cast<Ty*>(buf_), inline_buf_size) {}
+        : basic_dynbuffer<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), inline_buf_size, al) {}
 
  private:
-    enum : unsigned {
+    enum : unsigned {  // Always even
 #if UXS_DEBUG_REDUCED_BUFFERS != 0
-        inline_buf_size = 7
+        inline_buf_size = 8,
 #else   // UXS_DEBUG_REDUCED_BUFFERS != 0
-        inline_buf_size = InlineBufSize != 0 ? InlineBufSize : 256 / sizeof(Ty)
+        inline_buf_size = ((InlineBufSize != 0 ? InlineBufSize : 256 / sizeof(Ty)) + 1) & ~1U,
 #endif  // UXS_DEBUG_REDUCED_BUFFERS != 0
     };
 
@@ -221,14 +249,16 @@ using inline_wdynbuffer = inline_basic_dynbuffer<wchar_t>;
 template<typename Ty>
 class basic_membuffer_with_size_tracker final : public basic_membuffer<Ty> {
  public:
-    basic_membuffer_with_size_tracker(Ty* data, std::size_t capacity) noexcept
+    using size_type = typename basic_membuffer<Ty>::size_type;
+
+    basic_membuffer_with_size_tracker(Ty* data, size_type capacity) noexcept
         : basic_membuffer<Ty>(data, capacity), tracked_size_(capacity) {}
-    std::size_t tracked_size() const noexcept { return this->avail() ? this->size() : tracked_size_; }
+    size_type tracked_size() const noexcept { return this->avail() ? this->size() : tracked_size_; }
 
  private:
-    std::size_t tracked_size_;
+    size_type tracked_size_;
 
-    std::size_t try_grow(std::size_t extra) override {
+    size_type try_grow(size_type extra) override {
         tracked_size_ += extra;
         return 0;
     }

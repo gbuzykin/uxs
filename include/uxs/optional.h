@@ -26,9 +26,9 @@ struct nullopt_t {
 };
 inline nullopt_t nullopt() { return nullopt_t{0}; }
 
-class bad_optional_access : public std::exception {
+class UXS_EXPORT_ALL_STUFF_FOR_GNUC bad_optional_access : public std::exception {
  public:
-    const char* what() const noexcept override { return "bad optional access"; }
+    UXS_EXPORT const char* what() const noexcept override;
 };
 
 template<typename Ty>
@@ -40,11 +40,11 @@ class optional {
     optional(nullopt_t) noexcept {}
 
     optional(const optional& other) : valid_(other.valid_) {
-        if (valid_) { new (&data_) value_type(other.val()); }
+        if (valid_) { ::new (&data_) value_type(other.val()); }
     }
 
     optional(optional&& other) noexcept : valid_(other.valid_) {
-        if (valid_) { new (&data_) value_type(std::move(other.val())); }
+        if (valid_) { ::new (&data_) value_type(std::move(other.val())); }
     }
 
     ~optional() {
@@ -53,24 +53,24 @@ class optional {
 
     template<typename... Args>
     explicit optional(in_place_t, Args&&... args) : valid_(true) {
-        new (&data_) value_type(std::forward<Args>(args)...);
+        ::new (&data_) value_type(std::forward<Args>(args)...);
     }
 
     template<typename U, typename = std::enable_if_t<std::is_constructible<Ty, U&&>::value &&
                                                      !std::is_same<std::decay_t<U>, in_place_t>::value &&
                                                      !std::is_same<std::decay_t<U>, optional<Ty>>::value>>
     optional(U&& v) : valid_(true) {
-        new (&data_) value_type(std::forward<U>(v));
+        ::new (&data_) value_type(std::forward<U>(v));
     }
 
     template<typename U>
     optional(const optional<U>& other) : valid_(other.valid_) {
-        if (valid_) { new (&data_) value_type(other.val()); }
+        if (valid_) { ::new (&data_) value_type(other.val()); }
     }
 
     template<typename U>
     optional(optional<U>&& other) : valid_(other.valid_) {
-        if (valid_) { new (&data_) value_type(std::move(other.val())); }
+        if (valid_) { ::new (&data_) value_type(std::move(other.val())); }
     }
 
     optional& operator=(const optional&) = delete;

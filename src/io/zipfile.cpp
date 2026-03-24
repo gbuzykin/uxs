@@ -14,7 +14,7 @@ bool zipfile::open(ziparch& arch, const char* fname, iomode mode) {
     zip_t* zip = static_cast<zip_t*>(arch.zip_);
     if (!!(mode & iomode::out)) {
         mode &= ~iomode::in;
-        writing_desc_t* wr_desc = new writing_desc_t{std::string{fname}, zip};
+        writing_desc_t* wr_desc = ::new writing_desc_t{std::string{fname}, zip};
         zip_source_t* source = ::zip_source_buffer_create(nullptr, 0, 0, nullptr);
         if (!source || ::zip_source_begin_write(source) != 0) {
             ::zip_source_free(source);

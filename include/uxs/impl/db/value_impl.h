@@ -58,31 +58,37 @@ template<typename Alloc, typename Ty,
          typename = std::enable_if_t<
              std::is_trivially_move_constructible<Ty>::value ||
              std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value>>
-static void move_values(const Ty* first, const Ty* last, Ty* dest) noexcept {
-    std::memcpy(static_cast<void*>(dest), static_cast<const void*>(first), (last - first) * sizeof(Ty));
+static void move_values(Alloc& /*al*/, const Ty* first, const Ty* last, Ty* dst) noexcept {
+    std::memcpy(static_cast<void*>(dst), static_cast<const void*>(first), (last - first) * sizeof(Ty));
 }
 
 template<typename Alloc, typename Ty, typename... Dummy>
-static void move_values(const Ty* first, const Ty* last, Ty* dest, Dummy&&...) noexcept {
-    for (; first != last; ++first, ++dest) { new (dest) Ty(std::move(*first)); }
+static void move_values(Alloc& al, const Ty* first, const Ty* last, Ty* dst, Dummy&&...) noexcept {
+    static_assert(!std::is_trivially_move_constructible<Ty>::value, "");
+    static_assert(
+        !std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value, "");
+    for (; first != last; ++first, ++dst) { std::allocator_traits<Alloc>::construct(al, dst, std::move(*first)); }
 }
 
 template<typename Alloc, typename Ty,
          typename = std::enable_if_t<
              std::is_trivially_destructible<Ty>::value ||
              std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value>>
-static void destruct_moved_values(Ty* /*first*/, Ty* /*last*/) noexcept {}
+static void destruct_moved_values(Alloc& /*al*/, Ty* /*first*/, Ty* /*last*/) noexcept {}
 
 template<typename Alloc, typename Ty, typename... Dummy>
-static void destruct_moved_values(Ty* first, Ty* last, Dummy&&...) noexcept {
-    for (; first != last; ++first) { first->~Ty(); };
+static void destruct_moved_values(Alloc& al, Ty* first, Ty* last, Dummy&&...) noexcept {
+    static_assert(!std::is_trivially_destructible<Ty>::value, "");
+    static_assert(
+        !std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value, "");
+    for (; first != last; ++first) { std::allocator_traits<Alloc>::destroy(al, first); };
 }
 
 template<typename Ty, typename Alloc>
 /*static*/ auto flexarray_t<Ty, Alloc>::alloc(alloc_type& al, std::size_t sz, std::size_t cap) -> data_t* {
     const std::size_t alloc_sz = get_alloc_sz(cap);
-    data_t* p = al.allocate(alloc_sz);
-    new (&p->ref_count) std::atomic<std::size_t>{1};
+    data_t* p = alloc_traits::allocate(al, alloc_sz);
+    ::new (&p->ref_count) std::atomic<std::size_t>{1};
     p->size = sz;
     p->capacity = (alloc_sz * sizeof(data_t) - offsetof(data_t, x)) / sizeof(Ty);
     assert(p->capacity >= cap && get_alloc_sz(p->capacity) == alloc_sz);
@@ -99,8 +105,8 @@ void flexarray_t<Ty, Alloc>::grow(alloc_type& al, std::size_t extra) {
         delta_sz = std::max(extra, (max_sz - p_->size) >> 1);
     }
     data_t* p_new = alloc(al, p_->size, p_->size + delta_sz);
-    detail::move_values<alloc_type>(p_->data(), p_->data() + p_->size, p_new->data());
-    detail::destruct_moved_values<alloc_type>(p_->data(), p_->data() + p_->size);
+    detail::move_values(al, p_->data(), p_->data() + p_->size, p_new->data());
+    detail::destruct_moved_values(al, p_->data(), p_->data() + p_->size);
     dealloc(al, p_);
     p_ = p_new;
 }
@@ -123,7 +129,7 @@ void flexarray_t<Ty, Alloc>::make_unique_impl(alloc_type& al) {
 
 template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::destruct(alloc_type& al) noexcept {
-    destruct_items(p_->data(), p_->data() + p_->size);
+    destruct_items(al, p_->data(), p_->data() + p_->size);
     dealloc(al, p_);
 }
 
@@ -164,7 +170,7 @@ template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::clear(alloc_type& al) noexcept {
     if (!p_) { return; }
     if (p_->ref_count != 1) { return reset(al, nullptr); }
-    destruct_items(p_->data(), p_->data() + p_->size);
+    destruct_items(al, p_->data(), p_->data() + p_->size);
     p_->size = 0;
     put_tail_zero();
 }
@@ -183,7 +189,7 @@ void flexarray_t<Ty, Alloc>::reserve(alloc_type& al, std::size_t sz) {
 }
 
 template<typename Ty, typename Alloc>
-void flexarray_t<Ty, Alloc>::resize(alloc_type& al, std::size_t sz, const Ty& v) {  // TODO:
+void flexarray_t<Ty, Alloc>::resize(alloc_type& al, std::size_t sz, const Ty& v) {
     if (!p_) {
         if (!sz) { return; }
         p_ = alloc_checked(al, 0, sz + tail_zero);
@@ -193,26 +199,29 @@ void flexarray_t<Ty, Alloc>::resize(alloc_type& al, std::size_t sz, const Ty& v)
         if (sz + tail_zero > p_->capacity) { grow(al, sz - p_->size + tail_zero); }
     }
     if (sz > p_->size) {
-        for (Ty* item = p_->data() + p_->size; item != p_->data() + sz; ++item) {
-            new (item) Ty(v);
-            ++p_->size;
+        Ty* item = p_->data() + p_->size;
+        try {
+            for (Ty* last = p_->data() + sz; item != last; ++item) { alloc_traits::construct(al, item, v); }
+        } catch (...) {
+            destruct_items(al, p_->data() + p_->size, item);
+            throw;
         }
     } else {
-        destruct_items(p_->data() + sz, p_->data() + p_->size);
-        p_->size = sz;
+        destruct_items(al, p_->data() + sz, p_->data() + p_->size);
     }
+    p_->size = sz;
     put_tail_zero();
 }
 
 template<typename Ty, typename Alloc>
-Ty* flexarray_t<Ty, Alloc>::erase(alloc_type& al, const Ty* item_to_erase) {  // TODO:
+Ty* flexarray_t<Ty, Alloc>::erase(alloc_type& al, const Ty* item_to_erase) {
     assert(p_ && item_to_erase >= p_->data() && item_to_erase < p_->data() + p_->size);
     const std::size_t pos = item_to_erase - p_->data();
     make_unique(al);
     Ty* next_item = p_->data() + pos;
     Ty* last = p_->data() + --p_->size;
     for (Ty* item = next_item; item != last; ++item) { *item = std::move(*(item + 1)); }
-    last->~Ty();
+    alloc_traits::destroy(al, last);
     put_tail_zero();
     return next_item;
 }
@@ -227,7 +236,7 @@ template<typename CharT, typename Alloc>
 /*static*/ record_value<CharT, Alloc>* record_value<CharT, Alloc>::alloc(alloc_type& al, key_type key) {
     if (key.size() > max_name_size(al)) { throw std::length_error("too much to reserve"); }
     const std::size_t alloc_sz = get_alloc_sz(key.size());
-    record_value* node = al.allocate(alloc_sz);
+    record_value* node = alloc_traits::allocate(al, alloc_sz);
     node->key_sz_ = key.size();
     std::copy_n(key.data(), key.size(), node->key_chars_);
     return node;
@@ -258,8 +267,8 @@ void record_t<CharT, Alloc>::data_t::init_from(data_t* p) noexcept {
 template<typename CharT, typename Alloc>
 /*static*/ auto record_t<CharT, Alloc>::alloc(alloc_type& al, std::size_t bucket_count) -> data_t* {
     const std::size_t alloc_sz = get_alloc_sz(bucket_count);
-    data_t* p = al.allocate(alloc_sz);
-    new (&p->ref_count) std::atomic<std::size_t>{1};
+    data_t* p = alloc_traits::allocate(al, alloc_sz);
+    ::new (&p->ref_count) std::atomic<std::size_t>{1};
     p->bucket_count = (alloc_sz * sizeof(data_t) - offsetof(data_t, hashtbl)) / sizeof(list_links_t*);
     assert(p->bucket_count >= bucket_count && get_alloc_sz(p->bucket_count) == alloc_sz);
     return p;
