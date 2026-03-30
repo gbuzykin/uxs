@@ -103,7 +103,8 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
         if (sz > capacity_) { grow(sz - size_); }
     }
 
-    void resize(size_type sz);
+    void resize(size_type sz) { resize_impl(sz); }
+    void resize(size_type sz, const value_type& val) { resize_impl(sz, val); }
 
     template<typename... Args>
     reference emplace_back(Args&&... args) {
@@ -137,6 +138,9 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
     void grow(size_type extra);
 
     void init(size_type count);
+
+    template<typename... Args>
+    void resize_impl(size_type sz, Args&&... args);
 
     template<typename Ty_ = Ty, typename = std::enable_if_t<std::is_trivially_destructible<Ty_>::value>>
     static void destruct_items(Ty_* /*first*/, Ty_* /*last*/) noexcept {}
@@ -174,23 +178,6 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
 };
 
 template<typename Ty, typename Alloc>
-void dynarray<Ty, Alloc>::resize(size_type sz) {
-    if (sz > size_) {
-        if (sz > capacity_) { grow(sz - size_); }
-        Ty* item = data_ + size_;
-        try {
-            for (Ty* last = data_ + sz; item != last; ++item) { alloc_traits::construct(*this, item); }
-        } catch (...) {
-            destruct_items(data_ + size_, item);
-            throw;
-        }
-    } else {
-        destruct_items(data_ + sz, data_ + size_);
-    }
-    size_ = sz;
-}
-
-template<typename Ty, typename Alloc>
 void dynarray<Ty, Alloc>::init(size_type count) {
     if (count > capacity_) {
         capacity_ = (count & ~size_type(1)) + 1;  // Make new dynamic odd capacity
@@ -221,6 +208,26 @@ void dynarray<Ty, Alloc>::grow(size_type extra) {
     destruct_items(data_, data_ + size_);
     if (capacity_ & 1) { alloc_traits::deallocate(*this, data_, capacity_); }
     data_ = data, capacity_ = capacity;
+}
+
+template<typename Ty, typename Alloc>
+template<typename... Args>
+void dynarray<Ty, Alloc>::resize_impl(size_type sz, Args&&... args) {
+    if (sz > size_) {
+        if (sz > capacity_) { grow(sz - size_); }
+        Ty* item = data_ + size_;
+        try {
+            for (Ty* last = data_ + sz; item != last; ++item) {
+                alloc_traits::construct(*this, item, std::forward<Args>(args)...);
+            }
+        } catch (...) {
+            destruct_items(data_ + size_, item);
+            throw;
+        }
+    } else {
+        destruct_items(data_ + sz, data_ + size_);
+    }
+    size_ = sz;
 }
 
 template<typename Ty, std::size_t InlineBufSize = 0, typename Alloc = std::allocator<Ty>>
