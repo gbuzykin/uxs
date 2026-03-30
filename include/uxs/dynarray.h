@@ -34,6 +34,9 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
     dynarray() noexcept(std::is_nothrow_default_constructible<alloc_type>::value) : alloc_type() {}
     explicit dynarray(const Alloc& alloc) noexcept : alloc_type(alloc) {}
     explicit dynarray(size_type count, const Alloc& alloc = Alloc()) : alloc_type(alloc) { init(count); }
+    dynarray(size_type count, const value_type& val, const Alloc& alloc = Alloc()) : alloc_type(alloc) {
+        init(count, val);
+    }
     ~dynarray() {
         destruct_items(data_, data_ + size_);
         if (capacity_ & 1) { alloc_traits::deallocate(*this, data_, capacity_); }
@@ -134,10 +137,16 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
         assert(!(capacity & 1));
         init(count);
     }
+    dynarray(Ty* data, size_type capacity, size_type count, const value_type& val, const Alloc& alloc)
+        : alloc_type(alloc), data_(data), capacity_(capacity) {
+        assert(!(capacity & 1));
+        init(count, val);
+    }
 
     void grow(size_type extra);
 
-    void init(size_type count);
+    template<typename... Args>
+    void init(size_type count, Args&&... args);
 
     template<typename... Args>
     void resize_impl(size_type sz, Args&&... args);
@@ -178,23 +187,6 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
 };
 
 template<typename Ty, typename Alloc>
-void dynarray<Ty, Alloc>::init(size_type count) {
-    if (count > capacity_) {
-        capacity_ = (count & ~size_type(1)) + 1;  // Make new dynamic odd capacity
-        data_ = alloc_traits::allocate(*this, capacity_);
-    }
-    Ty* item = data_;
-    try {
-        for (Ty* last = data_ + count; item != last; ++item) { alloc_traits::construct(*this, item); }
-        size_ = count;
-    } catch (...) {
-        destruct_items(data_, item);
-        if (capacity_ & 1) { alloc_traits::deallocate(*this, data_, capacity_); }
-        throw;
-    }
-}
-
-template<typename Ty, typename Alloc>
 void dynarray<Ty, Alloc>::grow(size_type extra) {
     const size_type sz = size_;
     size_type delta_sz = std::max(++extra, sz >> 1);
@@ -208,6 +200,26 @@ void dynarray<Ty, Alloc>::grow(size_type extra) {
     destruct_items(data_, data_ + size_);
     if (capacity_ & 1) { alloc_traits::deallocate(*this, data_, capacity_); }
     data_ = data, capacity_ = capacity;
+}
+
+template<typename Ty, typename Alloc>
+template<typename... Args>
+void dynarray<Ty, Alloc>::init(size_type count, Args&&... args) {
+    if (count > capacity_) {
+        capacity_ = (count & ~size_type(1)) + 1;  // Make new dynamic odd capacity
+        data_ = alloc_traits::allocate(*this, capacity_);
+    }
+    Ty* item = data_;
+    try {
+        for (Ty* last = data_ + count; item != last; ++item) {
+            alloc_traits::construct(*this, item, std::forward<Args>(args)...);
+        }
+        size_ = count;
+    } catch (...) {
+        destruct_items(data_, item);
+        if (capacity_ & 1) { alloc_traits::deallocate(*this, data_, capacity_); }
+        throw;
+    }
 }
 
 template<typename Ty, typename Alloc>
@@ -234,6 +246,7 @@ template<typename Ty, std::size_t InlineBufSize = 0, typename Alloc = std::alloc
 class inline_dynarray final : public dynarray<Ty, Alloc> {
  public:
     using size_type = typename dynarray<Ty, Alloc>::size_type;
+    using value_type = typename dynarray<Ty, Alloc>::value_type;
 
     inline_dynarray() noexcept(std::is_nothrow_default_constructible<dynarray<Ty, Alloc>>::value)
         : dynarray<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), inline_buf_size) {}
@@ -241,6 +254,8 @@ class inline_dynarray final : public dynarray<Ty, Alloc> {
         : dynarray<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), inline_buf_size, alloc) {}
     explicit inline_dynarray(size_type count, const Alloc& alloc = Alloc())
         : dynarray<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), inline_buf_size, count, alloc) {}
+    inline_dynarray(size_type count, const value_type& val, const Alloc& alloc = Alloc())
+        : dynarray<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), inline_buf_size, count, val, alloc) {}
 
  private:
     enum : unsigned {  // Always even
