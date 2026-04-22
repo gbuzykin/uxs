@@ -234,11 +234,12 @@ namespace detail {
 
 template<typename CharT, typename Alloc>
 /*static*/ record_value<CharT, Alloc>* record_value<CharT, Alloc>::alloc(alloc_type& al, key_type key) {
-    if (key.size() > max_name_size(al)) { throw std::length_error("too much to reserve"); }
-    const std::size_t alloc_sz = get_alloc_sz(key.size());
+    if (key.size() + 1 > max_name_alloc_size(al)) { throw std::length_error("too much to reserve"); }
+    const std::size_t alloc_sz = get_alloc_sz(key.size() + 1);
     record_value* node = alloc_traits::allocate(al, alloc_sz);
     node->key_sz_ = key.size();
     std::copy_n(key.data(), key.size(), node->key_chars_);
+    node->key_chars_[key.size()] = '\0';
     return node;
 }
 
