@@ -360,6 +360,7 @@ class record_value {
     using alloc_traits = std::allocator_traits<alloc_type>;
 
     key_type key() const noexcept { return key_type(key_chars_, key_sz_); }
+    const char_type* c_key() const noexcept { return key_chars_; }
     const value_type& value() const noexcept { return *reinterpret_cast<const value_type*>(&x_); }
     value_type& value() noexcept { return *reinterpret_cast<value_type*>(&x_); }
 
@@ -399,7 +400,7 @@ class record_value {
         dealloc(al, node);
     }
 
-    static std::size_t max_name_size(const alloc_type& al) noexcept {
+    static std::size_t max_name_alloc_size(const alloc_type& al) noexcept {
         return (std::allocator_traits<alloc_type>::max_size(al) * sizeof(record_value) -
                 offsetof(record_value, key_chars_)) /
                sizeof(CharT);
@@ -413,7 +414,7 @@ class record_value {
     UXS_NODISCARD UXS_EXPORT static record_value* alloc(alloc_type& al, key_type key);
 
     static void dealloc(alloc_type& al, record_value* node) noexcept {
-        alloc_traits::deallocate(al, node, get_alloc_sz(node->key_sz_));
+        alloc_traits::deallocate(al, node, get_alloc_sz(node->key_sz_ + 1));
     }
 };
 
@@ -646,6 +647,7 @@ template<typename CharT, typename Alloc, bool Const>
 class value_iterator : public container_iterator_facade<basic_value<CharT, Alloc>, value_iterator<CharT, Alloc, Const>,
                                                         std::bidirectional_iterator_tag, Const> {
  public:
+    using char_type = CharT;
     using key_type = std::basic_string_view<CharT>;
     using value_type = basic_value<CharT, Alloc>;
 
@@ -710,6 +712,11 @@ class value_iterator : public container_iterator_facade<basic_value<CharT, Alloc
     key_type key() const {
         if (!is_record_) { throw database_error("cannot use key() for non-record iterators"); }
         return record_value<CharT, Alloc>::from_links(static_cast<list_links_t*>(ptr_))->key();
+    }
+
+    const char_type* c_key() const {
+        if (!is_record_) { throw database_error("cannot use key() for non-record iterators"); }
+        return record_value<CharT, Alloc>::from_links(static_cast<list_links_t*>(ptr_))->c_key();
     }
 
     std::conditional_t<Const, const value_type&, value_type&> value() const noexcept {
