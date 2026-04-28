@@ -1022,9 +1022,6 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     allocator_type get_allocator() const noexcept { return allocator_type(*this); }
 
     template<typename Ty>
-    bool is() const noexcept;
-
-    template<typename Ty>
     Ty as() const;
 
     template<typename Ty>
@@ -1437,7 +1434,6 @@ struct value_getters_specializer;
 #define UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(ty, func) \
     template<typename CharT, typename Alloc> \
     struct value_getters_specializer<CharT, Alloc, ty> { \
-        static bool is(const basic_value<CharT, Alloc>& v) { return v.is##func(); } \
         static ty as(const basic_value<CharT, Alloc>& v) { return static_cast<ty>(v.as##func()); } \
         static est::optional<ty> get(const basic_value<CharT, Alloc>& v) { \
             const auto result = v.get##func(); \
@@ -1460,15 +1456,11 @@ UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(float, _double)
 UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(double, _double)
 UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(long double, _double)
 UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::basic_string<CharT>, _string)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::basic_string_view<CharT>, _string_view)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(const CharT*, _c_string)
 #undef UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS
 
 }  // namespace detail
-
-template<typename CharT, typename Alloc>
-template<typename Ty>
-bool basic_value<CharT, Alloc>::is() const noexcept {
-    return detail::value_getters_specializer<CharT, Alloc, Ty>::is(*this);
-}
 
 template<typename CharT, typename Alloc>
 template<typename Ty>
