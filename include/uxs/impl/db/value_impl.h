@@ -179,7 +179,7 @@ template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::reserve(alloc_type& al, std::size_t sz) {
     if (!p_) {
         if (!sz) { return; }
-        p_ = alloc_checked(al, 0, sz + tail_zero);
+        p_ = alloc_checked(al, sz + tail_zero);
     } else {
         make_unique(al);
         if (sz + tail_zero <= p_->capacity) { return; }
@@ -192,7 +192,7 @@ template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::resize(alloc_type& al, std::size_t sz, const Ty& v) {
     if (!p_) {
         if (!sz) { return; }
-        p_ = alloc_checked(al, 0, sz + tail_zero);
+        p_ = alloc_checked(al, sz + tail_zero);
     } else {
         make_unique(al);
         if (sz == p_->size) { return; }
@@ -311,6 +311,12 @@ template<typename CharT, typename Alloc>
 void record_t<CharT, Alloc>::assign(alloc_type& al, std::initializer_list<mapped_type> init) {
     clear_impl(al, init.size());
     insert_impl(al, init);
+}
+
+template<typename CharT, typename Alloc>
+void record_t<CharT, Alloc>::reserve(alloc_type& al, std::size_t sz) {
+    make_unique(al);
+    if (p_->bucket_count < sz) { rehash(al, sz); }
 }
 
 template<typename CharT, typename Alloc>
@@ -507,28 +513,28 @@ basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::operator=(std::basic_strin
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::string_reserve(std::size_t sz) {
+void basic_value<CharT, Alloc>::reserve(string_tag_t, std::size_t sz) {
     if (type_ != dtype::string) { init_as_string(); }
     typename char_array_t::alloc_type str_al(*this);
     value_.str.reserve(str_al, sz);
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::string_resize(std::size_t sz) {
+void basic_value<CharT, Alloc>::resize(string_tag_t, std::size_t sz) {
     if (type_ != dtype::string) { init_as_string(); }
     typename char_array_t::alloc_type str_al(*this);
     value_.str.resize(str_al, sz, '\0');
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::string_resize(std::size_t sz, char_type ch) {
+void basic_value<CharT, Alloc>::resize(string_tag_t, std::size_t sz, char_type ch) {
     if (type_ != dtype::string) { init_as_string(); }
     typename char_array_t::alloc_type str_al(*this);
     value_.str.resize(str_al, sz, ch);
 }
 
 template<typename CharT, typename Alloc>
-basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::string_append(std::basic_string_view<char_type> s) {
+basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::append(std::basic_string_view<char_type> s) {
     if (type_ != dtype::string) { init_as_string(); }
     typename char_array_t::alloc_type str_al(*this);
     value_.str.append(str_al, s);
@@ -536,8 +542,15 @@ basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::string_append(std::basic_s
 }
 
 template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::reserve(record_tag_t, std::size_t sz) {
+    if (type_ != dtype::record) { init_as_record(); }
+    typename record_t::alloc_type rec_al(*this);
+    value_.rec.reserve(rec_al, sz);
+}
+
+template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::assign(std::initializer_list<basic_value> init) {
-    if (!detail::is_record(init)) { return assign(array_variant_t{}, init.begin(), init.end()); }
+    if (!detail::is_record(init)) { return assign(array_tag_t{}, init.begin(), init.end()); }
     typename record_t::alloc_type rec_al(*this);
     if (type_ != dtype::record) {
         if (type_ != dtype::null) { destroy(); }
@@ -548,13 +561,13 @@ void basic_value<CharT, Alloc>::assign(std::initializer_list<basic_value> init) 
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::assign(array_variant_t, std::initializer_list<basic_value> init) {
-    assign(array_variant_t{}, init.begin(), init.end());
+void basic_value<CharT, Alloc>::assign(array_tag_t, std::initializer_list<basic_value> init) {
+    assign(array_tag_t{}, init.begin(), init.end());
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::assign(record_variant_t, std::initializer_list<std::pair<key_type, basic_value>> init) {
-    assign(record_variant_t{}, init.begin(), init.end());
+void basic_value<CharT, Alloc>::assign(record_tag_t, std::initializer_list<std::pair<key_type, basic_value>> init) {
+    assign(record_tag_t{}, init.begin(), init.end());
 }
 
 template<typename CharT, typename Alloc>
