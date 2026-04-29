@@ -36,20 +36,22 @@ bibuf& operator>>(bibuf& is, db::basic_value<CharT, Alloc>& v) {
     auto type = db::dtype::null;
     is >> type;
     v = db::basic_value<CharT, Alloc>(type, [&is](auto type, auto& x) {
-        if constexpr (std::is_same_v<decltype(type), db::string_variant_t>) {
+        if constexpr (std::is_same_v<decltype(type), db::string_tag_t>) {
             std::uint64_t sz = 0;
             if (!(is >> sz)) { return; }
-            x.string_resize(static_cast<std::size_t>(sz));
-            const auto s = x.as_string_span();
-            is.read_with_endian(est::as_span(reinterpret_cast<std::uint8_t*>(s.data()), s.size() * sizeof(CharT)),
-                                sizeof(CharT));
-        } else if constexpr (std::is_same_v<decltype(type), db::array_variant_t>) {
+            x.resize_and_overwrite(db::string_tag, static_cast<std::size_t>(sz), [&is](CharT* p, std::size_t count) {
+                is.read_with_endian(est::as_span(reinterpret_cast<std::uint8_t*>(p), count * sizeof(CharT)),
+                                    sizeof(CharT));
+            });
+        } else if constexpr (std::is_same_v<decltype(type), db::array_tag_t>) {
             std::uint64_t sz = 0;
             if (!(is >> sz)) { return; }
+            x.reserve(static_cast<std::size_t>(sz));
             for (; sz; --sz) { is >> x.emplace_back(x.get_allocator()); }
-        } else if constexpr (std::is_same_v<decltype(type), db::record_variant_t>) {
+        } else if constexpr (std::is_same_v<decltype(type), db::record_tag_t>) {
             std::uint64_t sz = 0;
             if (!(is >> sz)) { return; }
+            x.reserve(db::record_tag, static_cast<std::size_t>(sz));
             for (std::string key; sz; --sz) { is >> key >> x.emplace(key, x.get_allocator()).value(); }
         } else {
             is >> x;
