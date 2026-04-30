@@ -159,7 +159,7 @@ basic_membuffer<CharT>& write_text(basic_membuffer<CharT>& out, std::basic_strin
     return out;
 }
 
-template<typename StrTy, typename StackTy>
+template<typename ValueTy, typename StrTy, typename StackTy>
 struct value_visitor {
     using char_type = typename StrTy::value_type;
 
@@ -190,27 +190,24 @@ struct value_visitor {
         return false;
     }
 
-    template<typename CharT>
-    bool operator()(std::basic_string_view<CharT> s) const {
+    bool operator()(decltype(std::declval<ValueTy>().as_string_view()) s) const {
         detail::write_text<char_type>(out, utf_string_adapter<char_type>{}(s));
         return false;
     }
 
-    template<typename ValTy>
-    bool operator()(est::span<const ValTy> r) const {
+    bool operator()(decltype(std::declval<ValueTy>().as_array()) r) const {
         stack.emplace_back(r.data(), r.data() + r.size());
         return true;
     }
 
-    template<typename Iter>
-    bool operator()(iterator_range<Iter> r) const {
+    bool operator()(decltype(std::declval<ValueTy>().as_record()) r) const {
         stack.emplace_back(r.begin(), r.end());
         return true;
     }
 };
 
-template<typename StrTy, typename StackTy>
-value_visitor<StrTy, StackTy> make_value_visitor(StrTy& out, StackTy& stack) {
+template<typename ValueCharT, typename Alloc, typename StrTy, typename StackTy>
+value_visitor<const basic_value<ValueCharT, Alloc>, StrTy, StackTy> make_value_visitor(StrTy& out, StackTy& stack) {
     return {out, stack};
 }
 
@@ -222,7 +219,7 @@ void write(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v,
     using stack_item_t = detail::writer_stack_item_t<ValueCharT, Alloc>;
     inline_basic_dynbuffer<stack_item_t, 32> stack;
 
-    const auto visitor = make_value_visitor(out, stack);
+    const auto visitor = detail::make_value_visitor<ValueCharT, Alloc>(out, stack);
 
     out += '<';
     utf_string_adapter<CharT>{}.append(out, element);

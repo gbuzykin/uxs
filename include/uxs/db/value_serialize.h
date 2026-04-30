@@ -12,17 +12,18 @@ namespace uxs {
 
 template<typename CharT, typename Alloc>
 biobuf& operator<<(biobuf& os, const db::basic_value<CharT, Alloc>& v) {
+    using ValueTy = const db::basic_value<CharT, Alloc>;
     os << v.type();
-    return v.visit([&os, &v](auto x) -> biobuf& {
-        if constexpr (std::is_same_v<decltype(x), decltype(v.as_string_view())>) {
+    return v.visit([&os](auto x) -> biobuf& {
+        if constexpr (std::is_same_v<decltype(x), decltype(std::declval<ValueTy>().as_string_view())>) {
             os << static_cast<std::uint64_t>(x.size());
             return os.write_with_endian(
                 est::as_span(reinterpret_cast<const std::uint8_t*>(x.data()), x.size() * sizeof(CharT)), sizeof(CharT));
-        } else if constexpr (std::is_same_v<decltype(x), decltype(v.as_array())>) {
+        } else if constexpr (std::is_same_v<decltype(x), decltype(std::declval<ValueTy>().as_array())>) {
             os << static_cast<std::uint64_t>(x.size());
             for (const auto& el : x) { os << el; }
-        } else if constexpr (std::is_same_v<decltype(x), decltype(v.as_record())>) {
-            os << static_cast<std::uint64_t>(v.size());
+        } else if constexpr (std::is_same_v<decltype(x), decltype(std::declval<ValueTy>().as_record())>) {
+            os << static_cast<std::uint64_t>(x.size());
             for (const auto& [key, value] : x) { os << key << value; }
         } else if constexpr (!std::is_same_v<decltype(x), std::nullptr_t>) {
             os << x;
