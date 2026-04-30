@@ -454,6 +454,24 @@ struct record_node_traits {
     static record_value<CharT, Alloc>& get_value(list_links_t* node) { return *node_t::from_links(node); }
 };
 
+template<typename Iter>
+class record_range {
+ public:
+    using iterator = Iter;
+    using size_type = std::size_t;
+
+    record_range(size_type size, Iter from, Iter to) noexcept : size_(size), from_(from), to_(to) {}
+
+    Iter begin() const noexcept { return from_; }
+    Iter end() const noexcept { return to_; }
+    size_type size() const noexcept { return size_; }
+    bool empty() const noexcept { return size_ == 0; }
+
+ private:
+    size_type size_;
+    Iter from_, to_;
+};
+
 template<typename RandIt>
 std::size_t initial_alloc_size(RandIt first, RandIt last, std::true_type /* random access iterator */) {
     return static_cast<std::size_t>(last - first);
@@ -501,13 +519,13 @@ class record_t {
     list_links_t* find(key_type key) const noexcept { return find_impl(key, hasher_t{}(key)); }
     UXS_EXPORT size_type count(key_type key) const noexcept;
 
-    iterator_range<const_iterator> crange() const {
-        return make_range(const_iterator(cbegin()), const_iterator(cend()));
+    record_range<const_iterator> crange() const {
+        return record_range<const_iterator>(size(), const_iterator(cbegin()), const_iterator(cend()));
     }
 
-    iterator_range<iterator> range(alloc_type& al) {
+    record_range<iterator> range(alloc_type& al) {
         make_unique(al);
-        return make_range(iterator(cbegin()), iterator(cend()));
+        return record_range<iterator>(size(), iterator(cbegin()), iterator(cend()));
     }
 
     friend bool operator==(const record_t& lhs, const record_t& rhs) noexcept {
@@ -857,6 +875,10 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     using const_reverse_iterator = detail::value_reverse_iterator<const_iterator>;
     using record_iterator = typename record_t::iterator;
     using const_record_iterator = typename record_t::const_iterator;
+    using array_range = est::span<basic_value>;
+    using const_array_range = est::span<const basic_value>;
+    using record_range = typename detail::record_range<record_iterator>;
+    using const_record_range = typename detail::record_range<const_record_iterator>;
     using pointer = void;
     using const_pointer = void;
     using reference = iterator;
@@ -1205,11 +1227,11 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     est::span<char_type> as_string_span();
 
-    est::span<const basic_value> as_array() const noexcept;
-    est::span<basic_value> as_array();
+    const_array_range as_array() const noexcept;
+    array_range as_array();
 
-    iterator_range<const_record_iterator> as_record() const;
-    iterator_range<record_iterator> as_record();
+    const_record_range as_record() const;
+    record_range as_record();
 
     const basic_value& operator[](std::size_t i) const { return as_array()[i]; }
     basic_value& operator[](std::size_t i) { return as_array()[i]; }
@@ -1440,26 +1462,26 @@ est::span<typename basic_value<CharT, Alloc>::char_type> basic_value<CharT, Allo
 }
 
 template<typename CharT, typename Alloc>
-est::span<const basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() const noexcept {
-    if (type_ != dtype::array) { return type_ != dtype::null ? est::as_span(this, 1) : est::span<basic_value>(); }
+auto basic_value<CharT, Alloc>::as_array() const noexcept -> const_array_range {
+    if (type_ != dtype::array) { return type_ != dtype::null ? est::as_span(this, 1) : const_array_range(); }
     return value_.arr.cview();
 }
 
 template<typename CharT, typename Alloc>
-est::span<basic_value<CharT, Alloc>> basic_value<CharT, Alloc>::as_array() {
-    if (type_ != dtype::array) { return type_ != dtype::null ? est::as_span(this, 1) : est::span<basic_value>(); }
+auto basic_value<CharT, Alloc>::as_array() -> array_range {
+    if (type_ != dtype::array) { return type_ != dtype::null ? est::as_span(this, 1) : array_range(); }
     typename value_array_t::alloc_type arr_al(*this);
     return value_.arr.view(arr_al);
 }
 
 template<typename CharT, typename Alloc>
-auto basic_value<CharT, Alloc>::as_record() const -> iterator_range<const_record_iterator> {
+auto basic_value<CharT, Alloc>::as_record() const -> const_record_range {
     if (type_ != dtype::record) { throw database_error("not a record"); }
     return value_.rec.crange();
 }
 
 template<typename CharT, typename Alloc>
-auto basic_value<CharT, Alloc>::as_record() -> iterator_range<record_iterator> {
+auto basic_value<CharT, Alloc>::as_record() -> record_range {
     if (type_ != dtype::record) { throw database_error("not a record"); }
     typename record_t::alloc_type rec_al(*this);
     return value_.rec.range(rec_al);
