@@ -60,8 +60,8 @@ class flexarray_t {
     std::size_t size() const noexcept { return p_ ? p_->size : 0; }
     const_view_type cview() const noexcept { return p_ ? const_view_type(p_->data(), p_->size) : const_view_type(); }
 
-    template<typename _Ty = Ty, typename = std::enable_if_t<is_character<_Ty>::value>>
-    const _Ty* c_str() const noexcept {
+    template<typename Ty_ = Ty, typename = std::enable_if_t<is_character<Ty_>::value>>
+    const Ty_* c_str() const noexcept {
         static const Ty zero = '\0';
         return p_ ? p_->data() : &zero;
     }
@@ -203,7 +203,7 @@ class flexarray_t {
  private:
     data_t* p_;
 
-    template<unsigned _V = tail_zero, typename = std::enable_if_t<_V != 0>>
+    template<unsigned V_ = tail_zero, typename = std::enable_if_t<V_ != 0>>
     void put_tail_zero() {
         *(p_->data() + p_->size) = '\0';
     }

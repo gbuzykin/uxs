@@ -115,7 +115,7 @@ class basic_option_group : public basic_option_node<CharT> {
 
  private:
     std::vector<std::unique_ptr<basic_option_node<CharT>>> children_;
-    const bool is_exclusive_;
+    bool is_exclusive_;
 };
 
 template<typename CharT>
@@ -138,7 +138,7 @@ class basic_option : public basic_option_node<CharT> {
     void set_handler(std::function<void()> fn) { handler_ = std::move(fn); }
 
  private:
-    const std::vector<std::basic_string<CharT>> keys_;
+    std::vector<std::basic_string<CharT>> keys_;
     std::vector<std::unique_ptr<basic_value<CharT>>> values_;
     std::function<void()> handler_;
 };

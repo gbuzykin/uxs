@@ -53,8 +53,8 @@ class crc32_calc {
         return v;
     }
 #else   // __cplusplus < 201703L
-    static constexpr std::uint32_t v_[] = {UXS_CRC32_TABLE_DATA};
-    constexpr const std::uint32_t* table() const noexcept { return v_; }
+    static constexpr std::uint32_t v[] = {UXS_CRC32_TABLE_DATA};
+    constexpr const std::uint32_t* table() const noexcept { return v; }
 #endif  // __cplusplus < 201703L
 #undef UXS_CRC32_TABLE_DATA
 };

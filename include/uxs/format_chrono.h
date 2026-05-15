@@ -40,9 +40,9 @@ enum class chrono_specifier {
     weekday_1_7,
     weekday_0_6,
     // -- ISO 8601 week-based year
-    year_ISO_8601_yy,
-    year_ISO_8601_yyyy,
-    week_of_the_year_ISO_8601,
+    year_iso8601_yy,
+    year_iso8601_yyyy,
+    week_of_the_year_iso8601,
     // --- day/week of the year ---
     day_of_the_year,
     week_of_the_year_monday_first,
@@ -165,13 +165,13 @@ constexpr chrono_specifier parse_chrono_format_spec(Iter& first, Iter last, char
         } break;
         // -- ISO 8601 week-based year
         case 'g': {
-            if (check_chrono_modifier(modifier)) { return chrono_specifier::year_ISO_8601_yy; }
+            if (check_chrono_modifier(modifier)) { return chrono_specifier::year_iso8601_yy; }
         } break;
         case 'G': {
-            if (check_chrono_modifier(modifier)) { return chrono_specifier::year_ISO_8601_yyyy; }
+            if (check_chrono_modifier(modifier)) { return chrono_specifier::year_iso8601_yyyy; }
         } break;
         case 'V': {
-            if (check_chrono_modifier(modifier, 'O')) { return chrono_specifier::week_of_the_year_ISO_8601; }
+            if (check_chrono_modifier(modifier, 'O')) { return chrono_specifier::week_of_the_year_iso8601; }
         } break;
         // --- day/week of the year ---
         case 'j': {
