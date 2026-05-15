@@ -273,9 +273,9 @@ UXS_EXPORT std::uint64_t to_float_common(const CharT* p, const CharT* end, const
 
 template<typename Ty, typename CharT>
 Ty to_integer(const CharT* p, const CharT* end, const CharT*& last) noexcept {
-    using UTy = typename std::make_unsigned<Ty>::type;
-    using ReducedTy = std::conditional_t<(sizeof(UTy) <= sizeof(std::uint32_t)), std::uint32_t, std::uint64_t>;
-    return static_cast<Ty>(to_integer_common<ReducedTy>(p, end, last, std::numeric_limits<UTy>::max()));
+    using unsigned_ty = typename std::make_unsigned<Ty>::type;
+    using reduced_ty = std::conditional_t<(sizeof(unsigned_ty) <= sizeof(std::uint32_t)), std::uint32_t, std::uint64_t>;
+    return static_cast<Ty>(to_integer_common<reduced_ty>(p, end, last, std::numeric_limits<unsigned_ty>::max()));
 }
 
 template<typename Ty, typename CharT>
@@ -322,10 +322,10 @@ void fmt_float_common(StrTy& s, std::uint64_t u64, fmt_opts fmt, unsigned bpm, i
 
 template<typename StrTy, typename Ty>
 void fmt_integer(StrTy& s, Ty val, fmt_opts fmt = {}, locale_ref loc = {}) {
-    using UTy = typename std::make_unsigned<Ty>::type;
-    using ReducedTy = std::conditional_t<(sizeof(UTy) <= sizeof(std::uint32_t)), std::uint32_t, std::uint64_t>;
+    using unsigned_ty = typename std::make_unsigned<Ty>::type;
+    using reduced_ty = std::conditional_t<(sizeof(unsigned_ty) <= sizeof(std::uint32_t)), std::uint32_t, std::uint64_t>;
     const bool is_signed = std::is_signed<Ty>::value;
-    fmt_integer_common(s, static_cast<ReducedTy>(val), is_signed, fmt, loc);
+    fmt_integer_common(s, static_cast<reduced_ty>(val), is_signed, fmt, loc);
 }
 
 template<typename StrTy, typename Ty>

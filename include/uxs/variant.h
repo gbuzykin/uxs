@@ -449,19 +449,19 @@ struct variant::getters_specializer {
 
 template<typename Ty>
 struct variant::getters_specializer<Ty, std::enable_if_t<std::is_reference<Ty>::value>> {
-    using DecayedTy = std::decay_t<Ty>;
+    using decayed_ty = std::decay_t<Ty>;
     static Ty as(const variant& v) {
-        auto* val_vtable = get_vtable(variant_type_impl<DecayedTy>::type_id);
+        auto* val_vtable = get_vtable(variant_type_impl<decayed_ty>::type_id);
         assert(val_vtable);
         if (v.vtable_ != val_vtable) { throw variant_error("invalid value type"); }
-        return *static_cast<const DecayedTy*>(v.vtable_->get_value_const_ptr(&v.data_));
+        return *static_cast<const decayed_ty*>(v.vtable_->get_value_const_ptr(&v.data_));
     }
     template<typename Ty_ = Ty, typename = std::enable_if_t<!std::is_const<std::remove_reference_t<Ty_>>::value>>
     static Ty_ as(variant& v) {
-        auto* val_vtable = get_vtable(variant_type_impl<DecayedTy>::type_id);
+        auto* val_vtable = get_vtable(variant_type_impl<decayed_ty>::type_id);
         assert(val_vtable);
         if (v.vtable_ != val_vtable) { throw variant_error("invalid value type"); }
-        return std::forward<Ty>(*static_cast<DecayedTy*>(v.vtable_->get_value_ptr(&v.data_)));
+        return std::forward<Ty>(*static_cast<decayed_ty*>(v.vtable_->get_value_ptr(&v.data_)));
     }
 };
 

@@ -165,7 +165,7 @@ std::wstring join_strings(const Range& r, SepTy sep, std::wstring prefix, JoinFn
 
 // --------------------------
 
-template<split_opts opts, typename CharT, typename Traits, typename Finder, typename OutputFn, typename OutputIt,
+template<split_opts Opts, typename CharT, typename Traits, typename Finder, typename OutputFn, typename OutputIt,
          typename = std::void_t<typename Finder::is_finder>>
 std::size_t split_basic_string(std::basic_string_view<CharT, Traits> s, Finder finder, OutputFn fn, OutputIt out,
                                std::size_t n = std::numeric_limits<std::size_t>::max()) {
@@ -173,7 +173,7 @@ std::size_t split_basic_string(std::basic_string_view<CharT, Traits> s, Finder f
     std::size_t count = 0;
     for (auto p = s.begin();;) {
         auto sub = finder(p, s.end());
-        if (!(opts & split_opts::skip_empty) || p != sub.first) {
+        if (!(Opts & split_opts::skip_empty) || p != sub.first) {
             *out++ = fn(s.substr(p - s.begin(), sub.first - p));
             if (++count == n) { break; }
         }
@@ -183,39 +183,39 @@ std::size_t split_basic_string(std::basic_string_view<CharT, Traits> s, Finder f
     return count;
 }
 
-template<split_opts opts = split_opts::no_opts, typename Finder, typename OutputFn, typename OutputIt,
+template<split_opts Opts = split_opts::no_opts, typename Finder, typename OutputFn, typename OutputIt,
          typename = std::void_t<typename Finder::is_finder>>
 std::size_t split_string(std::string_view s, Finder finder, OutputFn fn, OutputIt out,
                          std::size_t n = std::numeric_limits<std::size_t>::max()) {
-    return split_basic_string<opts>(s, finder, fn, out, n);
+    return split_basic_string<Opts>(s, finder, fn, out, n);
 }
 
-template<split_opts opts = split_opts::no_opts, typename Finder, typename OutputFn = nofunc>
+template<split_opts Opts = split_opts::no_opts, typename Finder, typename OutputFn = nofunc>
 auto split_string(std::string_view s, Finder finder, OutputFn fn = OutputFn{})
     -> std::vector<std::decay_t<decltype(fn(s))>> {
     std::vector<std::decay_t<decltype(fn(s))>> result;
-    split_string<opts>(s, finder, fn, std::back_inserter(result));
+    split_string<Opts>(s, finder, fn, std::back_inserter(result));
     return result;
 }
 
-template<split_opts opts = split_opts::no_opts, typename Finder, typename OutputFn, typename OutputIt,
+template<split_opts Opts = split_opts::no_opts, typename Finder, typename OutputFn, typename OutputIt,
          typename = std::void_t<typename Finder::is_finder>>
 std::size_t split_string(std::wstring_view s, Finder finder, OutputFn fn, OutputIt out,
                          std::size_t n = std::numeric_limits<std::size_t>::max()) {
-    return split_basic_string<opts>(s, finder, fn, out, n);
+    return split_basic_string<Opts>(s, finder, fn, out, n);
 }
 
-template<split_opts opts = split_opts::no_opts, typename Finder, typename OutputFn = nofunc>
+template<split_opts Opts = split_opts::no_opts, typename Finder, typename OutputFn = nofunc>
 auto split_string(std::wstring_view s, Finder finder, OutputFn fn = OutputFn{})
     -> std::vector<std::decay_t<decltype(fn(s))>> {
     std::vector<std::decay_t<decltype(fn(s))>> result;
-    split_string<opts>(s, finder, fn, std::back_inserter(result));
+    split_string<Opts>(s, finder, fn, std::back_inserter(result));
     return result;
 }
 
 // --------------------------
 
-template<split_opts opts, typename CharT, typename Traits, typename Finder>
+template<split_opts Opts, typename CharT, typename Traits, typename Finder>
 est::type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_finder> basic_string_section(
     std::basic_string_view<CharT, Traits> s, Finder finder, std::size_t start,
     std::size_t fin = std::numeric_limits<std::size_t>::max()) {
@@ -225,7 +225,7 @@ est::type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_
     auto from = s.end();
     while (true) {
         auto sub = finder(p, s.end());
-        if (!(opts & split_opts::skip_empty) || p != sub.first) {
+        if (!(Opts & split_opts::skip_empty) || p != sub.first) {
             if (count == start) { from = p; }
             if (count++ == fin) { return s.substr(from - s.begin(), sub.first - from); }
         }
@@ -235,21 +235,21 @@ est::type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_
     return s.substr(from - s.begin(), s.end() - from);
 }
 
-template<split_opts opts = split_opts::no_opts, typename Finder>
+template<split_opts Opts = split_opts::no_opts, typename Finder>
 est::type_identity_t<std::string_view, typename Finder::is_finder> string_section(  //
     std::string_view s, Finder finder, std::size_t start, std::size_t fin = std::numeric_limits<std::size_t>::max()) {
-    return basic_string_section<opts>(s, finder, start, fin);
+    return basic_string_section<Opts>(s, finder, start, fin);
 }
 
-template<split_opts opts = split_opts::no_opts, typename Finder>
+template<split_opts Opts = split_opts::no_opts, typename Finder>
 est::type_identity_t<std::wstring_view, typename Finder::is_finder> string_section(  //
     std::wstring_view s, Finder finder, std::size_t start, std::size_t fin = std::numeric_limits<std::size_t>::max()) {
-    return basic_string_section<opts>(s, finder, start, fin);
+    return basic_string_section<Opts>(s, finder, start, fin);
 }
 
 // --------------------------
 
-template<split_opts opts, typename CharT, typename Traits, typename Finder>
+template<split_opts Opts, typename CharT, typename Traits, typename Finder>
 est::type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_reversed_finder> basic_string_section(
     std::basic_string_view<CharT, Traits> s, Finder finder, std::size_t start, std::size_t fin = 0) {
     if (fin > start) { fin = start; }
@@ -258,7 +258,7 @@ est::type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_
     auto to = s.begin();
     while (true) {
         auto sub = finder(s.begin(), p);
-        if (!(opts & split_opts::skip_empty) || sub.second != p) {
+        if (!(Opts & split_opts::skip_empty) || sub.second != p) {
             if (count == fin) { to = p; }
             if (count++ == start) { return s.substr(sub.second - s.begin(), to - sub.second); }
         }
@@ -268,16 +268,16 @@ est::type_identity_t<std::basic_string_view<CharT, Traits>, typename Finder::is_
     return s.substr(0, to - s.begin());
 }
 
-template<split_opts opts = split_opts::no_opts, typename Finder>
+template<split_opts Opts = split_opts::no_opts, typename Finder>
 est::type_identity_t<std::string_view, typename Finder::is_reversed_finder> string_section(  //
     std::string_view s, Finder finder, std::size_t start, std::size_t fin = 0) {
-    return basic_string_section<opts>(s, finder, start, fin);
+    return basic_string_section<Opts>(s, finder, start, fin);
 }
 
-template<split_opts opts = split_opts::no_opts, typename Finder>
+template<split_opts Opts = split_opts::no_opts, typename Finder>
 est::type_identity_t<std::wstring_view, typename Finder::is_reversed_finder> string_section(  //
     std::wstring_view s, Finder finder, std::size_t start, std::size_t fin = 0) {
-    return basic_string_section<opts>(s, finder, start, fin);
+    return basic_string_section<Opts>(s, finder, start, fin);
 }
 
 // --------------------------
@@ -426,8 +426,8 @@ std::size_t unpack_strings(std::wstring_view s, wchar_t sep, OutputFn fn, Output
 template<typename CharT, typename Range>
 auto parse_basic_flag_string(std::basic_string_view<CharT> s, const Range& flag_tbl)
     -> std::pair<decltype(std::begin(flag_tbl)->second), decltype(std::begin(flag_tbl)->second)> {
-    using FlagsTy = decltype(std::begin(flag_tbl)->second);
-    auto flags = std::make_pair(static_cast<FlagsTy>(0), static_cast<FlagsTy>(0));
+    using flags_ty = decltype(std::begin(flag_tbl)->second);
+    auto flags = std::make_pair(static_cast<flags_ty>(0), static_cast<flags_ty>(0));
     string_to_words(s, ' ', nofunc(), function_caller([&](std::basic_string_view<CharT> flag) {
                         bool add_flag = (flag[0] != '-');
                         if (flag[0] == '+' || flag[0] == '-') { flag = flag.substr(1); }
