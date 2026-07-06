@@ -28,36 +28,35 @@ void basic_byteseq<Alloc>::clear() noexcept {
 template<typename Alloc>
 std::uint32_t basic_byteseq<Alloc>::calc_crc32() const noexcept {
     std::uint32_t crc32 = 0xffffffff;
-    scan([&crc32](const std::uint8_t* p, std::size_t sz) { crc32 = crc32_calc{}(p, p + sz, crc32); });
+    scan(size_, [&crc32](est::span<const std::uint8_t> src) {
+        crc32 = crc32_calc{}(src.data(), src.data() + src.size(), crc32);
+    });
     return crc32;
 }
 
 template<typename Alloc>
 basic_byteseq<Alloc>& basic_byteseq<Alloc>::assign(const basic_byteseq& other) {
-    return assign(other.size_, [&other](std::uint8_t* dst, std::size_t dst_sz) {
-        other.scan([&dst](const std::uint8_t* p, std::size_t sz) {
-            std::memcpy(dst, p, sz);
-            dst += sz;
-        });
-        return dst_sz;
+    return assign(other.size_, [&other](est::span<std::uint8_t> dst) {
+        other.copy_to_flat(dst);
+        return dst.size();
     });
 }
 
 template<typename Alloc>
-std::vector<std::uint8_t> basic_byteseq<Alloc>::make_vector() const {
-    std::vector<std::uint8_t> result;
-    scan([&result](const std::uint8_t* p, std::size_t sz) { result.insert(result.end(), p, p + sz); });
-    return result;
+basic_byteseq<Alloc>& basic_byteseq<Alloc>::assign(est::span<const std::uint8_t> v) {
+    return assign(v.size(), [v](est::span<std::uint8_t> dst) {
+        std::memcpy(dst.data(), v.data(), dst.size());
+        return dst.size();
+    });
 }
 
 template<typename Alloc>
-/*static*/ basic_byteseq<Alloc> basic_byteseq<Alloc>::from_vector(est::span<const std::uint8_t> v) {
-    basic_byteseq seq;
-    return seq.assign(v.size(), [&v](std::uint8_t* dst, std::size_t dst_sz) {
-        std::memcpy(dst, v.data(), dst_sz);
-        return dst_sz;
+void basic_byteseq<Alloc>::copy_to_flat(est::span<std::uint8_t> v) const {
+    std::uint8_t* dst = v.data();
+    scan(v.size(), [&dst](est::span<const std::uint8_t> src) {
+        std::memcpy(dst, src.data(), src.size());
+        dst += src.size();
     });
-    return seq;
 }
 
 template<typename Alloc>
