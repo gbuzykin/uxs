@@ -2,8 +2,7 @@
 
 #include "uxs/db/value.h"
 #include "uxs/db/xml.h"
-
-#include <vector>
+#include "uxs/dynarray.h"
 
 namespace uxs {
 namespace db {
@@ -60,9 +59,8 @@ basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Allo
 
     inline_dynbuffer txt;
     basic_value<CharT, Alloc> result(al);
-    std::vector<std::pair<basic_value<CharT, Alloc>*, std::string>> stack;
+    inline_dynarray<std::pair<basic_value<CharT, Alloc>*, std::string>, 32> stack;
 
-    stack.reserve(32);
     stack.emplace_back(&result, root_element);
 
     tt = next();

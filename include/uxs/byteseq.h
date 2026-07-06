@@ -3,7 +3,6 @@
 #include "span.h"
 
 #include <memory>
-#include <vector>
 
 namespace uxs {
 
@@ -48,7 +47,9 @@ class basic_byteseq : protected detail::byteseq_chunk<Alloc>::alloc_type {
     using allocator_type = Alloc;
 
     basic_byteseq() noexcept(std::is_nothrow_default_constructible<alloc_type>::value) : alloc_type() {}
+    explicit basic_byteseq(est::span<const std::uint8_t> v) : alloc_type() { assign(v); }
     explicit basic_byteseq(const Alloc& al) noexcept : alloc_type(al) {}
+    basic_byteseq(const Alloc& al, est::span<const std::uint8_t> v) : alloc_type(al) { assign(v); }
     basic_byteseq(const basic_byteseq& other) : alloc_type(other) { assign(other); }
     basic_byteseq(basic_byteseq&& other) noexcept
         : alloc_type(std::move(other)), size_(other.size_), head_(other.head_) {
@@ -60,8 +61,7 @@ class basic_byteseq : protected detail::byteseq_chunk<Alloc>::alloc_type {
 
     basic_byteseq& operator=(const basic_byteseq& other) {
         if (&other == this) { return *this; }
-        assign(other);
-        return *this;
+        return assign(other);
     }
 
     basic_byteseq& operator=(basic_byteseq&& other) noexcept {
@@ -89,25 +89,26 @@ class basic_byteseq : protected detail::byteseq_chunk<Alloc>::alloc_type {
     basic_byteseq& assign(std::size_t max_size, FillFunc func) {
         clear_and_reserve(max_size);
         if (head_) {
-            size_ = func(head_->data, max_size);
+            size_ = func(est::as_span(head_->data, max_size));
             head_->end = head_->data + size_;
         }
         return *this;
     }
 
     template<typename ScanFunc>
-    void scan(ScanFunc func) const {
-        if (!size_) { return; }
+    void scan(std::size_t count, ScanFunc func) const {
+        if (!size_ || !count) { return; }
         const chunk_t* chunk = head_->next;
         do {
-            func(chunk->data, chunk->size());
+            const std::size_t chunk_sz = chunk->size() < count ? chunk->size() : count;
+            func(est::as_span(chunk->data, chunk_sz));
+            count -= chunk_sz;
             chunk = chunk->next;
-        } while (chunk != head_->next);
+        } while (count && chunk != head_->next);
     }
 
-    UXS_EXPORT basic_byteseq& assign(const basic_byteseq& other);
-    UXS_NODISCARD UXS_EXPORT std::vector<std::uint8_t> make_vector() const;
-    UXS_EXPORT static basic_byteseq from_vector(est::span<const std::uint8_t> v);
+    UXS_EXPORT basic_byteseq& assign(est::span<const std::uint8_t> v);
+    UXS_EXPORT void copy_to_flat(est::span<std::uint8_t> dst) const;
 
     UXS_EXPORT void resize(std::size_t sz);
     UXS_NODISCARD UXS_EXPORT basic_byteseq make_compressed(unsigned level = 0) const;
@@ -123,6 +124,7 @@ class basic_byteseq : protected detail::byteseq_chunk<Alloc>::alloc_type {
     std::size_t size_ = 0;
     chunk_t* head_ = nullptr;
 
+    UXS_EXPORT basic_byteseq& assign(const basic_byteseq& other);
     UXS_EXPORT void tidy() noexcept;
     UXS_EXPORT void delete_chunks() noexcept;
     UXS_EXPORT void clear_and_reserve(std::size_t cap);
