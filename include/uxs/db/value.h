@@ -473,12 +473,13 @@ class record_range {
 };
 
 template<typename RandIt>
-std::size_t initial_alloc_size(RandIt first, RandIt last, std::true_type /* random access iterator */) {
+std::size_t initial_bucket_count(RandIt first, RandIt last, std::true_type /* random access iterator */) {
     return static_cast<std::size_t>(last - first);
 }
 
 template<typename InputIt>
-std::false_type initial_alloc_size(InputIt /*first*/, InputIt /*last*/, std::false_type /* random access iterator */) {
+std::false_type initial_bucket_count(InputIt /*first*/, InputIt /*last*/,
+                                     std::false_type /* random access iterator */) {
     return {};
 }
 
@@ -550,7 +551,7 @@ class record_t {
 
     template<typename InputIt>
     void construct(alloc_type& al, InputIt first, InputIt last) {
-        construct(al, initial_alloc_size(first, last, is_random_access_iterator<InputIt>()));
+        construct(al, initial_bucket_count(first, last, is_random_access_iterator<InputIt>()));
         try {
             insert_impl(al, first, last, is_random_access_iterator<InputIt>());
         } catch (...) {
@@ -563,7 +564,7 @@ class record_t {
 
     template<typename InputIt>
     void assign(alloc_type& al, InputIt first, InputIt last) {
-        clear_impl(al, initial_alloc_size(first, last, is_random_access_iterator<InputIt>()));
+        clear_impl(al, initial_bucket_count(first, last, is_random_access_iterator<InputIt>()));
         insert_impl(al, first, last, is_random_access_iterator<InputIt>());
     }
 
@@ -1385,7 +1386,7 @@ void basic_value<CharT, Alloc>::assign(record_tag_t, InputIt first, InputIt last
     typename record_t::alloc_type rec_al(*this);
     if (type_ != dtype::record) {
         if (type_ != dtype::null) { destroy(); }
-        value_.rec.construct(rec_al, detail::initial_alloc_size(first, last, is_random_access_iterator<InputIt>()));
+        value_.rec.construct(rec_al, detail::initial_bucket_count(first, last, is_random_access_iterator<InputIt>()));
         type_ = dtype::record;
     }
     value_.rec.assign(rec_al, first, last);
@@ -1446,7 +1447,7 @@ void basic_value<CharT, Alloc>::insert(InputIt first, InputIt last) {
     typename record_t::alloc_type rec_al(*this);
     if (type_ != dtype::record) {
         if (type_ != dtype::null) { throw database_error("not a record"); }
-        value_.rec.construct(rec_al, detail::initial_alloc_size(first, last, is_random_access_iterator<InputIt>()));
+        value_.rec.construct(rec_al, detail::initial_bucket_count(first, last, is_random_access_iterator<InputIt>()));
         type_ = dtype::record;
     }
     value_.rec.insert(rec_al, first, last);
