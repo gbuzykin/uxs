@@ -1,9 +1,9 @@
 #pragma once
 
-#include "alignment.h"
 #include "cow_ptr.h"
 #include "optional.h"
 #include "string_cvt.h"  // NOLINT
+#include "type_traits.h"
 
 #include "io/serialize.h"  // NOLINT
 

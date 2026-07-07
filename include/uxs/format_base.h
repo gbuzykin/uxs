@@ -1,8 +1,8 @@
 #pragma once
 
-#include "alignment.h"
 #include "span.h"
 #include "string_cvt.h"
+#include "type_traits.h"
 
 namespace uxs {
 
