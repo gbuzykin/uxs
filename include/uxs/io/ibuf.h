@@ -3,7 +3,6 @@
 #include "iostate.h"
 #include "iotraits.h"
 
-#include "uxs/iterator.h"
 #include "uxs/span.h"
 
 #include <algorithm>

@@ -10,9 +10,7 @@
 #endif  // UXS_USE_ZLIB != 0
 
 #include <algorithm>
-#include <cassert>
 #include <cstring>
-#include <stdexcept>
 
 namespace uxs {
 

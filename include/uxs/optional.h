@@ -2,29 +2,16 @@
 
 #include "utility.h"
 
-#if __cplusplus >= 201703L && UXS_HAS_INCLUDE(<optional>)
-
-#    include <optional>
-
-namespace est {
-using nullopt_t = std::nullopt_t;
-constexpr nullopt_t nullopt() { return std::nullopt; }
-template<typename Ty>
-using optional = std::optional<Ty>;
-using bad_optional_access = std::bad_optional_access;
-}  // namespace est
-
-#else  // optional
-
-#    include <cassert>
-#    include <stdexcept>
+#include <cassert>
+#include <exception>
 
 namespace est {
 
 struct nullopt_t {
-    explicit nullopt_t(int) {}
+    explicit constexpr nullopt_t(int) {}
 };
-inline nullopt_t nullopt() { return nullopt_t{0}; }
+
+constexpr nullopt_t nullopt{0};
 
 class UXS_EXPORT_ALL_STUFF_FOR_GNUC bad_optional_access : public std::exception {
  public:
@@ -120,12 +107,6 @@ class optional {
     value_type& val() { return *reinterpret_cast<value_type*>(&data_); }
 };
 
-}  // namespace est
-
-#endif  // optional
-
-namespace est {
-
 template<typename Ty>
 optional<std::decay_t<Ty>> make_optional(Ty&& value) {
     return optional<std::decay_t<Ty>>(std::forward<Ty>(value));
@@ -133,7 +114,7 @@ optional<std::decay_t<Ty>> make_optional(Ty&& value) {
 
 template<typename Ty, typename... Args>
 optional<Ty> make_optional(Args&&... args) {
-    return optional<Ty>(in_place_t{}, std::forward<Args>(args)...);
+    return optional<Ty>(in_place, std::forward<Args>(args)...);
 }
 
 }  // namespace est

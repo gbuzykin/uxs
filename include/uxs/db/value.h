@@ -3,7 +3,6 @@
 #include "database_error.h"
 
 #include "uxs/dllist.h"  // NOLINT
-#include "uxs/iterator.h"
 #include "uxs/memory.h"
 #include "uxs/optional.h"
 #include "uxs/span.h"
@@ -791,24 +790,22 @@ class value_reverse_iterator : public std::reverse_iterator<Iter> {
 // uxs::basic_value<> implementation
 
 struct scalar_tag_t {
-    explicit scalar_tag_t() = default;
+    explicit constexpr scalar_tag_t(int) {}
 };
 struct string_tag_t {
-    explicit string_tag_t() = default;
+    explicit constexpr string_tag_t(int) {}
 };
 struct array_tag_t {
-    explicit array_tag_t() = default;
+    explicit constexpr array_tag_t(int) {}
 };
 struct record_tag_t {
-    explicit record_tag_t() = default;
+    explicit constexpr record_tag_t(int) {}
 };
 
-#if __cplusplus >= 201703L
-constexpr scalar_tag_t scalar_tag{};
-constexpr string_tag_t string_tag{};
-constexpr array_tag_t array_tag{};
-constexpr record_tag_t record_tag{};
-#endif  // __cplusplus >= 201703L
+constexpr scalar_tag_t scalar_tag{0};
+constexpr string_tag_t string_tag{0};
+constexpr array_tag_t array_tag{0};
+constexpr record_tag_t record_tag{0};
 
 namespace detail {
 
@@ -840,7 +837,7 @@ const Ty* get_optional_value(const Ty* opt) {
 
 template<typename Ty1, typename Ty2, typename = std::enable_if_t<!std::is_same<Ty1, Ty2>::value>>
 est::optional<Ty1> cast_optional(const est::optional<Ty2>& opt) {
-    return opt ? est::make_optional(static_cast<Ty1>(*opt)) : est::nullopt();
+    return opt ? est::make_optional(static_cast<Ty1>(*opt)) : est::nullopt;
 }
 
 template<typename Ty>
@@ -925,7 +922,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     basic_value(InputIt first, InputIt last, const Alloc& al = Alloc())
-        : basic_value(detail::select_construct_t<CharT, Alloc, InputIt>(), first, last, al) {}
+        : basic_value(detail::select_construct_t<CharT, Alloc, InputIt>{0}, first, last, al) {}
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     basic_value(array_tag_t, InputIt first, InputIt last, const Alloc& al = Alloc())
         : alloc_type(al), type_(dtype::array) {
@@ -956,24 +953,24 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     basic_value(dtype type, const Func& func, const Alloc& al = Alloc()) : alloc_type(al), type_(type) {
         switch (type_) {
             case dtype::null: break;
-            case dtype::boolean: func(scalar_tag_t{}, value_.b); break;
-            case dtype::integer: func(scalar_tag_t{}, value_.i); break;
-            case dtype::unsigned_integer: func(scalar_tag_t{}, value_.u); break;
-            case dtype::long_integer: func(scalar_tag_t{}, value_.i64); break;
-            case dtype::unsigned_long_integer: func(scalar_tag_t{}, value_.u64); break;
-            case dtype::double_precision: func(scalar_tag_t{}, value_.dbl); break;
+            case dtype::boolean: func(scalar_tag, value_.b); break;
+            case dtype::integer: func(scalar_tag, value_.i); break;
+            case dtype::unsigned_integer: func(scalar_tag, value_.u); break;
+            case dtype::long_integer: func(scalar_tag, value_.i64); break;
+            case dtype::unsigned_long_integer: func(scalar_tag, value_.u64); break;
+            case dtype::double_precision: func(scalar_tag, value_.dbl); break;
             case dtype::string: {
                 value_.str.construct();
-                func(string_tag_t{}, *this);
+                func(string_tag, *this);
             } break;
             case dtype::array: {
                 value_.arr.construct();
-                func(array_tag_t{}, *this);
+                func(array_tag, *this);
             } break;
             case dtype::record: {
                 typename record_t::alloc_type rec_al(*this);
                 value_.rec.construct(rec_al);
-                func(record_tag_t{}, *this);
+                func(record_tag, *this);
             } break;
             default: UXS_UNREACHABLE_CODE;
         }
@@ -1020,7 +1017,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     void assign(InputIt first, InputIt last) {
-        assign(detail::select_construct_t<CharT, Alloc, InputIt>(), first, last);
+        assign(detail::select_construct_t<CharT, Alloc, InputIt>{0}, first, last);
     }
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     void assign(array_tag_t, InputIt first, InputIt last);
@@ -1197,7 +1194,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     UXS_EXPORT est::optional<double> get_double() const;
     UXS_EXPORT est::optional<std::basic_string<char_type>> get_string() const;
     est::optional<std::basic_string_view<char_type>> get_string_view() const {
-        return type_ == dtype::string ? est::make_optional(value_.str.cview()) : est::nullopt();
+        return type_ == dtype::string ? est::make_optional(value_.str.cview()) : est::nullopt;
     }
     const char_type* get_c_string() const { return type_ == dtype::string ? value_.str.c_str() : nullptr; }
 
@@ -1563,47 +1560,47 @@ bool operator!=(const basic_value<CharT, Alloc>& lhs, const basic_value<CharT, A
 
 template<typename CharT = char, typename Alloc = std::allocator<CharT>>
 basic_value<CharT, Alloc> make_array() {
-    return basic_value<CharT, Alloc>(array_tag_t{});
+    return basic_value<CharT, Alloc>(array_tag);
 }
 
 template<typename CharT = char, typename Alloc = std::allocator<CharT>>
 basic_value<CharT, Alloc> make_array(const Alloc& al) {
-    return basic_value<CharT, Alloc>(array_tag_t{}, al);
+    return basic_value<CharT, Alloc>(array_tag, al);
 }
 
 template<typename CharT = char, typename Alloc = std::allocator<CharT>, typename InputIt,
          typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
 basic_value<CharT, Alloc> make_array(InputIt first, InputIt last, const Alloc& al = Alloc()) {
-    return basic_value<CharT, Alloc>(array_tag_t{}, first, last, al);
+    return basic_value<CharT, Alloc>(array_tag, first, last, al);
 }
 
 template<typename CharT = char, typename Alloc = std::allocator<CharT>>
 basic_value<CharT, Alloc> make_array(std::initializer_list<basic_value<CharT, Alloc>> init, const Alloc& al = Alloc()) {
-    return basic_value<CharT, Alloc>(array_tag_t{}, init, al);
+    return basic_value<CharT, Alloc>(array_tag, init, al);
 }
 
 template<typename CharT = char, typename Alloc = std::allocator<CharT>>
 basic_value<CharT, Alloc> make_record() {
-    return basic_value<CharT, Alloc>(record_tag_t{});
+    return basic_value<CharT, Alloc>(record_tag);
 }
 
 template<typename CharT = char, typename Alloc = std::allocator<CharT>>
 basic_value<CharT, Alloc> make_record(const Alloc& al) {
-    return basic_value<CharT, Alloc>(record_tag_t{}, al);
+    return basic_value<CharT, Alloc>(record_tag, al);
 }
 
 template<typename CharT = char, typename Alloc = std::allocator<CharT>, typename InputIt,
          typename = std::enable_if_t<is_input_iterator<InputIt>::value &&
                                      detail::is_record_iterator<CharT, Alloc, InputIt>::value>>
 basic_value<CharT, Alloc> make_record(InputIt first, InputIt last, const Alloc& al = Alloc()) {
-    return basic_value<CharT, Alloc>(record_tag_t{}, first, last, al);
+    return basic_value<CharT, Alloc>(record_tag, first, last, al);
 }
 
 template<typename CharT = char, typename Alloc = std::allocator<CharT>>
 basic_value<CharT, Alloc> make_record(
     std::initializer_list<std::pair<typename basic_value<CharT, Alloc>::key_type, basic_value<CharT, Alloc>>> init,
     const Alloc& al = Alloc()) {
-    return basic_value<CharT, Alloc>(record_tag_t{}, init, al);
+    return basic_value<CharT, Alloc>(record_tag, init, al);
 }
 
 using value = basic_value<char>;

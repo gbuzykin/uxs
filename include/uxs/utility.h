@@ -136,19 +136,19 @@ struct remove_cv<std::pair<Ty1, Ty2>> {
     using type = std::pair<std::remove_cv_t<Ty1>, std::remove_cv_t<Ty2>>;
 };
 
-#if __cplusplus < 201703L
 struct in_place_t {
-    explicit in_place_t() = default;
+    explicit constexpr in_place_t() = default;
 };
 template<typename Ty>
 struct in_place_type_t {
-    explicit in_place_type_t() = default;
+    explicit constexpr in_place_type_t() = default;
 };
-#else   //__cplusplus < 201703L
-using in_place_t = std::in_place_t;
+
+constexpr in_place_t in_place{};
+#if __cplusplus >= 201402L
 template<typename Ty>
-using in_place_type_t = std::in_place_type_t<Ty>;
-#endif  //__cplusplus < 201703L
+constexpr in_place_type_t<Ty> in_place_type{};
+#endif  // __cplusplus >= 201402L
 
 }  // namespace est
 

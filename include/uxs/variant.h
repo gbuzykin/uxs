@@ -419,7 +419,7 @@ bool variant::is_equal_to_impl(const U& val) const {
     template<> \
     inline est::optional<ty> variant::get<ty>() const { \
         auto result = get_impl<internal_ty>(); \
-        return result ? est::make_optional(static_cast<ty>(*result)) : est::nullopt(); \
+        return result ? est::make_optional(static_cast<ty>(*result)) : est::nullopt; \
     }
 UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(signed, std::int32_t)
 UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(unsigned, std::uint32_t)
@@ -477,11 +477,11 @@ Ty variant::as_impl() {
 
 template<typename Ty, typename>
 est::optional<Ty> variant::get_impl() const {
-    if (!vtable_) { return est::nullopt(); }
+    if (!vtable_) { return est::nullopt; }
     auto* val_vtable = get_vtable(variant_type_impl<Ty>::type_id);
     assert(vtable_ && val_vtable);
     if (vtable_ == val_vtable) { return *static_cast<const Ty*>(vtable_->get_value_const_ptr(&data_)); }
-    est::optional<Ty> result(est::in_place_t{});
+    est::optional<Ty> result(est::in_place);
     if (vtable_->type > val_vtable->type) {
         if (vtable_->convert_to &&
             vtable_->convert_to(val_vtable->type, &*result, vtable_->get_value_const_ptr(&data_))) {
@@ -491,7 +491,7 @@ est::optional<Ty> variant::get_impl() const {
                val_vtable->convert_from(vtable_->type, &*result, vtable_->get_value_const_ptr(&data_))) {
         return result;
     }
-    return est::nullopt();
+    return est::nullopt;
 }
 
 namespace detail {
