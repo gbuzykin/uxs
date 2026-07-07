@@ -1,30 +1,16 @@
 #pragma once
 
-#include "utility.h"
+#include "iterator.h"
 
-#if __cplusplus >= 202002L && UXS_HAS_INCLUDE(<span>)
-
-#    include <span>
+#include <stdexcept>
 
 namespace est {
-inline constexpr std::size_t dynamic_extent = std::dynamic_extent;
-template<typename Ty>
-using span = std::span<Ty, std::dynamic_extent>;
-}  // namespace est
 
-#else  // span
-
-#    include "iterator.h"
-
-#    include <cassert>
-#    include <stdexcept>
-
-namespace est {
-#    if __cplusplus < 201703L
+#if __cplusplus < 201703L
 const std::size_t dynamic_extent = ~std::size_t(0);
-#    else   // __cplusplus < 201703L
+#else   // __cplusplus < 201703L
 inline constexpr std::size_t dynamic_extent = std::numeric_limits<std::size_t>::max();
-#    endif  // __cplusplus < 201703L
+#endif  // __cplusplus < 201703L
 
 template<typename Ty>
 class span {
@@ -34,7 +20,7 @@ class span {
     using const_pointer = const Ty*;
     using reference = Ty&;
     using const_reference = const Ty&;
-    using iterator = uxs::array_iterator<span, pointer, false>;
+    using iterator = uxs::array_iterator<span, pointer, std::is_const<Ty>::value>;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
@@ -44,15 +30,15 @@ class span {
     UXS_CONSTEXPR span(Ty2* v, size_type count) noexcept : begin_(v), size_(count) {}
     template<typename Ty2, std::size_t N, typename = std::enable_if_t<std::is_convertible<Ty2*, Ty*>::value>>
     explicit UXS_CONSTEXPR span(Ty2 (&v)[N]) noexcept : begin_(v), size_(N) {}
-#    if __cplusplus < 201703L
+#if __cplusplus < 201703L
     template<typename Range,
              typename = std::enable_if_t<uxs::is_contiguous_range<std::remove_reference_t<Range>, Ty>::value>>
     UXS_CONSTEXPR span(Range&& r) noexcept : begin_(r.data()), size_(r.size()) {}
-#    else   // __cplusplus < 201703L
+#else   // __cplusplus < 201703L
     template<typename Range,
              typename = std::enable_if_t<uxs::is_contiguous_range<std::remove_reference_t<Range>, Ty>::value>>
     UXS_CONSTEXPR span(Range&& r) noexcept : begin_(std::data(r)), size_(std::size(r)) {}
-#    endif  // __cplusplus < 201703L
+#endif  // __cplusplus < 201703L
 
     UXS_CONSTEXPR size_type size() const noexcept { return size_; }
     UXS_CONSTEXPR bool empty() const noexcept { return size_ == 0; }
@@ -90,12 +76,6 @@ class span {
     Ty* begin_ = nullptr;
     std::size_t size_ = 0;
 };
-
-}  // namespace est
-
-#endif  // span
-
-namespace est {
 
 template<typename Ty>
 UXS_CONSTEXPR span<Ty> as_span(Ty* v, typename span<Ty>::size_type count) noexcept {

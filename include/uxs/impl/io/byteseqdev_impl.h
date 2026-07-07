@@ -2,7 +2,6 @@
 
 #include "uxs/io/byteseqdev.h"
 
-#include <cassert>
 #include <cstring>
 
 namespace uxs {

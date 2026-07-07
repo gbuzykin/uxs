@@ -2,8 +2,6 @@
 
 #include "span.h"
 
-#include <memory>
-
 namespace uxs {
 
 template<typename Alloc>
