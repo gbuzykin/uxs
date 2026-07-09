@@ -130,7 +130,7 @@ std::pair<token_t, std::string_view> parser::next_impl() {
     return {token_t::eof, {}};
 }
 
-/*static*/ value_class parser::classify_value(const std::string_view& sval) {
+value_class parser::classify_value(const std::string_view& sval) {
     int state = lex_detail::sc_value;
     for (const std::uint8_t ch : sval) {
         state = lex_detail::Dtran[lex_detail::dtran_width * state + lex_detail::symb2meta[ch]];

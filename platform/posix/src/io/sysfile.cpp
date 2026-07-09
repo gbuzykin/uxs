@@ -100,5 +100,5 @@ int sysfile::truncate() {
 
 int sysfile::flush() { return 0; }
 
-/*static*/ bool sysfile::remove(const char* fname) { return ::unlink(fname) == 0; }
-/*static*/ bool sysfile::remove(const wchar_t* fname) { return remove(from_wide_to_utf8(fname).c_str()); }
+bool sysfile::remove(const char* fname) { return ::unlink(fname) == 0; }
+bool sysfile::remove(const wchar_t* fname) { return remove(from_wide_to_utf8(fname).c_str()); }

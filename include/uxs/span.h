@@ -74,7 +74,7 @@ class span {
 
  private:
     Ty* begin_ = nullptr;
-    std::size_t size_ = 0;
+    size_type size_ = 0;
 };
 
 template<typename Ty>

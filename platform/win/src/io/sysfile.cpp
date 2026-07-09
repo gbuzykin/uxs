@@ -134,5 +134,5 @@ int sysfile::truncate() { return ::SetEndOfFile(fd_) ? 0 : -1; }
 
 int sysfile::flush() { return 0; }
 
-/*static*/ bool sysfile::remove(const wchar_t* fname) { return !!::DeleteFileW(fname); }
-/*static*/ bool sysfile::remove(const char* fname) { return remove(from_utf8_to_wide(fname).c_str()); }
+bool sysfile::remove(const wchar_t* fname) { return !!::DeleteFileW(fname); }
+bool sysfile::remove(const char* fname) { return remove(from_utf8_to_wide(fname).c_str()); }

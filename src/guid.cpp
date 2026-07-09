@@ -50,7 +50,7 @@ struct guid_random_generator {
 
 }  // namespace
 
-/*static*/ guid guid::generate() {
+guid guid::generate() {
     static guid_random_generator generator;
     return generator();
 }

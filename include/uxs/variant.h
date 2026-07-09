@@ -85,8 +85,10 @@ struct alignas(est::alignment_of<Ts...>::value) aligned_storage_t {
 using variant_storage_t = aligned_storage_t<std::int64_t, double, void*, std::string>;
 
 struct variant_traits {
-    enum : std::size_t { storage_size = sizeof(variant_storage_t) };
-    enum : std::size_t { storage_alignment = std::alignment_of<variant_storage_t>::value };
+    enum : std::size_t {
+        storage_size = sizeof(variant_storage_t),
+        storage_alignment = std::alignment_of<variant_storage_t>::value,
+    };
 };
 
 struct variant_vtable_t {
