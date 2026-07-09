@@ -167,7 +167,7 @@ class basic_membuffer {
 using membuffer = basic_membuffer<char>;
 using wmembuffer = basic_membuffer<wchar_t>;
 
-template<typename Ty, typename Alloc>
+template<typename Ty, typename Alloc = std::allocator<Ty>>
 class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>, public basic_membuffer<Ty> {
  private:
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>;
@@ -193,8 +193,8 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
     allocator_type get_allocator() const noexcept { return allocator_type(*this); }
     size_type max_size() const noexcept { return alloc_traits::max_size(*this); }
 
-    void reserve(size_type extra) {
-        if (extra > this->avail()) { try_grow(extra); }
+    void reserve(size_type size) {
+        if (size > this->capacity()) { try_grow(size - this->size()); }
     }
 
  protected:

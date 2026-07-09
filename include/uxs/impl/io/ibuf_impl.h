@@ -39,16 +39,16 @@ auto basic_ibuf<CharT>::read_with_endian(est::span<char_type> s, size_type eleme
 template<typename CharT>
 auto basic_ibuf<CharT>::skip(size_type count) -> size_type {
     if (!count) { return 0; }
-    const size_type n0 = count;
+    const size_type count0 = count;
     for (size_type n_avail = avail(); count > n_avail; n_avail = avail()) {
         pos_ = capacity_, count -= n_avail;
         if (!this->good() || underflow() < 0) {
             this->setstate(iostate_bits::eof | iostate_bits::fail);
-            return n0 - count;
+            return count0 - count;
         }
     }
     pos_ += count;
-    return n0;
+    return count0;
 }
 
 template<typename CharT>
