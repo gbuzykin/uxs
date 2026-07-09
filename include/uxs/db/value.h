@@ -167,21 +167,17 @@ class flexarray_t {
     void resize(alloc_type& al, std::size_t sz, const Ty& v);
 
     template<typename Func>
-    void resize_and_overwrite(alloc_type& al, std::size_t sz, const Func& func) {
+    void append(alloc_type& al, std::size_t count, const Func& func) {
         if (!p_) {
-            if (!sz) { return; }
-            p_ = alloc_checked(al, sz + tail_zero);
+            if (!count) { return; }
+            p_ = alloc_checked(al, count + tail_zero);
         } else {
             make_unique(al);
-            if (sz == p_->size) { return; }
-            if (sz + tail_zero > p_->capacity) { grow(al, sz - p_->size + tail_zero); }
+            if (!count) { return; }
+            if (count + tail_zero > p_->capacity - p_->size) { grow(al, count + tail_zero); }
         }
-        if (sz > p_->size) {
-            func(p_->data() + p_->size, sz - p_->size);
-        } else {
-            destruct_items(al, p_->data() + sz, p_->data() + p_->size);
-        }
-        p_->size = sz;
+        func(est::as_span(p_->data() + p_->size, count));
+        p_->size += count;
         put_tail_zero();
     }
 
@@ -203,12 +199,12 @@ class flexarray_t {
     data_t* p_;
 
     template<unsigned V_ = tail_zero, typename = std::enable_if_t<V_ != 0>>
-    void put_tail_zero() {
+    void put_tail_zero() noexcept {
         *(p_->data() + p_->size) = '\0';
     }
 
     template<typename... Dummy>
-    void put_tail_zero(Dummy&&...) {
+    void put_tail_zero(Dummy&&...) noexcept {
         static_assert(tail_zero == 0, "");
     }
 
@@ -1074,20 +1070,25 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         std::swap(type_, other.type_);
     }
 
+    UXS_EXPORT void clear();
+    UXS_EXPORT void make_unique();
+
+    UXS_EXPORT void reserve(array_tag_t, std::size_t sz);
     UXS_EXPORT void reserve(string_tag_t, std::size_t sz);
-    UXS_EXPORT void resize(string_tag_t, std::size_t sz);
-    UXS_EXPORT void resize(string_tag_t, std::size_t sz, char_type ch);
-    UXS_EXPORT basic_value& append(std::basic_string_view<char_type> s);
-    basic_value& append(const char_type* cstr) { return append(std::basic_string_view<char_type>(cstr)); }
+    UXS_EXPORT void reserve(record_tag_t, std::size_t sz);
+
+    UXS_EXPORT void resize(std::size_t sz);
+    UXS_EXPORT void resize(std::size_t sz, const basic_value& v);
+
+    UXS_EXPORT basic_value& append_string(std::basic_string_view<char_type> s);
+    basic_value& append_string(const char_type* cstr) { return append_string(std::basic_string_view<char_type>(cstr)); }
 
     template<typename Func>
-    void resize_and_overwrite(string_tag_t, std::size_t sz, const Func& func) {
+    void append_string(std::size_t count, const Func& func) {
         if (type_ != dtype::string) { init_as_string(); }
         typename char_array_t::alloc_type str_al(*this);
-        value_.str.resize_and_overwrite(str_al, sz, func);
+        value_.str.append(str_al, count, func);
     }
-
-    UXS_EXPORT void reserve(record_tag_t, std::size_t sz);
 
     template<typename CharT_, typename Alloc_>
     friend UXS_EXPORT bool operator==(const basic_value<CharT_, Alloc_>& lhs,
@@ -1283,12 +1284,6 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     UXS_EXPORT iterator find(key_type key);
     bool contains(key_type key) const noexcept { return find(key) != end(); }
     std::size_t count(key_type key) const noexcept { return type_ == dtype::record ? value_.rec.count(key) : 0; }
-
-    UXS_EXPORT void clear();
-    UXS_EXPORT void make_unique();
-    UXS_EXPORT void reserve(std::size_t sz);
-    UXS_EXPORT void resize(std::size_t sz);
-    UXS_EXPORT void resize(std::size_t sz, const basic_value& v);
 
     template<typename... Args>
     basic_value& emplace_back(Args&&... args);

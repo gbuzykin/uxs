@@ -24,7 +24,14 @@ basic_oflatbuf<CharT, Alloc>& basic_oflatbuf<CharT, Alloc>::operator=(basic_ofla
 }
 
 template<typename CharT, typename Alloc>
+void basic_oflatbuf<CharT, Alloc>::reserve(size_type size) {
+    top_ = this->size();
+    if (size > this->capacity()) { grow(size - top_); }
+}
+
+template<typename CharT, typename Alloc>
 int basic_oflatbuf<CharT, Alloc>::overflow() {
+    top_ = size();
     grow(1);
     return 0;
 }
@@ -64,7 +71,6 @@ auto basic_oflatbuf<CharT, Alloc>::seek_impl(off_type off, seekdir dir) -> pos_t
 
 template<typename CharT, typename Alloc>
 void basic_oflatbuf<CharT, Alloc>::grow(size_type extra) {
-    top_ = size();
     size_type delta_sz = std::max(extra, top_ >> 1);
     const size_type max_avail = std::allocator_traits<alloc_type>::max_size(*this) - top_;
     if (delta_sz > max_avail) {

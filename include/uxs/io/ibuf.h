@@ -75,19 +75,19 @@ class basic_ibuf : public iostate {
                                                             is_output_iterator<OutputIt, CharT>::value>>
     size_type read(OutputIt first, OutputIt last) {
         assert(first <= last);
-        const size_type sz = static_cast<size_type>(last - first);
-        size_type count = sz;
+        const size_type count0 = static_cast<size_type>(last - first);
+        size_type count = count0;
         if (!count) { return 0; }
         for (size_type n_avail = avail(); count > n_avail; n_avail = avail()) {
             first = std::copy_n(curr(), n_avail, first);
             pos_ = capacity_, count -= n_avail;
             if (!this->good() || underflow() < 0) {
                 this->setstate(iostate_bits::eof | iostate_bits::fail);
-                return sz - count;
+                return count0 - count;
             }
         }
         std::copy_n(curr(), count, first), pos_ += count;
-        return sz;
+        return count0;
     }
 
     UXS_EXPORT size_type read(est::span<char_type> s);

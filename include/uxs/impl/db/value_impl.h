@@ -316,7 +316,7 @@ void record_t<CharT, Alloc>::assign(alloc_type& al, std::initializer_list<mapped
 template<typename CharT, typename Alloc>
 void record_t<CharT, Alloc>::reserve(alloc_type& al, std::size_t sz) {
     make_unique(al);
-    if (p_->bucket_count < sz) { rehash(al, sz); }
+    if (p_->bucket_count < sz) { rehash(al, sz - p_->size); }
 }
 
 template<typename CharT, typename Alloc>
@@ -513,42 +513,6 @@ basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::operator=(std::basic_strin
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::reserve(string_tag_t, std::size_t sz) {
-    if (type_ != dtype::string) { init_as_string(); }
-    typename char_array_t::alloc_type str_al(*this);
-    value_.str.reserve(str_al, sz);
-}
-
-template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::resize(string_tag_t, std::size_t sz) {
-    if (type_ != dtype::string) { init_as_string(); }
-    typename char_array_t::alloc_type str_al(*this);
-    value_.str.resize(str_al, sz, '\0');
-}
-
-template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::resize(string_tag_t, std::size_t sz, char_type ch) {
-    if (type_ != dtype::string) { init_as_string(); }
-    typename char_array_t::alloc_type str_al(*this);
-    value_.str.resize(str_al, sz, ch);
-}
-
-template<typename CharT, typename Alloc>
-basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::append(std::basic_string_view<char_type> s) {
-    if (type_ != dtype::string) { init_as_string(); }
-    typename char_array_t::alloc_type str_al(*this);
-    value_.str.append(str_al, s);
-    return *this;
-}
-
-template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::reserve(record_tag_t, std::size_t sz) {
-    if (type_ != dtype::record) { init_as_record(); }
-    typename record_t::alloc_type rec_al(*this);
-    value_.rec.reserve(rec_al, sz);
-}
-
-template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::assign(std::initializer_list<basic_value> init) {
     if (!detail::is_record(init)) { return assign(array_tag, init.begin(), init.end()); }
     typename record_t::alloc_type rec_al(*this);
@@ -580,7 +544,124 @@ void basic_value<CharT, Alloc>::insert(std::initializer_list<std::pair<key_type,
     insert(init.begin(), init.end());
 }
 
-//-----------------------------------------------------------------------------
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::clear() {
+    switch (type_) {
+        case dtype::string: {
+            typename char_array_t::alloc_type str_al(*this);
+            value_.str.clear(str_al);
+        } break;
+        case dtype::array: {
+            typename value_array_t::alloc_type arr_al(*this);
+            value_.arr.clear(arr_al);
+        } break;
+        case dtype::record: {
+            typename record_t::alloc_type rec_al(*this);
+            value_.rec.clear(rec_al);
+        } break;
+        default: break;
+    }
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::make_unique() {
+    switch (type_) {
+        case dtype::string: {
+            typename char_array_t::alloc_type str_al(*this);
+            value_.str.make_unique(str_al);
+        } break;
+        case dtype::array: {
+            typename value_array_t::alloc_type arr_al(*this);
+            value_.arr.make_unique(arr_al);
+        } break;
+        case dtype::record: {
+            typename record_t::alloc_type rec_al(*this);
+            value_.rec.make_unique(rec_al);
+        } break;
+        default: break;
+    }
+}
+
+// --------------------------
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::reserve(array_tag_t, std::size_t sz) {
+    if (type_ != dtype::array) { init_as_array(); }
+    typename value_array_t::alloc_type arr_al(*this);
+    value_.arr.reserve(arr_al, sz);
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::reserve(string_tag_t, std::size_t sz) {
+    if (type_ != dtype::string) { init_as_string(); }
+    typename char_array_t::alloc_type str_al(*this);
+    value_.str.reserve(str_al, sz);
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::reserve(record_tag_t, std::size_t sz) {
+    if (type_ != dtype::record) { init_as_record(); }
+    typename record_t::alloc_type rec_al(*this);
+    value_.rec.reserve(rec_al, sz);
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::resize(std::size_t sz) {
+    if (type_ != dtype::array) { init_as_array(); }
+    typename value_array_t::alloc_type arr_al(*this);
+    value_.arr.resize(arr_al, sz, basic_value());
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::resize(std::size_t sz, const basic_value& v) {
+    if (type_ != dtype::array) { init_as_array(); }
+    typename value_array_t::alloc_type arr_al(*this);
+    value_.arr.resize(arr_al, sz, v);
+}
+
+template<typename CharT, typename Alloc>
+basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::append_string(std::basic_string_view<char_type> s) {
+    if (type_ != dtype::string) { init_as_string(); }
+    typename char_array_t::alloc_type str_al(*this);
+    value_.str.append(str_al, s);
+    return *this;
+}
+
+// --------------------------
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::erase(std::size_t pos) {
+    if (type_ != dtype::array) { throw database_error("not an array"); }
+    assert(pos < value_.arr.size());
+    typename value_array_t::alloc_type arr_al(*this);
+    value_.arr.erase(arr_al, value_.arr.cbegin() + pos);
+}
+
+template<typename CharT, typename Alloc>
+auto basic_value<CharT, Alloc>::erase(const_iterator it) -> iterator {
+    if (it.is_record()) {
+        if (type_ != dtype::record) { throw database_error("not a record"); }
+        detail::list_links_t* node = static_cast<detail::list_links_t*>(it.ptr_);
+        uxs_iterator_assert(record_t::node_traits::get_head(node) == value_.rec.cend());
+        typename record_t::alloc_type rec_al(*this);
+        return iterator(value_.rec.erase(rec_al, node));
+    }
+    if (type_ != dtype::array) { throw database_error("not an array"); }
+    basic_value* item = static_cast<basic_value*>(it.ptr_);
+    uxs_iterator_assert(it.begin_ == value_.arr.cbegin() && it.end_ == value_.arr.cend());
+    typename value_array_t::alloc_type arr_al(*this);
+    item = value_.arr.erase(arr_al, item);
+    return iterator(item, value_.arr.cbegin(), value_.arr.cend());
+}
+
+template<typename CharT, typename Alloc>
+std::size_t basic_value<CharT, Alloc>::erase(key_type key) {
+    if (type_ != dtype::record) { throw database_error("not a record"); }
+    typename record_t::alloc_type rec_al(*this);
+    return value_.rec.erase(rec_al, key);
+}
+
+// --------------------------
 
 namespace detail {
 inline bool is_integral(double d) noexcept {
@@ -941,97 +1022,6 @@ auto basic_value<CharT, Alloc>::find(key_type key) -> iterator {
     typename record_t::alloc_type rec_al(*this);
     value_.rec.make_unique(rec_al);
     return iterator(value_.rec.find(key));
-}
-
-template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::clear() {
-    switch (type_) {
-        case dtype::string: {
-            typename char_array_t::alloc_type str_al(*this);
-            value_.str.clear(str_al);
-        } break;
-        case dtype::array: {
-            typename value_array_t::alloc_type arr_al(*this);
-            value_.arr.clear(arr_al);
-        } break;
-        case dtype::record: {
-            typename record_t::alloc_type rec_al(*this);
-            value_.rec.clear(rec_al);
-        } break;
-        default: break;
-    }
-}
-
-template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::make_unique() {
-    switch (type_) {
-        case dtype::string: {
-            typename char_array_t::alloc_type str_al(*this);
-            value_.str.make_unique(str_al);
-        } break;
-        case dtype::array: {
-            typename value_array_t::alloc_type arr_al(*this);
-            value_.arr.make_unique(arr_al);
-        } break;
-        case dtype::record: {
-            typename record_t::alloc_type rec_al(*this);
-            value_.rec.make_unique(rec_al);
-        } break;
-        default: break;
-    }
-}
-
-template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::reserve(std::size_t sz) {
-    if (type_ != dtype::array) { init_as_array(); }
-    typename value_array_t::alloc_type arr_al(*this);
-    value_.arr.reserve(arr_al, sz);
-}
-
-template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::resize(std::size_t sz) {
-    if (type_ != dtype::array) { init_as_array(); }
-    typename value_array_t::alloc_type arr_al(*this);
-    value_.arr.resize(arr_al, sz, basic_value());
-}
-
-template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::resize(std::size_t sz, const basic_value& v) {
-    if (type_ != dtype::array) { init_as_array(); }
-    typename value_array_t::alloc_type arr_al(*this);
-    value_.arr.resize(arr_al, sz, v);
-}
-
-template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::erase(std::size_t pos) {
-    if (type_ != dtype::array) { throw database_error("not an array"); }
-    assert(pos < value_.arr.size());
-    typename value_array_t::alloc_type arr_al(*this);
-    value_.arr.erase(arr_al, value_.arr.cbegin() + pos);
-}
-
-template<typename CharT, typename Alloc>
-auto basic_value<CharT, Alloc>::erase(const_iterator it) -> iterator {
-    if (it.is_record()) {
-        if (type_ != dtype::record) { throw database_error("not a record"); }
-        detail::list_links_t* node = static_cast<detail::list_links_t*>(it.ptr_);
-        uxs_iterator_assert(record_t::node_traits::get_head(node) == value_.rec.cend());
-        typename record_t::alloc_type rec_al(*this);
-        return iterator(value_.rec.erase(rec_al, node));
-    }
-    if (type_ != dtype::array) { throw database_error("not an array"); }
-    basic_value* item = static_cast<basic_value*>(it.ptr_);
-    uxs_iterator_assert(it.begin_ == value_.arr.cbegin() && it.end_ == value_.arr.cend());
-    typename value_array_t::alloc_type arr_al(*this);
-    item = value_.arr.erase(arr_al, item);
-    return iterator(item, value_.arr.cbegin(), value_.arr.cend());
-}
-
-template<typename CharT, typename Alloc>
-std::size_t basic_value<CharT, Alloc>::erase(key_type key) {
-    if (type_ != dtype::record) { throw database_error("not a record"); }
-    typename record_t::alloc_type rec_al(*this);
-    return value_.rec.erase(rec_al, key);
 }
 
 // --------------------------

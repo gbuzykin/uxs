@@ -91,7 +91,7 @@ token_t detail::lexer::lex(std::string_view& lval) {
             if (pat >= lex_detail::predef_pat_default) { break; }
             if (last != in.last()) {
                 // enlarge state stack and continue analysis
-                stack.reserve(llen);
+                stack.reserve(stack.size() + llen);
                 first = last;
                 continue;
             }

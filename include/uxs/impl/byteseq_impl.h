@@ -261,18 +261,18 @@ void basic_byteseq<Alloc>::create_head(std::size_t cap) {
 
 template<typename Alloc>
 void basic_byteseq<Alloc>::create_head_chunk() {
-    head_ = chunk_t::alloc(*this, chunk_size);
+    head_ = chunk_t::alloc(*this, min_chunk_size);
     dllist_make_cycle(head_);
     head_->end = head_->data;
 }
 
 template<typename Alloc>
 void basic_byteseq<Alloc>::create_next_chunk() {
-    chunk_t* chunk = chunk_t::alloc(*this, chunk_size);
-    dllist_insert_after(head_, chunk);
-    chunk->end = chunk->data;
     size_ += head_->avail();
     head_->end = head_->boundary;
+    chunk_t* chunk = chunk_t::alloc(*this, std::max<std::size_t>(size_ >> 1, min_chunk_size));
+    dllist_insert_after(head_, chunk);
+    chunk->end = chunk->data;
     head_ = chunk;
 }
 

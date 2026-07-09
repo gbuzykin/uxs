@@ -117,7 +117,10 @@ class basic_byteseq : protected detail::byteseq_chunk<Alloc>::alloc_type {
  private:
     friend class basic_byteseqdev<Alloc>;
 
-    enum : std::size_t { chunk_size = 0x100000, max_avail_count = 0x40000000 };
+    enum : std::size_t {
+        min_chunk_size = 0x100000,
+        max_avail_count = 0x40000000,
+    };
 
     std::size_t size_ = 0;
     chunk_t* head_ = nullptr;
