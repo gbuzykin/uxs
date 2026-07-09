@@ -18,7 +18,7 @@ const char* est::bad_optional_access::what() const noexcept { return "bad option
 //---------------------------------------------------------------------------------
 // Variant type implementation
 
-/*static*/ detail::variant_vtable_t* variant::vtables_[max_type_id] = {};
+detail::variant_vtable_t* variant::vtables_[max_type_id] = {};
 
 variant::variant(variant_id type, const variant& v) : vtable_(get_vtable(type)) {
     if (!vtable_) { return; }

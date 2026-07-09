@@ -85,7 +85,7 @@ static void destruct_moved_values(Alloc& al, Ty* first, Ty* last, Dummy&&...) no
 }
 
 template<typename Ty, typename Alloc>
-/*static*/ auto flexarray_t<Ty, Alloc>::alloc(alloc_type& al, std::size_t sz, std::size_t cap) -> data_t* {
+auto flexarray_t<Ty, Alloc>::alloc(alloc_type& al, std::size_t sz, std::size_t cap) -> data_t* {
     const std::size_t alloc_sz = get_alloc_sz(cap);
     data_t* p = alloc_traits::allocate(al, alloc_sz);
     ::new (&p->ref_count) std::atomic<std::size_t>{1};
@@ -233,7 +233,7 @@ Ty* flexarray_t<Ty, Alloc>::erase(alloc_type& al, const Ty* item_to_erase) {
 namespace detail {
 
 template<typename CharT, typename Alloc>
-/*static*/ record_value<CharT, Alloc>* record_value<CharT, Alloc>::alloc(alloc_type& al, key_type key) {
+record_value<CharT, Alloc>* record_value<CharT, Alloc>::alloc(alloc_type& al, key_type key) {
     if (key.size() + 1 > max_name_alloc_size(al)) { throw std::length_error("too much to reserve"); }
     const std::size_t alloc_sz = get_alloc_sz(key.size() + 1);
     record_value* node = alloc_traits::allocate(al, alloc_sz);
@@ -266,7 +266,7 @@ void record_t<CharT, Alloc>::data_t::init_from(data_t* p) noexcept {
 }
 
 template<typename CharT, typename Alloc>
-/*static*/ auto record_t<CharT, Alloc>::alloc(alloc_type& al, std::size_t bucket_count) -> data_t* {
+auto record_t<CharT, Alloc>::alloc(alloc_type& al, std::size_t bucket_count) -> data_t* {
     const std::size_t alloc_sz = get_alloc_sz(bucket_count);
     data_t* p = alloc_traits::allocate(al, alloc_sz);
     ::new (&p->ref_count) std::atomic<std::size_t>{1};
@@ -535,7 +535,7 @@ void basic_value<CharT, Alloc>::assign(record_tag_t, std::initializer_list<std::
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::insert(std::size_t pos, std::initializer_list<basic_value> init) {
+void basic_value<CharT, Alloc>::insert(size_type pos, std::initializer_list<basic_value> init) {
     insert(pos, init.begin(), init.end());
 }
 
@@ -585,38 +585,38 @@ void basic_value<CharT, Alloc>::make_unique() {
 // --------------------------
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::reserve(array_tag_t, std::size_t sz) {
+void basic_value<CharT, Alloc>::reserve(array_tag_t, size_type size) {
     if (type_ != dtype::array) { init_as_array(); }
     typename value_array_t::alloc_type arr_al(*this);
-    value_.arr.reserve(arr_al, sz);
+    value_.arr.reserve(arr_al, size);
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::reserve(string_tag_t, std::size_t sz) {
+void basic_value<CharT, Alloc>::reserve(string_tag_t, size_type size) {
     if (type_ != dtype::string) { init_as_string(); }
     typename char_array_t::alloc_type str_al(*this);
-    value_.str.reserve(str_al, sz);
+    value_.str.reserve(str_al, size);
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::reserve(record_tag_t, std::size_t sz) {
+void basic_value<CharT, Alloc>::reserve(record_tag_t, size_type size) {
     if (type_ != dtype::record) { init_as_record(); }
     typename record_t::alloc_type rec_al(*this);
-    value_.rec.reserve(rec_al, sz);
+    value_.rec.reserve(rec_al, size);
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::resize(std::size_t sz) {
+void basic_value<CharT, Alloc>::resize(size_type size) {
     if (type_ != dtype::array) { init_as_array(); }
     typename value_array_t::alloc_type arr_al(*this);
-    value_.arr.resize(arr_al, sz, basic_value());
+    value_.arr.resize(arr_al, size, basic_value());
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::resize(std::size_t sz, const basic_value& v) {
+void basic_value<CharT, Alloc>::resize(size_type size, const basic_value& v) {
     if (type_ != dtype::array) { init_as_array(); }
     typename value_array_t::alloc_type arr_al(*this);
-    value_.arr.resize(arr_al, sz, v);
+    value_.arr.resize(arr_al, size, v);
 }
 
 template<typename CharT, typename Alloc>
@@ -630,7 +630,7 @@ basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::append_string(std::basic_s
 // --------------------------
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::erase(std::size_t pos) {
+void basic_value<CharT, Alloc>::erase(size_type pos) {
     if (type_ != dtype::array) { throw database_error("not an array"); }
     assert(pos < value_.arr.size());
     typename value_array_t::alloc_type arr_al(*this);
@@ -655,7 +655,7 @@ auto basic_value<CharT, Alloc>::erase(const_iterator it) -> iterator {
 }
 
 template<typename CharT, typename Alloc>
-std::size_t basic_value<CharT, Alloc>::erase(key_type key) {
+auto basic_value<CharT, Alloc>::erase(key_type key) -> size_type {
     if (type_ != dtype::record) { throw database_error("not a record"); }
     typename record_t::alloc_type rec_al(*this);
     return value_.rec.erase(rec_al, key);
@@ -964,7 +964,7 @@ bool basic_value<CharT, Alloc>::is_integral() const noexcept {
 // --------------------------
 
 template<typename CharT, typename Alloc>
-std::size_t basic_value<CharT, Alloc>::size() const noexcept {
+auto basic_value<CharT, Alloc>::size() const noexcept -> size_type {
     switch (type_) {
         case dtype::null: return 0;
         case dtype::array: return value_.arr.size();

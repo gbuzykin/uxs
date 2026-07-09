@@ -1152,7 +1152,7 @@ OutputIt format_to(OutputIt out, const std::locale& loc, wformat_string<Args...>
 template<typename OutputIt>
 struct format_to_n_result {
 #if __cplusplus < 201703L
-    format_to_n_result(OutputIt o, std::size_t s) : out(o), size(s) {}
+    format_to_n_result(OutputIt out, std::size_t size) : out(out), size(size) {}
 #endif  // __cplusplus < 201703L
     OutputIt out;
     std::size_t size;

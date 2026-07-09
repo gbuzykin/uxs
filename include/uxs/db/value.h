@@ -1073,18 +1073,18 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     UXS_EXPORT void clear();
     UXS_EXPORT void make_unique();
 
-    UXS_EXPORT void reserve(array_tag_t, std::size_t sz);
-    UXS_EXPORT void reserve(string_tag_t, std::size_t sz);
-    UXS_EXPORT void reserve(record_tag_t, std::size_t sz);
+    UXS_EXPORT void reserve(array_tag_t, size_type size);
+    UXS_EXPORT void reserve(string_tag_t, size_type size);
+    UXS_EXPORT void reserve(record_tag_t, size_type size);
 
-    UXS_EXPORT void resize(std::size_t sz);
-    UXS_EXPORT void resize(std::size_t sz, const basic_value& v);
+    UXS_EXPORT void resize(size_type size);
+    UXS_EXPORT void resize(size_type size, const basic_value& v);
 
     UXS_EXPORT basic_value& append_string(std::basic_string_view<char_type> s);
     basic_value& append_string(const char_type* cstr) { return append_string(std::basic_string_view<char_type>(cstr)); }
 
     template<typename Func>
-    void append_string(std::size_t count, const Func& func) {
+    void append_string(size_type count, const Func& func) {
         if (type_ != dtype::string) { init_as_string(); }
         typename char_array_t::alloc_type str_al(*this);
         value_.str.append(str_al, count, func);
@@ -1112,7 +1112,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     template<typename Ty, typename U>
-    Ty value_or(std::size_t i, U&& default_value) const {
+    Ty value_or(size_type i, U&& default_value) const {
         const auto range = as_array();
         if (i < range.size()) {
             auto result = range[i].template get<Ty>();
@@ -1137,7 +1137,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     template<typename Ty>
-    Ty value(std::size_t i) const {
+    Ty value(size_type i) const {
         return value_or<Ty>(i, Ty());
     }
 
@@ -1146,7 +1146,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         return value_or<Ty>(key, Ty());
     }
 
-    basic_value value(std::size_t i) const {
+    basic_value value(size_type i) const {
         const auto range = as_array();
         return i < range.size() ? range[i] : basic_value();
     }
@@ -1200,7 +1200,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     const char_type* get_c_string() const { return type_ == dtype::string ? value_.str.c_str() : nullptr; }
 
     bool empty() const noexcept { return size() == 0; }
-    UXS_EXPORT std::size_t size() const noexcept;
+    UXS_EXPORT size_type size() const noexcept;
 
     UXS_EXPORT iterator begin();
     UXS_EXPORT const_iterator begin() const noexcept;
@@ -1232,16 +1232,16 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     const_record_range as_record() const;
     record_range as_record();
 
-    const basic_value& operator[](std::size_t i) const { return as_array()[i]; }
-    basic_value& operator[](std::size_t i) { return as_array()[i]; }
+    const basic_value& operator[](size_type i) const { return as_array()[i]; }
+    basic_value& operator[](size_type i) { return as_array()[i]; }
 
-    const basic_value& at(std::size_t i) const {
+    const basic_value& at(size_type i) const {
         const auto range = as_array();
         if (i < range.size()) { return range[i]; }
         throw database_error("index out of range");
     }
 
-    basic_value& at(std::size_t i) {
+    basic_value& at(size_type i) {
         const auto range = as_array();
         if (i < range.size()) { return range[i]; }
         throw database_error("index out of range");
@@ -1283,7 +1283,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     UXS_EXPORT const_iterator find(key_type key) const noexcept;
     UXS_EXPORT iterator find(key_type key);
     bool contains(key_type key) const noexcept { return find(key) != end(); }
-    std::size_t count(key_type key) const noexcept { return type_ == dtype::record ? value_.rec.count(key) : 0; }
+    size_type count(key_type key) const noexcept { return type_ == dtype::record ? value_.rec.count(key) : 0; }
 
     template<typename... Args>
     basic_value& emplace_back(Args&&... args);
@@ -1292,9 +1292,9 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     void pop_back();
 
     template<typename... Args>
-    iterator emplace(std::size_t pos, Args&&... args);
-    iterator insert(std::size_t pos, const basic_value& v) { return emplace(pos, v); }
-    iterator insert(std::size_t pos, basic_value&& v) { return emplace(pos, std::move(v)); }
+    iterator emplace(size_type pos, Args&&... args);
+    iterator insert(size_type pos, const basic_value& v) { return emplace(pos, v); }
+    iterator insert(size_type pos, basic_value&& v) { return emplace(pos, std::move(v)); }
 
     template<typename... Args>
     iterator emplace(key_type key, Args&&... args);
@@ -1307,17 +1307,17 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     std::pair<iterator, bool> insert_unique(key_type key, basic_value&& v) { return emplace_unique(key, std::move(v)); }
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
-    void insert(std::size_t pos, InputIt first, InputIt last);
-    UXS_EXPORT void insert(std::size_t pos, std::initializer_list<basic_value> init);
+    void insert(size_type pos, InputIt first, InputIt last);
+    UXS_EXPORT void insert(size_type pos, std::initializer_list<basic_value> init);
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value &&
                                                            detail::is_record_iterator<CharT, Alloc, InputIt>::value>>
     void insert(InputIt first, InputIt last);
     UXS_EXPORT void insert(std::initializer_list<std::pair<key_type, basic_value>> init);
 
-    UXS_EXPORT void erase(std::size_t pos);
+    UXS_EXPORT void erase(size_type pos);
     UXS_EXPORT iterator erase(const_iterator it);
-    UXS_EXPORT std::size_t erase(key_type key);
+    UXS_EXPORT size_type erase(key_type key);
 
  private:
     friend class detail::record_t<CharT, Alloc>;
@@ -1401,7 +1401,7 @@ void basic_value<CharT, Alloc>::pop_back() {
 
 template<typename CharT, typename Alloc>
 template<typename... Args>
-auto basic_value<CharT, Alloc>::emplace(std::size_t pos, Args&&... args) -> iterator {
+auto basic_value<CharT, Alloc>::emplace(size_type pos, Args&&... args) -> iterator {
     if (type_ != dtype::array) { init_as_array(); }
     typename value_array_t::alloc_type arr_al(*this);
     basic_value& item = value_.arr.emplace(arr_al, pos, std::forward<Args>(args)...);
@@ -1427,7 +1427,7 @@ auto basic_value<CharT, Alloc>::emplace_unique(key_type key, Args&&... args) -> 
 
 template<typename CharT, typename Alloc>
 template<typename InputIt, typename>
-void basic_value<CharT, Alloc>::insert(std::size_t pos, InputIt first, InputIt last) {
+void basic_value<CharT, Alloc>::insert(size_type pos, InputIt first, InputIt last) {
     if (type_ != dtype::array) { init_as_array(); }
     typename value_array_t::alloc_type arr_al(*this);
     value_.arr.insert(arr_al, pos, first, last);

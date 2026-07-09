@@ -56,8 +56,7 @@ void basic_command<CharT>::add_subcommand(std::unique_ptr<basic_command<CharT>> 
 // --------------------------
 
 template<typename CharT>
-/*static*/ parsing_result<CharT> basic_command<CharT>::parse(const basic_command* cmd, int argc,
-                                                             const CharT* const* argv) {
+parsing_result<CharT> basic_command<CharT>::parse(const basic_command* cmd, int argc, const CharT* const* argv) {
     const int argc0 = argc;
     --argc, ++argv;
     if (cmd->get_handler()) { cmd->get_handler()(); }

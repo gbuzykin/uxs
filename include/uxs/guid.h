@@ -109,7 +109,7 @@ void guid::to_per_byte_basic_string(std::basic_string<CharT, Traits, Alloc>& s) 
 }
 
 template<typename CharT, typename Traits>
-/*static*/ guid guid::from_per_byte_basic_string(std::basic_string_view<CharT, Traits> s) noexcept {
+guid guid::from_per_byte_basic_string(std::basic_string_view<CharT, Traits> s) noexcept {
     if (s.size() < 32) { return guid{}; }
     const auto* p = s.data();
     guid::data8_t data;

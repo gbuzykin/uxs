@@ -102,12 +102,12 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
         size_ = 0;
     }
 
-    void reserve(size_type sz) {
-        if (sz > capacity_) { grow(sz - size_); }
+    void reserve(size_type size) {
+        if (size > capacity_) { grow(size - size_); }
     }
 
-    void resize(size_type sz) { resize_impl(sz); }
-    void resize(size_type sz, const value_type& val) { resize_impl(sz, val); }
+    void resize(size_type size) { resize_impl(size); }
+    void resize(size_type size, const value_type& val) { resize_impl(size, val); }
 
     template<typename... Args>
     reference emplace_back(Args&&... args) {
