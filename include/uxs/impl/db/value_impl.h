@@ -199,13 +199,7 @@ void flexarray_t<Ty, Alloc>::resize(alloc_type& al, std::size_t sz, const Ty& v)
         if (sz + tail_zero > p_->capacity) { grow(al, sz - p_->size + tail_zero); }
     }
     if (sz > p_->size) {
-        Ty* item = p_->data() + p_->size;
-        try {
-            for (Ty* last = p_->data() + sz; item != last; ++item) { alloc_traits::construct(al, item, v); }
-        } catch (...) {
-            destruct_items(al, p_->data() + p_->size, item);
-            throw;
-        }
+        init_items(al, p_->data() + p_->size, p_->data() + sz, v);
     } else {
         destruct_items(al, p_->data() + sz, p_->data() + p_->size);
     }
