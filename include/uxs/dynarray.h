@@ -196,10 +196,12 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
     static Ty* move_items(alloc_type& al, size_type sz, Ty_* first, Ty_* last, Dummy&&...) {
         static_assert(!std::is_nothrow_move_constructible<Ty>::value, "");
         Ty* data = alloc_traits::allocate(al, sz);
+        Ty* dst = data;
         try {
-            std::uninitialized_copy(first, last, data);
+            for (; first != last; ++first, ++dst) { ::new (dst) value_type(*first); };
             return data;
         } catch (...) {
+            destruct_items(data, dst);
             alloc_traits::deallocate(al, data, sz);
             throw;
         }
@@ -234,14 +236,14 @@ void dynarray<Ty, Alloc>::init(size_type count, Args&&... args) {
         capacity_ = (count & ~size_type(1)) + 1;  // Make new dynamic odd capacity
         data_ = alloc_traits::allocate(*this, capacity_);
     }
-    Ty* item = data_;
+    Ty* dst = data_;
     try {
-        for (Ty* last = data_ + count; item != last; ++item) {
-            alloc_traits::construct(*this, item, std::forward<Args>(args)...);
+        for (Ty* dst_last = data_ + count; dst != dst_last; ++dst) {
+            ::new (dst) value_type(std::forward<Args>(args)...);
         }
         size_ = count;
     } catch (...) {
-        destruct_items(data_, item);
+        destruct_items(data_, dst);
         if (capacity_ & 1) { alloc_traits::deallocate(*this, data_, capacity_); }
         throw;
     }
@@ -252,13 +254,13 @@ template<typename... Args>
 void dynarray<Ty, Alloc>::resize_impl(size_type sz, Args&&... args) {
     if (sz > size_) {
         if (sz > capacity_) { grow(sz - size_); }
-        Ty* item = data_ + size_;
+        Ty* dst = data_ + size_;
         try {
-            for (Ty* last = data_ + sz; item != last; ++item) {
-                alloc_traits::construct(*this, item, std::forward<Args>(args)...);
+            for (Ty* dst_last = data_ + sz; dst != dst_last; ++dst) {
+                ::new (dst) value_type(std::forward<Args>(args)...);
             }
         } catch (...) {
-            destruct_items(data_ + size_, item);
+            destruct_items(data_ + size_, dst);
             throw;
         }
     } else {

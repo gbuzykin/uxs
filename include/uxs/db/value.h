@@ -247,6 +247,28 @@ class flexarray_t {
         for (; first != last; ++first) { alloc_traits::destroy(al, first); }
     }
 
+    template<typename InputIt>
+    static void init_items_copy(alloc_type& al, Ty* dst, Ty* dst_last, InputIt first) {
+        Ty* dst0 = dst;
+        try {
+            for (; dst != dst_last; ++first, ++dst) { alloc_traits::construct(al, dst, *first); }
+        } catch (...) {
+            destruct_items(al, dst0, dst);
+            throw;
+        }
+    }
+
+    template<typename... Args>
+    static void init_items(alloc_type& al, Ty* dst, Ty* dst_last, Args&&... args) {
+        Ty* dst0 = dst;
+        try {
+            for (; dst != dst_last; ++dst) { alloc_traits::construct(al, dst, std::forward<Args>(args)...); }
+        } catch (...) {
+            destruct_items(al, dst0, dst);
+            throw;
+        }
+    }
+
     UXS_EXPORT void grow(alloc_type& al, std::size_t extra);
     UXS_EXPORT void rotate_back(std::size_t pos) noexcept;
     UXS_EXPORT void make_unique_impl(alloc_type& al);
@@ -281,7 +303,7 @@ template<typename RandIt>
 void flexarray_t<Ty, Alloc>::create_impl(alloc_type& al, std::size_t count, RandIt first) {
     if (!count) { return; }
     p_ = alloc_checked(al, count + tail_zero);
-    std::uninitialized_copy_n(first, count, p_->data());
+    init_items_copy(al, p_->data(), p_->data() + count, first);
     p_->size = count;
     put_tail_zero();
 }
@@ -299,11 +321,12 @@ template<typename Ty, typename Alloc>
 template<typename RandIt>
 void flexarray_t<Ty, Alloc>::assign_impl(alloc_type& al, std::size_t count, RandIt first) {
     if (count + tail_zero > p_->capacity) { grow(al, count - p_->size + tail_zero); }
-    Ty* item = std::copy_n(first, std::min(count, p_->size), p_->data());
+    Ty* dst = p_->data();
+    for (Ty* dst_last = dst + std::min(count, p_->size); dst != dst_last; ++first, ++dst) { *dst = *first; }
     if (count <= p_->size) {
-        destruct_items(al, item, p_->data() + p_->size);
+        destruct_items(al, dst, p_->data() + p_->size);
     } else {
-        std::uninitialized_copy_n(first + p_->size, count - p_->size, item);
+        init_items_copy(al, dst, p_->data() + count, first);
     }
     p_->size = count;
     put_tail_zero();
@@ -313,12 +336,12 @@ template<typename Ty, typename Alloc>
 template<typename InputIt>
 void flexarray_t<Ty, Alloc>::assign_impl(alloc_type& al, InputIt first, InputIt last,
                                          std::false_type /* random access iterator */) {
-    Ty* item = p_->data();
-    Ty* end = p_->data() + p_->size;
-    for (; item != end && first != last; ++first) { *item++ = *first; }
-    if (item != end) {
-        destruct_items(al, item, end);
-        p_->size = static_cast<std::size_t>(item - p_->data());
+    Ty* dst = p_->data();
+    Ty* dst_last = p_->data() + p_->size;
+    for (; dst != dst_last && first != last; ++first) { *dst++ = *first; }
+    if (dst != dst_last) {
+        destruct_items(al, dst, dst_last);
+        p_->size = static_cast<std::size_t>(dst - p_->data());
         put_tail_zero();
     } else {
         append_impl(al, first, last, std::false_type{});
@@ -329,7 +352,7 @@ template<typename Ty, typename Alloc>
 template<typename RandIt>
 void flexarray_t<Ty, Alloc>::append_impl(alloc_type& al, std::size_t count, RandIt first) {
     if (count + tail_zero > p_->capacity - p_->size) { grow(al, count + tail_zero); }
-    std::uninitialized_copy_n(first, count, p_->data() + p_->size);
+    init_items_copy(al, p_->data() + p_->size, p_->data() + p_->size + count, first);
     p_->size += count;
     put_tail_zero();
 }
