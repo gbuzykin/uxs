@@ -123,7 +123,7 @@ std::uint64_t bignum_mul32(std::uint64_t* x, unsigned sz, std::uint32_t mul, std
 
 inline std::uint64_t bignum_mul(std::uint64_t* x, unsigned sz, std::uint64_t mul) {
     assert(sz > 0);
-    std::uint64_t higher;
+    std::uint64_t higher = 0;
     std::uint64_t* x0 = x;
     x += sz - 1;
     *x = umul128(*x, mul, higher);
@@ -133,7 +133,7 @@ inline std::uint64_t bignum_mul(std::uint64_t* x, unsigned sz, std::uint64_t mul
 
 inline std::uint64_t bignum_mul(std::uint64_t* x, const std::uint64_t* y, unsigned sz, std::uint64_t mul) {
     assert(sz > 0);
-    std::uint64_t higher;
+    std::uint64_t higher = 0;
     std::uint64_t* x0 = x;
     x += sz - 1, y += sz - 1;
     *x = umul128(*y, mul, higher);
@@ -143,7 +143,7 @@ inline std::uint64_t bignum_mul(std::uint64_t* x, const std::uint64_t* y, unsign
 
 inline std::uint64_t bignum_addmul(std::uint64_t* x, const std::uint64_t* y, unsigned sz, std::uint64_t mul) {
     assert(sz > 0);
-    std::uint64_t higher;
+    std::uint64_t higher = 0;
     std::uint64_t* x0 = x;
     x += sz - 1, y += sz;
     one_bit_t carry = add64_carry(*x, umul128(*--y, mul, higher), *x);
@@ -170,7 +170,7 @@ inline std::uint64_t bignum_submul(std::uint64_t* x, const std::uint64_t* y, uns
     one_bit_t borrow = 0;
     std::uint64_t* x0 = x;
     x += sz - 1, y += sz - 1;
-    std::uint64_t higher;
+    std::uint64_t higher = 0;
     const std::uint64_t lower = umul128(*y, mul, higher);
     if (sz > sz_x) {
         std::uint64_t* x1 = x0 + sz_x;
@@ -417,7 +417,7 @@ static std::uint64_t fp10_to_fp2_slow(fp10_t& fp10, unsigned bpm, int exp_max) n
         if (lower) { m10[sz_num++] = lower; }
     }
 
-    std::uint64_t m;
+    std::uint64_t m = 0;
     --sz_num;  // count only m10[n] where n > 0
     if (index < 0) {
         const int index0 = -1 - index;
@@ -782,7 +782,7 @@ void fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, fm
     index -= 999999;
 
     const auto mul_and_shift = [&num, &sz_num](std::uint64_t m, std::uint64_t mul, int shift) {
-        std::uint64_t digs;
+        std::uint64_t digs = 0;
         num[0] = umul128(m, mul, digs);
         if (shift > 0) {
             digs = shl128(digs, num[0], shift), num[0] <<= shift;
@@ -897,7 +897,7 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, fmt_flag
             p += digs_len, n_digs -= digs_len, --index;
         }
     } else {
-        std::uint64_t digs;
+        std::uint64_t digs = 0;
         if (index < 0) {
             const bignum_t multiplier = get_bigpow10(-1 - index);
             const unsigned shift = 2 + fp2.exp + multiplier.exp;

@@ -12,12 +12,10 @@ enum class zipfile_compression {
 };
 
 struct zip_sourced_t {
-    explicit zip_sourced_t() = default;
+    explicit constexpr zip_sourced_t(int) {}
 };
 
-#if __cplusplus >= 201703L
-constexpr zip_sourced_t zip_sourced{};
-#endif  // __cplusplus >= 201703L
+constexpr zip_sourced_t zip_sourced{0};
 
 struct zipfile_info {
     std::string name;

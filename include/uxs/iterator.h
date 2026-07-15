@@ -16,7 +16,7 @@
 #if __cplusplus < 201703L
 const std::size_t unspecified_size = ~std::size_t(0);
 #else   // __cplusplus < 201703L
-inline constexpr std::size_t unspecified_size = std::numeric_limits<std::size_t>::max();
+constexpr std::size_t unspecified_size = std::numeric_limits<std::size_t>::max();
 #endif  // __cplusplus < 201703L
 
 namespace uxs {

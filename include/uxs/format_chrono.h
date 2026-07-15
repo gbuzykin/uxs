@@ -1433,7 +1433,7 @@ struct formatter<std::chrono::tai_time<Duration>, CharT>
     template<typename FmtCtx>
     void format(FmtCtx& ctx, std::chrono::tai_time<Duration> t) const {
         using formatter_type = formatter<detail::local_time_format_t<CharT, Duration>, CharT>;
-        formatter_type::format(ctx, {std::chrono::sys_time<Duration>(t.time_since_epoch()) - std::chrono::days(4383),
+        formatter_type::format(ctx, {std::chrono::sys_time<Duration>{t.time_since_epoch()} - std::chrono::days(4383),
                                      string_literal<CharT, 'T', 'A', 'I'>{}()});
     }
 };
@@ -1444,7 +1444,7 @@ struct formatter<std::chrono::gps_time<Duration>, CharT>
     template<typename FmtCtx>
     void format(FmtCtx& ctx, std::chrono::gps_time<Duration> t) const {
         using formatter_type = formatter<detail::local_time_format_t<CharT, Duration>, CharT>;
-        formatter_type::format(ctx, {std::chrono::sys_time<Duration>(t.time_since_epoch()) + std::chrono::days(3657),
+        formatter_type::format(ctx, {std::chrono::sys_time<Duration>{t.time_since_epoch()} + std::chrono::days(3657),
                                      string_literal<CharT, 'G', 'P', 'S'>{}()});
     }
 };

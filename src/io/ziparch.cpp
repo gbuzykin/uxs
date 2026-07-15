@@ -94,7 +94,7 @@ std::int64_t ziparch::add_file(const char* fname, const void* data, std::size_t 
         ::zip_set_file_compression(zip, index, compr == zipfile_compression::store ? ZIP_CM_STORE : ZIP_CM_DEFLATE,
                                    static_cast<zip_uint32_t>(level));
     }
-    return static_cast<std::int64_t>(index);
+    return index;
 }
 
 bool ziparch::stat_file(const char* fname, zipfile_info& info) const {

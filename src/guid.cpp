@@ -39,7 +39,7 @@ struct guid_random_generator {
             for (std::uint32_t& l : data) { l = distribution(generator); }
         }
 
-        guid id{data};
+        guid id(data);
         // set version: must be 0b0100xxxx
         id.data.w[1] = (id.data.w[1] & 0x4FFF) | 0x4000;
         // set variant: must be 0b10xxxxxx
