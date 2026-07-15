@@ -53,7 +53,7 @@ biobuf& operator<<(biobuf& os, std::basic_string_view<CharT> s) {
 
 template<typename CharT>
 biobuf& operator<<(biobuf& os, const std::basic_string<CharT>& s) {
-    return os << std::basic_string_view<CharT>{s};
+    return os << std::basic_string_view<CharT>(s);
 }
 
 }  // namespace uxs

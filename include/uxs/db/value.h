@@ -81,6 +81,7 @@ class flexarray_t {
     }
 
     friend bool operator==(const flexarray_t& lhs, const flexarray_t& rhs) noexcept {
+        if (lhs.p_ == rhs.p_) { return true; }
         const auto lhv = lhs.cview();
         const auto rhv = rhs.cview();
         return lhv.size() == rhv.size() && std::equal(lhv.begin(), lhv.end(), rhv.begin());
@@ -548,6 +549,7 @@ class record_t {
     }
 
     friend bool operator==(const record_t& lhs, const record_t& rhs) noexcept {
+        if (lhs.p_ == rhs.p_) { return true; }
         return lhs.size() == rhs.size() &&
                std::equal(const_iterator(lhs.cbegin()), const_iterator(lhs.cend()), const_iterator(rhs.cbegin()));
     }

@@ -422,7 +422,11 @@ class arg_store {
                       std::is_trivially_destructible<std::basic_string_view<char_type>>::value,
                   "std::basic_string_view<> is assumed to be trivially copyable and destructible");
 
+#if __cplusplus >= 201703L
+    arg_store(const arg_store&) = delete;
+#else   // __cplusplus >= 201703L
     arg_store(const arg_store&) noexcept = default;
+#endif  // __cplusplus >= 201703L
     arg_store& operator=(const arg_store&) = delete;
 
     UXS_CONSTEXPR explicit arg_store(const Args&... args) noexcept {
@@ -469,7 +473,11 @@ class arg_store<FmtCtx> {
  public:
     using char_type = typename FmtCtx::char_type;
     static const std::size_t arg_count = 0;
+#if __cplusplus >= 201703L
+    arg_store(const arg_store&) = delete;
+#else   // __cplusplus >= 201703L
     arg_store(const arg_store&) noexcept = default;
+#endif  // __cplusplus >= 201703L
     arg_store& operator=(const arg_store&) = delete;
     UXS_CONSTEXPR arg_store() noexcept = default;
     UXS_CONSTEXPR const void* data() const noexcept { return nullptr; }
@@ -809,7 +817,11 @@ class basic_format_parse_context : public sfmt::parse_context_utils {
     using const_iterator = typename std::basic_string_view<char_type>::const_iterator;
 
     UXS_CONSTEXPR explicit basic_format_parse_context(std::basic_string_view<char_type> fmt) noexcept : fmt_(fmt) {}
+#if __cplusplus >= 201703L
+    basic_format_parse_context(const basic_format_parse_context&) = delete;
+#else   // __cplusplus >= 201703L
     basic_format_parse_context(const basic_format_parse_context&) noexcept = default;
+#endif  // __cplusplus >= 201703L
     basic_format_parse_context& operator=(const basic_format_parse_context&) = delete;
 
     UXS_CONSTEXPR iterator begin() const noexcept { return fmt_.begin(); }
@@ -894,7 +906,11 @@ class basic_format_context {
         : s_(s), loc_(loc), args_(args) {}
     basic_format_context(output_type& s, const basic_format_context& other) noexcept
         : s_(s), loc_(other.loc_), args_(other.args_) {}
+#if __cplusplus >= 201703L
+    basic_format_context(const basic_format_context&) = delete;
+#else   // __cplusplus >= 201703L
     basic_format_context(const basic_format_context&) noexcept = default;
+#endif  // __cplusplus >= 201703L
     basic_format_context& operator=(const basic_format_context&) = delete;
     output_type& out() { return s_; }
     locale_ref locale() const { return loc_; }
@@ -937,6 +953,8 @@ struct basic_runtime_format {
     UXS_CONSTEXPR basic_runtime_format(std::basic_string_view<CharT> s) noexcept : str(s) {}
 #if __cplusplus >= 201703L
     basic_runtime_format(const basic_runtime_format&) = delete;
+#else   // __cplusplus >= 201703L
+    basic_runtime_format(const basic_runtime_format&) noexcept = default;
 #endif  // __cplusplus >= 201703L
     basic_runtime_format& operator=(const basic_runtime_format&) = delete;
 };
