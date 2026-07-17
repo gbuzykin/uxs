@@ -206,7 +206,7 @@ class flexarray_t {
 
     template<typename... Dummy>
     void put_tail_zero(Dummy&&...) noexcept {
-        static_assert(tail_zero == 0, "");
+        static_assert(tail_zero == 0, "must be no tail zero");
     }
 
     template<typename RandIt>
@@ -244,7 +244,7 @@ class flexarray_t {
 
     template<typename Ty_ = Ty, typename... Dummy>
     static void destruct_items(alloc_type& al, Ty_* first, Ty_* last, Dummy&&...) noexcept {
-        static_assert(!std::is_trivially_destructible<Ty>::value, "");
+        static_assert(!std::is_trivially_destructible<Ty>::value, "Ty must not be trivially destructible");
         for (; first != last; ++first) { alloc_traits::destroy(al, first); }
     }
 

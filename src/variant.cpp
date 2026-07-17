@@ -352,7 +352,7 @@ bool variant_type_impl<double>::convert_to(variant_id type, void* to, const void
     const auto& v = *static_cast<const double*>(from);
     switch (type) {
         case variant_id::string: {
-            *static_cast<std::string*>(to) = to_string(v, fmt_opts{fmt_flags::json_compat});
+            *static_cast<std::string*>(to) = to_string(v);
         } break;
         case variant_id::boolean: {
             *static_cast<bool*>(to) = v != 0;

@@ -64,9 +64,10 @@ static void move_values(Alloc& /*al*/, const Ty* first, const Ty* last, Ty* dst)
 
 template<typename Alloc, typename Ty, typename... Dummy>
 static void move_values(Alloc& al, const Ty* first, const Ty* last, Ty* dst, Dummy&&...) noexcept {
-    static_assert(!std::is_trivially_move_constructible<Ty>::value, "");
+    static_assert(!std::is_trivially_move_constructible<Ty>::value, "Ty must not be trivially move constructible");
     static_assert(
-        !std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value, "");
+        !std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value,
+        "not standard allocator is used");
     for (; first != last; ++first, ++dst) { std::allocator_traits<Alloc>::construct(al, dst, std::move(*first)); }
 }
 
@@ -78,9 +79,10 @@ static void destruct_moved_values(Alloc& /*al*/, Ty* /*first*/, Ty* /*last*/) no
 
 template<typename Alloc, typename Ty, typename... Dummy>
 static void destruct_moved_values(Alloc& al, Ty* first, Ty* last, Dummy&&...) noexcept {
-    static_assert(!std::is_trivially_destructible<Ty>::value, "");
+    static_assert(!std::is_trivially_destructible<Ty>::value, "Ty must not be trivially destructible");
     static_assert(
-        !std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value, "");
+        !std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value,
+        "not standard allocator is used");
     for (; first != last; ++first) { std::allocator_traits<Alloc>::destroy(al, first); };
 }
 
@@ -836,27 +838,27 @@ est::optional<std::basic_string<CharT>> basic_value<CharT, Alloc>::get_string() 
         } break;
         case dtype::integer: {
             inline_basic_dynbuffer<CharT> buf;
-            to_basic_string(buf, value_.i);
+            scvt::fmt_integer(buf, value_.i);
             return est::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::unsigned_integer: {
             inline_basic_dynbuffer<CharT> buf;
-            to_basic_string(buf, value_.u);
+            scvt::fmt_integer(buf, value_.u);
             return est::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::long_integer: {
             inline_basic_dynbuffer<CharT> buf;
-            to_basic_string(buf, value_.i64);
+            scvt::fmt_integer(buf, value_.i64);
             return est::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::unsigned_long_integer: {
             inline_basic_dynbuffer<CharT> buf;
-            to_basic_string(buf, value_.u64);
+            scvt::fmt_integer(buf, value_.u64);
             return est::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::double_precision: {
             inline_basic_dynbuffer<CharT> buf;
-            to_basic_string(buf, value_.dbl, fmt_opts{fmt_flags::json_compat});
+            scvt::fmt_float(buf, value_.dbl, fmt_flags::mandatory_frac);
             return est::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::string: return est::make_optional<std::basic_string<CharT>>(value_.str.cview());
