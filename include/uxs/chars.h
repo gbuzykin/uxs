@@ -165,4 +165,33 @@ UXS_CONSTEXPR std::enable_if_t<sizeof(CharT) == 1, unsigned> dig_v(CharT ch) noe
     return detail::char_tbl_t{}.digs()[static_cast<std::uint8_t>(ch)];
 }
 
+// --------------------------
+
+template<typename InputIt, typename InputFn = nofunc>
+unsigned from_hex(InputIt in, unsigned n_digs, InputFn fn = InputFn{}, unsigned* n_valid = nullptr) noexcept {
+    unsigned val = 0;
+    if (n_valid) { *n_valid = n_digs; }
+    while (n_digs) {
+        const unsigned dig = dig_v(fn(*in));
+        if (dig < 16) {
+            val = (val << 4) | dig;
+        } else {
+            if (n_valid) { *n_valid -= n_digs; }
+            return val;
+        }
+        ++in, --n_digs;
+    }
+    return val;
+}
+
+template<typename OutputIt, typename OutputFn = nofunc>
+void to_hex(unsigned val, OutputIt out, unsigned n_digs, bool upper = false, OutputFn fn = OutputFn{}) noexcept {
+    const char* digs = upper ? "0123456789ABCDEF" : "0123456789abcdef";
+    unsigned shift = n_digs << 2;
+    while (shift) {
+        shift -= 4;
+        *out++ = fn(digs[(val >> shift) & 0xf]);
+    }
+}
+
 }  // namespace uxs

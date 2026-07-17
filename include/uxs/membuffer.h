@@ -31,9 +31,6 @@ class basic_membuffer {
     basic_membuffer() noexcept = default;
     explicit basic_membuffer(pointer data) noexcept : data_(data), capacity_(std::numeric_limits<size_type>::max()) {}
     basic_membuffer(pointer data, size_type capacity) noexcept : data_(data), capacity_(capacity) {}
-    basic_membuffer(pointer data, size_type size, size_type capacity) noexcept
-        : data_(data), size_(size), capacity_(capacity) {}
-    virtual ~basic_membuffer() = default;
     basic_membuffer(const basic_membuffer&) = delete;
     basic_membuffer& operator=(const basic_membuffer&) = delete;
 
@@ -103,7 +100,7 @@ class basic_membuffer {
         while (count > n_avail) {
             std::copy_n(first, n_avail, endp());
             first += n_avail, count -= n_avail, size_ += n_avail;
-            if (!(n_avail = try_grow(count))) { return *this; }
+            if (!(n_avail = try_grow_impl(count, true))) { return *this; }
         }
         std::copy(first, last, endp());
         size_ += count;
@@ -115,7 +112,7 @@ class basic_membuffer {
         while (count > n_avail) {
             std::fill_n(endp(), n_avail, val);
             count -= n_avail, size_ += n_avail;
-            if (!(n_avail = try_grow(count))) { return *this; }
+            if (!(n_avail = try_grow_impl(count, true))) { return *this; }
         }
         std::fill_n(endp(), count, val);
         size_ += count;
@@ -124,7 +121,9 @@ class basic_membuffer {
 
     template<typename... Args>
     void emplace_back(Args&&... args) {
-        if (size_ != capacity_ || try_grow(1)) { ::new (&data_[size_++]) value_type(std::forward<Args>(args)...); }
+        if (size_ != capacity_ || try_grow_impl(1, true)) {
+            ::new (&data_[size_++]) value_type(std::forward<Args>(args)...);
+        }
     }
     void push_back(const value_type& val) { emplace_back(val); }
 
@@ -151,12 +150,17 @@ class basic_membuffer {
         return *this;
     }
 
+    size_type try_grow(size_type extra) { return try_grow_impl(extra, false); }
+
  protected:
+    basic_membuffer(pointer data, size_type size, size_type capacity) noexcept
+        : data_(data), size_(size), capacity_(capacity) {}
+
     void reset(Ty* data, size_type size, size_type capacity) noexcept {
         data_ = data, size_ = size, capacity_ = capacity;
     }
 
-    virtual size_type try_grow(size_type /*extra*/) { return 0; }
+    virtual size_type try_grow_impl(size_type /*extra*/, bool /*track_size*/) { return 0; }
 
  private:
     Ty* data_ = nullptr;
@@ -185,8 +189,7 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
 
     basic_dynbuffer() noexcept(std::is_nothrow_default_constructible<alloc_type>::value) : alloc_type() {}
     explicit basic_dynbuffer(const Alloc& al) noexcept : alloc_type(al) {}
-
-    ~basic_dynbuffer() override {
+    ~basic_dynbuffer() {
         if (this->capacity() & 1) { alloc_traits::deallocate(*this, this->data(), this->capacity()); }
     }
 
@@ -194,7 +197,7 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
     size_type max_size() const noexcept { return alloc_traits::max_size(*this); }
 
     void reserve(size_type size) {
-        if (size > this->capacity()) { try_grow(size - this->size()); }
+        if (size > this->capacity()) { this->try_grow(size - this->size()); }
     }
 
  protected:
@@ -203,11 +206,12 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
     basic_dynbuffer(Ty* data, size_type capacity, const Alloc& al) noexcept
         : alloc_type(al), basic_membuffer<Ty>(data, capacity) {}
 
-    size_type try_grow(size_type extra) override;
+    size_type try_grow_impl(size_type extra, bool /*track_size*/) override;
 };
 
 template<typename Ty, typename Alloc>
-typename basic_dynbuffer<Ty, Alloc>::size_type basic_dynbuffer<Ty, Alloc>::try_grow(size_type extra) {
+typename basic_dynbuffer<Ty, Alloc>::size_type basic_dynbuffer<Ty, Alloc>::try_grow_impl(size_type extra,
+                                                                                         bool /*track_size*/) {
     const size_type sz = this->size();
     size_type delta_sz = std::max(++extra, sz >> 1);
     const size_type max_avail = std::allocator_traits<alloc_type>::max_size(*this) - sz;
@@ -258,8 +262,8 @@ class basic_membuffer_with_size_tracker final : public basic_membuffer<Ty> {
  private:
     size_type tracked_size_;
 
-    size_type try_grow(size_type extra) override {
-        tracked_size_ += extra;
+    size_type try_grow_impl(size_type extra, bool track_size) override {
+        if (track_size) { tracked_size_ += extra; }
         return 0;
     }
 };

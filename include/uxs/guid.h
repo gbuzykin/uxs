@@ -137,7 +137,7 @@ struct from_string_impl<guid, CharT> {
 template<typename CharT>
 struct to_string_impl<guid, CharT> {
     template<typename StrTy>
-    void operator()(StrTy& s, guid val, fmt_opts fmt) const {
+    void operator()(StrTy& s, guid val, fmt_opts fmt = {}) const {
         const unsigned len = 38;
         const bool upper = !!(fmt.flags & fmt_flags::uppercase);
         std::array<typename StrTy::value_type, len> buf;

@@ -150,12 +150,12 @@ struct value_visitor {
 
     template<typename Ty>
     bool operator()(Ty v) const {
-        to_basic_string(out, v);
+        scvt::fmt_integer(out, v);
         return false;
     }
 
     bool operator()(double f) const {
-        to_basic_string(out, f, fmt_opts{fmt_flags::json_compat});
+        scvt::fmt_float(out, f, fmt_flags::mandatory_frac);
         return false;
     }
 
