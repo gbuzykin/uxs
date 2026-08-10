@@ -110,30 +110,36 @@ struct writer_stack_item_t {
     using value_t = basic_value<ValueCharT, Alloc>;
     using record_iterator = typename value_t::const_record_iterator;
 
-    writer_stack_item_t(const value_t* first, const value_t* last) : is_record_(false), f_arr_(first), l_arr_(last) {}
-    writer_stack_item_t(record_iterator first, record_iterator last) : is_record_(true), f_rec_(first), l_rec_(last) {}
+    writer_stack_item_t(const value_t* first, const value_t* last) noexcept : is_record_(false), arr_{first, last} {}
+    writer_stack_item_t(record_iterator first, record_iterator last) noexcept : is_record_(true), rec_{first, last} {}
 
-    bool is_record() const { return is_record_; }
-    bool empty() const { return is_record_ ? f_rec_ == l_rec_ : f_arr_ == l_arr_; }
-    typename value_t::key_type key() const { return f_rec_->key(); }
-    const value_t& prev() const { return is_record_ ? std::prev(f_rec_)->value() : *std::prev(f_arr_); }
-    const value_t& get_and_advance() { return is_record_ ? (f_rec_++)->value() : *f_arr_++; }
+    std::basic_string_view<ValueCharT> element() const noexcept { return element_; }
+    void set_element(std::basic_string_view<ValueCharT> element) noexcept { element_ = element; }
 
-    std::basic_string_view<ValueCharT> element() const { return element_; }
-    void set_element(std::basic_string_view<ValueCharT> element) { element_ = element; }
+    bool is_record() const noexcept { return is_record_; }
+    bool empty() const noexcept { return is_record_ ? rec_.first == rec_.last : arr_.first == arr_.last; }
+    typename value_t::key_type key() const noexcept { return rec_.first->key(); }
+    const value_t& get_and_advance() noexcept { return is_record_ ? (rec_.first++)->value() : *arr_.first++; }
+    const value_t& prev() const noexcept {
+        return is_record_ ? std::prev(rec_.first)->value() : *std::prev(arr_.first);
+    }
 
  private:
-    bool is_record_;
-    union {
-        const value_t* f_arr_;
-        record_iterator f_rec_;
+    struct array_range_t {
+        const value_t* first;
+        const value_t* last;
     };
-    union {
-        const value_t* l_arr_;
-        record_iterator l_rec_;
+    struct record_range_t {
+        record_iterator first;
+        record_iterator last;
     };
 
     std::basic_string_view<ValueCharT> element_;
+    bool is_record_;
+    union {
+        array_range_t arr_;
+        record_range_t rec_;
+    };
 };
 
 template<typename CharT>
@@ -214,8 +220,7 @@ value_visitor<const basic_value<ValueCharT, Alloc>, StrTy, StackTy> make_value_v
 template<typename CharT, typename ValueCharT, typename Alloc>
 void write(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v,
            est::type_identity_t<std::basic_string_view<ValueCharT>> element, xml_fmt_opts opts, unsigned indent) {
-    using stack_item_t = detail::writer_stack_item_t<ValueCharT, Alloc>;
-    inline_basic_dynbuffer<stack_item_t, 32> stack;
+    inline_dynarray<detail::writer_stack_item_t<ValueCharT, Alloc>, 32> stack;
 
     const auto visitor = detail::make_value_visitor<ValueCharT, Alloc>(out, stack);
 
