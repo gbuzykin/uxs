@@ -80,11 +80,11 @@ class flexarray_t {
         return *(p_->data() + i);
     }
 
-    friend bool operator==(const flexarray_t& lhs, const flexarray_t& rhs) noexcept {
-        if (lhs.p_ == rhs.p_) { return true; }
-        const auto lhv = lhs.cview();
-        const auto rhv = rhs.cview();
-        return lhv.size() == rhv.size() && std::equal(lhv.begin(), lhv.end(), rhv.begin());
+    bool equal(const flexarray_t& other) const noexcept {
+        if (p_ == other.p_) { return true; }
+        const auto lhs = cview();
+        const auto rhs = other.cview();
+        return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin());
     }
 
     void construct() noexcept { p_ = nullptr; }
@@ -548,10 +548,10 @@ class record_t {
         return record_range<iterator>(size(), iterator(cbegin()), iterator(cend()));
     }
 
-    friend bool operator==(const record_t& lhs, const record_t& rhs) noexcept {
-        if (lhs.p_ == rhs.p_) { return true; }
-        return lhs.size() == rhs.size() &&
-               std::equal(const_iterator(lhs.cbegin()), const_iterator(lhs.cend()), const_iterator(rhs.cbegin()));
+    bool equal(const record_t& other) const noexcept {
+        if (p_ == other.p_) { return true; }
+        return size() == other.size() &&
+               std::equal(const_iterator(cbegin()), const_iterator(cend()), const_iterator(other.cbegin()));
     }
 
     void construct(alloc_type& al, std::false_type = {}) {

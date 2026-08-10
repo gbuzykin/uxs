@@ -11,7 +11,7 @@ namespace json {
 // --------------------------
 
 template<typename CharT, typename Alloc>
-basic_value<CharT, Alloc> read(ibuf& in, const Alloc& al) {
+void read(ibuf& in, basic_value<CharT, Alloc>& val) {
     static const auto token_to_value = [](token_t tt, std::string_view lval,
                                           const Alloc& al) -> basic_value<CharT, Alloc> {
         switch (tt) {
@@ -52,27 +52,26 @@ basic_value<CharT, Alloc> read(ibuf& in, const Alloc& al) {
         }
     };
 
-    basic_value<CharT, Alloc> result(al);
+    auto* item = &val;
     inline_dynarray<basic_value<CharT, Alloc>*, 32> stack;
 
-    auto* val = &result;
     read(
         in,
-        [&al, &stack, &val](token_t tt, std::string_view lval) {
+        [&stack, &item](token_t tt, std::string_view lval) {
             if (tt >= token_t::null_value) {
-                *val = token_to_value(tt, lval, al);
+                *item = token_to_value(tt, lval, item->get_allocator());
             } else {
-                *val = tt == token_t::array ? make_array<CharT>(al) : make_record<CharT>(al);
-                stack.push_back(val);
+                *item = tt == token_t::array ? make_array<CharT>(item->get_allocator()) :
+                                               make_record<CharT>(item->get_allocator());
+                stack.push_back(item);
             }
             return parse_step::into;
         },
-        [&al, &stack, &val]() { val = &stack.back()->emplace_back(al); },
-        [&al, &stack, &val](std::string_view lval) {
-            val = &stack.back()->emplace(utf_string_adapter<CharT>{}(lval), al).value();
+        [&stack, &item]() { item = &stack.back()->emplace_back(item->get_allocator()); },
+        [&stack, &item](std::string_view lval) {
+            item = &stack.back()->emplace(utf_string_adapter<CharT>{}(lval), item->get_allocator()).value();
         },
         [&stack] { stack.pop_back(); });
-    return result;
 }
 
 // --------------------------

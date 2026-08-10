@@ -124,14 +124,8 @@ loop:
     }
 }
 
-template<typename CharT = char, typename Alloc = std::allocator<CharT>>
-UXS_EXPORT basic_value<CharT, Alloc> read(ibuf& in, const Alloc& al = Alloc());
-
-template<typename CharT = char, typename Alloc = std::allocator<CharT>>
-basic_value<CharT, Alloc> read_from_string(std::string_view s, const Alloc& al = Alloc()) {
-    uxs::iflatbuf in(s);
-    return read(in, al);
-}
+template<typename CharT, typename Alloc>
+UXS_EXPORT void read(ibuf& in, basic_value<CharT, Alloc>& val);
 
 template<typename CharT, typename ValueCharT, typename Alloc>
 UXS_EXPORT void write(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v);
@@ -155,6 +149,29 @@ void write_formatted(basic_iobuf<CharT>& out, const basic_value<ValueCharT, Allo
 
 }  // namespace json
 }  // namespace db
+
+template<typename ValueCharT, typename Alloc>
+struct from_string_impl<db::basic_value<ValueCharT, Alloc>, char> {
+    const char* operator()(const char* first, const char* last, db::basic_value<ValueCharT, Alloc>& val) const {
+        uxs::iflatbuf in(est::as_span(first, static_cast<std::size_t>(last - first)));
+        db::json::read(in, val);
+        return in.curr();
+    }
+};
+
+template<typename CharT, typename ValueCharT, typename Alloc>
+struct to_string_impl<db::basic_value<ValueCharT, Alloc>, CharT> {
+    void operator()(basic_membuffer<CharT>& s, const db::basic_value<ValueCharT, Alloc>& val) const {
+        db::json::write(s, val);
+    }
+    template<typename StrTy, typename = std::enable_if_t<
+                                 !std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
+    void operator()(StrTy& s, const db::basic_value<ValueCharT, Alloc>& val) const {
+        inline_basic_dynbuffer<typename StrTy::value_type> buf;
+        db::json::write(buf, val);
+        s.append(buf.data(), buf.size());
+    }
+};
 
 template<typename CharT, typename ValueCharT, typename Alloc>
 struct formatter<db::basic_value<ValueCharT, Alloc>, CharT> {

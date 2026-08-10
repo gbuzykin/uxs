@@ -43,9 +43,9 @@ UXS_EXPORT bool operator==(const basic_value<CharT, Alloc>& lhs, const basic_val
         case dtype::long_integer: return compare_long_integer(lhs.value_.i64, rhs);
         case dtype::unsigned_long_integer: return compare_unsigned_long_integer(lhs.value_.u64, rhs);
         case dtype::double_precision: return rhs.type_ == dtype::double_precision && lhs.value_.dbl == rhs.value_.dbl;
-        case dtype::string: return rhs.type_ == dtype::string && lhs.value_.str == rhs.value_.str;
-        case dtype::array: return rhs.type_ == dtype::array && lhs.value_.arr == rhs.value_.arr;
-        case dtype::record: return rhs.type_ == dtype::record && lhs.value_.rec == rhs.value_.rec;
+        case dtype::string: return rhs.type_ == dtype::string && lhs.value_.str.equal(rhs.value_.str);
+        case dtype::array: return rhs.type_ == dtype::array && lhs.value_.arr.equal(rhs.value_.arr);
+        case dtype::record: return rhs.type_ == dtype::record && lhs.value_.rec.equal(rhs.value_.rec);
         default: UXS_UNREACHABLE_CODE;
     }
 }
