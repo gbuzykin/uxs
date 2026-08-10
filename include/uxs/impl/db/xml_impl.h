@@ -11,7 +11,7 @@ namespace xml {
 // --------------------------
 
 template<typename CharT, typename Alloc>
-basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Alloc& al) {
+void parser::read(std::string_view root_element, basic_value<CharT, Alloc>& val) {
     static const auto text_to_value = [](std::string_view sval, const Alloc& al) -> basic_value<CharT, Alloc> {
         switch (classify_value(sval)) {
             case value_class::empty:
@@ -57,11 +57,13 @@ basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Allo
     while (!eof() && !(tt == token_t::start_element && name() == root_element)) { tt = next(); }
     if (eof()) { throw database_error("no such element"); }
 
+    val.clear();
+
     inline_dynbuffer txt;
-    basic_value<CharT, Alloc> result(al);
     inline_dynarray<std::pair<basic_value<CharT, Alloc>*, std::string>, 32> stack;
 
-    stack.emplace_back(&result, root_element);
+    const auto& al = val.get_allocator();
+    stack.emplace_back(&val, root_element);
 
     tt = next();
 
@@ -92,7 +94,7 @@ basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Allo
                     *(top.first) = text_to_value(std::string_view(txt.data(), txt.size()), al);
                 }
                 stack.pop_back();
-                if (stack.empty()) { return result; }
+                if (stack.empty()) { return; }
             } break;
             default: break;
         }
