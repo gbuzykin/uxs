@@ -1,5 +1,6 @@
 #pragma once
 
+#include "chars.h"
 #include "string_cvt.h"
 
 #include <functional>
@@ -79,37 +80,35 @@ struct guid {
     friend bool operator>(guid lhs, guid rhs) noexcept { return rhs.data64() < lhs.data64(); }
     friend bool operator>=(guid lhs, guid rhs) noexcept { return !(lhs.data64() < rhs.data64()); }
 
-    template<typename CharT, typename Traits, typename Alloc>
-    void to_per_byte_basic_string(std::basic_string<CharT, Traits, Alloc>& s) const;
+    template<typename StrTy>
+    void to_per_byte_string_append(StrTy& out) const;
+
     template<typename CharT, typename Traits>
-    static guid from_per_byte_basic_string(std::basic_string_view<CharT, Traits> s) noexcept;
+    static guid from_per_byte_string_generic(std::basic_string_view<CharT, Traits> s) noexcept;
 
-    std::string to_per_byte_string() const {
-        std::string s;
-        to_per_byte_basic_string(s);
+    template<typename CharT = char>
+    std::basic_string<CharT> to_per_byte_string() const {
+        std::basic_string<CharT> s;
+        to_per_byte_string_append(s);
         return s;
     }
-    static guid from_per_byte_string(std::string_view s) noexcept { return from_per_byte_basic_string(s); }
 
-    std::wstring to_per_byte_wstring() const {
-        std::wstring s;
-        to_per_byte_basic_string(s);
-        return s;
-    }
-    static guid from_per_byte_wstring(std::wstring_view s) noexcept { return from_per_byte_basic_string(s); }
+    static guid from_per_byte_string(std::string_view s) noexcept { return from_per_byte_string_generic(s); }
+    static guid from_per_byte_string(std::wstring_view s) noexcept { return from_per_byte_string_generic(s); }
 
     UXS_EXPORT static guid generate();
 };
 
-template<typename CharT, typename Traits, typename Alloc>
-void guid::to_per_byte_basic_string(std::basic_string<CharT, Traits, Alloc>& s) const {
-    s.resize(32);
-    auto* p = &s[0];
+template<typename StrTy>
+void guid::to_per_byte_string_append(StrTy& out) const {
+    std::array<typename StrTy::value_type, 32> buf;
+    auto* p = buf.data();
     for (const std::uint8_t b : data8()) { to_hex(b, p, 2, true), p += 2; }
+    out.append(buf.data(), p);
 }
 
 template<typename CharT, typename Traits>
-guid guid::from_per_byte_basic_string(std::basic_string_view<CharT, Traits> s) noexcept {
+guid guid::from_per_byte_string_generic(std::basic_string_view<CharT, Traits> s) noexcept {
     if (s.size() < 32) { return {}; }
     const auto* p = s.data();
     guid::data8_t data;
@@ -137,7 +136,7 @@ struct from_string_impl<guid, CharT> {
 template<typename CharT>
 struct to_string_impl<guid, CharT> {
     template<typename StrTy>
-    void operator()(StrTy& s, guid val, fmt_opts fmt = {}) const {
+    void operator()(StrTy& out, guid val, fmt_opts fmt = {}) const {
         const unsigned len = 38;
         const bool upper = !!(fmt.flags & fmt_flags::uppercase);
         std::array<typename StrTy::value_type, len> buf;
@@ -150,8 +149,8 @@ struct to_string_impl<guid, CharT> {
         to_hex(val.data.b[1], p + 22, 2, upper);
         p += 25;
         for (unsigned i = 2; i < 8; ++i, p += 2) { to_hex(val.data.b[i], p, 2, upper); }
-        const auto fn = [&buf](StrTy& s) { s.append(buf.data(), buf.size()); };
-        fmt.width > len ? append_adjusted(s, fn, len, fmt) : fn(s);
+        const auto fn = [&buf](StrTy& out) { out.append(buf.data(), buf.size()); };
+        fmt.width > len ? append_adjusted(out, fn, len, fmt) : fn(out);
     }
 };
 

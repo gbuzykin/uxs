@@ -228,11 +228,11 @@ typename basic_dynbuffer<Ty, Alloc>::size_type basic_dynbuffer<Ty, Alloc>::try_g
 }
 
 template<typename Ty, std::size_t InlineBufSize = 0, typename Alloc = std::allocator<Ty>>
-class inline_basic_dynbuffer final : public basic_dynbuffer<Ty, Alloc> {
+class basic_inline_dynbuffer final : public basic_dynbuffer<Ty, Alloc> {
  public:
-    inline_basic_dynbuffer() noexcept(std::is_nothrow_default_constructible<basic_dynbuffer<Ty, Alloc>>::value)
+    basic_inline_dynbuffer() noexcept(std::is_nothrow_default_constructible<basic_dynbuffer<Ty, Alloc>>::value)
         : basic_dynbuffer<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), inline_buf_size) {}
-    explicit inline_basic_dynbuffer(const Alloc& al) noexcept
+    explicit basic_inline_dynbuffer(const Alloc& al) noexcept
         : basic_dynbuffer<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), inline_buf_size, al) {}
 
  private:
@@ -247,8 +247,8 @@ class inline_basic_dynbuffer final : public basic_dynbuffer<Ty, Alloc> {
     alignas(std::alignment_of<Ty>::value) std::uint8_t buf_[inline_buf_size * sizeof(Ty)];
 };
 
-using inline_dynbuffer = inline_basic_dynbuffer<char>;
-using inline_wdynbuffer = inline_basic_dynbuffer<wchar_t>;
+using inline_dynbuffer = basic_inline_dynbuffer<char>;
+using inline_wdynbuffer = basic_inline_dynbuffer<wchar_t>;
 
 template<typename Ty>
 class basic_membuffer_with_size_tracker final : public basic_membuffer<Ty> {

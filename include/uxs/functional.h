@@ -9,6 +9,7 @@ namespace uxs {
 //-----------------------------------------------------------------------------
 // Function pointer holder
 
+namespace detail {
 template<typename Ty>
 struct is_function_pointer : std::false_type {};
 template<typename Ret, typename... Args>
@@ -36,71 +37,10 @@ struct func_ptr_holder<Func, std::enable_if_t<std::is_empty<Func>::value>> : pub
     func_ptr_holder& operator=(const func_ptr_holder&) { return *this; }  // do nothing
     const Func& get_func() const { return *this; }
 };
+}  // namespace detail
 
 //-----------------------------------------------------------------------------
 // Functors
-
-struct deref {
-    template<typename Ty>
-    auto operator()(Ty&& p) const -> decltype(*p) {
-        return *p;
-    }
-};
-
-struct get {
-    template<typename Ty>
-    auto operator()(const Ty& p) const -> decltype(p.get()) {
-        return p.get();
-    }
-};
-
-struct lock {
-    template<typename Ty>
-    auto operator()(const Ty& p) const -> decltype(p.lock()) {
-        return p.lock();
-    }
-};
-
-namespace detail {
-template<typename Ty, std::size_t N, typename Func1, typename Func2>
-auto get_n_impl(Ty&& v) -> decltype(Func1{}(std::get<N>(Func2{}(std::forward<Ty>(v))))) {
-    return Func1{}(std::get<N>(Func2{}(std::forward<Ty>(v))));
-}
-template<typename Ty, std::size_t N, typename Func1, typename Func2, typename... Dummy>
-auto get_n_impl(Ty&& v, Dummy&&...) -> decltype(Func1{}(Func2{}(std::forward<Ty>(v)))) {
-    static_assert(N == 0, "template parameter `n` must be 0");
-    return Func1{}(Func2{}(std::forward<Ty>(v)));
-}
-}  // namespace detail
-
-template<std::size_t N, typename Func1 = nofunc, typename Func2 = nofunc>
-struct get_n {
-    template<typename Ty>
-    auto operator()(Ty&& v) const -> decltype(detail::get_n_impl<Ty, N, Func1, Func2>(std::forward<Ty>(v))) {
-        return detail::get_n_impl<Ty, N, Func1, Func2>(std::forward<Ty>(v));
-    }
-};
-
-namespace detail {
-template<typename Ty>
-auto get_key_impl(Ty&& v) -> decltype(v.key()) {
-    return v.key();
-}
-template<typename Ty, typename... Dummy>
-auto get_key_impl(Ty&& v, Dummy&&...) -> decltype(get_n<0>{}(std::forward<Ty>(v))) {
-    return get_n<0>{}(std::forward<Ty>(v));
-}
-}  // namespace detail
-
-struct key {
-    template<typename Ty>
-    auto operator()(Ty&& v) const -> decltype(detail::get_key_impl(std::forward<Ty>(v))) {
-        return detail::get_key_impl(std::forward<Ty>(v));
-    }
-};
-
-template<std::size_t N, typename Func1 = nofunc>
-using deref_get_n = get_n<N, Func1, deref>;
 
 #if __cplusplus < 201402L
 template<typename Ty = void>
@@ -189,23 +129,5 @@ using less_equal = std::less_equal<Ty>;
 template<typename Ty = void>
 using greater_equal = std::greater_equal<Ty>;
 #endif  // __cplusplus < 201402L
-
-template<typename Val, typename Func, typename Eq>
-class is_equal_to_predicate : private func_ptr_holder<Func> {
- public:
-    explicit is_equal_to_predicate(const Val& v, const Func& fn) : func_ptr_holder<Func>(fn), v_(&v) {}
-    template<typename Ty>
-    bool operator()(const Ty& i) const {
-        return Eq{}(this->get_func()(i), *v_);
-    }
-
- private:
-    const Val* v_;
-};
-
-template<typename Val, typename Func = key, typename Eq = equal_to<>>
-is_equal_to_predicate<Val, Func, Eq> is_equal_to(const Val& v, const Func& fn = Func{}) {
-    return is_equal_to_predicate<Val, Func, Eq>(v, fn);
-}
 
 }  // namespace uxs

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "chars.h"
 #include "span.h"
 #include "string_cvt.h"
 #include "type_traits.h"
@@ -446,7 +447,7 @@ class arg_store {
     }
 
     template<typename Traits>
-    UXS_CONSTEXPR static void store_value(const std::basic_string_view<char_type, Traits>& s, void* data) noexcept {
+    UXS_CONSTEXPR static void store_value(std::basic_string_view<char_type, Traits> s, void* data) noexcept {
         ::new (data) std::basic_string_view<char_type>(s.data(), s.size());
     }
 
@@ -902,17 +903,17 @@ class basic_format_context {
     template<typename Ty>
     using formatter_type = formatter<Ty, char_type>;
 
-    basic_format_context(output_type& s, locale_ref loc, format_args_type args) noexcept
-        : s_(s), loc_(loc), args_(args) {}
-    basic_format_context(output_type& s, const basic_format_context& other) noexcept
-        : s_(s), loc_(other.loc_), args_(other.args_) {}
+    basic_format_context(output_type& out, locale_ref loc, format_args_type args) noexcept
+        : out_(out), loc_(loc), args_(args) {}
+    basic_format_context(output_type& out, const basic_format_context& other) noexcept
+        : out_(out), loc_(other.loc_), args_(other.args_) {}
 #if __cplusplus >= 201703L
     basic_format_context(const basic_format_context&) = delete;
 #else   // __cplusplus >= 201703L
     basic_format_context(const basic_format_context&) noexcept = default;
 #endif  // __cplusplus >= 201703L
     basic_format_context& operator=(const basic_format_context&) = delete;
-    output_type& out() { return s_; }
+    output_type& out() { return out_; }
     locale_ref locale() const { return loc_; }
     format_args_type args() const { return args_; }
     format_arg_type arg(std::size_t id) const { return args_.get(id); }
@@ -927,7 +928,7 @@ class basic_format_context {
     void format_arg(parse_context& parse_ctx, typename format_arg_type::handle h) { h.format(*this, parse_ctx); }
 
  private:
-    output_type& s_;
+    output_type& out_;
     locale_ref loc_;
     format_args_type args_;
 };
@@ -966,9 +967,9 @@ template<typename CharT, typename... Args>
 class basic_format_string {
  public:
     using char_type = CharT;
-    template<typename Ty,
-             typename = std::enable_if_t<std::is_convertible<const Ty&, std::basic_string_view<char_type>>::value>>
-    UXS_CONSTEVAL basic_format_string(const Ty& fmt) noexcept : fmt_(fmt) {
+    template<typename StrTy,
+             typename = std::enable_if_t<std::is_convertible<const StrTy&, std::basic_string_view<char_type>>::value>>
+    UXS_CONSTEVAL basic_format_string(const StrTy& fmt) noexcept : fmt_(fmt) {
 #if defined(UXS_HAS_CONSTEVAL)
         using parse_context = compile_parse_context<char_type>;
         constexpr std::array<sfmt::index_t, sizeof...(Args)> arg_types{sfmt::arg_type_index<Args, char_type>::value...};
@@ -990,80 +991,75 @@ using format_string = basic_format_string<char, est::type_identity_t<Args>...>;
 template<typename... Args>
 using wformat_string = basic_format_string<wchar_t, est::type_identity_t<Args>...>;
 
-// ---- basic_vformat
+// ---- vformat_append
 
 namespace detail {
-
 template<typename CharT>
-void basic_vformat(basic_membuffer<CharT>& s, locale_ref loc, std::basic_string_view<CharT> fmt,
-                   basic_format_args<basic_format_context<CharT>> args) {
-    sfmt::vformat(basic_format_context<CharT>{s, loc, args}, basic_format_parse_context<CharT>{fmt});
+void vformat_append(basic_membuffer<CharT>& out, locale_ref loc, std::basic_string_view<CharT> fmt,
+                    basic_format_args<basic_format_context<CharT>> args) {
+    sfmt::vformat(basic_format_context<CharT>{out, loc, args}, basic_format_parse_context<CharT>{fmt});
 }
-
 template<typename StrTy,
          typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
-void basic_vformat(StrTy& s, locale_ref loc, std::basic_string_view<typename StrTy::value_type> fmt,
-                   basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
+void vformat_append(StrTy& out, locale_ref loc, std::basic_string_view<typename StrTy::value_type> fmt,
+                    basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
     using char_type = typename StrTy::value_type;
-    inline_basic_dynbuffer<char_type> buf;
+    basic_inline_dynbuffer<char_type> buf;
     sfmt::vformat(basic_format_context<char_type>{buf, loc, args}, basic_format_parse_context<char_type>{fmt});
-    s.append(buf.data(), buf.size());
+    out.append(buf.data(), buf.size());
 }
-
 }  // namespace detail
 
 template<typename StrTy>
-StrTy& basic_vformat(StrTy& s, std::basic_string_view<typename StrTy::value_type> fmt,
-                     basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
-    detail::basic_vformat(s, locale_ref{}, fmt, args);
-    return s;
+void vformat_append(StrTy& out, std::basic_string_view<typename StrTy::value_type> fmt,
+                    basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
+    detail::vformat_append(out, locale_ref{}, fmt, args);
 }
 
 template<typename StrTy>
-StrTy& basic_vformat(StrTy& s, const std::locale& loc, std::basic_string_view<typename StrTy::value_type> fmt,
-                     basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
-    detail::basic_vformat(s, locale_ref{loc}, fmt, args);
-    return s;
+void vformat_append(StrTy& out, const std::locale& loc, std::basic_string_view<typename StrTy::value_type> fmt,
+                    basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
+    detail::vformat_append(out, locale_ref{loc}, fmt, args);
 }
 
-// ---- basic_format
+// ---- format_append
 
 template<typename StrTy, typename... Args>
-StrTy& basic_format(StrTy& s, basic_format_string<typename StrTy::value_type, est::type_identity_t<Args>...> fmt,
-                    const Args&... args) {
-    return basic_vformat(s, fmt.get(), make_format_args<basic_format_context<typename StrTy::value_type>>(args...));
+void format_append(StrTy& out, basic_format_string<typename StrTy::value_type, est::type_identity_t<Args>...> fmt,
+                   const Args&... args) {
+    vformat_append(out, fmt.get(), make_format_args<basic_format_context<typename StrTy::value_type>>(args...));
 }
 
 template<typename StrTy, typename... Args>
-StrTy& basic_format(StrTy& s, const std::locale& loc,
-                    basic_format_string<typename StrTy::value_type, est::type_identity_t<Args>...> fmt,
-                    const Args&... args) {
-    return basic_vformat(s, loc, fmt.get(), make_format_args<basic_format_context<typename StrTy::value_type>>(args...));
+void format_append(StrTy& out, const std::locale& loc,
+                   basic_format_string<typename StrTy::value_type, est::type_identity_t<Args>...> fmt,
+                   const Args&... args) {
+    vformat_append(out, loc, fmt.get(), make_format_args<basic_format_context<typename StrTy::value_type>>(args...));
 }
 
 // ---- vformat
 
 inline std::string vformat(std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    basic_vformat(buf, fmt, args);
+    vformat_append(buf, fmt, args);
     return std::string(buf.data(), buf.size());
 }
 
 inline std::wstring vformat(std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    basic_vformat(buf, fmt, args);
+    vformat_append(buf, fmt, args);
     return std::wstring(buf.data(), buf.size());
 }
 
 inline std::string vformat(const std::locale& loc, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    basic_vformat(buf, loc, fmt, args);
+    vformat_append(buf, loc, fmt, args);
     return std::string(buf.data(), buf.size());
 }
 
 inline std::wstring vformat(const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    basic_vformat(buf, loc, fmt, args);
+    vformat_append(buf, loc, fmt, args);
     return std::wstring(buf.data(), buf.size());
 }
 
@@ -1093,49 +1089,53 @@ std::wstring format(const std::locale& loc, wformat_string<Args...> fmt, const A
 
 inline char* vformat_to(char* p, std::string_view fmt, format_args args) {
     membuffer buf(p);
-    return basic_vformat(buf, fmt, args).endp();
+    vformat_append(buf, fmt, args);
+    return buf.endp();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
 OutputIt vformat_to(OutputIt out, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    basic_vformat(buf, fmt, args);
+    vformat_append(buf, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
 inline wchar_t* vformat_to(wchar_t* p, std::wstring_view fmt, wformat_args args) {
     wmembuffer buf(p);
-    return basic_vformat(buf, fmt, args).endp();
+    vformat_append(buf, fmt, args);
+    return buf.endp();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
 OutputIt vformat_to(OutputIt out, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    basic_vformat(buf, fmt, args);
+    vformat_append(buf, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
 inline char* vformat_to(char* p, const std::locale& loc, std::string_view fmt, format_args args) {
     membuffer buf(p);
-    return basic_vformat(buf, loc, fmt, args).endp();
+    vformat_append(buf, loc, fmt, args);
+    return buf.endp();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
 OutputIt vformat_to(OutputIt out, const std::locale& loc, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    basic_vformat(buf, loc, fmt, args);
+    vformat_append(buf, loc, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
 inline wchar_t* vformat_to(wchar_t* p, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     wmembuffer buf(p);
-    return basic_vformat(buf, loc, fmt, args).endp();
+    vformat_append(buf, loc, fmt, args);
+    return buf.endp();
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
 OutputIt vformat_to(OutputIt out, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    basic_vformat(buf, loc, fmt, args);
+    vformat_append(buf, loc, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
 
@@ -1178,53 +1178,57 @@ struct format_to_n_result {
 
 inline format_to_n_result<char*> vformat_to_n(char* p, std::size_t n, std::string_view fmt, format_args args) {
     membuffer_with_size_tracker buf(p, n);
-    return {basic_vformat(buf, fmt, args).endp(), buf.tracked_size()};
+    vformat_append(buf, fmt, args);
+    return {buf.endp(), buf.tracked_size()};
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
 format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
-    basic_vformat(buf, fmt, args);
+    vformat_append(buf, fmt, args);
     return {std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out)), buf.size()};
 }
 
 inline format_to_n_result<wchar_t*> vformat_to_n(wchar_t* p, std::size_t n, std::wstring_view fmt, wformat_args args) {
     wmembuffer_with_size_tracker buf(p, n);
-    return {basic_vformat(buf, fmt, args).endp(), buf.tracked_size()};
+    vformat_append(buf, fmt, args);
+    return {buf.endp(), buf.tracked_size()};
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
 format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
-    basic_vformat(buf, fmt, args);
+    vformat_append(buf, fmt, args);
     return {std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out)), buf.size()};
 }
 
 inline format_to_n_result<char*> vformat_to_n(char* p, std::size_t n, const std::locale& loc, std::string_view fmt,
                                               format_args args) {
     membuffer_with_size_tracker buf(p, n);
-    return {basic_vformat(buf, loc, fmt, args).endp(), buf.tracked_size()};
+    vformat_append(buf, loc, fmt, args);
+    return {buf.endp(), buf.tracked_size()};
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
 format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, const std::locale& loc, std::string_view fmt,
                                           format_args args) {
     inline_dynbuffer buf;
-    basic_vformat(buf, loc, fmt, args);
+    vformat_append(buf, loc, fmt, args);
     return {std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out)), buf.size()};
 }
 
 inline format_to_n_result<wchar_t*> vformat_to_n(wchar_t* p, std::size_t n, const std::locale& loc,
                                                  std::wstring_view fmt, wformat_args args) {
     wmembuffer_with_size_tracker buf(p, n);
-    return {basic_vformat(buf, loc, fmt, args).endp(), buf.tracked_size()};
+    vformat_append(buf, loc, fmt, args);
+    return {buf.endp(), buf.tracked_size()};
 }
 
 template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
 format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, const std::locale& loc, std::wstring_view fmt,
                                           wformat_args args) {
     inline_wdynbuffer buf;
-    basic_vformat(buf, loc, fmt, args);
+    vformat_append(buf, loc, fmt, args);
     return {std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out)), buf.size()};
 }
 

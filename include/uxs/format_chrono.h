@@ -715,7 +715,6 @@ void format_chrono_time_zone(FmtCtx& ctx, std::chrono::seconds offset, const chr
 
 template<typename Ty, typename = void>
 struct is_floating_point_duration : std::false_type {};
-
 template<typename Rep, typename Period>
 struct is_floating_point_duration<std::chrono::duration<Rep, Period>,
                                   std::enable_if_t<std::is_floating_point<Rep>::value>> : std::true_type {};
@@ -774,7 +773,7 @@ UXS_FMT_IMPLEMENT_CHRONO_DURATION_SUFFIX(std::ratio<86400>, 'd')
 
 template<typename FmtCtx, typename Rep, typename Period>
 void duration_default_writer(FmtCtx& ctx, std::chrono::duration<Rep, Period> d, fmt_opts opts) {
-    to_basic_string(ctx.out(), *ctx.locale(), d.count(), fmt_opts{opts.flags, opts.prec});
+    to_string_append(ctx.out(), *ctx.locale(), d.count(), fmt_opts{opts.flags, opts.prec});
     detail::duration_suffix_writer<typename Period::type>{}.write(ctx);
 }
 
@@ -856,11 +855,11 @@ struct chrono_formatter {
             specs.opts.prec = ctx.arg(prec_arg_id_).template get_unsigned<decltype(specs.opts.prec)>();
         }
         if (specs.opts.width == 0) { return format_impl(ctx, val, specs); }
-        inline_basic_dynbuffer<CharT> buf;
+        basic_inline_dynbuffer<CharT> buf;
         basic_format_context<CharT> buf_ctx{buf, ctx};
         format_impl(buf_ctx, val, specs);
         const unsigned len = static_cast<unsigned>(buf.size());
-        const auto fn = [&buf](basic_membuffer<CharT>& s) { s.append(buf.data(), buf.size()); };
+        const auto fn = [&buf](basic_membuffer<CharT>& out) { out.append(buf.data(), buf.size()); };
         return specs.opts.width > len ? append_adjusted(ctx.out(), fn, len, specs.opts) : fn(ctx.out());
     }
 };
@@ -882,7 +881,7 @@ struct formatter<std::chrono::duration<Rep, Period>, CharT>
     template<typename FmtCtx>
     static void value_writer(FmtCtx& ctx, value_type d, const detail::chrono_specs& specs) {
         if (specs.spec == detail::chrono_specifier::ticks) {
-            to_basic_string(ctx.out(), *ctx.locale(), d.count(), fmt_opts{specs.opts.flags, specs.opts.prec});
+            to_string_append(ctx.out(), *ctx.locale(), d.count(), fmt_opts{specs.opts.flags, specs.opts.prec});
         } else if (specs.spec == detail::chrono_specifier::unit_suffix) {
             detail::duration_suffix_writer<typename Period::type>{}.write(ctx);
         } else {

@@ -19,7 +19,7 @@ std::string from_wide_to_utf8(std::wstring_view s) {
 // --------------------------
 
 template<typename CharT>
-std::basic_string_view<CharT> basic_trim_string(std::basic_string_view<CharT> s) {
+std::basic_string_view<CharT> trim_string_generic(std::basic_string_view<CharT> s) {
     auto p1 = s.begin();
     auto p2 = s.end();
     while (p1 != p2 && is_space(*p1)) { ++p1; }
@@ -27,29 +27,15 @@ std::basic_string_view<CharT> basic_trim_string(std::basic_string_view<CharT> s)
     return s.substr(p1 - s.begin(), p2 - p1);
 }
 
-std::string_view trim_string(std::string_view s) { return basic_trim_string(s); }
-std::wstring_view trim_string(std::wstring_view s) { return basic_trim_string(s); }
-
-// --------------------------
-
-std::vector<std::string> unpack_strings(std::string_view s, char sep) {
-    std::vector<std::string> result;
-    unpack_strings(s, sep, nofunc(), std::back_inserter(result));
-    return result;
-}
-
-std::vector<std::wstring> unpack_strings(std::wstring_view s, char sep) {
-    std::vector<std::wstring> result;
-    unpack_strings(s, sep, nofunc(), std::back_inserter(result));
-    return result;
-}
+std::string_view trim_string(std::string_view s) { return trim_string_generic(s); }
+std::wstring_view trim_string(std::wstring_view s) { return trim_string_generic(s); }
 
 // --------------------------
 
 template<typename CharT, typename Traits>
-std::basic_string<CharT, Traits> basic_encode_escapes(std::basic_string_view<CharT, Traits> s,
-                                                      std::basic_string_view<CharT, Traits> symb,
-                                                      std::basic_string_view<CharT, Traits> code) {
+std::basic_string<CharT, Traits> encode_escapes_generic(std::basic_string_view<CharT, Traits> s,
+                                                        std::basic_string_view<CharT, Traits> symb,
+                                                        std::basic_string_view<CharT, Traits> code) {
     std::basic_string<CharT, Traits> result;
     result.reserve(s.size());
     auto p0 = s.begin();
@@ -68,19 +54,19 @@ std::basic_string<CharT, Traits> basic_encode_escapes(std::basic_string_view<Cha
 }
 
 std::string encode_escapes(std::string_view s, std::string_view symb, std::string_view code) {
-    return basic_encode_escapes(s, symb, code);
+    return encode_escapes_generic(s, symb, code);
 }
 
 std::wstring encode_escapes(std::wstring_view s, std::wstring_view symb, std::wstring_view code) {
-    return basic_encode_escapes(s, symb, code);
+    return encode_escapes_generic(s, symb, code);
 }
 
 // --------------------------
 
 template<typename CharT, typename Traits>
-std::basic_string<CharT, Traits> basic_decode_escapes(std::basic_string_view<CharT, Traits> s,
-                                                      std::basic_string_view<CharT, Traits> symb,
-                                                      std::basic_string_view<CharT, Traits> code) {
+std::basic_string<CharT, Traits> decode_escapes_generic(std::basic_string_view<CharT, Traits> s,
+                                                        std::basic_string_view<CharT, Traits> symb,
+                                                        std::basic_string_view<CharT, Traits> code) {
     std::basic_string<CharT, Traits> result;
     result.reserve(s.size());
     auto p0 = s.begin();
@@ -101,17 +87,17 @@ std::basic_string<CharT, Traits> basic_decode_escapes(std::basic_string_view<Cha
 }
 
 std::string decode_escapes(std::string_view s, std::string_view symb, std::string_view code) {
-    return basic_decode_escapes(s, symb, code);
+    return decode_escapes_generic(s, symb, code);
 }
 
 std::wstring decode_escapes(std::wstring_view s, std::wstring_view symb, std::wstring_view code) {
-    return basic_decode_escapes(s, symb, code);
+    return decode_escapes_generic(s, symb, code);
 }
 
 // --------------------------
 
 template<typename CharT>
-int basic_compare_strings_nocase(std::basic_string_view<CharT> lhs, std::basic_string_view<CharT> rhs) {
+int compare_strings_nocase_generic(std::basic_string_view<CharT> lhs, std::basic_string_view<CharT> rhs) {
     auto p1_end = lhs.begin() + std::min(lhs.size(), rhs.size());
     for (auto p1 = lhs.begin(), p2 = rhs.begin(); p1 != p1_end; ++p1, ++p2) {
         CharT ch1 = to_lower(*p1);
@@ -125,11 +111,11 @@ int basic_compare_strings_nocase(std::basic_string_view<CharT> lhs, std::basic_s
 }
 
 int compare_strings_nocase(std::string_view lhs, std::string_view rhs) {
-    return basic_compare_strings_nocase(lhs, rhs);
+    return compare_strings_nocase_generic(lhs, rhs);
 }
 
 int compare_strings_nocase(std::wstring_view lhs, std::wstring_view rhs) {
-    return basic_compare_strings_nocase(lhs, rhs);
+    return compare_strings_nocase_generic(lhs, rhs);
 }
 
 // --------------------------

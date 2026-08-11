@@ -56,7 +56,7 @@ class iostate {
     bool bad() const noexcept { return !!(state_ & iostate_bits::bad); }
     bool fail() const noexcept { return !!(state_ & (iostate_bits::fail | iostate_bits::bad)); }
     bool eof() const noexcept { return !!(state_ & iostate_bits::eof); }
-    operator bool() const noexcept { return !fail(); }
+    explicit operator bool() const noexcept { return !fail(); }
     bool operator!() const noexcept { return fail(); }
 
     void setstate(iostate_bits bits) { clear(state_ | bits); }

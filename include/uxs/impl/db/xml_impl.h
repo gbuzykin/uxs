@@ -20,7 +20,7 @@ void parser::read(std::string_view root_element, basic_value<CharT, Alloc>& val)
             case value_class::false_value: return {false, al};
             case value_class::integer_number: {
                 std::uint64_t u64 = 0;
-                if (from_string(sval, u64) != 0) {
+                if (from_string_generic(sval, u64) != 0) {
                     if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max())) {
                         return {static_cast<std::int32_t>(u64), al};
                     }
@@ -33,20 +33,28 @@ void parser::read(std::string_view root_element, basic_value<CharT, Alloc>& val)
                     return {u64, al};
                 }
                 // too big integer - treat as double
-                return {from_string<double>(sval), al};
+                double f = 0;
+                from_string_generic(sval, f);
+                return {f, al};
             } break;
             case value_class::negative_integer_number: {
                 std::int64_t i64 = 0;
-                if (from_string(sval, i64) != 0) {
+                if (from_string_generic(sval, i64) != 0) {
                     if (i64 >= static_cast<std::int64_t>(std::numeric_limits<std::int32_t>::min())) {
                         return {static_cast<std::int32_t>(i64), al};
                     }
                     return {i64, al};
                 }
                 // too big integer - treat as double
-                return {from_string<double>(sval), al};
+                double f = 0;
+                from_string_generic(sval, f);
+                return {f, al};
             } break;
-            case value_class::floating_point_number: return {from_string<double>(sval), al};
+            case value_class::floating_point_number: {
+                double f = 0;
+                from_string_generic(sval, f);
+                return {f, al};
+            } break;
             case value_class::ws_with_nl: return make_record<CharT>(al);
             case value_class::other: return {utf_string_adapter<CharT>{}(sval), al};
             default: UXS_UNREACHABLE_CODE;

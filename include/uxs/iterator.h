@@ -39,7 +39,6 @@ using is_random_access_iterator =
 
 template<typename Iter, typename Ty, typename = void>
 struct is_output_iterator : std::false_type {};
-
 template<typename Iter, typename Ty>
 struct is_output_iterator<Iter, Ty, std::void_t<decltype(*std::declval<Iter&>()++ = std::declval<Ty>())>>
     : std::true_type {};
@@ -150,8 +149,7 @@ bool operator!=(const iterator_range<IterL>& lhs, const iterator_range<IterR>& r
 //-----------------------------------------------------------------------------
 // Iterator facade
 
-template<typename Iter, typename ValTy, typename Tag,  //
-         typename RefTy, typename PtrTy, typename DiffTy = std::ptrdiff_t>
+template<typename Iter, typename ValTy, typename Tag, typename RefTy, typename PtrTy, typename DiffTy = std::ptrdiff_t>
 class iterator_facade {
  public:
     using iterator_category = Tag;
@@ -431,7 +429,7 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
 // List iterator
 
 template<typename Traits, typename NodeTraits, bool Const>
-class list_iterator : public container_iterator_facade<Traits, list_iterator<Traits, NodeTraits, Const>,  //
+class list_iterator : public container_iterator_facade<Traits, list_iterator<Traits, NodeTraits, Const>,
                                                        std::bidirectional_iterator_tag, Const> {
  private:
     using super = container_iterator_facade<Traits, list_iterator, std::bidirectional_iterator_tag, Const>;
@@ -490,33 +488,6 @@ class list_iterator : public container_iterator_facade<Traits, list_iterator<Tra
 };
 
 //-----------------------------------------------------------------------------
-// Const value iterator
-
-template<typename Val>
-class const_value_iterator : public iterator_facade<const_value_iterator<Val>, Val,  //
-                                                    std::input_iterator_tag, const Val&, const Val*> {
- public:
-    explicit const_value_iterator(const Val& v) noexcept : v_(std::addressof(v)) {}
-
-    void increment() noexcept {}
-    void advance(std::ptrdiff_t /*j*/) noexcept {}
-    const Val& dereference() const noexcept { return *v_; }
-    bool is_equal_to(const const_value_iterator& it) const noexcept {
-        (void)it;
-        assert(v_ == it.v_);
-        return true;
-    }
-
- private:
-    const Val* v_;
-};
-
-template<typename Val>
-const_value_iterator<Val> const_value(const Val& v) noexcept {
-    return const_value_iterator<Val>(v);
-}
-
-//-----------------------------------------------------------------------------
 // Limited output iterator
 
 template<typename BaseIt>
@@ -557,7 +528,7 @@ class limited_output_iterator {
 };
 
 template<typename BaseIt>
-limited_output_iterator<BaseIt> limit_output_iterator(const BaseIt& base, std::ptrdiff_t limit) {
+limited_output_iterator<BaseIt> make_limited_output_iterator(const BaseIt& base, std::ptrdiff_t limit) {
     return limited_output_iterator<BaseIt>(base, limit);
 }
 

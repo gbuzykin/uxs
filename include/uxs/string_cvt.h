@@ -1,6 +1,5 @@
 #pragma once
 
-#include "chars.h"
 #include "membuffer.h"
 #include "string_util.h"
 
@@ -68,11 +67,11 @@ class locale_ref {
 // --------------------------
 
 template<typename StrTy, typename InputIt>
-std::size_t append_escaped_text(StrTy& s, InputIt first, InputIt last, bool single_quoted,
+std::size_t append_escaped_text(StrTy& out, InputIt first, InputIt last, bool single_quoted,
                                 std::size_t max_width = std::numeric_limits<std::size_t>::max()) {
     using char_type = typename StrTy::value_type;
     if (max_width == 0) { return 0; }
-    s += single_quoted ? '\'' : '\"';
+    out += single_quoted ? '\'' : '\"';
     std::size_t width = 1;
     std::uint32_t code = 0;
     unsigned count = 0;
@@ -112,12 +111,12 @@ std::size_t append_escaped_text(StrTy& s, InputIt first, InputIt last, bool sing
                 }
             } break;
         }
-        s.append(first0, first);
+        out.append(first0, first);
         if (esc) {
             if (max_width - width < 2) { goto finish; }
             width += 2;
-            s += '\\';
-            s += esc;
+            out += '\\';
+            out += esc;
         } else {
             std::array<char_type, 8> digs;
             char_type* p = digs.data();
@@ -126,17 +125,17 @@ std::size_t append_escaped_text(StrTy& s, InputIt first, InputIt last, bool sing
             const unsigned w = 4 + count;
             if (max_width - width < w) { goto finish; }
             width += w;
-            s += is_wellformed ? string_literal<char_type, '\\', 'u', '{'>{}() :
-                                 string_literal<char_type, '\\', 'x', '{'>{}();
-            do { s += *--p; } while (p != digs.data());
-            s += '}';
+            out += is_wellformed ? string_literal<char_type, '\\', 'u', '{'>{}() :
+                                   string_literal<char_type, '\\', 'x', '{'>{}();
+            do { out += *--p; } while (p != digs.data());
+            out += '}';
         }
         first0 = next;
     }
 finish:
-    s.append(first0, first);
+    out.append(first0, first);
     if (width == max_width) { return width; }
-    s += single_quoted ? '\'' : '\"';
+    out += single_quoted ? '\'' : '\"';
     return width + 1;
 }
 
@@ -149,7 +148,7 @@ std::size_t estimate_string_width(InputIt first, InputIt last) {
 }
 
 template<typename StrTy, typename Func>
-void append_adjusted(StrTy& s, Func fn, unsigned len, fmt_opts fmt, bool prefer_right = false) {
+void append_adjusted(StrTy& out, Func fn, unsigned len, fmt_opts fmt, bool prefer_right = false) {
     unsigned left = fmt.width - len;
     unsigned right = left;
     if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::left) {
@@ -161,9 +160,9 @@ void append_adjusted(StrTy& s, Func fn, unsigned len, fmt_opts fmt, bool prefer_
     } else {
         left = 0;
     }
-    s.append(left, fmt.fill);
-    fn(s);
-    s.append(right, fmt.fill);
+    out.append(left, fmt.fill);
+    fn(out);
+    out.append(right, fmt.fill);
 }
 
 // --------------------------
@@ -288,55 +287,30 @@ UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(double, scvt::to_float<double>
 UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(long double, scvt::to_float<long double>)
 #undef UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER
 
-// ---- from_chars
-
 template<typename CharT, typename Ty>
-const CharT* from_basic_chars(const CharT* first, const CharT* last, Ty& val) {
+const CharT* from_chars(const CharT* first, const CharT* last, Ty& val) {
     return from_string_impl<Ty, CharT>{}(first, last, val);
 }
 
-template<typename Ty>
-const char* from_chars(const char* first, const char* last, Ty& val) {
-    return from_basic_chars(first, last, val);
-}
-
-template<typename Ty>
-const wchar_t* from_wchars(const wchar_t* first, const wchar_t* last, Ty& val) {
-    return from_basic_chars(first, last, val);
+template<typename CharT, typename Ty>
+std::size_t from_string_generic(std::basic_string_view<CharT> s, Ty& val) {
+    return from_chars(s.data(), s.data() + s.size(), val) - s.data();
 }
 
 // ---- from_string
 
-template<typename Ty, typename CharT, typename Traits>
-std::size_t from_basic_string(std::basic_string_view<CharT, Traits> s, Ty& val) {
-    return from_basic_chars(s.data(), s.data() + s.size(), val) - s.data();
-}
-
-template<typename Ty>
-std::size_t from_string(std::string_view s, Ty& val) {
-    return from_basic_string(s, val);
-}
-
-template<typename Ty>
-std::size_t from_wstring(std::wstring_view s, Ty& val) {
-    return from_basic_string(s, val);
-}
-
-template<typename Ty, typename CharT, typename Traits>
-Ty from_basic_string(std::basic_string_view<CharT, Traits> s) {
-    Ty result{};
-    from_basic_string(s, result);
+template<typename Ty, typename... Args>
+Ty from_string(std::string_view s, Args&&... args) {
+    Ty result(std::forward<Args>(args)...);
+    from_chars(s.data(), s.data() + s.size(), result);
     return result;
 }
 
-template<typename Ty>
-Ty from_string(std::string_view s) {
-    return from_basic_string<Ty>(s);
-}
-
-template<typename Ty>
-Ty from_wstring(std::wstring_view s) {
-    return from_basic_string<Ty>(s);
+template<typename Ty, typename... Args>
+Ty from_string(std::wstring_view s, Args&&... args) {
+    Ty result(std::forward<Args>(args)...);
+    from_chars(s.data(), s.data() + s.size(), result);
+    return result;
 }
 
 // --------------------------
@@ -359,41 +333,42 @@ struct convertible_to_string<Ty, StrTy,
 namespace scvt {
 
 template<typename CharT>
-UXS_EXPORT void fmt_boolean(basic_membuffer<CharT>& s, bool val, fmt_opts fmt = {}, locale_ref loc = {});
+UXS_EXPORT void fmt_boolean(basic_membuffer<CharT>& out, bool val, fmt_opts fmt = {}, locale_ref loc = {});
 
 template<typename CharT, typename Ty>
-UXS_EXPORT void fmt_integer_common(basic_membuffer<CharT>& s, Ty val, bool is_signed);
+UXS_EXPORT void fmt_integer_common(basic_membuffer<CharT>& out, Ty val, bool is_signed);
 
 template<typename CharT, typename Ty>
-UXS_EXPORT void fmt_integer_common(basic_membuffer<CharT>& s, Ty val, bool is_signed, fmt_opts fmt, locale_ref loc = {});
+UXS_EXPORT void fmt_integer_common(basic_membuffer<CharT>& out, Ty val, bool is_signed, fmt_opts fmt,
+                                   locale_ref loc = {});
 
 template<typename CharT>
-UXS_EXPORT void fmt_float_common(basic_membuffer<CharT>& s, std::uint64_t u64, unsigned bpm, int exp_max,
+UXS_EXPORT void fmt_float_common(basic_membuffer<CharT>& out, std::uint64_t u64, unsigned bpm, int exp_max,
                                  fmt_flags flags = fmt_flags::none);
 
 template<typename CharT>
-UXS_EXPORT void fmt_float_common(basic_membuffer<CharT>& s, std::uint64_t u64, unsigned bpm, int exp_max, fmt_opts fmt,
-                                 locale_ref loc = {});
+UXS_EXPORT void fmt_float_common(basic_membuffer<CharT>& out, std::uint64_t u64, unsigned bpm, int exp_max,
+                                 fmt_opts fmt, locale_ref loc = {});
 
 template<typename StrTy, typename Ty, typename... Opts>
-void fmt_integer(StrTy& s, Ty val, Opts&&... opts) {
+void fmt_integer(StrTy& out, Ty val, Opts&&... opts) {
     using unsigned_ty = typename std::make_unsigned<Ty>::type;
     using reduced_ty = std::conditional_t<(sizeof(unsigned_ty) <= sizeof(std::uint32_t)), std::uint32_t, std::uint64_t>;
     const bool is_signed = std::is_signed<Ty>::value;
-    fmt_integer_common(s, static_cast<reduced_ty>(val), is_signed, std::forward<Opts>(opts)...);
+    fmt_integer_common(out, static_cast<reduced_ty>(val), is_signed, std::forward<Opts>(opts)...);
 }
 
 template<typename StrTy, typename Ty, typename... Opts>
-void fmt_float(StrTy& s, Ty val, Opts&&... opts) {
-    fmt_float_common(s, fp_traits<Ty>::to_u64(val), fp_traits<Ty>::bits_per_mantissa, fp_traits<Ty>::exp_max,
+void fmt_float(StrTy& out, Ty val, Opts&&... opts) {
+    fmt_float_common(out, fp_traits<Ty>::to_u64(val), fp_traits<Ty>::bits_per_mantissa, fp_traits<Ty>::exp_max,
                      std::forward<Opts>(opts)...);
 }
 
 template<typename CharT>
-UXS_EXPORT void fmt_character(basic_membuffer<CharT>& s, CharT val, fmt_opts fmt = {}, locale_ref loc = {});
+UXS_EXPORT void fmt_character(basic_membuffer<CharT>& out, CharT val, fmt_opts fmt = {}, locale_ref loc = {});
 
 template<typename CharT>
-UXS_EXPORT void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<CharT> val, fmt_opts fmt = {},
+UXS_EXPORT void fmt_string(basic_membuffer<CharT>& out, std::basic_string_view<CharT> val, fmt_opts fmt = {},
                            locale_ref loc = {});
 
 }  // namespace scvt
@@ -401,23 +376,23 @@ UXS_EXPORT void fmt_string(basic_membuffer<CharT>& s, std::basic_string_view<Cha
 #define UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(ty, func) \
     template<typename CharT> \
     struct to_string_impl<ty, CharT> { \
-        void operator()(basic_membuffer<CharT>& s, ty val) const { func(s, val); } \
-        void operator()(basic_membuffer<CharT>& s, ty val, fmt_opts fmt, locale_ref loc = {}) const { \
-            func(s, val, fmt, loc); \
+        void operator()(basic_membuffer<CharT>& out, ty val) const { func(out, val); } \
+        void operator()(basic_membuffer<CharT>& out, ty val, fmt_opts fmt, locale_ref loc = {}) const { \
+            func(out, val, fmt, loc); \
         } \
         template<typename StrTy, typename = std::enable_if_t< \
                                      !std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>> \
-        void operator()(StrTy& s, ty val) const { \
-            inline_basic_dynbuffer<typename StrTy::value_type> buf; \
+        void operator()(StrTy& out, ty val) const { \
+            basic_inline_dynbuffer<typename StrTy::value_type> buf; \
             func(buf, val); \
-            s.append(buf.data(), buf.size()); \
+            out.append(buf.data(), buf.size()); \
         } \
         template<typename StrTy, typename = std::enable_if_t< \
                                      !std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>> \
-        void operator()(StrTy& s, ty val, fmt_opts fmt, locale_ref loc = {}) const { \
-            inline_basic_dynbuffer<typename StrTy::value_type> buf; \
+        void operator()(StrTy& out, ty val, fmt_opts fmt, locale_ref loc = {}) const { \
+            basic_inline_dynbuffer<typename StrTy::value_type> buf; \
             func(buf, val, fmt, loc); \
-            s.append(buf.data(), buf.size()); \
+            out.append(buf.data(), buf.size()); \
         } \
     };
 UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(bool, scvt::fmt_boolean)
@@ -441,101 +416,62 @@ UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(std::basic_string_view<CharT>, s
 // ---- to_string
 
 template<typename StrTy, typename Ty>
-StrTy& to_basic_string(StrTy& s, const Ty& val) {
-    to_string_impl<Ty, typename StrTy::value_type>{}(s, val);
-    return s;
+void to_string_append(StrTy& out, const Ty& val) {
+    to_string_impl<Ty, typename StrTy::value_type>{}(out, val);
 }
 
 template<typename StrTy, typename Ty>
-StrTy& to_basic_string(StrTy& s, const Ty& val, fmt_opts fmt) {
-    to_string_impl<Ty, typename StrTy::value_type>{}(s, val, fmt);
-    return s;
+void to_string_append(StrTy& out, const Ty& val, fmt_opts fmt) {
+    to_string_impl<Ty, typename StrTy::value_type>{}(out, val, fmt);
 }
 
 template<typename StrTy, typename Ty>
-StrTy& to_basic_string(StrTy& s, const std::locale& loc, const Ty& val, fmt_opts fmt) {
-    to_string_impl<Ty, typename StrTy::value_type>{}(s, val, fmt, locale_ref{loc});
-    return s;
+void to_string_append(StrTy& out, const std::locale& loc, const Ty& val, fmt_opts fmt) {
+    to_string_impl<Ty, typename StrTy::value_type>{}(out, val, fmt, locale_ref{loc});
 }
 
-template<typename Ty>
-std::string to_string(const Ty& val) {
-    inline_dynbuffer buf;
-    to_basic_string(buf, val);
-    return std::string(buf.data(), buf.size());
+template<typename CharT = char, typename Ty>
+std::basic_string<CharT> to_string(const Ty& val) {
+    basic_inline_dynbuffer<CharT> buf;
+    to_string_append(buf, val);
+    return std::basic_string<CharT>(buf.data(), buf.size());
 }
 
-template<typename Ty>
-std::string to_string(const Ty& val, fmt_opts fmt) {
-    inline_dynbuffer buf;
-    to_basic_string(buf, val, fmt);
-    return std::string(buf.data(), buf.size());
+template<typename CharT = char, typename Ty>
+std::basic_string<CharT> to_string(const Ty& val, fmt_opts fmt) {
+    basic_inline_dynbuffer<CharT> buf;
+    to_string_append(buf, val, fmt);
+    return std::basic_string<CharT>(buf.data(), buf.size());
 }
 
-template<typename Ty>
-std::string to_string(const std::locale& loc, const Ty& val, fmt_opts fmt) {
-    inline_dynbuffer buf;
-    to_basic_string(buf, loc, val, fmt);
-    return std::string(buf.data(), buf.size());
-}
-
-template<typename Ty>
-std::wstring to_wstring(const Ty& val) {
-    inline_wdynbuffer buf;
-    to_basic_string(buf, val);
-    return std::wstring(buf.data(), buf.size());
-}
-
-template<typename Ty>
-std::wstring to_wstring(const Ty& val, fmt_opts fmt) {
-    inline_wdynbuffer buf;
-    to_basic_string(buf, val, fmt);
-    return std::wstring(buf.data(), buf.size());
-}
-
-template<typename Ty>
-std::wstring to_wstring(const std::locale& loc, const Ty& val, fmt_opts fmt) {
-    inline_wdynbuffer buf;
-    to_basic_string(buf, loc, val, fmt);
-    return std::wstring(buf.data(), buf.size());
+template<typename CharT = char, typename Ty>
+std::basic_string<CharT> to_string(const std::locale& loc, const Ty& val, fmt_opts fmt) {
+    basic_inline_dynbuffer<CharT> buf;
+    to_string_append(buf, loc, val, fmt);
+    return std::basic_string<CharT>(buf.data(), buf.size());
 }
 
 // ---- to_chars
 
-template<typename Ty>
-char* to_chars(char* p, const Ty& val) {
-    membuffer buf(p);
-    return to_basic_string(buf, val).endp();
+template<typename CharT, typename Ty>
+CharT* to_chars(CharT* p, const Ty& val) {
+    basic_membuffer<CharT> buf(p);
+    to_string_append(buf, val);
+    return buf.endp();
 }
 
-template<typename Ty>
-char* to_chars(char* p, const Ty& val, fmt_opts fmt) {
-    membuffer buf(p);
-    return to_basic_string(buf, val, fmt).endp();
+template<typename CharT, typename Ty>
+CharT* to_chars(CharT* p, const Ty& val, fmt_opts fmt) {
+    basic_membuffer<CharT> buf(p);
+    to_string_append(buf, val, fmt);
+    return buf.endp();
 }
 
-template<typename Ty>
-char* to_chars(char* p, const std::locale& loc, const Ty& val, fmt_opts fmt) {
-    membuffer buf(p);
-    return to_basic_string(buf, loc, val, fmt).endp();
-}
-
-template<typename Ty>
-wchar_t* to_wchars(wchar_t* p, const Ty& val) {
-    wmembuffer buf(p);
-    return to_basic_string(buf, val).endp();
-}
-
-template<typename Ty>
-wchar_t* to_wchars(wchar_t* p, const Ty& val, fmt_opts fmt) {
-    wmembuffer buf(p);
-    return to_basic_string(buf, val, fmt).endp();
-}
-
-template<typename Ty>
-wchar_t* to_wchars(wchar_t* p, const std::locale& loc, const Ty& val, fmt_opts fmt) {
-    wmembuffer buf(p);
-    return to_basic_string(buf, loc, val, fmt).endp();
+template<typename CharT, typename Ty>
+CharT* to_chars(CharT* p, const std::locale& loc, const Ty& val, fmt_opts fmt) {
+    basic_membuffer<CharT> buf(p);
+    to_string_append(buf, loc, val, fmt);
+    return buf.endp();
 }
 
 // ---- to_chars_n
@@ -549,40 +485,25 @@ struct chars_to_n_result {
     std::size_t size;
 };
 
-template<typename Ty>
-chars_to_n_result<char> to_chars_n(char* p, std::size_t n, const Ty& val) {
-    membuffer_with_size_tracker buf(p, n);
-    return {to_basic_string(buf, val).endp(), buf.tracked_size()};
+template<typename CharT, typename Ty>
+chars_to_n_result<CharT> to_chars_n(CharT* p, std::size_t n, const Ty& val) {
+    basic_membuffer_with_size_tracker<CharT> buf(p, n);
+    to_string_append(buf, val);
+    return {buf.endp(), buf.tracked_size()};
 }
 
-template<typename Ty>
-chars_to_n_result<char> to_chars_n(char* p, std::size_t n, const Ty& val, fmt_opts fmt) {
-    membuffer_with_size_tracker buf(p, n);
-    return {to_basic_string(buf, val, fmt).endp(), buf.tracked_size()};
+template<typename CharT, typename Ty>
+chars_to_n_result<CharT> to_chars_n(CharT* p, std::size_t n, const Ty& val, fmt_opts fmt) {
+    basic_membuffer_with_size_tracker<CharT> buf(p, n);
+    to_string_append(buf, val, fmt);
+    return {buf.endp(), buf.tracked_size()};
 }
 
-template<typename Ty>
-chars_to_n_result<char> to_chars_n(char* p, std::size_t n, const std::locale& loc, const Ty& val, fmt_opts fmt) {
-    membuffer_with_size_tracker buf(p, n);
-    return {to_basic_string(buf, loc, val, fmt).endp(), buf.tracked_size()};
-}
-
-template<typename Ty>
-chars_to_n_result<wchar_t> to_wchars_n(wchar_t* p, std::size_t n, const Ty& val) {
-    wmembuffer_with_size_tracker buf(p, n);
-    return {to_basic_string(buf, val).endp(), buf.tracked_size()};
-}
-
-template<typename Ty>
-chars_to_n_result<wchar_t> to_wchars_n(wchar_t* p, std::size_t n, const Ty& val, fmt_opts fmt) {
-    wmembuffer_with_size_tracker buf(p, n);
-    return {to_basic_string(buf, val, fmt).endp(), buf.tracked_size()};
-}
-
-template<typename Ty>
-chars_to_n_result<wchar_t> to_wchars_n(wchar_t* p, std::size_t n, const std::locale& loc, const Ty& val, fmt_opts fmt) {
-    wmembuffer_with_size_tracker buf(p, n);
-    return {to_basic_string(buf, loc, val, fmt).endp(), buf.tracked_size()};
+template<typename CharT, typename Ty>
+chars_to_n_result<CharT> to_chars_n(CharT* p, std::size_t n, const std::locale& loc, const Ty& val, fmt_opts fmt) {
+    basic_membuffer_with_size_tracker<CharT> buf(p, n);
+    to_string_append(buf, loc, val, fmt);
+    return {buf.endp(), buf.tracked_size()};
 }
 
 }  // namespace uxs

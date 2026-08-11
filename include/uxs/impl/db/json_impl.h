@@ -20,7 +20,7 @@ void read(ibuf& in, basic_value<CharT, Alloc>& val) {
             case token_t::false_value: return {false, al};
             case token_t::integer_number: {
                 std::uint64_t u64 = 0;
-                if (from_string(lval, u64) != 0) {
+                if (from_string_generic(lval, u64) != 0) {
                     if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max())) {
                         return {static_cast<std::int32_t>(u64), al};
                     }
@@ -33,20 +33,28 @@ void read(ibuf& in, basic_value<CharT, Alloc>& val) {
                     return {u64, al};
                 }
                 // too big integer - treat as double
-                return {from_string<double>(lval), al};
+                double f = 0;
+                from_string_generic(lval, f);
+                return {f, al};
             } break;
             case token_t::negative_integer_number: {
                 std::int64_t i64 = 0;
-                if (from_string(lval, i64) != 0) {
+                if (from_string_generic(lval, i64) != 0) {
                     if (i64 >= static_cast<std::int64_t>(std::numeric_limits<std::int32_t>::min())) {
                         return {static_cast<std::int32_t>(i64), al};
                     }
                     return {i64, al};
                 }
                 // too big integer - treat as double
-                return {from_string<double>(lval), al};
+                double f = 0;
+                from_string_generic(lval, f);
+                return {f, al};
             } break;
-            case token_t::floating_point_number: return {from_string<double>(lval), al};
+            case token_t::floating_point_number: {
+                double f = 0;
+                from_string_generic(lval, f);
+                return {f, al};
+            } break;
             case token_t::string: return {utf_string_adapter<CharT>{}(lval), al};
             default: UXS_UNREACHABLE_CODE;
         }

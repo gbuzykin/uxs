@@ -179,7 +179,7 @@ bool variant_type_impl<std::int32_t>::convert_from(variant_id type, void* to, co
     auto& result = *static_cast<std::int32_t*>(to);
     switch (type) {
         case variant_id::string: {
-            return from_string(*static_cast<const std::string*>(from), result) != 0;
+            return from_string_generic<char>(*static_cast<const std::string*>(from), result) != 0;
         } break;
         default: return false;
     }
@@ -204,7 +204,7 @@ bool variant_type_impl<std::uint32_t>::convert_from(variant_id type, void* to, c
     auto& result = *static_cast<std::uint32_t*>(to);
     switch (type) {
         case variant_id::string: {
-            return from_string(*static_cast<const std::string*>(from), result) != 0;
+            return from_string_generic<char>(*static_cast<const std::string*>(from), result) != 0;
         } break;
         case variant_id::integer: {
             const auto& v = *static_cast<const std::int32_t*>(from);
@@ -238,7 +238,7 @@ bool variant_type_impl<std::int64_t>::convert_from(variant_id type, void* to, co
     auto& result = *static_cast<std::int64_t*>(to);
     switch (type) {
         case variant_id::string: {
-            return from_string(*static_cast<const std::string*>(from), result) != 0;
+            return from_string_generic<char>(*static_cast<const std::string*>(from), result) != 0;
         } break;
         case variant_id::integer: {
             result = *static_cast<const std::int32_t*>(from);
@@ -279,7 +279,7 @@ bool variant_type_impl<std::uint64_t>::convert_from(variant_id type, void* to, c
     auto& result = *static_cast<std::uint64_t*>(to);
     switch (type) {
         case variant_id::string: {
-            return from_string(*static_cast<const std::string*>(from), result) != 0;
+            return from_string_generic<char>(*static_cast<const std::string*>(from), result) != 0;
         } break;
         case variant_id::integer: {
             const auto& v = *static_cast<const std::int32_t*>(from);
@@ -329,7 +329,7 @@ bool variant_type_impl<double>::convert_from(variant_id type, void* to, const vo
     auto& result = *static_cast<double*>(to);
     switch (type) {
         case variant_id::string: {
-            return from_string(*static_cast<const std::string*>(from), result) != 0;
+            return from_string_generic<char>(*static_cast<const std::string*>(from), result) != 0;
         } break;
         case variant_id::integer: {
             result = *static_cast<const std::int32_t*>(from);
