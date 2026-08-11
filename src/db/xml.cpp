@@ -148,9 +148,14 @@ value_class parser::classify_value(const std::string_view& sval) {
     }
 }
 
-detail::lexer::lexer(ibuf& in) : in(in) { stack.push_back(lex_detail::sc_initial); }
+template UXS_EXPORT basic_value<char> parser::read(std::string_view, const std::allocator<char>&);
+template UXS_EXPORT basic_value<wchar_t> parser::read(std::string_view, const std::allocator<wchar_t>&);
 
-detail::lex_token_t detail::lexer::lex(std::string_view& lval) {
+namespace detail {
+
+lexer::lexer(ibuf& in) : in(in) { stack.push_back(lex_detail::sc_initial); }
+
+lex_token_t lexer::lex(std::string_view& lval) {
     char current_string_quot = '\0';
     bool need_to_normalize_string = false;
 
@@ -296,42 +301,42 @@ detail::lex_token_t detail::lexer::lex(std::string_view& lval) {
             case lex_detail::pat_amp: {
                 if (!current_string_quot) {
                     lval = string_literal<char, '&'>{}();
-                    return detail::lex_token_t::predef_entity;
+                    return lex_token_t::predef_entity;
                 }
                 str += '&';
             } break;
             case lex_detail::pat_lt: {
                 if (!current_string_quot) {
                     lval = string_literal<char, '<'>{}();
-                    return detail::lex_token_t::predef_entity;
+                    return lex_token_t::predef_entity;
                 }
                 str += '<';
             } break;
             case lex_detail::pat_gt: {
                 if (!current_string_quot) {
                     lval = string_literal<char, '>'>{}();
-                    return detail::lex_token_t::predef_entity;
+                    return lex_token_t::predef_entity;
                 }
                 str += '>';
             } break;
             case lex_detail::pat_apos: {
                 if (!current_string_quot) {
                     lval = string_literal<char, '\''>{}();
-                    return detail::lex_token_t::predef_entity;
+                    return lex_token_t::predef_entity;
                 }
                 str += '\'';
             } break;
             case lex_detail::pat_quot: {
                 if (!current_string_quot) {
                     lval = string_literal<char, '\"'>{}();
-                    return detail::lex_token_t::predef_entity;
+                    return lex_token_t::predef_entity;
                 }
                 str += '\"';
             } break;
             case lex_detail::pat_entity: {
                 if (!current_string_quot) {
                     lval = std::string_view(lexeme + 1, llen - 2);
-                    return detail::lex_token_t::entity;
+                    return lex_token_t::entity;
                 }
                 throw database_error(to_string(ln) + ": unknown entity name");
             } break;
@@ -341,7 +346,7 @@ detail::lex_token_t detail::lexer::lex(std::string_view& lval) {
                 if (!current_string_quot) {
                     const std::size_t count = to_utf8(unicode, str.data()).count;
                     lval = std::string_view(str.data(), count);
-                    return detail::lex_token_t::entity;
+                    return lex_token_t::entity;
                 }
                 to_utf8(unicode, std::back_inserter(str));
             } break;
@@ -351,7 +356,7 @@ detail::lex_token_t detail::lexer::lex(std::string_view& lval) {
                 if (!current_string_quot) {
                     const std::size_t count = to_utf8(unicode, str.data()).count;
                     lval = std::string_view(str.data(), count);
-                    return detail::lex_token_t::entity;
+                    return lex_token_t::entity;
                 }
                 to_utf8(unicode, std::back_inserter(str));
             } break;
@@ -362,25 +367,25 @@ detail::lex_token_t detail::lexer::lex(std::string_view& lval) {
             // ------ tags
             case lex_detail::pat_name: {
                 lval = std::string_view(lexeme, llen);
-                return detail::lex_token_t::name;
+                return lex_token_t::name;
             } break;
             case lex_detail::pat_start_element_open: {
                 lval = std::string_view(lexeme + 1, llen - 1);
-                return detail::lex_token_t::start_element_open;
+                return lex_token_t::start_element_open;
             } break;
             case lex_detail::pat_end_element_open: {
                 lval = std::string_view(lexeme + 2, llen - 2);
-                return detail::lex_token_t::end_element_open;
+                return lex_token_t::end_element_open;
             } break;
             case lex_detail::pat_pi_open: {
                 lval = std::string_view(lexeme + 2, llen - 2);
-                return detail::lex_token_t::pi_open;
+                return lex_token_t::pi_open;
             } break;
-            case lex_detail::pat_end_element_close: return detail::lex_token_t::end_element_close;
-            case lex_detail::pat_pi_close: return detail::lex_token_t::pi_close;
+            case lex_detail::pat_end_element_close: return lex_token_t::end_element_close;
+            case lex_detail::pat_pi_close: return lex_token_t::pi_close;
 
             // ------ comment
-            case lex_detail::pat_comment: return detail::lex_token_t::comment;
+            case lex_detail::pat_comment: return lex_token_t::comment;
 
             // ------ other single character
             case lex_detail::predef_pat_default: return lex_token_t(static_cast<std::uint8_t>(lexeme[0]));
@@ -392,12 +397,11 @@ detail::lex_token_t detail::lexer::lex(std::string_view& lval) {
     return lex_token_t::eof;
 }
 
-template UXS_EXPORT basic_value<char> parser::read(std::string_view, const std::allocator<char>&);
-template UXS_EXPORT basic_value<wchar_t> parser::read(std::string_view, const std::allocator<wchar_t>&);
 template UXS_EXPORT void write(membuffer& out, const basic_value<char>&, std::string_view, xml_fmt_opts, unsigned);
 template UXS_EXPORT void write(membuffer& out, const basic_value<wchar_t>&, std::wstring_view, xml_fmt_opts, unsigned);
 template UXS_EXPORT void write(wmembuffer& out, const basic_value<char>&, std::string_view, xml_fmt_opts, unsigned);
 template UXS_EXPORT void write(wmembuffer& out, const basic_value<wchar_t>&, std::wstring_view, xml_fmt_opts, unsigned);
+}  // namespace detail
 }  // namespace xml
 }  // namespace db
 }  // namespace uxs

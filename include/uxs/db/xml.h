@@ -178,17 +178,17 @@ class parser {
     UXS_EXPORT std::pair<token_t, std::string_view> next_impl();
 };
 
-template<typename CharT, typename ValueCharT, typename Alloc>
-UXS_EXPORT void write(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v,
-                      est::type_identity_t<std::basic_string_view<ValueCharT>> element, xml_fmt_opts opts = {},
-                      unsigned indent = 0);
+namespace detail {
+template<typename OutCharT, typename CharT, typename Alloc>
+UXS_EXPORT void write(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v,
+                      est::type_identity_t<std::basic_string_view<CharT>> element, xml_fmt_opts opts, unsigned indent);
+}
 
-template<typename CharT, typename ValueCharT, typename Alloc>
-void write(basic_iobuf<CharT>& out, const basic_value<ValueCharT, Alloc>& v,
-           est::type_identity_t<std::basic_string_view<ValueCharT>> element, xml_fmt_opts opts = {},
-           unsigned indent = 0) {
-    basic_iomembuffer<CharT> buf(out);
-    write(buf, v, element, opts, indent);
+template<typename OutCharT, typename CharT, typename Alloc>
+void write(basic_iobuf<OutCharT>& out, const basic_value<CharT, Alloc>& v,
+           est::type_identity_t<std::basic_string_view<CharT>> element, xml_fmt_opts opts = {}, unsigned indent = 0) {
+    basic_iomembuffer<OutCharT> buf(out);
+    detail::write(buf, v, element, opts, indent);
 }
 
 }  // namespace xml

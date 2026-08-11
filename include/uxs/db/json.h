@@ -121,36 +121,36 @@ loop:
     }
 }
 
+namespace detail {
+template<typename OutCharT, typename CharT, typename Alloc>
+UXS_EXPORT void write(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v);
+template<typename OutCharT, typename CharT, typename Alloc>
+UXS_EXPORT void write_formatted(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v, json_fmt_opts opts,
+                                unsigned indent);
+}  // namespace detail
+
 template<typename CharT = char, typename Alloc = std::allocator<CharT>>
 UXS_EXPORT basic_value<CharT, Alloc> read(ibuf& in, const Alloc& al = Alloc());
 
-template<typename CharT, typename ValueCharT, typename Alloc>
-UXS_EXPORT void write(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v);
-
-template<typename CharT, typename ValueCharT, typename Alloc>
-UXS_EXPORT void write_formatted(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v,
-                                json_fmt_opts opts = {}, unsigned indent = 0);
-
-template<typename CharT, typename ValueCharT, typename Alloc>
-void write(basic_iobuf<CharT>& out, const basic_value<ValueCharT, Alloc>& v) {
-    basic_iomembuffer<CharT> buf(out);
-    write(buf, v);
+template<typename OutCharT, typename CharT, typename Alloc>
+void write(basic_iobuf<OutCharT>& out, const basic_value<CharT, Alloc>& v) {
+    basic_iomembuffer<OutCharT> buf(out);
+    detail::write(buf, v);
 }
 
-template<typename CharT, typename ValueCharT, typename Alloc>
-void write_formatted(basic_iobuf<CharT>& out, const basic_value<ValueCharT, Alloc>& v, json_fmt_opts opts = {},
+template<typename OutCharT, typename CharT, typename Alloc>
+void write_formatted(basic_iobuf<OutCharT>& out, const basic_value<CharT, Alloc>& v, json_fmt_opts opts = {},
                      unsigned indent = 0) {
-    basic_iomembuffer<CharT> buf(out);
-    write_formatted(buf, v, opts, indent);
+    basic_iomembuffer<OutCharT> buf(out);
+    detail::write_formatted(buf, v, opts, indent);
 }
 
 }  // namespace json
 }  // namespace db
 
-template<typename ValueCharT, typename Alloc>
-struct from_string_impl<db::basic_value<ValueCharT, Alloc>, char> {
-    from_chars_result<char> operator()(const char* first, const char* last,
-                                       db::basic_value<ValueCharT, Alloc>& val) const {
+template<typename CharT, typename Alloc>
+struct from_string_impl<db::basic_value<CharT, Alloc>, char> {
+    from_chars_result<char> operator()(const char* first, const char* last, db::basic_value<CharT, Alloc>& val) const {
         if (first == last) { return {first, sconv_errc::empty}; }
         uxs::iflatbuf in(est::as_span(first, static_cast<std::size_t>(last - first)));
         try {
@@ -161,22 +161,22 @@ struct from_string_impl<db::basic_value<ValueCharT, Alloc>, char> {
     }
 };
 
-template<typename CharT, typename ValueCharT, typename Alloc>
-struct to_string_impl<db::basic_value<ValueCharT, Alloc>, CharT> {
-    void operator()(basic_membuffer<CharT>& out, const db::basic_value<ValueCharT, Alloc>& val) const {
-        db::json::write(out, val);
+template<typename OutCharT, typename CharT, typename Alloc>
+struct to_string_impl<db::basic_value<CharT, Alloc>, OutCharT> {
+    void operator()(basic_membuffer<OutCharT>& out, const db::basic_value<CharT, Alloc>& val) const {
+        db::json::detail::write(out, val);
     }
     template<typename StrTy, typename = std::enable_if_t<
                                  !std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
-    void operator()(StrTy& out, const db::basic_value<ValueCharT, Alloc>& val) const {
+    void operator()(StrTy& out, const db::basic_value<CharT, Alloc>& val) const {
         basic_inline_dynbuffer<typename StrTy::value_type> buf;
-        db::json::write(buf, val);
+        db::json::detail::write(buf, val);
         out.append(buf.data(), buf.size());
     }
 };
 
-template<typename CharT, typename ValueCharT, typename Alloc>
-struct formatter<db::basic_value<ValueCharT, Alloc>, CharT> {
+template<typename OutCharT, typename CharT, typename Alloc>
+struct formatter<db::basic_value<CharT, Alloc>, OutCharT> {
  private:
     db::json::json_fmt_opts opts_;
     std::size_t indent_size_arg_id_ = unspecified_size;
@@ -209,12 +209,13 @@ struct formatter<db::basic_value<ValueCharT, Alloc>, CharT> {
     }
 
     template<typename FmtCtx>
-    void format(FmtCtx& ctx, const db::basic_value<ValueCharT, Alloc>& val) const {
+    void format(FmtCtx& ctx, const db::basic_value<CharT, Alloc>& val) const {
         unsigned indent_size = opts_.indent_size;
         if (indent_size_arg_id_ != unspecified_size) {
             indent_size = ctx.arg(indent_size_arg_id_).template get_unsigned<decltype(indent_size)>();
         }
-        return use_condensed_ ? db::json::write(ctx.out(), val) : db::json::write_formatted(ctx.out(), val, opts_);
+        return use_condensed_ ? db::json::detail::write(ctx.out(), val) :
+                                db::json::detail::write_formatted(ctx.out(), val, opts_, 0);
     }
 };
 
