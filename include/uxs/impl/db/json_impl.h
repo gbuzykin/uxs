@@ -106,10 +106,10 @@ basic_value<CharT, Alloc> read(ibuf& in, const Alloc& al) {
 
 namespace detail {
 
-template<typename ValueCharT, typename Alloc>
+template<typename CharT, typename Alloc>
 struct writer_stack_item_t {
  public:
-    using value_t = basic_value<ValueCharT, Alloc>;
+    using value_t = basic_value<CharT, Alloc>;
     using record_iterator = typename value_t::const_record_iterator;
 
     writer_stack_item_t(const value_t* first, const value_t* last) noexcept : is_record_(false), arr_{first, last} {}
@@ -227,18 +227,16 @@ struct value_visitor {
     }
 };
 
-template<typename ValueCharT, typename Alloc, typename StrTy, typename StackTy>
-value_visitor<const basic_value<ValueCharT, Alloc>, StrTy, StackTy> make_value_visitor(StrTy& out, StackTy& stack) {
+template<typename CharT, typename Alloc, typename StrTy, typename StackTy>
+value_visitor<const basic_value<CharT, Alloc>, StrTy, StackTy> make_value_visitor(StrTy& out, StackTy& stack) {
     return {out, stack};
 }
 
-}  // namespace detail
+template<typename OutCharT, typename CharT, typename Alloc>
+void write(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v) {
+    inline_dynarray<detail::writer_stack_item_t<CharT, Alloc>, 32> stack;
 
-template<typename CharT, typename ValueCharT, typename Alloc>
-void write(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v) {
-    inline_dynarray<detail::writer_stack_item_t<ValueCharT, Alloc>, 32> stack;
-
-    const auto visitor = detail::make_value_visitor<ValueCharT, Alloc>(out, stack);
+    const auto visitor = detail::make_value_visitor<CharT, Alloc>(out, stack);
     if (!v.visit(visitor)) { return; }
 
     bool is_first_element = true;
@@ -249,7 +247,7 @@ loop:
     if (top.is_record()) {
         while (!top.empty()) {
             out += is_first_element ? '{' : ',';
-            detail::write_text<CharT>(out, utf_string_adapter<CharT>{}(top.key()));
+            detail::write_text<OutCharT>(out, utf_string_adapter<OutCharT>{}(top.key()));
             out += ':';
             if (top.get_and_advance().visit(visitor)) {
                 is_first_element = true;
@@ -274,12 +272,12 @@ loop:
     if (!stack.empty()) { goto loop; }
 }
 
-template<typename CharT, typename ValueCharT, typename Alloc>
-void write_formatted(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v, json_fmt_opts opts,
+template<typename OutCharT, typename CharT, typename Alloc>
+void write_formatted(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v, json_fmt_opts opts,
                      unsigned indent) {
-    inline_dynarray<detail::writer_stack_item_t<ValueCharT, Alloc>, 32> stack;
+    inline_dynarray<detail::writer_stack_item_t<CharT, Alloc>, 32> stack;
 
-    const auto visitor = detail::make_value_visitor<ValueCharT, Alloc>(out, stack);
+    const auto visitor = detail::make_value_visitor<CharT, Alloc>(out, stack);
     if (!v.visit(visitor)) { return; }
 
     bool is_first_element = true;
@@ -302,8 +300,8 @@ loop:
             if (ws_char == '\n') { out.append(indent, opts.indent_char); }
         }
         if (top.is_record()) {
-            detail::write_text<CharT>(out, utf_string_adapter<CharT>{}(top.key()));
-            out += string_literal<CharT, ':', ' '>{}();
+            detail::write_text<OutCharT>(out, utf_string_adapter<OutCharT>{}(top.key()));
+            out += string_literal<OutCharT, ':', ' '>{}();
         }
         if (top.get_and_advance().visit(visitor)) {
             is_first_element = true;
@@ -323,6 +321,7 @@ loop:
     if (!stack.empty()) { goto loop; }
 }
 
+}  // namespace detail
 }  // namespace json
 }  // namespace db
 }  // namespace uxs

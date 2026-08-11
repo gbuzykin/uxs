@@ -129,17 +129,17 @@ basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Allo
 
 namespace detail {
 
-template<typename ValueCharT, typename Alloc>
+template<typename CharT, typename Alloc>
 struct writer_stack_item_t {
  public:
-    using value_t = basic_value<ValueCharT, Alloc>;
+    using value_t = basic_value<CharT, Alloc>;
     using record_iterator = typename value_t::const_record_iterator;
 
     writer_stack_item_t(const value_t* first, const value_t* last) noexcept : is_record_(false), arr_{first, last} {}
     writer_stack_item_t(record_iterator first, record_iterator last) noexcept : is_record_(true), rec_{first, last} {}
 
-    std::basic_string_view<ValueCharT> element() const noexcept { return element_; }
-    void set_element(std::basic_string_view<ValueCharT> element) noexcept { element_ = element; }
+    std::basic_string_view<CharT> element() const noexcept { return element_; }
+    void set_element(std::basic_string_view<CharT> element) noexcept { element_ = element; }
 
     bool is_record() const noexcept { return is_record_; }
     bool empty() const noexcept { return is_record_ ? rec_.first == rec_.last : arr_.first == arr_.last; }
@@ -159,7 +159,7 @@ struct writer_stack_item_t {
         record_iterator last;
     };
 
-    std::basic_string_view<ValueCharT> element_;
+    std::basic_string_view<CharT> element_;
     bool is_record_;
     union {
         array_range_t arr_;
@@ -235,26 +235,24 @@ struct value_visitor {
     }
 };
 
-template<typename ValueCharT, typename Alloc, typename StrTy, typename StackTy>
-value_visitor<const basic_value<ValueCharT, Alloc>, StrTy, StackTy> make_value_visitor(StrTy& out, StackTy& stack) {
+template<typename CharT, typename Alloc, typename StrTy, typename StackTy>
+value_visitor<const basic_value<CharT, Alloc>, StrTy, StackTy> make_value_visitor(StrTy& out, StackTy& stack) {
     return {out, stack};
 }
 
-}  // namespace detail
+template<typename OutCharT, typename CharT, typename Alloc>
+void write(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v,
+           est::type_identity_t<std::basic_string_view<CharT>> element, xml_fmt_opts opts, unsigned indent) {
+    inline_dynarray<detail::writer_stack_item_t<CharT, Alloc>, 32> stack;
 
-template<typename CharT, typename ValueCharT, typename Alloc>
-void write(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v,
-           est::type_identity_t<std::basic_string_view<ValueCharT>> element, xml_fmt_opts opts, unsigned indent) {
-    inline_dynarray<detail::writer_stack_item_t<ValueCharT, Alloc>, 32> stack;
-
-    const auto visitor = detail::make_value_visitor<ValueCharT, Alloc>(out, stack);
+    const auto visitor = detail::make_value_visitor<CharT, Alloc>(out, stack);
 
     out += '<';
-    utf_string_adapter<CharT>{}.append(out, element);
+    utf_string_adapter<OutCharT>{}.append(out, element);
     out += '>';
     if (!v.visit(visitor)) {
-        out += string_literal<CharT, '<', '/'>{}();
-        utf_string_adapter<CharT>{}.append(out, element);
+        out += string_literal<OutCharT, '<', '/'>{}();
+        utf_string_adapter<OutCharT>{}.append(out, element);
         out += '>';
         return;
     }
@@ -269,8 +267,8 @@ loop:
 
     while (true) {
         if (!is_first_element && !top.prev().is_array()) {
-            out += string_literal<CharT, '<', '/'>{}();
-            utf_string_adapter<CharT>{}.append(out, element);
+            out += string_literal<OutCharT, '<', '/'>{}();
+            utf_string_adapter<OutCharT>{}.append(out, element);
             out += '>';
         }
         if (top.empty()) { break; }
@@ -280,7 +278,7 @@ loop:
             out += '\n';
             out.append(indent, opts.indent_char);
             out += '<';
-            utf_string_adapter<CharT>{}.append(out, element);
+            utf_string_adapter<OutCharT>{}.append(out, element);
             out += '>';
         }
         if (value.visit(visitor)) {
@@ -302,11 +300,12 @@ loop:
     stack.pop_back();
     if (!stack.empty()) { goto loop; }
 
-    out += string_literal<CharT, '<', '/'>{}();
-    utf_string_adapter<CharT>{}.append(out, element);
+    out += string_literal<OutCharT, '<', '/'>{}();
+    utf_string_adapter<OutCharT>{}.append(out, element);
     out += '>';
 }
 
+}  // namespace detail
 }  // namespace xml
 }  // namespace db
 }  // namespace uxs
