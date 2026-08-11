@@ -1,3 +1,4 @@
+#include "uxs/chars.h"
 #include "uxs/impl/db/json_impl.h"
 
 namespace lex_detail {

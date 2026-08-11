@@ -120,11 +120,11 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
 
     template<typename... Args>
     iterator emplace(const_iterator pos, Args&&... args) {
-        const size_t n = static_cast<size_t>(pos - cbegin());
+        const std::size_t n = static_cast<std::size_t>(pos - cbegin());
         emplace_back(std::forward<Args>(args)...);
         if (n < size_ - 1) {
             value_type t = std::move(data_[size_ - 1]);
-            for (size_t i = size_ - 1; i > n; --i) { data_[i] = std::move(data_[i - 1]); }
+            for (std::size_t i = size_ - 1; i > n; --i) { data_[i] = std::move(data_[i - 1]); }
             data_[n] = std::move(t);
         }
         return iterator(&data_[n], data_, data_ + size_);
@@ -140,9 +140,9 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
 
     iterator erase(const_iterator pos) {
         assert(size_ != 0);
-        const size_t n = static_cast<size_t>(pos - cbegin());
+        const std::size_t n = static_cast<std::size_t>(pos - cbegin());
         if (n < size_ - 1) {
-            for (size_t i = n; i < size_ - 1; ++i) { data_[i] = std::move(data_[i + 1]); }
+            for (std::size_t i = n; i < size_ - 1; ++i) { data_[i] = std::move(data_[i + 1]); }
         }
         data_[--size_].~value_type();
         return iterator(&data_[n], data_, data_ + size_);

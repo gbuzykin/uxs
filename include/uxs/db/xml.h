@@ -61,8 +61,8 @@ struct lexer {
     ibuf& in;
     unsigned ln = 1;
     inline_dynbuffer str;
-    inline_basic_dynbuffer<char, 32> stash;
-    inline_basic_dynbuffer<std::int8_t, 32> stack;
+    basic_inline_dynbuffer<char, 32> stash;
+    basic_inline_dynbuffer<std::int8_t, 32> stack;
     UXS_EXPORT explicit lexer(ibuf& in);
     UXS_EXPORT lex_token_t lex(std::string_view& lval);
 };

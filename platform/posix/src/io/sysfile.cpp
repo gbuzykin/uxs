@@ -87,7 +87,7 @@ std::int64_t sysfile::seek(std::int64_t off, seekdir dir) {
 int sysfile::ctrlesc_color(est::span<const std::uint8_t> v) {
     inline_dynbuffer buf;
     buf += "\033[";
-    join_basic_strings(buf, v, ';', [](membuffer& s, std::uint8_t x) -> membuffer& { return to_basic_string(s, x); });
+    join_strings_append(buf, v, ';', [](membuffer& out, std::uint8_t x) { to_string_append(out, x); });
     buf += 'm';
     return ::write(fd_, buf.data(), buf.size()) < 0 ? -1 : 0;
 }

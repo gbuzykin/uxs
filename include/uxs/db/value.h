@@ -125,9 +125,9 @@ class flexarray_t {
     void insert(alloc_type& al, std::size_t pos, InputIt first, InputIt last) {
         if (!p_) { return create_impl(al, first, last, is_random_access_iterator<InputIt>()); }
         make_unique(al);
-        const std::size_t old_sz = p_->size;
+        const std::size_t prev_sz = p_->size;
         append_impl(al, first, last, is_random_access_iterator<InputIt>());
-        if (pos < old_sz) { std::rotate(p_->data() + pos, p_->data() + old_sz, p_->data() + p_->size); }
+        if (pos < prev_sz) { std::rotate(p_->data() + pos, p_->data() + prev_sz, p_->data() + p_->size); }
     }
 
     template<typename... Args>
@@ -832,7 +832,6 @@ namespace detail {
 
 template<typename CharT, typename Alloc, typename Ty, typename = void>
 struct is_record_value : std::false_type {};
-
 template<typename CharT, typename Alloc, typename FirstTy, typename SecondTy>
 struct is_record_value<CharT, Alloc, std::pair<FirstTy, SecondTy>,
                        std::enable_if_t<std::is_convertible<FirstTy, typename record_t<CharT, Alloc>::key_type>::value &&

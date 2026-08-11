@@ -36,7 +36,7 @@ class cow_ptr {
         return *this;
     }
 
-    operator bool() const noexcept { return ptr_ != nullptr; }
+    explicit operator bool() const noexcept { return ptr_ != nullptr; }
 
     const Ty& operator*() const noexcept {
         assert(ptr_);

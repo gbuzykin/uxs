@@ -11,25 +11,25 @@ namespace uxs {
 
 inline iobuf& vprint(iobuf& out, std::string_view fmt, format_args args) {
     iomembuffer buf(out);
-    basic_vformat(buf, fmt, args);
+    vformat_append(buf, fmt, args);
     return out;
 }
 
 inline wiobuf& vprint(wiobuf& out, std::wstring_view fmt, wformat_args args) {
     wiomembuffer buf(out);
-    basic_vformat(buf, fmt, args);
+    vformat_append(buf, fmt, args);
     return out;
 }
 
 inline iobuf& vprint(iobuf& out, const std::locale& loc, std::string_view fmt, format_args args) {
     iomembuffer buf(out);
-    basic_vformat(buf, loc, fmt, args);
+    vformat_append(buf, loc, fmt, args);
     return out;
 }
 
 inline wiobuf& vprint(wiobuf& out, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     wiomembuffer buf(out);
-    basic_vformat(buf, loc, fmt, args);
+    vformat_append(buf, loc, fmt, args);
     return out;
 }
 

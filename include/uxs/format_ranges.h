@@ -154,11 +154,11 @@ struct formatter<Tuple, CharT, std::enable_if_t<tuple_formattable<Tuple, CharT>:
             opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>();
         }
         if (opts.width == 0) { return format_impl(ctx, val); }
-        inline_basic_dynbuffer<CharT> buf;
+        basic_inline_dynbuffer<CharT> buf;
         basic_format_context<CharT> buf_ctx{buf, ctx};
         format_impl(buf_ctx, val);
         const std::size_t len = estimate_string_width<CharT>(buf.begin(), buf.end());
-        const auto fn = [&buf](basic_membuffer<CharT>& s) { s.append(buf.data(), buf.size()); };
+        const auto fn = [&buf](basic_membuffer<CharT>& out) { out.append(buf.data(), buf.size()); };
         return opts.width > len ? append_adjusted(ctx.out(), fn, static_cast<unsigned>(len), opts) : fn(ctx.out());
     }
 };
@@ -201,7 +201,7 @@ struct range_formatter {
     }
 
     template<typename StrTy, typename Range>
-    static std::size_t format_as_string(StrTy& s, const Range& val, fmt_opts opts, std::true_type) {
+    static std::size_t format_as_string(StrTy& out, const Range& val, fmt_opts opts, std::true_type) {
         if (!(opts.flags & fmt_flags::debug_format)) {
             std::size_t width = 0;
             std::uint32_t code = 0;
@@ -216,10 +216,10 @@ struct range_formatter {
                     width += w;
                 }
             }
-            while (first != last) { s += *first++; }
+            while (first != last) { out += *first++; }
             return width;
         }
-        return append_escaped_text(s, std::begin(val), std::end(val), false,
+        return append_escaped_text(out, std::begin(val), std::end(val), false,
                                    opts.prec >= 0 ? opts.prec : std::numeric_limits<std::size_t>::max());
     }
 
@@ -305,7 +305,7 @@ struct range_formatter {
                        static_cast<void>(format_as_string(ctx.out(), val, opts, std::is_same<Ty, CharT>{})) :
                        format_impl(ctx, val);
         }
-        inline_basic_dynbuffer<CharT> buf;
+        basic_inline_dynbuffer<CharT> buf;
         basic_format_context<CharT> buf_ctx{buf, ctx};
         std::size_t len = 0;
         if (format_as_string_) {
@@ -314,7 +314,7 @@ struct range_formatter {
             format_impl(buf_ctx, val);
             len = estimate_string_width<CharT>(buf.begin(), buf.end());
         }
-        const auto fn = [&buf](basic_membuffer<CharT>& s) { s.append(buf.data(), buf.size()); };
+        const auto fn = [&buf](basic_membuffer<CharT>& out) { out.append(buf.data(), buf.size()); };
         return opts.width > len ? append_adjusted(ctx.out(), fn, static_cast<unsigned>(len), opts) : fn(ctx.out());
     }
 };

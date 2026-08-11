@@ -81,7 +81,7 @@ void deserialize(bibuf& is, db::basic_value<CharT, Alloc>& v, basic_dynbuffer<Ch
 
 template<typename CharT, typename Alloc>
 bibuf& operator>>(bibuf& is, db::basic_value<CharT, Alloc>& v) {
-    inline_basic_dynbuffer<CharT> key_buf;
+    basic_inline_dynbuffer<CharT> key_buf;
     detail::deserialize(is, v, key_buf);
     return is;
 }

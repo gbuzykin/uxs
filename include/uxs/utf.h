@@ -148,15 +148,4 @@ struct utf_encoder<wchar_t> {
 UXS_EXPORT bool is_utf_code_printable(std::uint32_t code) noexcept;
 UXS_EXPORT unsigned get_utf_code_width(std::uint32_t code) noexcept;
 
-inline bool is_leading_utf8_byte(std::uint8_t ch) { return (ch & 0xc0) != 0x80; }
-
-template<typename Container>
-void pop_utf8(Container& c) {
-    while (!c.empty()) {
-        char ch = c.back();
-        c.pop_back();
-        if (is_leading_utf8_byte(ch)) { break; }
-    }
-}
-
 }  // namespace uxs

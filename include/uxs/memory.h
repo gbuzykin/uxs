@@ -46,10 +46,8 @@ std::enable_if_t<!std::is_array<Ty>::value, std::unique_ptr<Ty>> make_unique(Arg
     return std::unique_ptr<Ty>(::new Ty(std::forward<Args>(args)...));
 }
 template<typename Ty>
-std::enable_if_t<std::is_array<Ty>::value &&  //
-                     (std::extent<Ty>::value == 0),
-                 std::unique_ptr<Ty>>
-make_unique(std::size_t size) {
+std::enable_if_t<std::is_array<Ty>::value && (std::extent<Ty>::value == 0), std::unique_ptr<Ty>> make_unique(
+    std::size_t size) {
     return std::unique_ptr<Ty>(::new typename std::remove_extent<Ty>::type[size]());
 }
 template<typename Ty, typename... Args>

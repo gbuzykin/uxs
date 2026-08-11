@@ -40,8 +40,8 @@ struct lexer {
     ibuf& in;
     unsigned ln = 1;
     inline_dynbuffer str;
-    inline_basic_dynbuffer<char, 32> stash;
-    inline_basic_dynbuffer<std::int8_t, 32> stack;
+    basic_inline_dynbuffer<char, 32> stash;
+    basic_inline_dynbuffer<std::int8_t, 32> stack;
     UXS_EXPORT explicit lexer(ibuf& in);
     UXS_EXPORT token_t lex(std::string_view& lval);
 };
@@ -51,7 +51,7 @@ template<typename ValueFunc, typename ArrItemFunc, typename ObjItemFunc, typenam
 void read(ibuf& in, const ValueFunc& fn_value, const ArrItemFunc& fn_arr_item, const ObjItemFunc& fn_obj_item,
           const PopFunc& fn_pop) {
     detail::lexer lexer(in);
-    inline_basic_dynbuffer<char, 32> stack;
+    basic_inline_dynbuffer<char, 32> stack;
 
     const auto fn_value_checked = [&lexer, &fn_value](token_t tt, std::string_view lval) -> parse_step {
         if (tt >= token_t::null_value || tt == token_t('[') || tt == token_t('{')) { return fn_value(tt, lval); }
@@ -161,15 +161,15 @@ struct from_string_impl<db::basic_value<ValueCharT, Alloc>, char> {
 
 template<typename CharT, typename ValueCharT, typename Alloc>
 struct to_string_impl<db::basic_value<ValueCharT, Alloc>, CharT> {
-    void operator()(basic_membuffer<CharT>& s, const db::basic_value<ValueCharT, Alloc>& val) const {
-        db::json::write(s, val);
+    void operator()(basic_membuffer<CharT>& out, const db::basic_value<ValueCharT, Alloc>& val) const {
+        db::json::write(out, val);
     }
     template<typename StrTy, typename = std::enable_if_t<
                                  !std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
-    void operator()(StrTy& s, const db::basic_value<ValueCharT, Alloc>& val) const {
-        inline_basic_dynbuffer<typename StrTy::value_type> buf;
+    void operator()(StrTy& out, const db::basic_value<ValueCharT, Alloc>& val) const {
+        basic_inline_dynbuffer<typename StrTy::value_type> buf;
         db::json::write(buf, val);
-        s.append(buf.data(), buf.size());
+        out.append(buf.data(), buf.size());
     }
 };
 

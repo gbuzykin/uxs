@@ -164,12 +164,13 @@ bool basic_option_node<CharT>::traverse_options(const EnumFunc& fn) {
 template<typename CharT>
 struct parsing_result {
 #if __cplusplus < 201703L
-    parsing_result(parsing_status s, int c, const basic_node<CharT>* n) : status(s), argc_parsed(c), node(n) {}
+    parsing_result(parsing_status status, int argc_parsed, const basic_node<CharT>* node) noexcept
+        : status(status), argc_parsed(argc_parsed), node(node) {}
 #endif  // __cplusplus < 201703L
-    operator bool() const { return status == parsing_status::ok; }
-    parsing_status status = parsing_status::ok;
-    int argc_parsed = 0;
-    const basic_node<CharT>* node = nullptr;
+    explicit operator bool() const { return status == parsing_status::ok; }
+    parsing_status status;
+    int argc_parsed;
+    const basic_node<CharT>* node;
 };
 
 template<typename CharT>
@@ -527,7 +528,8 @@ inline basic_value_wrapper<char> value(std::string name, std::string& s) {
 
 template<typename Ty>
 basic_value_wrapper<char> value(std::string name, Ty& v) {
-    return basic_value_wrapper<char>(std::move(name), [&v](std::string_view arg) { return from_string(arg, v) != 0; });
+    return basic_value_wrapper<char>(std::move(name),
+                                     [&v](std::string_view arg) { return from_string_generic(arg, v) != 0; });
 }
 
 inline basic_value_wrapper<char> values(std::string name, std::vector<std::string>& vec) {
@@ -544,7 +546,7 @@ basic_value_wrapper<char> values(std::string name, std::vector<Ty>& vec) {
     return basic_value_wrapper<char>(std::move(name),
                                      [&vec](std::string_view arg) {
                                          Ty v;
-                                         if (from_string(arg, v) != 0) {
+                                         if (from_string_generic(arg, v) != 0) {
                                              vec.emplace_back(v);
                                              return true;
                                          }
@@ -576,7 +578,7 @@ inline basic_value_wrapper<wchar_t> value(std::wstring name, std::wstring& s) {
 template<typename Ty>
 basic_value_wrapper<wchar_t> value(std::wstring name, Ty& v) {
     return basic_value_wrapper<wchar_t>(std::move(name),
-                                        [&v](std::wstring_view arg) { return from_wstring(arg, v) != 0; });
+                                        [&v](std::wstring_view arg) { return from_string_generic(arg, v) != 0; });
 }
 
 inline basic_value_wrapper<wchar_t> values(std::wstring name, std::vector<std::wstring>& vec) {
@@ -593,7 +595,7 @@ basic_value_wrapper<wchar_t> values(std::wstring name, std::vector<Ty>& vec) {
     return basic_value_wrapper<wchar_t>(std::move(name),
                                         [&vec](std::wstring_view arg) {
                                             Ty v;
-                                            if (from_wstring(arg, v) != 0) {
+                                            if (from_string_generic(arg, v) != 0) {
                                                 vec.emplace_back(v);
                                                 return true;
                                             }

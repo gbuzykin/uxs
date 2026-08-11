@@ -204,12 +204,6 @@ bool or_variadic(const Ty& v1, const Ts&... vn) {
 #endif  // __cplusplus < 201703L
 }  // namespace detail
 
-template<typename Ty>
-Ty get_and_set(Ty& v, Ty v_new) {
-    std::swap(v, v_new);
-    return v_new;
-}
-
 template<typename Ty, std::size_t Offset, typename MemberTy>
 Ty* get_containing_record(MemberTy* member_ptr) {
     return reinterpret_cast<Ty*>(reinterpret_cast<std::uint8_t*>(member_ptr) - Offset);
