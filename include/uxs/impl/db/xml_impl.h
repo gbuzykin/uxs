@@ -8,55 +8,72 @@ namespace uxs {
 namespace db {
 namespace xml {
 
-// --------------------------
+namespace detail {
+inline std::uint32_t parse_uint32(const char* p, const char* end) noexcept {
+    std::uint32_t result = static_cast<unsigned>(*p - '0');
+    while (++p != end) { result = 10U * result + static_cast<unsigned>(*p - '0'); }
+    return result;
+}
+inline std::pair<std::uint64_t, bool> parse_uint64(const char* p, const char* end) noexcept {
+    std::uint64_t result = static_cast<unsigned>(*p - '0');
+    while (++p != end) {
+        std::uint64_t result0 = result;
+        result = 10U * result + static_cast<unsigned>(*p - '0');
+        if (result < result0) { return {0, false}; }
+    }
+    return {result, true};
+}
+}  // namespace detail
 
 template<typename CharT, typename Alloc>
-void parser::read(std::string_view root_element, basic_value<CharT, Alloc>& val) {
-    static const auto text_to_value = [](std::string_view sval, const Alloc& al) -> basic_value<CharT, Alloc> {
-        switch (classify_value(sval)) {
+basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Alloc& al) {
+    static const auto text_to_value = [](std::string_view lval, const Alloc& al) -> basic_value<CharT, Alloc> {
+        switch (classify_value(lval)) {
             case value_class::empty:
             case value_class::null_value: return {nullptr, al};
             case value_class::true_value: return {true, al};
             case value_class::false_value: return {false, al};
             case value_class::integer_number: {
-                std::uint64_t u64 = 0;
-                if (from_string_generic(sval, u64) != 0) {
-                    if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max())) {
-                        return {static_cast<std::int32_t>(u64), al};
+                if (lval.size() <= 9) {
+                    const std::uint32_t val = detail::parse_uint32(lval.data(), lval.data() + lval.size());
+                    return {static_cast<std::int32_t>(val), al};
+                }
+                const auto result = detail::parse_uint64(lval.data(), lval.data() + lval.size());
+                if (result.second) {
+                    if (result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max())) {
+                        return {static_cast<std::int32_t>(result.first), al};
                     }
-                    if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max())) {
-                        return {static_cast<std::uint32_t>(u64), al};
+                    if (result.first <= std::numeric_limits<std::uint32_t>::max()) {
+                        return {static_cast<std::uint32_t>(result.first), al};
                     }
-                    if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
-                        return {static_cast<std::int64_t>(u64), al};
+                    if (result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+                        return {static_cast<std::int64_t>(result.first), al};
                     }
-                    return {u64, al};
+                    return {result.first, al};
                 }
                 // too big integer - treat as double
-                double f = 0;
-                from_string_generic(sval, f);
-                return {f, al};
+                return {from_string<double>(lval), al};
             } break;
             case value_class::negative_integer_number: {
-                std::int64_t i64 = 0;
-                if (from_string_generic(sval, i64) != 0) {
-                    if (i64 >= static_cast<std::int64_t>(std::numeric_limits<std::int32_t>::min())) {
-                        return {static_cast<std::int32_t>(i64), al};
+                if (lval.size() <= 10) {
+                    const std::uint32_t val = detail::parse_uint32(lval.data() + 1, lval.data() + lval.size());
+                    return {static_cast<std::int32_t>(~val + 1), al};
+                }
+                const auto result = detail::parse_uint64(lval.data() + 1, lval.data() + lval.size());
+                if (result.second) {
+                    if (result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max()) + 1) {
+                        return {static_cast<std::int32_t>(~result.first + 1), al};
                     }
-                    return {i64, al};
+                    if (result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) + 1) {
+                        return {static_cast<std::int64_t>(~result.first + 1), al};
+                    }
                 }
                 // too big integer - treat as double
-                double f = 0;
-                from_string_generic(sval, f);
-                return {f, al};
+                return {from_string<double>(lval), al};
             } break;
-            case value_class::floating_point_number: {
-                double f = 0;
-                from_string_generic(sval, f);
-                return {f, al};
-            } break;
+            case value_class::floating_point_number: return {from_string<double>(lval), al};
             case value_class::ws_with_nl: return make_record<CharT>(al);
-            case value_class::other: return {utf_string_adapter<CharT>{}(sval), al};
+            case value_class::other: return {utf_string_adapter<CharT>{}(lval), al};
             default: UXS_UNREACHABLE_CODE;
         }
     };
@@ -65,12 +82,10 @@ void parser::read(std::string_view root_element, basic_value<CharT, Alloc>& val)
     while (!eof() && !(tt == token_t::start_element && name() == root_element)) { tt = next(); }
     if (eof()) { throw database_error("no such element"); }
 
-    val.clear();
-
     inline_dynbuffer txt;
     inline_dynarray<std::pair<basic_value<CharT, Alloc>*, std::string>, 32> stack;
 
-    const auto& al = val.get_allocator();
+    basic_value<CharT, Alloc> val(al);
     stack.emplace_back(&val, root_element);
 
     tt = next();
@@ -102,7 +117,7 @@ void parser::read(std::string_view root_element, basic_value<CharT, Alloc>& val)
                     *(top.first) = text_to_value(std::string_view(txt.data(), txt.size()), al);
                 }
                 stack.pop_back();
-                if (stack.empty()) { return; }
+                if (stack.empty()) { return val; }
             } break;
             default: break;
         }

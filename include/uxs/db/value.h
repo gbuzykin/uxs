@@ -3,7 +3,6 @@
 #include "database_error.h"
 
 #include "uxs/dllist.h"  // NOLINT
-#include "uxs/memory.h"
 #include "uxs/optional.h"
 #include "uxs/span.h"
 #include "uxs/string_view.h"
@@ -49,10 +48,10 @@ class flexarray_t {
     };
 
  public:
-    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<data_t>;
-    using alloc_traits = std::allocator_traits<alloc_type>;
     using const_view_type = std::conditional_t<is_character<Ty>::value, std::basic_string_view<Ty>, est::span<const Ty>>;
     using view_type = est::span<Ty>;
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<data_t>;
+    using alloc_traits = std::allocator_traits<alloc_type>;
 
     enum : unsigned { tail_zero = is_character<Ty>::value ? 1 : 0 };
 
@@ -516,8 +515,6 @@ class record_t {
     };
 
  public:
-    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<data_t>;
-    using alloc_traits = std::allocator_traits<alloc_type>;
     using key_type = std::basic_string_view<CharT>;
     using mapped_type = basic_value<CharT, Alloc>;
     using value_type = record_value<CharT, Alloc>;
@@ -532,6 +529,8 @@ class record_t {
     using hasher_t = std::hash<key_type>;
     using iterator = list_iterator<record_t, node_traits, false>;
     using const_iterator = list_iterator<record_t, node_traits, true>;
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<data_t>;
+    using alloc_traits = std::allocator_traits<alloc_type>;
 
     size_type size() const noexcept { return p_->size; }
     list_links_t* cbegin() const noexcept { return p_->head.next; }
@@ -875,10 +874,11 @@ const Ty* cast_optional(const Ty* opt) {
 template<typename CharT, typename Alloc = std::allocator<CharT>>
 class basic_value : protected std::allocator_traits<Alloc>::template rebind_alloc<CharT> {
  private:
-    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<CharT>;
     using char_array_t = detail::flexarray_t<CharT, Alloc>;
     using value_array_t = detail::flexarray_t<basic_value, Alloc>;
     using record_t = detail::record_t<CharT, Alloc>;
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<CharT>;
+    using alloc_traits = std::allocator_traits<alloc_type>;
 
  public:
     using char_type = CharT;
@@ -942,7 +942,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     basic_value(InputIt first, InputIt last, const Alloc& al = Alloc())
-        : basic_value(detail::select_construct_t<CharT, Alloc, InputIt>{0}, first, last, al) {}
+        : basic_value(detail::select_construct_t<CharT, Alloc, InputIt>(0), first, last, al) {}
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     basic_value(array_tag_t, InputIt first, InputIt last, const Alloc& al = Alloc())
         : alloc_type(al), type_(dtype::array) {
@@ -1019,7 +1019,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         other.type_ = dtype::null;
     }
     basic_value(basic_value&& other, const Alloc& al) noexcept : alloc_type(al), type_(other.type_) {
-        move_construct_impl(std::move(other), is_alloc_always_equal<alloc_type>());
+        move_construct_impl(std::move(other), typename alloc_traits::is_always_equal());
     }
     basic_value& operator=(basic_value&& other) noexcept {
         if (&other == this) { return *this; }
@@ -1037,7 +1037,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     void assign(InputIt first, InputIt last) {
-        assign(detail::select_construct_t<CharT, Alloc, InputIt>{0}, first, last);
+        assign(detail::select_construct_t<CharT, Alloc, InputIt>(0), first, last);
     }
     template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
     void assign(array_tag_t, InputIt first, InputIt last);

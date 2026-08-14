@@ -7,16 +7,16 @@
 namespace uxs {
 
 template<typename Tuple, typename CharT = char>
-struct tuple_formattable : std::false_type {};
+struct is_tuple_formattable : std::false_type {};
 
 template<typename Ty1, typename Ty2, typename CharT>
-struct tuple_formattable<std::pair<Ty1, Ty2>, CharT>
-    : std::conjunction<formattable<Ty1, CharT>, formattable<Ty2, CharT>> {
+struct is_tuple_formattable<std::pair<Ty1, Ty2>, CharT>
+    : std::conjunction<is_formattable<Ty1, CharT>, is_formattable<Ty2, CharT>> {
     using underlying_type = std::pair<formatter_t<Ty1, CharT>, formatter_t<Ty2, CharT>>;
 };
 
 template<typename... Ts, typename CharT>
-struct tuple_formattable<std::tuple<Ts...>, CharT> : std::conjunction<formattable<Ts, CharT>...> {
+struct is_tuple_formattable<std::tuple<Ts...>, CharT> : std::conjunction<is_formattable<Ts, CharT>...> {
     using underlying_type = std::tuple<formatter_t<Ts, CharT>...>;
 };
 
@@ -43,34 +43,33 @@ template<typename Range, typename CharT>
 struct is_range_formattable<Range, CharT,
                             std::enable_if_t<std::is_same<decltype(std::begin(std::declval<const Range&>())),
                                                           decltype(std::end(std::declval<const Range&>()))>::value &&
-                                             formattable<range_element_t<Range>>::value>> : std::true_type {};
+                                             is_formattable<range_element_t<Range>>::value>> : std::true_type {};
 }  // namespace detail
 
 template<typename Range, typename CharT>
-struct range_formattable
-    : std::integral_constant<range_format, detail::is_range_formattable<Range, CharT>::value ?
-                                               (detail::is_key_type_defined<Range>::value ?
-                                                    ((detail::is_range_of_pairs<Range>::value &&
-                                                      detail::is_mapped_type_defined<Range>::value) ?
-                                                         range_format::map :
-                                                         range_format::set) :
-                                                    range_format::sequence) :
-                                               range_format::disabled> {};
+struct format_kind : std::integral_constant<range_format, detail::is_range_formattable<Range, CharT>::value ?
+                                                              (detail::is_key_type_defined<Range>::value ?
+                                                                   ((detail::is_range_of_pairs<Range>::value &&
+                                                                     detail::is_mapped_type_defined<Range>::value) ?
+                                                                        range_format::map :
+                                                                        range_format::set) :
+                                                                   range_format::sequence) :
+                                                              range_format::disabled> {};
 
 template<typename CharT, typename Traits>
-struct range_formattable<std::basic_string_view<CharT, Traits>, CharT>
+struct format_kind<std::basic_string_view<CharT, Traits>, CharT>
     : std::integral_constant<range_format, range_format::string> {};
 
 template<typename CharT, typename Traits, typename Alloc>
-struct range_formattable<std::basic_string<CharT, Traits, Alloc>, CharT>
+struct format_kind<std::basic_string<CharT, Traits, Alloc>, CharT>
     : std::integral_constant<range_format, range_format::string> {};
 
 template<typename Tuple, typename CharT>
-struct formatter<Tuple, CharT, std::enable_if_t<tuple_formattable<Tuple, CharT>::value>> {
+struct formatter<Tuple, CharT, std::enable_if_t<is_tuple_formattable<Tuple, CharT>::value>> {
  private:
     fmt_opts opts_;
     std::size_t width_arg_id_ = unspecified_size;
-    typename tuple_formattable<Tuple, CharT>::underlying_type underlying_;
+    typename is_tuple_formattable<Tuple, CharT>::underlying_type underlying_;
     std::basic_string_view<CharT> separator_;
     std::basic_string_view<CharT> opening_bracket_;
     std::basic_string_view<CharT> closing_bracket_;
@@ -166,7 +165,7 @@ struct formatter<Tuple, CharT, std::enable_if_t<tuple_formattable<Tuple, CharT>:
 template<typename Ty, typename CharT = char>
 struct range_formatter {
  private:
-    static_assert(formattable<Ty, CharT>::value, "range_formatter<> template parameter must be formattable");
+    static_assert(is_formattable<Ty, CharT>::value, "range_formatter<> template parameter must be is_formattable");
 
     fmt_opts opts_;
     std::size_t width_arg_id_ = unspecified_size;
@@ -325,7 +324,7 @@ template<typename Ty, typename CharT>
 using range_formatter_t = range_formatter<fmt::reduce_type_t<Ty, CharT>, CharT>;
 
 template<typename Range, typename CharT>
-struct formatter<Range, CharT, std::enable_if_t<range_formattable<Range, CharT>::value == range_format::map>>
+struct formatter<Range, CharT, std::enable_if_t<format_kind<Range, CharT>::value == range_format::map>>
     : range_formatter_t<range_element_t<Range>, CharT> {
     UXS_CONSTEXPR formatter() noexcept {
         this->set_brackets(string_literal<CharT, '{'>{}, string_literal<CharT, '}'>{});
@@ -335,7 +334,7 @@ struct formatter<Range, CharT, std::enable_if_t<range_formattable<Range, CharT>:
 };
 
 template<typename Range, typename CharT>
-struct formatter<Range, CharT, std::enable_if_t<range_formattable<Range, CharT>::value == range_format::set>>
+struct formatter<Range, CharT, std::enable_if_t<format_kind<Range, CharT>::value == range_format::set>>
     : range_formatter_t<range_element_t<Range>, CharT> {
     UXS_CONSTEXPR formatter() noexcept {
         this->set_brackets(string_literal<CharT, '{'>{}, string_literal<CharT, '}'>{});
@@ -343,7 +342,7 @@ struct formatter<Range, CharT, std::enable_if_t<range_formattable<Range, CharT>:
 };
 
 template<typename Range, typename CharT>
-struct formatter<Range, CharT, std::enable_if_t<range_formattable<Range, CharT>::value == range_format::sequence>>
+struct formatter<Range, CharT, std::enable_if_t<format_kind<Range, CharT>::value == range_format::sequence>>
     : range_formatter_t<range_element_t<Range>, CharT> {};
 
 }  // namespace uxs

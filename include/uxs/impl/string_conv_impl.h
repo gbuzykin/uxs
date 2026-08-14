@@ -91,36 +91,40 @@ UXS_FORCE_INLINE unsigned ulog2(std::uint64_t x) {
 template<typename CharT>
 const CharT* starts_with(const CharT* p, const CharT* end, std::basic_string_view<CharT> s) noexcept {
     if (static_cast<std::size_t>(end - p) < s.size()) { return p; }
-    const CharT* p_s = s.data();
-    for (const CharT* p1 = p; p1 < end; ++p1, ++p_s) {
-        if (to_lower(*p1) != *p_s) { return p; }
+    const CharT* p0 = p;
+    for (auto it = s.begin(); it != s.end(); ++it, ++p) {
+        if (to_lower(*p) != *it) { return p0; }
     }
-    return p + s.size();
+    return p;
 }
 
 template<typename CharT>
-bool to_boolean(const CharT* p, const CharT* end, const CharT*& last) noexcept {
+parse_result<bool, CharT> parse_boolean(const CharT* p, const CharT* end) noexcept {
+    if (p == end) { return {false, p, sconv_errc::empty}; }
+    bool val = false;
     unsigned dig = 0;
     const CharT* p0 = p;
-    bool val = false;
-    if ((p = starts_with(p, end, default_numpunct<CharT>().truename(false))) > p0) {
+    if ((p = starts_with(p, end, default_numpunct<CharT>().truename(false))) != p0) {
         val = true;
-    } else if ((p = starts_with(p, end, default_numpunct<CharT>().falsename(false))) > p0) {
-    } else if (p < end && (dig = dig_v(*p)) < 10) {
+    } else if ((p = starts_with(p, end, default_numpunct<CharT>().falsename(false))) != p0) {
+    } else if ((dig = dig_v(*p)) < 10) {
         do {
             if (dig) { val = true; }
-        } while (++p < end && (dig = dig_v(*p)) < 10);
+        } while (++p != end && (dig = dig_v(*p)) < 10);
+    } else {
+        return {false, p0, sconv_errc::invalid};
     }
-    last = p;
-    return val;
+    return {val, p, sconv_errc::ok};
 }
 
 template<typename Ty, typename CharT>
-Ty to_integer_common(const CharT* p, const CharT* end, const CharT*& last, Ty pos_limit) noexcept {
-    bool neg = false;
-    last = p;
-    if (p == end) { return 0; }
+parse_result<Ty, CharT> parse_signed_integer_common(const CharT* p, const CharT* end, Ty pos_limit) noexcept {
+    static_assert(std::is_signed<Ty>::value, "Ty must be of signed type");
+    using unsigned_ty = typename std::make_unsigned<Ty>::type;
+    if (p == end) { return {0, p, sconv_errc::empty}; }
 
+    const CharT* p0 = p;
+    bool neg = false;
     if (*p == '+') {
         ++p;  // skip positive sign
     } else if (*p == '-') {
@@ -128,34 +132,56 @@ Ty to_integer_common(const CharT* p, const CharT* end, const CharT*& last, Ty po
     }
 
     unsigned dig = 0;
-    if (p == end || (dig = dig_v(*p)) >= 10) { return 0; }
-    Ty val = dig;
-    while (++p < end && (dig = dig_v(*p)) < 10) {
-        Ty val0 = val;
-        val = 10U * val + dig;
-        if (val < val0) { return 0; }  // too big integer
+    if (p == end || (dig = dig_v(*p)) >= 10) { return {0, p0, sconv_errc::invalid}; }
+    unsigned_ty result = dig;
+    while (++p != end && (dig = dig_v(*p)) < 10) {
+        unsigned_ty result0 = result;
+        result = 10U * result + dig;
+        if (result < result0) {                              // too big integer
+            while (++p != end && (dig = dig_v(*p)) < 10) {}  // find end of pattern
+            return {0, p, sconv_errc::out_of_range};
+        }
     }
 
-    // Note: resulting number must be in range [-(1 + pos_limit / 2), pos_limit]
     if (neg) {
-        if (val > 1 + (pos_limit >> 1)) { return 0; }  // negative integer is out of range
-        val = ~val + 1;                                // apply sign
-    } else if (val > pos_limit) {
-        return 0;  // positive integer is out of range
+        if (result > 1 + static_cast<unsigned_ty>(pos_limit)) { return {0, p, sconv_errc::out_of_range}; }
+        result = ~result + 1;  // apply sign
+    } else if (result > static_cast<unsigned_ty>(pos_limit)) {
+        return {0, p, sconv_errc::out_of_range};
     }
 
-    last = p;
-    return val;
+    return {static_cast<Ty>(result), p, sconv_errc::ok};
 }
 
-const UXS_CONSTEXPR int max_pow10_size = 13;
-const UXS_CONSTEXPR int max_fp10_mantissa_size = 41;  // ceil(log2(10^(768 + 18)))
-const UXS_CONSTEXPR int fp10_bits_size = max_fp10_mantissa_size + max_pow10_size;
+template<typename Ty, typename CharT>
+parse_result<Ty, CharT> parse_unsigned_integer_common(const CharT* p, const CharT* end, Ty pos_limit) noexcept {
+    static_assert(std::is_unsigned<Ty>::value, "Ty must be of unsigned type");
+    if (p == end) { return {0, p, sconv_errc::empty}; }
+
+    unsigned dig = 0;
+    if (p == end || (dig = dig_v(*p)) >= 10) { return {0, p, sconv_errc::invalid}; }
+    Ty result = dig;
+    while (++p != end && (dig = dig_v(*p)) < 10) {
+        Ty result0 = result;
+        result = 10U * result + dig;
+        if (result < result0) {                              // too big integer
+            while (++p != end && (dig = dig_v(*p)) < 10) {}  // find end of pattern
+            return {0, p, sconv_errc::out_of_range};
+        }
+    }
+
+    if (result > pos_limit) { return {0, p, sconv_errc::out_of_range}; }
+
+    return {result, p, sconv_errc::ok};
+}
+
+const UXS_CONSTEXPR unsigned max_pow10_size = 13;
+const UXS_CONSTEXPR unsigned max_fp10_mantissa_size = 41;  // ceil(log2(10^(768 + 18)))
 struct fp10_t {
     int exp = 0;
-    unsigned bits_used = 1;
-    std::uint64_t bits[fp10_bits_size];
-    bool zero_tail = true;
+    std::uint8_t bits_used = 1;
+    bool nonzero_tail = false;
+    std::uint64_t bits[max_fp10_mantissa_size + max_pow10_size];
 };
 
 UXS_EXPORT std::uint64_t bignum_mul32(std::uint64_t* x, unsigned sz, std::uint32_t mul, std::uint32_t bias);
@@ -166,15 +192,15 @@ const CharT* accum_mantissa(const CharT* p, const CharT* end, fp10_t& fp10) noex
     std::uint64_t* m10 = &fp10.bits[max_fp10_mantissa_size - fp10.bits_used];
     if (fp10.bits_used == 1) {
         std::uint64_t m = *m10;
-        for (unsigned dig = 0; p < end && (dig = dig_v(*p)) < 10 && m < short_lim; ++p) { m = 10U * m + dig; }
+        for (unsigned dig = 0; p != end && (dig = dig_v(*p)) < 10 && m < short_lim; ++p) { m = 10U * m + dig; }
         *m10 = m;
     }
-    for (unsigned dig = 0; p < end && (dig = dig_v(*p)) < 10; ++p) {
+    for (unsigned dig = 0; p != end && (dig = dig_v(*p)) < 10; ++p) {
         if (fp10.bits_used < max_fp10_mantissa_size) {
             const std::uint64_t higher = bignum_mul32(m10, fp10.bits_used, 10U, dig);
             if (higher) { *--m10 = higher, ++fp10.bits_used; }
         } else {
-            if (dig > 0) { fp10.zero_tail = false; }
+            if (dig > 0) { fp10.nonzero_tail = true; }
             ++fp10.exp;
         }
     }
@@ -182,64 +208,62 @@ const CharT* accum_mantissa(const CharT* p, const CharT* end, fp10_t& fp10) noex
 }
 
 template<typename CharT>
-const CharT* chars_to_fp10(const CharT* p, const CharT* end, fp10_t& fp10) noexcept {
-    const CharT* p0 = nullptr;
+from_chars_result<CharT> from_chars_to_fp10(const CharT* p, const CharT* end, fp10_t& fp10) noexcept {
     unsigned dig = 0;
+    const CharT* p0 = p;
     const CharT dec_point = default_numpunct<CharT>().decimal_point();
-    if (p == end) { return p; }
+    if (p == end) { return {p, sconv_errc::invalid}; }
     if ((dig = dig_v(*p)) < 10) {  // integral part
         fp10.bits[max_fp10_mantissa_size - 1] = dig;
-        p = accum_mantissa(++p, end, fp10);
-        if (p == end) { return p; }
+        p = accum_mantissa(p + 1, end, fp10);
+        if (p == end) { return {p, sconv_errc::ok}; }
         if (*p != dec_point) { goto parse_exponent; }
-    } else if (*p == dec_point && p + 1 < end && (dig = dig_v(*(p + 1))) < 10) {
+    } else if (*p == dec_point && p + 1 != end && (dig = dig_v(*(p + 1))) < 10) {
         fp10.bits[max_fp10_mantissa_size - 1] = dig, fp10.exp = -1, ++p;  // tenth
     } else {
-        return p;
+        return {p, sconv_errc::invalid};
     }
 
     p0 = p + 1;
     p = accum_mantissa(p0, end, fp10);  // fractional part
     fp10.exp -= static_cast<unsigned>(p - p0);
-    if (p == end) { return p; }
+    if (p == end) { return {p, sconv_errc::ok}; }
 
 parse_exponent:
-    p0 = p;
     if (*p == 'e' || *p == 'E') {  // optional exponent
-        const int exp_optional = to_integer<int>(p + 1, end, p);
-        if (p > p0 + 1) { fp10.exp += exp_optional, p0 = p; }
+        const auto result = parse_signed_integer_common(p + 1, end, std::numeric_limits<std::int32_t>::max());
+        if (result.ec == sconv_errc::ok) { fp10.exp += result.val, p = result.ptr; }
     }
-    return p0;
+    return {p, sconv_errc::ok};
 }
 
 UXS_EXPORT std::uint64_t fp10_to_fp2(fp10_t& fp10, unsigned bpm, int exp_max) noexcept;
 
 template<typename CharT>
-std::uint64_t to_float_common(const CharT* p, const CharT* end, const CharT*& last, unsigned bpm, int exp_max) noexcept {
-    std::uint64_t fp2 = 0;
-    last = p;
-    if (p == end) { return 0; }
+parse_result<std::uint64_t, CharT> parse_float_common(const CharT* p, const CharT* end, unsigned bpm,
+                                                      int exp_max) noexcept {
+    if (p == end) { return {0, p, sconv_errc::empty}; }
 
+    const CharT* p0 = p;
+    std::uint64_t sign = 0;
     if (*p == '+') {
         ++p;  // skip positive sign
     } else if (*p == '-') {
-        ++p, fp2 = static_cast<std::uint64_t>(1 + exp_max) << bpm;  // negative sign
+        ++p, sign = static_cast<std::uint64_t>(1 + exp_max) << bpm;  // negative sign
     }
 
     fp10_t fp10;
-    const CharT* p1 = chars_to_fp10(p, end, fp10);
-    if (p1 > p) {
-        fp2 |= fp10_to_fp2(fp10, bpm, exp_max);
-    } else if ((p1 = starts_with(p, end, default_numpunct<CharT>().infname(false))) > p) {  // infinity
-        fp2 |= static_cast<std::uint64_t>(exp_max) << bpm;
-    } else if ((p1 = starts_with(p, end, default_numpunct<CharT>().nanname(false))) > p) {  // NaN
-        fp2 |= (static_cast<std::uint64_t>(exp_max) << bpm) | ((1ULL << bpm) - 1);
-    } else {
-        return 0;
+    const CharT* p1 = p;
+    const auto result = from_chars_to_fp10(p, end, fp10);
+    if (result.ec == sconv_errc::ok) {
+        return {sign | fp10_to_fp2(fp10, bpm, exp_max), result.ptr, sconv_errc::ok};
+    } else if ((p = starts_with(p, end, default_numpunct<CharT>().infname(false))) != p1) {  // infinity
+        return {sign | static_cast<std::uint64_t>(exp_max) << bpm, p, sconv_errc::ok};
+    } else if ((p = starts_with(p, end, default_numpunct<CharT>().nanname(false))) != p1) {  // NaN
+        return {sign | (static_cast<std::uint64_t>(exp_max) << bpm) | ((1ULL << bpm) - 1), p, sconv_errc::ok};
     }
 
-    last = p1;
-    return fp2;
+    return {0, p0, sconv_errc::invalid};
 }
 
 // ---- from value to string

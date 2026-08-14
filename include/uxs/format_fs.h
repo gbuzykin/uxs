@@ -13,8 +13,7 @@ namespace uxs {
 using utf_native_path_adapter = utf_string_adapter<std::filesystem::path::value_type>;
 
 template<typename CharT>
-struct range_formattable<std::filesystem::path, CharT> : std::integral_constant<range_format, range_format::disabled> {
-};
+struct format_kind<std::filesystem::path, CharT> : std::integral_constant<range_format, range_format::disabled> {};
 
 template<typename CharT>
 struct formatter<std::filesystem::path, CharT> {

@@ -206,8 +206,8 @@ token_t detail::lexer::lex(std::string_view& lval) {
     return token_t::eof;
 }
 
-template UXS_EXPORT void read(ibuf&, basic_value<char>&);
-template UXS_EXPORT void read(ibuf&, basic_value<wchar_t>&);
+template UXS_EXPORT basic_value<char> read(ibuf&, const std::allocator<char>&);
+template UXS_EXPORT basic_value<wchar_t> read(ibuf&, const std::allocator<wchar_t>&);
 template UXS_EXPORT void write(membuffer& out, const basic_value<char>&);
 template UXS_EXPORT void write(membuffer& out, const basic_value<wchar_t>&);
 template UXS_EXPORT void write(wmembuffer& out, const basic_value<char>&);
