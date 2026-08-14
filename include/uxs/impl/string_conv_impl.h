@@ -1,13 +1,13 @@
 #pragma once
 
 #include "uxs/chars.h"
-#include "uxs/string_cvt.h"
+#include "uxs/string_conv.h"
 
 #include <cstdlib>
 
-#define UXS_SCVT_USE_COMPILER_EXTENSIONS 1
+#define UXS_SCONV_USE_COMPILER_EXTENSIONS 1
 
-#if UXS_SCVT_USE_COMPILER_EXTENSIONS != 0
+#if UXS_SCONV_USE_COMPILER_EXTENSIONS != 0
 #    if defined(_MSC_VER) && defined(_M_X64)
 #        include <intrin.h>
 #    elif defined(__GNUC__) && defined(__x86_64__)
@@ -15,10 +15,10 @@ namespace gcc_ints {
 using uint128 = __uint128_t;
 }  // namespace gcc_ints
 #    endif
-#endif  // UXS_SCVT_USE_COMPILER_EXTENSIONS
+#endif  // UXS_SCONV_USE_COMPILER_EXTENSIONS
 
 namespace uxs {
-namespace scvt {
+namespace sconv {
 
 template<typename CharT>
 struct default_numpunct {
@@ -51,7 +51,7 @@ UXS_FORCE_INLINE std::uint64_t make64(TyH hi, TyL lo) {
     return (static_cast<std::uint64_t>(hi) << 32) | static_cast<std::uint64_t>(lo);
 }
 
-#if UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
+#if UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
 UXS_FORCE_INLINE unsigned ulog2(std::uint32_t x) {
     unsigned long ret;
     _BitScanReverse(&ret, x | 1);
@@ -62,7 +62,7 @@ UXS_FORCE_INLINE unsigned ulog2(std::uint64_t x) {
     _BitScanReverse64(&ret, x | 1);
     return ret;
 }
-#elif UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
+#elif UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
 UXS_FORCE_INLINE unsigned ulog2(std::uint32_t x) { return __builtin_clz(x | 1) ^ 31; }
 UXS_FORCE_INLINE unsigned ulog2(std::uint64_t x) { return __builtin_clzll(x | 1) ^ 63; }
 #else
@@ -256,12 +256,12 @@ UXS_FORCE_INLINE unsigned get_exp2_dig_count(std::size_t exp) noexcept {
 
 // powers of ten 10^N, N = 0, 1, 2, ...
 UXS_FORCE_INLINE std::uint64_t get_pow10(std::make_signed<std::size_t>::type pow) noexcept {
-#define UXS_SCVT_POWERS_OF_10(base) \
+#define UXS_SCONV_POWERS_OF_10(base) \
     base, (base) * 10, (base) * 100, (base) * 1000, (base) * 10000, (base) * 100000, (base) * 1000000, \
         (base) * 10000000, (base) * 100000000, (base) * 1000000000
-    static const UXS_CONSTEXPR std::uint64_t ten_pows[] = {UXS_SCVT_POWERS_OF_10(1ULL),
-                                                           UXS_SCVT_POWERS_OF_10(10000000000ULL)};
-#undef UXS_SCVT_POWERS_OF_10
+    static const UXS_CONSTEXPR std::uint64_t ten_pows[] = {UXS_SCONV_POWERS_OF_10(1ULL),
+                                                           UXS_SCONV_POWERS_OF_10(10000000000ULL)};
+#undef UXS_SCONV_POWERS_OF_10
     assert(pow >= 0 && pow < static_cast<int>(sizeof(ten_pows) / sizeof(ten_pows[0])));
     return ten_pows[pow];
 }
@@ -1108,5 +1108,5 @@ void fmt_float_common(basic_membuffer<CharT>& out, std::uint64_t u64, unsigned b
     return fmt.width > len ? adjust_numeric(out, fn, len, prefix, fmt) : fn(len, prefix);
 }
 
-}  // namespace scvt
+}  // namespace sconv
 }  // namespace uxs

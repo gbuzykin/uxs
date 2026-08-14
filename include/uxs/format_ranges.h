@@ -293,7 +293,7 @@ struct range_formatter {
 
     template<typename FmtCtx, typename Range>
     void format(FmtCtx& ctx, const Range& val) const {
-        static_assert(std::is_same<sfmt::reduce_type_t<range_element_t<Range>, CharT>, Ty>::value,
+        static_assert(std::is_same<fmt::reduce_type_t<range_element_t<Range>, CharT>, Ty>::value,
                       "inconsistent template parameter and range types");
         fmt_opts opts = opts_;
         if (width_arg_id_ != unspecified_size) {
@@ -322,7 +322,7 @@ struct range_formatter {
 };
 
 template<typename Ty, typename CharT>
-using range_formatter_t = range_formatter<sfmt::reduce_type_t<Ty, CharT>, CharT>;
+using range_formatter_t = range_formatter<fmt::reduce_type_t<Ty, CharT>, CharT>;
 
 template<typename Range, typename CharT>
 struct formatter<Range, CharT, std::enable_if_t<range_formattable<Range, CharT>::value == range_format::map>>

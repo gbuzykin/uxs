@@ -1,7 +1,7 @@
 #include "uxs/io/sysfile.h"
 
 #include "uxs/string_alg.h"
-#include "uxs/string_cvt.h"
+#include "uxs/string_conv.h"
 
 #include <sys/stat.h>
 #include <sys/types.h>

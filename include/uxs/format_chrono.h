@@ -292,7 +292,7 @@ inline bool is_locale_classic(locale_ref loc, fmt_opts opts) {
 template<typename FmtCtx>
 void format_append_2digs(FmtCtx& ctx, int v) {
     assert(v >= 0 && v < 100);
-    const char* digs = scvt::get_digits(v);
+    const char* digs = sconv::get_digits(v);
     if constexpr (std::is_same_v<typename FmtCtx::char_type, char>) {
         ctx.out().append(digs, 2);
     } else {
@@ -587,7 +587,7 @@ template<typename FmtCtx>
 void format_chrono_hours(FmtCtx& ctx, std::chrono::hours h) {
     const auto hours = h.count();
     assert(hours >= 0);
-    if (hours >= 100) { scvt::fmt_integer(ctx.out(), hours / 100); }
+    if (hours >= 100) { sconv::fmt_integer(ctx.out(), hours / 100); }
     format_append_2digs(ctx, hours % 100);
 }
 
@@ -626,8 +626,8 @@ void format_chrono_seconds(FmtCtx& ctx, std::chrono::hh_mm_ss<Duration> hms, fmt
                                         std::use_facet<std::numpunct<char_type>>(*ctx.locale()).decimal_point() :
                                         static_cast<char_type>('.');
         ctx.out() += dec_point;
-        scvt::fmt_integer(ctx.out(), subsecs,
-                          fmt_opts{fmt_flags::leading_zeroes, -1, std::chrono::hh_mm_ss<Duration>::fractional_width});
+        sconv::fmt_integer(ctx.out(), subsecs,
+                           fmt_opts{fmt_flags::leading_zeroes, -1, std::chrono::hh_mm_ss<Duration>::fractional_width});
     }
 }
 
@@ -724,9 +724,9 @@ struct duration_suffix_writer {
     template<typename FmtCtx>
     void write(FmtCtx& ctx) {
         ctx.out() += '[';
-        scvt::fmt_integer(ctx.out(), Period::type::num);
+        sconv::fmt_integer(ctx.out(), Period::type::num);
         ctx.out() += '/';
-        scvt::fmt_integer(ctx.out(), Period::type::den);
+        sconv::fmt_integer(ctx.out(), Period::type::den);
         ctx.out() += string_literal<typename FmtCtx::char_type, ']', 's'>{}();
     }
 };
@@ -736,7 +736,7 @@ struct duration_suffix_writer<Period, std::enable_if_t<Period::type::den == 1>> 
     template<typename FmtCtx>
     void write(FmtCtx& ctx) {
         ctx.out() += '[';
-        scvt::fmt_integer(ctx.out(), Period::type::num);
+        sconv::fmt_integer(ctx.out(), Period::type::num);
         ctx.out() += string_literal<typename FmtCtx::char_type, ']', 's'>{}();
     }
 };
@@ -955,7 +955,7 @@ struct formatter<std::chrono::month, CharT>
             tm.tm_mon = static_cast<unsigned>(m) - 1;
             return detail::format_chrono_locale(ctx, tm, 'b', '\0', opts);
         }
-        scvt::fmt_integer(ctx.out(), static_cast<unsigned>(m));
+        sconv::fmt_integer(ctx.out(), static_cast<unsigned>(m));
         ctx.out() += string_literal<CharT, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v', 'a', 'l', 'i', 'd',
                                     ' ', 'm', 'o', 'n', 't', 'h'>{}();
     }
@@ -1013,7 +1013,7 @@ struct formatter<std::chrono::weekday, CharT>
             tm.tm_wday = wd.c_encoding();
             return detail::format_chrono_locale(ctx, tm, 'a', '\0', opts);
         }
-        scvt::fmt_integer(ctx.out(), wd.c_encoding());
+        sconv::fmt_integer(ctx.out(), wd.c_encoding());
         ctx.out() += string_literal<CharT, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v', 'a', 'l', 'i', 'd',
                                     ' ', 'w', 'e', 'e', 'k', 'd', 'a', 'y'>{}();
     }
@@ -1044,7 +1044,7 @@ struct formatter<std::chrono::weekday_indexed, CharT>
         if (wdi.index() >= 1 && wdi.index() <= 5) {
             ctx.out() += '0' + wdi.index();
         } else {
-            scvt::fmt_integer(ctx.out(), wdi.index());
+            sconv::fmt_integer(ctx.out(), wdi.index());
             ctx.out() += string_literal<CharT, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v', 'a', 'l', 'i',
                                         'd', ' ', 'i', 'n', 'd', 'e', 'x'>{}();
         }
@@ -1541,7 +1541,7 @@ struct formatter<std::chrono::local_info, CharT>
                 ctx.out() += string_literal<CharT, 'a', 'm', 'b', 'i', 'g', 'u', 'o', 'u', 's'>{}();
             } break;
             default: {
-                scvt::fmt_integer(ctx.out(), li.result);
+                sconv::fmt_integer(ctx.out(), li.result);
             } break;
         }
         ctx.out() += string_literal<CharT, ',', ' ', 'f', 'i', 'r', 's', 't', ':', ' ', '('>{}();

@@ -3,7 +3,7 @@
 #include "uxs/format_base.h"
 
 namespace uxs {
-namespace sfmt {
+namespace fmt {
 
 template<typename FmtCtx>
 struct arg_visitor {
@@ -19,12 +19,12 @@ struct arg_visitor {
 template<typename FmtCtx>
 void vformat(FmtCtx ctx, typename FmtCtx::parse_context parse_ctx) {
     using iterator = typename FmtCtx::parse_context::iterator;
-    sfmt::parse_format(
+    fmt::parse_format(
         parse_ctx, [&ctx](iterator first, iterator last) { ctx.out() += to_string_view(first, last); },
         [&ctx](typename FmtCtx::parse_context& parse_ctx, std::size_t id) {
             ctx.arg(id).visit(arg_visitor<FmtCtx>{ctx, parse_ctx});
         });
 }
 
-}  // namespace sfmt
+}  // namespace fmt
 }  // namespace uxs
