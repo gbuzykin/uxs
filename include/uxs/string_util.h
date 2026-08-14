@@ -69,8 +69,12 @@ struct utf_string_adapter<char> {
     }
     template<typename StrTy>
     void append(StrTy& out, std::wstring_view s) const {
-        std::uint32_t code = 0;
-        for (auto p = s.begin(); from_wchar(p, s.end(), p, code) != 0;) { to_utf8(code, std::back_inserter(out)); }
+        auto p = s.begin();
+        while (p != s.end()) {
+            std::uint32_t code = 0;
+            p = from_wchar(p, s.end(), code).iter;
+            to_utf8(code, std::back_inserter(out));
+        }
     }
 };
 template<>
@@ -81,8 +85,12 @@ struct utf_string_adapter<wchar_t> {
     std::wstring operator()(std::string_view s) const { return from_utf8_to_wide(s); }
     template<typename StrTy>
     void append(StrTy& out, std::string_view s) const {
-        std::uint32_t code = 0;
-        for (auto p = s.begin(); from_utf8(p, s.end(), p, code) != 0;) { to_wchar(code, std::back_inserter(out)); }
+        auto p = s.begin();
+        while (p != s.end()) {
+            std::uint32_t code = 0;
+            p = from_utf8(p, s.end(), code).iter;
+            to_wchar(code, std::back_inserter(out));
+        }
     }
     template<typename StrTy>
     void append(StrTy& out, std::wstring_view s) const {
