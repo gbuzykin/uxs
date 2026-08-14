@@ -66,7 +66,7 @@ class locale_ref {
 
 // --------------------------
 
-namespace scvt {
+namespace sconv {
 
 template<typename Ty>
 struct fp_traits;
@@ -105,7 +105,7 @@ struct fp_traits<long double> : fp_traits<double> {
     static long double from_u64(std::uint64_t u64) noexcept { return static_cast<long double>(bit_cast<double>(u64)); }
 };
 
-}  // namespace scvt
+}  // namespace sconv
 
 // --------------------------
 
@@ -120,7 +120,7 @@ struct convertible_from_string<
     std::enable_if_t<std::is_same<decltype(from_string_impl<Ty, CharT>{}(nullptr, nullptr, std::declval<Ty&>())),
                                   const CharT*>::value>> : std::true_type {};
 
-namespace scvt {
+namespace sconv {
 
 template<typename CharT>
 UXS_EXPORT bool to_boolean(const CharT* p, const CharT* end, const CharT*& last) noexcept;
@@ -145,9 +145,9 @@ Ty to_float(const CharT* p, const CharT* end, const CharT*& last) noexcept {
         to_float_common(p, end, last, fp_traits<Ty>::bits_per_mantissa, fp_traits<Ty>::exp_max));
 }
 
-}  // namespace scvt
+}  // namespace sconv
 
-#define UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(ty, func) \
+#define UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(ty, func) \
     template<typename CharT> \
     struct from_string_impl<ty, CharT> { \
         const CharT* operator()(const CharT* first, const CharT* last, ty& val) const noexcept { \
@@ -156,21 +156,21 @@ Ty to_float(const CharT* p, const CharT* end, const CharT*& last) noexcept {
             return last; \
         } \
     };
-UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(bool, scvt::to_boolean)
-UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed char, scvt::to_integer<signed char>)
-UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed short, scvt::to_integer<signed short>)
-UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed, scvt::to_integer<signed>)
-UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed long, scvt::to_integer<signed long>)
-UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed long long, scvt::to_integer<signed long long>)
-UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned char, scvt::to_integer<unsigned char>)
-UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned short, scvt::to_integer<unsigned short>)
-UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned, scvt::to_integer<unsigned>)
-UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned long, scvt::to_integer<unsigned long>)
-UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned long long, scvt::to_integer<unsigned long long>)
-UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(float, scvt::to_float<float>)
-UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(double, scvt::to_float<double>)
-UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(long double, scvt::to_float<long double>)
-#undef UXS_SCVT_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(bool, sconv::to_boolean)
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed char, sconv::to_integer<signed char>)
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed short, sconv::to_integer<signed short>)
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed, sconv::to_integer<signed>)
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed long, sconv::to_integer<signed long>)
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed long long, sconv::to_integer<signed long long>)
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned char, sconv::to_integer<unsigned char>)
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned short, sconv::to_integer<unsigned short>)
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned, sconv::to_integer<unsigned>)
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned long, sconv::to_integer<unsigned long>)
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned long long, sconv::to_integer<unsigned long long>)
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(float, sconv::to_float<float>)
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(double, sconv::to_float<double>)
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(long double, sconv::to_float<long double>)
+#undef UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER
 
 template<typename CharT, typename Ty>
 const CharT* from_chars(const CharT* first, const CharT* last, Ty& val) {
@@ -213,7 +213,7 @@ struct convertible_to_string<Ty, StrTy,
 template<typename Ty, typename CharT = char, typename = void>
 struct formatter;
 
-namespace scvt {
+namespace sconv {
 
 template<typename CharT>
 UXS_EXPORT void fmt_boolean(basic_membuffer<CharT>& out, bool val, fmt_opts fmt = {}, locale_ref loc = {});
@@ -266,9 +266,9 @@ UXS_FORCE_INLINE const char* get_digits(std::size_t n) noexcept {
     return &digs[2 * n];
 }
 
-}  // namespace scvt
+}  // namespace sconv
 
-#define UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(ty, func) \
+#define UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(ty, func) \
     template<typename CharT> \
     struct to_string_impl<ty, CharT> { \
         void operator()(basic_membuffer<CharT>& out, ty val) const { func(out, val); } \
@@ -290,23 +290,23 @@ UXS_FORCE_INLINE const char* get_digits(std::size_t n) noexcept {
             out.append(buf.data(), buf.size()); \
         } \
     };
-UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(bool, scvt::fmt_boolean)
-UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed char, scvt::fmt_integer)
-UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed short, scvt::fmt_integer)
-UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed, scvt::fmt_integer)
-UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed long, scvt::fmt_integer)
-UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed long long, scvt::fmt_integer)
-UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned char, scvt::fmt_integer)
-UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned short, scvt::fmt_integer)
-UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned, scvt::fmt_integer)
-UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned long, scvt::fmt_integer)
-UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned long long, scvt::fmt_integer)
-UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(float, scvt::fmt_float)
-UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(double, scvt::fmt_float)
-UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(long double, scvt::fmt_float)
-UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(CharT, scvt::fmt_character)
-UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(std::basic_string_view<CharT>, scvt::fmt_string)
-#undef UXS_SCVT_IMPLEMENT_STANDARD_TO_STRING_CONVERTER
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(bool, sconv::fmt_boolean)
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed char, sconv::fmt_integer)
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed short, sconv::fmt_integer)
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed, sconv::fmt_integer)
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed long, sconv::fmt_integer)
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed long long, sconv::fmt_integer)
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned char, sconv::fmt_integer)
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned short, sconv::fmt_integer)
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned, sconv::fmt_integer)
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned long, sconv::fmt_integer)
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned long long, sconv::fmt_integer)
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(float, sconv::fmt_float)
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(double, sconv::fmt_float)
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(long double, sconv::fmt_float)
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(CharT, sconv::fmt_character)
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(std::basic_string_view<CharT>, sconv::fmt_string)
+#undef UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER
 
 // ---- to_string
 

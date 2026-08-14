@@ -48,7 +48,7 @@ struct formatter<std::filesystem::path, CharT> {
         if (width_arg_id_ != unspecified_size) {
             opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>();
         }
-        scvt::fmt_string<CharT>(
+        sconv::fmt_string<CharT>(
             ctx.out(),
             use_generic_ ? utf_string_adapter<CharT>{}(val.generic_string<std::filesystem::path::value_type>()) :
                            utf_string_adapter<CharT>{}(val.native()),

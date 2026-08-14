@@ -163,12 +163,12 @@ struct value_visitor {
 
     template<typename Ty>
     bool operator()(Ty v) const {
-        scvt::fmt_integer(out, v);
+        sconv::fmt_integer(out, v);
         return false;
     }
 
     bool operator()(double f) const {
-        scvt::fmt_float(out, f, fmt_flags::mandatory_frac);
+        sconv::fmt_float(out, f, fmt_flags::mandatory_frac);
         return false;
     }
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "uxs/db/value.h"
-#include "uxs/string_cvt.h"
+#include "uxs/string_conv.h"
 
 #include <cmath>
 
@@ -838,27 +838,27 @@ est::optional<std::basic_string<CharT>> basic_value<CharT, Alloc>::get_string() 
         } break;
         case dtype::integer: {
             basic_inline_dynbuffer<CharT> buf;
-            scvt::fmt_integer(buf, value_.i);
+            sconv::fmt_integer(buf, value_.i);
             return est::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::unsigned_integer: {
             basic_inline_dynbuffer<CharT> buf;
-            scvt::fmt_integer(buf, value_.u);
+            sconv::fmt_integer(buf, value_.u);
             return est::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::long_integer: {
             basic_inline_dynbuffer<CharT> buf;
-            scvt::fmt_integer(buf, value_.i64);
+            sconv::fmt_integer(buf, value_.i64);
             return est::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::unsigned_long_integer: {
             basic_inline_dynbuffer<CharT> buf;
-            scvt::fmt_integer(buf, value_.u64);
+            sconv::fmt_integer(buf, value_.u64);
             return est::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::double_precision: {
             basic_inline_dynbuffer<CharT> buf;
-            scvt::fmt_float(buf, value_.dbl, fmt_flags::mandatory_frac);
+            sconv::fmt_float(buf, value_.dbl, fmt_flags::mandatory_frac);
             return est::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::string: return est::make_optional<std::basic_string<CharT>>(value_.str.cview());

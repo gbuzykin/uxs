@@ -1,4 +1,4 @@
-#include "uxs/impl/string_cvt_impl.h"
+#include "uxs/impl/string_conv_impl.h"
 
 namespace uxs {
 
@@ -6,14 +6,14 @@ format_error::format_error(const char* message) : std::runtime_error(message) {}
 format_error::format_error(const std::string& message) : std::runtime_error(message) {}
 const char* format_error::what() const noexcept { return std::runtime_error::what(); }
 
-namespace scvt {
+namespace sconv {
 
 UXS_FORCE_INLINE std::uint64_t umul128(std::uint64_t x, std::uint64_t y, std::uint64_t bias, std::uint64_t& result_hi) {
-#if UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
+#if UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
     std::uint64_t result_lo = _umul128(x, y, &result_hi);
     result_hi += _addcarry_u64(0, result_lo, bias, &result_lo);
     return result_lo;
-#elif UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
+#elif UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
     const gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x) * y + bias;
     result_hi = static_cast<std::uint64_t>(p >> 64);
     return static_cast<std::uint64_t>(p);
@@ -27,9 +27,9 @@ UXS_FORCE_INLINE std::uint64_t umul128(std::uint64_t x, std::uint64_t y, std::ui
 }
 
 UXS_FORCE_INLINE std::uint64_t umul128(std::uint64_t x, std::uint64_t y, std::uint64_t& result_hi) {
-#if UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
+#if UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
     return _umul128(x, y, &result_hi);
-#elif UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
+#elif UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
     const gcc_ints::uint128 p = static_cast<gcc_ints::uint128>(x) * y;
     result_hi = static_cast<std::uint64_t>(p >> 64);
     return static_cast<std::uint64_t>(p);
@@ -40,7 +40,7 @@ UXS_FORCE_INLINE std::uint64_t umul128(std::uint64_t x, std::uint64_t y, std::ui
 
 UXS_FORCE_INLINE std::uint64_t umul64x32(std::uint64_t x, std::uint32_t y, std::uint32_t bias,
                                          std::uint64_t& result_hi) {
-#if UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && \
+#if UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && \
     ((defined(_MSC_VER) && defined(_M_X64)) || (defined(__GNUC__) && defined(__x86_64__)))
     return umul128(x, y, bias, result_hi);
 #else
@@ -51,7 +51,7 @@ UXS_FORCE_INLINE std::uint64_t umul64x32(std::uint64_t x, std::uint32_t y, std::
 #endif
 }
 
-#if UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && defined(_M_X64)
+#if UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(_M_X64)
 using one_bit_t = unsigned char;
 UXS_FORCE_INLINE one_bit_t add64_carry(std::uint64_t a, std::uint64_t b, std::uint64_t& c, one_bit_t carry = 0) {
     return _addcarry_u64(carry, a, b, &c);
@@ -59,7 +59,7 @@ UXS_FORCE_INLINE one_bit_t add64_carry(std::uint64_t a, std::uint64_t b, std::ui
 UXS_FORCE_INLINE one_bit_t sub64_borrow(std::uint64_t a, std::uint64_t b, std::uint64_t& c, one_bit_t borrow = 0) {
     return _subborrow_u64(borrow, a, b, &c);
 }
-#elif UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && UXS_HAS_BUILTIN(__builtin_addcll) && UXS_HAS_BUILTIN(__builtin_subcll)
+#elif UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && UXS_HAS_BUILTIN(__builtin_addcll) && UXS_HAS_BUILTIN(__builtin_subcll)
 using one_bit_t = unsigned long long;
 UXS_FORCE_INLINE one_bit_t add64_carry(std::uint64_t a, std::uint64_t b, std::uint64_t& c, one_bit_t carry = 0) {
     c = __builtin_addcll(a, b, carry, &carry);
@@ -84,9 +84,9 @@ UXS_FORCE_INLINE one_bit_t sub64_borrow(std::uint64_t a, std::uint64_t b, std::u
 #endif
 
 UXS_FORCE_INLINE std::uint64_t shl128(std::uint64_t x_hi, std::uint64_t x_lo, unsigned shift) {
-#if UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
+#if UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
     return __shiftleft128(x_lo, x_hi, shift);
-#elif UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
+#elif UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
     const gcc_ints::uint128 x = ((static_cast<gcc_ints::uint128>(x_hi) << 64) | x_lo) << shift;
     return static_cast<std::uint64_t>(x >> 64);
 #else
@@ -95,10 +95,10 @@ UXS_FORCE_INLINE std::uint64_t shl128(std::uint64_t x_hi, std::uint64_t x_lo, un
 }
 
 UXS_FORCE_INLINE std::uint64_t shl128(std::uint64_t x_hi, std::uint64_t x_lo, std::uint64_t& result_lo, unsigned shift) {
-#if UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
+#if UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
     result_lo = x_lo << shift;
     return __shiftleft128(x_lo, x_hi, shift);
-#elif UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
+#elif UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
     const gcc_ints::uint128 x = ((static_cast<gcc_ints::uint128>(x_hi) << 64) | x_lo) << shift;
     result_lo = static_cast<std::uint64_t>(x);
     return static_cast<std::uint64_t>(x >> 64);
@@ -109,9 +109,9 @@ UXS_FORCE_INLINE std::uint64_t shl128(std::uint64_t x_hi, std::uint64_t x_lo, st
 }
 
 UXS_FORCE_INLINE std::uint64_t shr128(std::uint64_t x_hi, std::uint64_t x_lo, unsigned shift) {
-#if UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
+#if UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
     return __shiftright128(x_lo, x_hi, shift);
-#elif UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
+#elif UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
     const gcc_ints::uint128 x = ((static_cast<gcc_ints::uint128>(x_hi) << 64) | x_lo) >> shift;
     return static_cast<std::uint64_t>(x);
 #else
@@ -120,10 +120,10 @@ UXS_FORCE_INLINE std::uint64_t shr128(std::uint64_t x_hi, std::uint64_t x_lo, un
 }
 
 UXS_FORCE_INLINE std::uint64_t shr128(std::uint64_t x_hi, std::uint64_t x_lo, std::uint64_t& result_hi, unsigned shift) {
-#if UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
+#if UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
     result_hi = x_hi >> shift;
     return __shiftright128(x_lo, x_hi, shift);
-#elif UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
+#elif UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
     const gcc_ints::uint128 x = ((static_cast<gcc_ints::uint128>(x_hi) << 64) | x_lo) >> shift;
     result_hi = static_cast<std::uint64_t>(x >> 64);
     return static_cast<std::uint64_t>(x);
@@ -139,10 +139,10 @@ struct uint128_t {
 };
 
 UXS_FORCE_INLINE std::uint64_t udiv128(uint128_t x, std::uint64_t y) {
-#if UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && _MSC_VER >= 1920 && defined(_M_X64) && !defined(__clang__)
+#if UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && _MSC_VER >= 1920 && defined(_M_X64) && !defined(__clang__)
     std::uint64_t r;
     return _udiv128(x.hi, x.lo, y, &r);
-#elif UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
+#elif UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
     return static_cast<std::uint64_t>(((static_cast<gcc_ints::uint128>(x.hi) << 64) | x.lo) / y);
 #else
     uint128_t denominator{y, 0};
@@ -334,7 +334,7 @@ struct uint96_t {
 };
 
 UXS_FORCE_INLINE std::uint64_t umul96x32(uint96_t x, std::uint32_t y, std::uint64_t& result_hi) {
-#if UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && \
+#if UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && \
     ((defined(_MSC_VER) && defined(_M_X64)) || (defined(__GNUC__) && defined(__x86_64__)))
     return umul128(x.hi, static_cast<std::uint64_t>(y) << 32, static_cast<std::uint64_t>(x.lo) * y, result_hi);
 #else
@@ -346,9 +346,9 @@ UXS_FORCE_INLINE std::uint64_t umul96x32(uint96_t x, std::uint32_t y, std::uint6
 }
 
 UXS_FORCE_INLINE std::uint64_t umul96x64_higher128(uint96_t x, std::uint64_t y, std::uint64_t& result_hi) {
-#if UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
+#if UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
     return umul128(x.hi, y, __umulh(static_cast<std::uint64_t>(x.lo) << 32, y), result_hi);
-#elif UXS_SCVT_USE_COMPILER_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
+#elif UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(__GNUC__) && defined(__x86_64__)
     return umul128(x.hi, y,
                    static_cast<std::uint64_t>(
                        (static_cast<gcc_ints::uint128>(y) * (static_cast<std::uint64_t>(x.lo) << 32)) >> 64),
@@ -1012,6 +1012,6 @@ template UXS_EXPORT void fmt_float_common(wmembuffer&, std::uint64_t, unsigned, 
 template UXS_EXPORT void fmt_character(wmembuffer&, wchar_t, fmt_opts, locale_ref);
 template UXS_EXPORT void fmt_string(wmembuffer&, std::wstring_view, fmt_opts, locale_ref);
 
-}  // namespace scvt
+}  // namespace sconv
 
 }  // namespace uxs
