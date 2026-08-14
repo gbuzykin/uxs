@@ -66,107 +66,6 @@ class locale_ref {
 
 // --------------------------
 
-template<typename StrTy, typename InputIt>
-std::size_t append_escaped_text(StrTy& out, InputIt first, InputIt last, bool single_quoted,
-                                std::size_t max_width = std::numeric_limits<std::size_t>::max()) {
-    using char_type = typename StrTy::value_type;
-    if (max_width == 0) { return 0; }
-    out += single_quoted ? '\'' : '\"';
-    std::size_t width = 1;
-    std::uint32_t code = 0;
-    unsigned count = 0;
-    auto first0 = first;
-    for (auto next = first; (count = utf_decoder<char_type>{}.decode(first, last, next, code)) != 0; first = next) {
-        char esc = '\0';
-        bool is_wellformed = true;
-        switch (code) {
-            case '\t': esc = 't'; break;
-            case '\n': esc = 'n'; break;
-            case '\r': esc = 'r'; break;
-            case '\\': esc = '\\'; break;
-            case '\"': {
-                if (single_quoted) {
-                    if (width == max_width) { goto finish; }
-                    ++width;
-                    continue;
-                }
-                esc = '\"';
-            } break;
-            case '\'': {
-                if (!single_quoted) {
-                    if (width == max_width) { goto finish; }
-                    ++width;
-                    continue;
-                }
-                esc = '\'';
-            } break;
-            default: {
-                if ((is_wellformed = count > 1 || utf_decoder<char_type>{}.is_wellformed(*first))) {
-                    if (is_utf_code_printable(code)) {
-                        const unsigned w = get_utf_code_width(code);
-                        if (max_width - width < w) { goto finish; }
-                        width += w;
-                        continue;
-                    }
-                }
-            } break;
-        }
-        out.append(first0, first);
-        if (esc) {
-            if (max_width - width < 2) { goto finish; }
-            width += 2;
-            out += '\\';
-            out += esc;
-        } else {
-            std::array<char_type, 8> digs;
-            char_type* p = digs.data();
-            do { *p++ = "0123456789abcdef"[code & 0xf]; } while ((code >>= 4));
-            const unsigned count = 1 + static_cast<unsigned>(p - digs.data());
-            const unsigned w = 4 + count;
-            if (max_width - width < w) { goto finish; }
-            width += w;
-            out += is_wellformed ? string_literal<char_type, '\\', 'u', '{'>{}() :
-                                   string_literal<char_type, '\\', 'x', '{'>{}();
-            do { out += *--p; } while (p != digs.data());
-            out += '}';
-        }
-        first0 = next;
-    }
-finish:
-    out.append(first0, first);
-    if (width == max_width) { return width; }
-    out += single_quoted ? '\'' : '\"';
-    return width + 1;
-}
-
-template<typename CharT, typename InputIt>
-std::size_t estimate_string_width(InputIt first, InputIt last) {
-    std::size_t width = 0;
-    for (std::uint32_t code = 0; utf_decoder<CharT>{}.decode(first, last, first, code) != 0;
-         width += get_utf_code_width(code)) {}
-    return width;
-}
-
-template<typename StrTy, typename Func>
-void append_adjusted(StrTy& out, Func fn, unsigned len, fmt_opts fmt, bool prefer_right = false) {
-    unsigned left = fmt.width - len;
-    unsigned right = left;
-    if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::left) {
-        left = 0;
-    } else if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::internal) {
-        left >>= 1, right -= left;
-    } else if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::right || prefer_right) {
-        right = 0;
-    } else {
-        left = 0;
-    }
-    out.append(left, fmt.fill);
-    fn(out);
-    out.append(right, fmt.fill);
-}
-
-// --------------------------
-
 namespace scvt {
 
 template<typename Ty>
@@ -205,20 +104,6 @@ struct fp_traits<long double> : fp_traits<double> {
     static std::uint64_t to_u64(long double f) noexcept { return bit_cast<std::uint64_t>(static_cast<double>(f)); }
     static long double from_u64(std::uint64_t u64) noexcept { return static_cast<long double>(bit_cast<double>(u64)); }
 };
-
-// --------------------------
-
-// digit pairs
-UXS_FORCE_INLINE const char* get_digits(std::size_t n) noexcept {
-    alignas(2) static const UXS_CONSTEXPR char digs[] =
-        "0001020304050607080910111213141516171819"
-        "2021222324252627282930313233343536373839"
-        "4041424344454647484950515253545556575859"
-        "6061626364656667686970717273747576777879"
-        "8081828384858687888990919293949596979899";
-    assert(n < 100);
-    return &digs[2 * n];
-}
 
 }  // namespace scvt
 
@@ -316,11 +201,6 @@ Ty from_string(std::wstring_view s, Args&&... args) {
 // --------------------------
 
 template<typename Ty, typename CharT = char, typename = void>
-struct formatter;
-
-// --------------------------
-
-template<typename Ty, typename CharT = char, typename = void>
 struct to_string_impl;
 
 template<typename Ty, typename StrTy = membuffer, typename = void>
@@ -329,6 +209,9 @@ template<typename Ty, typename StrTy>
 struct convertible_to_string<Ty, StrTy,
                              std::void_t<decltype(to_string_impl<Ty, typename StrTy::value_type>{}(
                                  std::declval<StrTy&>(), std::declval<const Ty&>(), {}))>> : std::true_type {};
+
+template<typename Ty, typename CharT = char, typename = void>
+struct formatter;
 
 namespace scvt {
 
@@ -370,6 +253,18 @@ UXS_EXPORT void fmt_character(basic_membuffer<CharT>& out, CharT val, fmt_opts f
 template<typename CharT>
 UXS_EXPORT void fmt_string(basic_membuffer<CharT>& out, std::basic_string_view<CharT> val, fmt_opts fmt = {},
                            locale_ref loc = {});
+
+// digit pairs
+UXS_FORCE_INLINE const char* get_digits(std::size_t n) noexcept {
+    alignas(2) static const UXS_CONSTEXPR char digs[] =
+        "0001020304050607080910111213141516171819"
+        "2021222324252627282930313233343536373839"
+        "4041424344454647484950515253545556575859"
+        "6061626364656667686970717273747576777879"
+        "8081828384858687888990919293949596979899";
+    assert(n < 100);
+    return &digs[2 * n];
+}
 
 }  // namespace scvt
 
@@ -504,6 +399,106 @@ chars_to_n_result<CharT> to_chars_n(CharT* p, std::size_t n, const std::locale& 
     basic_membuffer_with_size_tracker<CharT> buf(p, n);
     to_string_append(buf, loc, val, fmt);
     return {buf.endp(), buf.tracked_size()};
+}
+
+// --------------------------
+
+template<typename StrTy, typename InputIt>
+std::size_t append_escaped_text(StrTy& out, InputIt first, InputIt last, bool single_quoted,
+                                std::size_t max_width = std::numeric_limits<std::size_t>::max()) {
+    using char_type = typename StrTy::value_type;
+    if (max_width == 0) { return 0; }
+    out += single_quoted ? '\'' : '\"';
+    std::size_t width = 1;
+    auto first0 = first;
+    while (first != last) {
+        char esc = '\0';
+        std::uint32_t code = 0;
+        const auto result = utf_decoder<char_type>{}.decode(first, last, code);
+        switch (code) {
+            case '\t': esc = 't'; break;
+            case '\n': esc = 'n'; break;
+            case '\r': esc = 'r'; break;
+            case '\\': esc = '\\'; break;
+            case '\"': {
+                if (single_quoted) {
+                    if (width == max_width) { goto finish; }
+                    ++width, first = result.iter;
+                    continue;
+                }
+                esc = '\"';
+            } break;
+            case '\'': {
+                if (!single_quoted) {
+                    if (width == max_width) { goto finish; }
+                    ++width, first = result.iter;
+                    continue;
+                }
+                esc = '\'';
+            } break;
+            default: {
+                if (result.ec == utf_errc::wellformed && is_utf_code_printable(code)) {
+                    const unsigned w = get_utf_code_width(code);
+                    if (max_width - width < w) { goto finish; }
+                    width += w, first = result.iter;
+                    continue;
+                }
+            } break;
+        }
+        out.append(first0, first);
+        if (esc) {
+            if (max_width - width < 2) { goto finish; }
+            width += 2;
+            out += '\\';
+            out += esc;
+        } else {
+            std::array<char_type, 8> digs;
+            char_type* p = digs.data();
+            do { *p++ = "0123456789abcdef"[code & 0xf]; } while ((code >>= 4));
+            const unsigned w = 4 + static_cast<unsigned>(p - digs.data());
+            if (max_width - width < w) { goto finish; }
+            width += w;
+            out += result.ec == utf_errc::wellformed ? string_literal<char_type, '\\', 'u', '{'>{}() :
+                                                       string_literal<char_type, '\\', 'x', '{'>{}();
+            do { out += *--p; } while (p != digs.data());
+            out += '}';
+        }
+        first = first0 = result.iter;
+    }
+finish:
+    out.append(first0, first);
+    if (width == max_width) { return width; }
+    out += single_quoted ? '\'' : '\"';
+    return width + 1;
+}
+
+template<typename CharT, typename InputIt>
+std::size_t estimate_string_width(InputIt first, InputIt last) {
+    std::size_t width = 0;
+    while (first != last) {
+        std::uint32_t code = 0;
+        first = utf_decoder<CharT>{}.decode(first, last, code).iter;
+        width += get_utf_code_width(code);
+    }
+    return width;
+}
+
+template<typename StrTy, typename Func>
+void append_adjusted(StrTy& out, Func fn, unsigned len, fmt_opts fmt, bool prefer_right = false) {
+    unsigned left = fmt.width - len;
+    unsigned right = left;
+    if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::left) {
+        left = 0;
+    } else if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::internal) {
+        left >>= 1, right -= left;
+    } else if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::right || prefer_right) {
+        right = 0;
+    } else {
+        left = 0;
+    }
+    out.append(left, fmt.fill);
+    fn(out);
+    out.append(right, fmt.fill);
 }
 
 }  // namespace uxs

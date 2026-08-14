@@ -204,17 +204,19 @@ struct range_formatter {
     static std::size_t format_as_string(StrTy& out, const Range& val, fmt_opts opts, std::true_type) {
         if (!(opts.flags & fmt_flags::debug_format)) {
             std::size_t width = 0;
-            std::uint32_t code = 0;
             auto first = std::begin(val);
             auto last = std::end(val);
             if (opts.prec >= 0 || opts.width > 0) {
                 const std::size_t max_width = opts.prec >= 0 ? opts.prec : std::numeric_limits<std::size_t>::max();
-                last = first;
-                for (auto next = first; utf_decoder<CharT>{}.decode(last, std::end(val), next, code) != 0; last = next) {
+                auto limit = first;
+                while (limit != last) {
+                    std::uint32_t code = 0;
+                    const auto next = utf_decoder<CharT>{}.decode(limit, last, code).iter;
                     const unsigned w = get_utf_code_width(code);
                     if (max_width - width < w) { break; }
-                    width += w;
+                    width += w, limit = next;
                 }
+                last = limit;
             }
             while (first != last) { out += *first++; }
             return width;

@@ -117,8 +117,9 @@ std::basic_string<CharT, Traits> replace_strings_generic(std::basic_string_view<
                                                          std::basic_string_view<CharT, Traits> with) {
     std::basic_string<CharT, Traits> result;
     result.reserve(s.size());
-    for (auto p = s.begin(); p != s.end();) {
-        auto sub = finder(p, s.end());
+    auto p = s.begin();
+    while (p != s.end()) {
+        const auto sub = finder(p, s.end());
         result += to_string_view(p, sub.first);
         if (sub.first != sub.second) { result += with; }
         p = sub.second;
@@ -140,14 +141,13 @@ std::wstring replace_strings(std::wstring_view s, Finder finder, std::wstring_vi
 
 template<typename StrTy, typename Range, typename SepTy, typename JoinFn = grow>
 void join_strings_append(StrTy& out, const Range& r, SepTy sep, JoinFn fn = JoinFn{}) {
-    if (std::begin(r) == std::end(r)) { return; }
-    for (auto it = std::begin(r);;) {
-        fn(out, *it);
-        if (++it != std::end(r)) {
-            out += sep;
-        } else {
-            break;
-        }
+    auto first = std::begin(r);
+    const auto last = std::end(r);
+    if (first == last) { return; }
+    while (true) {
+        fn(out, *first);
+        if (++first == last) { break; }
+        out += sep;
     }
 }
 
@@ -181,8 +181,9 @@ split_string_result<OutputIt> split_string_generic(std::basic_string_view<CharT,
                                                    std::size_t max_count = std::numeric_limits<std::size_t>::max()) {
     if (!max_count) { return {out, 0}; }
     std::size_t count = 0;
-    for (auto p = s.begin();;) {
-        auto sub = finder(p, s.end());
+    auto p = s.begin();
+    while (true) {
+        const auto sub = finder(p, s.end());
         if (!(Opts & split_opts::skip_empty) || p != sub.first) {
             *out++ = fn(s.substr(p - s.begin(), sub.first - p));
             if (++count == max_count) { break; }
@@ -236,7 +237,7 @@ std::basic_string_view<CharT, Traits> string_section_generic(
     auto p = s.begin();
     auto from = s.end();
     while (true) {
-        auto sub = finder(p, s.end());
+        const auto sub = finder(p, s.end());
         if (!(Opts & split_opts::skip_empty) || p != sub.first) {
             if (count == start) { from = p; }
             if (count++ == fin) { return s.substr(from - s.begin(), sub.first - from); }
@@ -272,7 +273,7 @@ std::basic_string_view<CharT, Traits> string_section_generic(
     auto p = s.end();
     auto to = s.begin();
     while (true) {
-        auto sub = finder(s.begin(), p);
+        const auto sub = finder(s.begin(), p);
         if (!(Opts & split_opts::skip_empty) || sub.second != p) {
             if (count == fin) { to = p; }
             if (count++ == start) { return s.substr(sub.second - s.begin(), to - sub.second); }
@@ -308,7 +309,7 @@ split_string_result<OutputIt> string_to_words_generic(std::basic_string_view<Cha
     enum class state_t { start = 0, sep_found, skip_sep } state = state_t::start;
     for (auto p = s.begin();; ++p) {
         while (p != s.end() && is_space(*p)) { ++p; }  // skip spaces
-        auto p0 = p;
+        const auto p0 = p;
         if (p == s.end()) {
             if (state != state_t::sep_found) { break; }
         } else {
@@ -365,12 +366,16 @@ auto string_to_words(std::wstring_view s, wchar_t sep, OutputFn fn = OutputFn{})
 
 template<typename StrTy, typename Range, typename InputFn = nofunc>
 void pack_strings_append(StrTy& out, const Range& r, typename StrTy::value_type sep, InputFn fn = InputFn{}) {
-    if (std::begin(r) == std::end(r)) { return; }
-    for (auto it = std::begin(r);;) {
-        auto el = fn(*it);
+    auto first = std::begin(r);
+    const auto last = std::end(r);
+    if (first == last) { return; }
+    while (true) {
+        const auto el = fn(*first);
         auto p0 = std::begin(el);
         auto p = p0;
-        for (; p != std::end(el); ++p) {
+        const auto p_end = std::end(el);
+        const bool is_empty = p0 == p_end;
+        for (; p != p_end; ++p) {
             if (*p == '\\' || *p == sep) {
                 out += to_string_view(p0, p);
                 out += '\\';
@@ -378,12 +383,11 @@ void pack_strings_append(StrTy& out, const Range& r, typename StrTy::value_type 
             }
         }
         out += to_string_view(p0, p);
-        if (++it != std::end(r)) {
-            out += sep;
-        } else {
-            if (std::begin(el) == std::end(el)) { out += sep; }
+        if (++first == last) {
+            if (is_empty) { out += sep; }
             break;
         }
+        out += sep;
     }
 }
 

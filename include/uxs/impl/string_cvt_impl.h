@@ -708,7 +708,7 @@ void fmt_character(basic_membuffer<CharT>& out, CharT val, fmt_opts fmt, locale_
             std::array<CharT, 16> buf;
             basic_membuffer<CharT> membuf(buf.data());
             const std::size_t width = append_escaped_text(membuf, &val, &val + 1, true);
-            const auto fn = [&buf, &membuf](basic_membuffer<CharT>& out) { out.append(buf.data(), membuf.endp()); };
+            const auto fn = [&membuf](basic_membuffer<CharT>& out) { out.append(membuf.data(), membuf.endp()); };
             return fmt.width > width ? append_adjusted(out, fn, static_cast<unsigned>(width), fmt) : fn(out);
         } break;
     }
@@ -720,17 +720,19 @@ template<typename CharT>
 void fmt_string(basic_membuffer<CharT>& out, std::basic_string_view<CharT> val, fmt_opts fmt, locale_ref) {
     if (!(fmt.flags & fmt_flags::debug_format)) {
         std::size_t width = 0;
-        std::uint32_t code = 0;
         auto first = val.begin();
         auto last = val.end();
         if (fmt.prec >= 0 || fmt.width > 0) {
             const std::size_t max_width = fmt.prec >= 0 ? fmt.prec : std::numeric_limits<std::size_t>::max();
-            last = first;
-            for (auto next = first; utf_decoder<CharT>{}.decode(last, val.end(), next, code) != 0; last = next) {
+            auto limit = first;
+            while (limit != last) {
+                std::uint32_t code = 0;
+                const auto next = utf_decoder<CharT>{}.decode(limit, last, code).iter;
                 const unsigned w = get_utf_code_width(code);
                 if (max_width - width < w) { break; }
-                width += w;
+                width += w, limit = next;
             }
+            last = limit;
         }
         const auto fn = [first, last](basic_membuffer<CharT>& out) { out += to_string_view(first, last); };
         return fmt.width > width ? append_adjusted(out, fn, static_cast<unsigned>(width), fmt) : fn(out);

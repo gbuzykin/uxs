@@ -339,7 +339,8 @@ detail::lex_token_t detail::lexer::lex(std::string_view& lval) {
                 unsigned unicode = 0;
                 for (const char ch : std::string_view(lexeme + 2, llen - 3)) { unicode = 10 * unicode + dig_v(ch); }
                 if (!current_string_quot) {
-                    lval = std::string_view(str.data(), to_utf8(unicode, str.data()));
+                    const std::size_t count = to_utf8(unicode, str.data()).count;
+                    lval = std::string_view(str.data(), count);
                     return detail::lex_token_t::entity;
                 }
                 to_utf8(unicode, std::back_inserter(str));
@@ -348,7 +349,8 @@ detail::lex_token_t detail::lexer::lex(std::string_view& lval) {
                 unsigned unicode = 0;
                 for (const char ch : std::string_view(lexeme + 3, llen - 4)) { unicode = (unicode << 4) + dig_v(ch); }
                 if (!current_string_quot) {
-                    lval = std::string_view(str.data(), to_utf8(unicode, str.data()));
+                    const std::size_t count = to_utf8(unicode, str.data()).count;
+                    lval = std::string_view(str.data(), count);
                     return detail::lex_token_t::entity;
                 }
                 to_utf8(unicode, std::back_inserter(str));
