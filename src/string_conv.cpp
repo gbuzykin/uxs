@@ -495,7 +495,7 @@ static std::uint64_t fp10_to_fp2_slow(fp10_t& fp10, unsigned bpm, int exp_max) n
     const std::uint64_t half = lsb >> 1;
     const std::uint64_t frac = m & (lsb - 1);
     m >>= 63 - n_bits;  // shift mantissa to the right position
-    if (frac > half || (frac == half && (!fp10.zero_tail || (m & 1) || bignum_trim_unused(m10 + 1, sz_num)))) {
+    if (frac > half || (frac == half && (fp10.nonzero_tail || (m & 1) || bignum_trim_unused(m10 + 1, sz_num)))) {
         ++m;                         // round to upper
         if (m & (1ULL << n_bits)) {  // overflow
             // Note: the value can become normalized if `exp == 0` or infinity if `exp == exp_max - 1`
@@ -979,18 +979,29 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, fmt_flag
     n_zeroes_ = n_digs;
 }
 
-template UXS_EXPORT bool to_boolean(const char*, const char*, const char*& last) noexcept;
-template UXS_EXPORT std::uint32_t to_integer_common(const char*, const char*, const char*&, std::uint32_t) noexcept;
-template UXS_EXPORT std::uint64_t to_integer_common(const char*, const char*, const char*&, std::uint64_t) noexcept;
-template UXS_EXPORT std::uint64_t to_float_common(const char*, const char*, const char*& last, unsigned, int) noexcept;
+template UXS_EXPORT parse_result<bool, char> parse_boolean(const char*, const char*) noexcept;
+template UXS_EXPORT parse_result<std::int32_t, char> parse_signed_integer_common(const char*, const char*,
+                                                                                 std::int32_t) noexcept;
+template UXS_EXPORT parse_result<std::int64_t, char> parse_signed_integer_common(const char*, const char*,
+                                                                                 std::int64_t) noexcept;
+template UXS_EXPORT parse_result<std::uint32_t, char> parse_unsigned_integer_common(const char*, const char*,
+                                                                                    std::uint32_t) noexcept;
+template UXS_EXPORT parse_result<std::uint64_t, char> parse_unsigned_integer_common(const char*, const char*,
+                                                                                    std::uint64_t) noexcept;
+template UXS_EXPORT parse_result<std::uint64_t, char> parse_float_common(const char*, const char*, unsigned,
+                                                                         int) noexcept;
 
-template UXS_EXPORT bool to_boolean(const wchar_t*, const wchar_t*, const wchar_t*& last) noexcept;
-template UXS_EXPORT std::uint32_t to_integer_common(const wchar_t*, const wchar_t*, const wchar_t*&,
-                                                    std::uint32_t) noexcept;
-template UXS_EXPORT std::uint64_t to_integer_common(const wchar_t*, const wchar_t*, const wchar_t*&,
-                                                    std::uint64_t) noexcept;
-template UXS_EXPORT std::uint64_t to_float_common(const wchar_t*, const wchar_t*, const wchar_t*& last, unsigned,
-                                                  int) noexcept;
+template UXS_EXPORT parse_result<bool, wchar_t> parse_boolean(const wchar_t*, const wchar_t*) noexcept;
+template UXS_EXPORT parse_result<std::int32_t, wchar_t> parse_signed_integer_common(const wchar_t*, const wchar_t*,
+                                                                                    std::int32_t) noexcept;
+template UXS_EXPORT parse_result<std::int64_t, wchar_t> parse_signed_integer_common(const wchar_t*, const wchar_t*,
+                                                                                    std::int64_t) noexcept;
+template UXS_EXPORT parse_result<std::uint32_t, wchar_t> parse_unsigned_integer_common(const wchar_t*, const wchar_t*,
+                                                                                       std::uint32_t) noexcept;
+template UXS_EXPORT parse_result<std::uint64_t, wchar_t> parse_unsigned_integer_common(const wchar_t*, const wchar_t*,
+                                                                                       std::uint64_t) noexcept;
+template UXS_EXPORT parse_result<std::uint64_t, wchar_t> parse_float_common(const wchar_t*, const wchar_t*, unsigned,
+                                                                            int) noexcept;
 
 template UXS_EXPORT void fmt_boolean(membuffer&, bool, fmt_opts, locale_ref);
 template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint32_t, bool);

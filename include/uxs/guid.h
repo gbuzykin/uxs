@@ -118,9 +118,10 @@ guid guid::from_per_byte_string_generic(std::basic_string_view<CharT, Traits> s)
 
 template<typename CharT>
 struct from_string_impl<guid, CharT> {
-    const CharT* operator()(const CharT* first, const CharT* last, guid& val) const noexcept {
+    from_chars_result<CharT> operator()(const CharT* first, const CharT* last, guid& val) const noexcept {
+        if (first == last) { return {first, sconv_errc::empty}; }
         const std::size_t len = 38;
-        if (static_cast<std::size_t>(last - first) < len) { return 0; }
+        if (static_cast<std::size_t>(last - first) < len) { return {first, sconv_errc::invalid}; }
         const auto* p = first;
         val.data.l = from_hex(p + 1, 8);
         val.data.w[0] = from_hex(p + 10, 4);
@@ -129,7 +130,7 @@ struct from_string_impl<guid, CharT> {
         val.data.b[1] = from_hex(p + 22, 2);
         p += 25;
         for (unsigned i = 2; i < 8; ++i, p += 2) { val.data.b[i] = from_hex(p, 2); }
-        return first + len;
+        return {first + len, sconv_errc::ok};
     }
 };
 

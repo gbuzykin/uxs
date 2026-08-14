@@ -21,6 +21,9 @@ constexpr std::size_t unspecified_size = std::numeric_limits<std::size_t>::max()
 
 namespace uxs {
 
+//-----------------------------------------------------------------------------
+// Iterator traits
+
 template<typename Iter>
 using is_input_iterator =
     std::is_base_of<std::input_iterator_tag, typename std::iterator_traits<Iter>::iterator_category>;
@@ -43,8 +46,14 @@ template<typename Iter, typename Ty>
 struct is_output_iterator<Iter, Ty, std::void_t<decltype(*std::declval<Iter&>()++ = std::declval<Ty>())>>
     : std::true_type {};
 
+template<typename Iter, typename = void>
+struct iterator_value {};
 template<typename Iter>
-using iterator_value_t = std::decay_t<decltype(*std::declval<Iter>())>;
+struct iterator_value<Iter, std::void_t<std::remove_cvref_t<decltype(*std::declval<Iter>())>>> {
+    using type = std::remove_cvref_t<decltype(*std::declval<Iter>())>;
+};
+template<typename Iter>
+using iterator_value_t = typename iterator_value<Iter>::type;
 
 //-----------------------------------------------------------------------------
 // Iterator range

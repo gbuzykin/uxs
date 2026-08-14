@@ -1,6 +1,6 @@
 #pragma once
 
-#include "database_error.h"
+#include "value.h"
 
 #include "uxs/io/iflatbuf.h"
 #include "uxs/io/iomembuffer.h"
@@ -8,9 +8,6 @@
 
 namespace uxs {
 namespace db {
-template<typename CharT, typename Alloc>
-class basic_value;
-
 namespace json {
 
 enum class token_t : int {
@@ -124,8 +121,8 @@ loop:
     }
 }
 
-template<typename CharT, typename Alloc>
-UXS_EXPORT void read(ibuf& in, basic_value<CharT, Alloc>& val);
+template<typename CharT = char, typename Alloc = std::allocator<CharT>>
+UXS_EXPORT basic_value<CharT, Alloc> read(ibuf& in, const Alloc& al = Alloc());
 
 template<typename CharT, typename ValueCharT, typename Alloc>
 UXS_EXPORT void write(basic_membuffer<CharT>& out, const basic_value<ValueCharT, Alloc>& v);
@@ -152,10 +149,15 @@ void write_formatted(basic_iobuf<CharT>& out, const basic_value<ValueCharT, Allo
 
 template<typename ValueCharT, typename Alloc>
 struct from_string_impl<db::basic_value<ValueCharT, Alloc>, char> {
-    const char* operator()(const char* first, const char* last, db::basic_value<ValueCharT, Alloc>& val) const {
+    from_chars_result<char> operator()(const char* first, const char* last,
+                                       db::basic_value<ValueCharT, Alloc>& val) const {
+        if (first == last) { return {first, sconv_errc::empty}; }
         uxs::iflatbuf in(est::as_span(first, static_cast<std::size_t>(last - first)));
-        db::json::read(in, val);
-        return in.curr();
+        try {
+            auto result = db::json::read(in);
+            val = std::move(result);
+            return {in.curr(), sconv_errc::ok};
+        } catch (const db::database_error&) { return {first, sconv_errc::invalid}; }
     }
 };
 

@@ -63,11 +63,11 @@ using wformat_context = basic_format_context<wchar_t>;
 
 namespace detail {
 template<typename Ty, typename FmtCtx>
-struct is_formattable {
+struct is_formattable_impl {
     template<typename U, typename V>
     static auto test(U* ctx, V* parse_ctx, const Ty* val) -> est::always_true<
         decltype(parse_ctx->advance_to(std::declval<formatter<Ty, typename V::char_type>&>().parse(*parse_ctx))),
-        decltype(formatter<Ty, typename U::char_type>().format(*ctx, *val))>;
+        decltype(std::declval<const formatter<Ty, typename U::char_type>&>().format(*ctx, *val))>;
     template<typename U, typename V>
     static std::false_type test(...);
     using type = decltype(test<FmtCtx, typename FmtCtx::parse_context>(nullptr, nullptr, nullptr));
@@ -75,12 +75,13 @@ struct is_formattable {
 }  // namespace detail
 
 template<typename Ty, typename CharT = char>
-struct formattable : detail::is_formattable<fmt::reduce_type_t<Ty, CharT>, basic_format_context<CharT>>::type {};
+struct is_formattable : detail::is_formattable_impl<fmt::reduce_type_t<Ty, CharT>, basic_format_context<CharT>>::type {
+};
 
 enum class range_format { disabled = 0, sequence, set, map, string };
 
 template<typename Range, typename CharT = char>
-struct range_formattable;
+struct format_kind;
 
 template<typename Ty, typename CharT = char>
 using formatter_t = formatter<fmt::reduce_type_t<Ty, CharT>, CharT>;
@@ -441,7 +442,7 @@ class arg_store {
     static const std::size_t storage_alignment = arg_store_alignment_evaluator<FmtCtx, unsigned, Args...>::value;
     alignas(storage_alignment) std::uint8_t data_[storage_size];
 
-    template<typename Ty>
+    template<typename Ty, typename = std::enable_if_t<is_formattable<Ty, char_type>::value>>
     UXS_CONSTEXPR static void store_value(const Ty& val, void* data) noexcept {
         ::new (data) typename arg_store_type<FmtCtx, Ty>::type(val);
     }
@@ -460,7 +461,7 @@ class arg_store {
 
     template<typename Ty, typename... Ts>
     UXS_CONSTEXPR void store_values(std::size_t i, std::size_t offset, const Ty& val, const Ts&... other) noexcept {
-        static_assert(formattable<Ty, char_type>::value, "value of this type cannot be formatted");
+        static_assert(is_formattable<Ty, char_type>::value, "value of this type cannot be formatted");
         offset = est::align_up<arg_alignment<FmtCtx, Ty>::value>::value(offset);
         ::new (reinterpret_cast<unsigned*>(&data_) + i) unsigned(
             static_cast<unsigned>(offset << 8) | static_cast<unsigned>(arg_type_index<Ty, char_type>::value));
@@ -827,7 +828,7 @@ class basic_format_parse_context : public fmt::parse_context_utils {
 
     UXS_CONSTEXPR iterator begin() const noexcept { return fmt_.begin(); }
     UXS_CONSTEXPR iterator end() const noexcept { return fmt_.end(); }
-    UXS_CONSTEXPR void advance_to(iterator it) { fmt_.remove_prefix(static_cast<std::size_t>(it - fmt_.begin())); }
+    UXS_CONSTEXPR void advance_to(iterator it) { fmt_ = to_string_view(it, fmt_.end()); }
 
     UXS_NODISCARD UXS_CONSTEXPR std::size_t next_arg_id() {
         if (next_arg_id_ == unspecified_size) { throw format_error("automatic argument indexing error"); }
@@ -967,9 +968,9 @@ template<typename CharT, typename... Args>
 class basic_format_string {
  public:
     using char_type = CharT;
-    template<typename StrTy,
-             typename = std::enable_if_t<std::is_convertible<const StrTy&, std::basic_string_view<char_type>>::value>>
-    UXS_CONSTEVAL basic_format_string(const StrTy& fmt) noexcept : fmt_(fmt) {
+    template<typename StrLikeTy,
+             typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::basic_string_view<char_type>>::value>>
+    UXS_CONSTEVAL basic_format_string(const StrLikeTy& fmt) noexcept : fmt_(fmt) {
 #if defined(UXS_HAS_CONSTEVAL)
         using parse_context = compile_parse_context<char_type>;
         constexpr std::array<fmt::index_t, sizeof...(Args)> arg_types{fmt::arg_type_index<Args, char_type>::value...};

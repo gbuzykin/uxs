@@ -93,13 +93,13 @@ class attributes_t : public std::map<std::string_view, std::string> {
 
     std::string_view value(std::string_view key) const { return value_or(key, std::string_view()); }
 
-    template<typename Ty, typename U, typename = std::enable_if_t<uxs::convertible_from_string<Ty>::value>>
+    template<typename Ty, typename U, typename = std::enable_if_t<uxs::is_from_string_convertible<Ty>::value>>
     Ty value_or(std::string_view key, U&& default_value) const {
         auto it = find(key);
         return it != end() ? from_string<Ty>(it->second) : Ty(std::forward<U>(default_value));
     }
 
-    template<typename Ty, typename = std::enable_if_t<uxs::convertible_from_string<Ty>::value>>
+    template<typename Ty, typename = std::enable_if_t<uxs::is_from_string_convertible<Ty>::value>>
     Ty value(std::string_view key) const {
         return value_or<Ty>(key, Ty());
     }
@@ -128,8 +128,8 @@ class parser {
     const attributes_t& attributes() const { return attrs_; }
     attributes_t& attributes() { return attrs_; }
 
-    template<typename CharT, typename Alloc>
-    UXS_EXPORT void read(std::string_view root_element, basic_value<CharT, Alloc>& val);
+    template<typename CharT = char, typename Alloc = std::allocator<CharT>>
+    UXS_EXPORT basic_value<CharT, Alloc> read(std::string_view root_element, const Alloc& al = Alloc());
 
     class iterator
         : public iterator_facade<iterator, value_type, std::input_iterator_tag, const value_type&, const value_type*> {

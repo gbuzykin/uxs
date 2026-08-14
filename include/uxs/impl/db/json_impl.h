@@ -1,17 +1,31 @@
 #pragma once
 
 #include "uxs/db/json.h"
-#include "uxs/db/value.h"
 #include "uxs/dynarray.h"
 
 namespace uxs {
 namespace db {
 namespace json {
 
-// --------------------------
+namespace detail {
+inline std::uint32_t parse_uint32(const char* p, const char* end) noexcept {
+    std::uint32_t result = static_cast<unsigned>(*p - '0');
+    while (++p != end) { result = 10U * result + static_cast<unsigned>(*p - '0'); }
+    return result;
+}
+inline std::pair<std::uint64_t, bool> parse_uint64(const char* p, const char* end) noexcept {
+    std::uint64_t result = static_cast<unsigned>(*p - '0');
+    while (++p != end) {
+        std::uint64_t result0 = result;
+        result = 10U * result + static_cast<unsigned>(*p - '0');
+        if (result < result0) { return {0, false}; }
+    }
+    return {result, true};
+}
+}  // namespace detail
 
 template<typename CharT, typename Alloc>
-void read(ibuf& in, basic_value<CharT, Alloc>& val) {
+basic_value<CharT, Alloc> read(ibuf& in, const Alloc& al) {
     static const auto token_to_value = [](token_t tt, std::string_view lval,
                                           const Alloc& al) -> basic_value<CharT, Alloc> {
         switch (tt) {
@@ -19,49 +33,53 @@ void read(ibuf& in, basic_value<CharT, Alloc>& val) {
             case token_t::true_value: return {true, al};
             case token_t::false_value: return {false, al};
             case token_t::integer_number: {
-                std::uint64_t u64 = 0;
-                if (from_string_generic(lval, u64) != 0) {
-                    if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max())) {
-                        return {static_cast<std::int32_t>(u64), al};
+                if (lval.size() <= 9) {
+                    const std::uint32_t val = detail::parse_uint32(lval.data(), lval.data() + lval.size());
+                    return {static_cast<std::int32_t>(val), al};
+                }
+                const auto result = detail::parse_uint64(lval.data(), lval.data() + lval.size());
+                if (result.second) {
+                    if (result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max())) {
+                        return {static_cast<std::int32_t>(result.first), al};
                     }
-                    if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max())) {
-                        return {static_cast<std::uint32_t>(u64), al};
+                    if (result.first <= std::numeric_limits<std::uint32_t>::max()) {
+                        return {static_cast<std::uint32_t>(result.first), al};
                     }
-                    if (u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
-                        return {static_cast<std::int64_t>(u64), al};
+                    if (result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+                        return {static_cast<std::int64_t>(result.first), al};
                     }
-                    return {u64, al};
+                    return {result.first, al};
                 }
                 // too big integer - treat as double
-                double f = 0;
-                from_string_generic(lval, f);
-                return {f, al};
+                return {from_string<double>(lval), al};
             } break;
             case token_t::negative_integer_number: {
-                std::int64_t i64 = 0;
-                if (from_string_generic(lval, i64) != 0) {
-                    if (i64 >= static_cast<std::int64_t>(std::numeric_limits<std::int32_t>::min())) {
-                        return {static_cast<std::int32_t>(i64), al};
+                if (lval.size() <= 10) {
+                    const std::uint32_t val = detail::parse_uint32(lval.data() + 1, lval.data() + lval.size());
+                    return {static_cast<std::int32_t>(~val + 1), al};
+                }
+                const auto result = detail::parse_uint64(lval.data() + 1, lval.data() + lval.size());
+                if (result.second) {
+                    if (result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max()) + 1) {
+                        return {static_cast<std::int32_t>(~result.first + 1), al};
                     }
-                    return {i64, al};
+                    if (result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) + 1) {
+                        return {static_cast<std::int64_t>(~result.first + 1), al};
+                    }
                 }
                 // too big integer - treat as double
-                double f = 0;
-                from_string_generic(lval, f);
-                return {f, al};
+                return {from_string<double>(lval), al};
             } break;
-            case token_t::floating_point_number: {
-                double f = 0;
-                from_string_generic(lval, f);
-                return {f, al};
-            } break;
+            case token_t::floating_point_number: return {from_string<double>(lval), al};
             case token_t::string: return {utf_string_adapter<CharT>{}(lval), al};
             default: UXS_UNREACHABLE_CODE;
         }
     };
 
-    auto* item = &val;
     inline_dynarray<basic_value<CharT, Alloc>*, 32> stack;
+
+    basic_value<CharT, Alloc> val(al);
+    auto* item = &val;
 
     read(
         in,
@@ -80,6 +98,8 @@ void read(ibuf& in, basic_value<CharT, Alloc>& val) {
             item = &stack.back()->emplace(utf_string_adapter<CharT>{}(lval), item->get_allocator()).value();
         },
         [&stack] { stack.pop_back(); });
+
+    return val;
 }
 
 // --------------------------

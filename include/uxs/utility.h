@@ -87,8 +87,8 @@ template<typename Ty>
 void as_const(const Ty&&) = delete;
 #    endif  // as const
 #    if !defined(__cpp_lib_void_t)
-template<typename Ty, typename... Ts>
-using void_t = typename est::type_identity<void, Ty, Ts...>::type;
+template<typename... Ts>
+using void_t = typename est::type_identity<void, Ts...>::type;
 #    endif  // void_t
 #    if !defined(__cpp_lib_is_swappable)
 template<typename Ty>
@@ -120,25 +120,26 @@ namespace est {
 
 template<typename Ty>
 struct remove_const : std::remove_const<Ty> {};
-template<typename Ty>
-using remove_const_t = typename remove_const<Ty>::type;
 template<typename Ty1, typename Ty2>
 struct remove_const<std::pair<Ty1, Ty2>> {
     using type = std::pair<std::remove_const_t<Ty1>, std::remove_const_t<Ty2>>;
 };
+template<typename Ty>
+using remove_const_t = typename remove_const<Ty>::type;
 
 template<typename Ty>
 struct remove_cv : std::remove_cv<Ty> {};
-template<typename Ty>
-using remove_cv_t = typename remove_cv<Ty>::type;
 template<typename Ty1, typename Ty2>
 struct remove_cv<std::pair<Ty1, Ty2>> {
     using type = std::pair<std::remove_cv_t<Ty1>, std::remove_cv_t<Ty2>>;
 };
+template<typename Ty>
+using remove_cv_t = typename remove_cv<Ty>::type;
 
 struct in_place_t {
     explicit constexpr in_place_t() = default;
 };
+
 template<typename Ty>
 struct in_place_type_t {
     explicit constexpr in_place_type_t() = default;
@@ -154,10 +155,8 @@ constexpr in_place_type_t<Ty> in_place_type{};
 
 namespace uxs {
 
-template<typename Ty, typename = void>
-struct is_boolean : std::false_type {};
 template<typename Ty>
-struct is_boolean<Ty, std::enable_if_t<std::is_same<std::remove_cv_t<Ty>, bool>::value>> : std::true_type {};
+using is_boolean = std::is_same<std::remove_cv_t<Ty>, bool>;
 
 template<typename CharT, typename = void>
 struct is_character : std::false_type {};
@@ -171,6 +170,15 @@ struct is_character<CharT, std::enable_if_t<std::is_same<std::remove_cv_t<CharT>
 template<typename CharT>
 struct is_character<CharT, std::enable_if_t<std::is_same<std::remove_cv_t<CharT>, char8_t>::value>> : std::true_type {};
 #endif  // __cplusplus >= 202002L
+
+template<typename Ty, typename = void>
+struct array_element {};
+template<typename Ty>
+struct array_element<Ty, std::void_t<std::remove_cvref_t<decltype(std::declval<Ty>()[0])>>> {
+    using type = std::remove_cvref_t<decltype(std::declval<Ty>()[0])>;
+};
+template<typename Ty>
+using array_element_t = typename array_element<Ty>::type;
 
 namespace detail {
 template<typename... Ts>

@@ -10,7 +10,7 @@
 namespace uxs {
 
 template<typename Ty, typename CharT>
-struct formatter<est::optional<Ty>, CharT, std::enable_if_t<formattable<Ty, CharT>::value>> {
+struct formatter<est::optional<Ty>, CharT, std::enable_if_t<is_formattable<Ty, CharT>::value>> {
  private:
     formatter<Ty, CharT> underlying_;
 
@@ -32,7 +32,7 @@ struct formatter<est::optional<Ty>, CharT, std::enable_if_t<formattable<Ty, Char
 #if __cplusplus >= 201703L && UXS_HAS_INCLUDE(<optional>)
 
 template<typename Ty, typename CharT>
-struct formatter<std::optional<Ty>, CharT, std::enable_if_t<formattable<Ty, CharT>::value>> {
+struct formatter<std::optional<Ty>, CharT, std::enable_if_t<is_formattable<Ty, CharT>::value>> {
  private:
     formatter<Ty, CharT> underlying_;
 

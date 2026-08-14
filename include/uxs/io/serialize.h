@@ -2,7 +2,7 @@
 
 #include "iobuf.h"
 
-#include "uxs/string_view.h"
+#include "uxs/string_util.h"
 
 namespace uxs {
 
@@ -35,8 +35,8 @@ std::enable_if_t<std::is_enum<Ty>::value, biobuf&> operator<<(biobuf& os, const 
     return os << static_cast<typename std::underlying_type<Ty>::type>(v);
 }
 
-template<typename CharT>
-bibuf& operator>>(bibuf& is, std::basic_string<CharT>& s) {
+template<typename CharT, typename Traits, typename Alloc>
+bibuf& operator>>(bibuf& is, std::basic_string<CharT, Traits, Alloc>& s) {
     std::uint64_t sz = 0;
     if (!(is >> sz)) { return is; }
     s.resize(static_cast<std::size_t>(sz));
@@ -44,16 +44,13 @@ bibuf& operator>>(bibuf& is, std::basic_string<CharT>& s) {
     return is;
 }
 
-template<typename CharT>
-biobuf& operator<<(biobuf& os, std::basic_string_view<CharT> s) {
+template<typename Ty>
+std::enable_if_t<is_string_like<Ty>::value, biobuf&> operator<<(biobuf& os, const Ty& v) {
+    const auto s = to_string_view(v);
     os << static_cast<std::uint64_t>(s.size());
-    return os.write_with_endian(est::as_span(reinterpret_cast<const std::uint8_t*>(s.data()), s.size() * sizeof(CharT)),
-                                sizeof(CharT));
-}
-
-template<typename CharT>
-biobuf& operator<<(biobuf& os, const std::basic_string<CharT>& s) {
-    return os << std::basic_string_view<CharT>(s);
+    return os.write_with_endian(
+        est::as_span(reinterpret_cast<const std::uint8_t*>(s.data()), s.size() * sizeof(array_element_t<Ty>)),
+        sizeof(array_element_t<Ty>));
 }
 
 }  // namespace uxs
