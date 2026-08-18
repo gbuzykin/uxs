@@ -80,11 +80,11 @@ struct guid {
     friend bool operator>(guid lhs, guid rhs) noexcept { return rhs.data64() < lhs.data64(); }
     friend bool operator>=(guid lhs, guid rhs) noexcept { return !(lhs.data64() < rhs.data64()); }
 
+    template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
+    sconv_errc from_per_byte_string(const StrLikeTy& s) noexcept;
+
     template<typename StrTy>
     void to_per_byte_string_append(StrTy& out) const;
-
-    template<typename CharT, typename Traits>
-    static guid from_per_byte_string_generic(std::basic_string_view<CharT, Traits> s) noexcept;
 
     template<typename CharT = char>
     std::basic_string<CharT> to_per_byte_string() const {
@@ -93,27 +93,45 @@ struct guid {
         return s;
     }
 
-    static guid from_per_byte_string(std::string_view s) noexcept { return from_per_byte_string_generic(s); }
-    static guid from_per_byte_string(std::wstring_view s) noexcept { return from_per_byte_string_generic(s); }
-
     UXS_EXPORT static guid generate();
 };
+
+namespace detail {
+template<typename CharT>
+sconv_errc from_hex(const CharT* p, std::uint8_t& b) {
+    const unsigned dig1 = dig_v(p[0]);
+    const unsigned dig2 = dig_v(p[1]);
+    if (dig1 >= 16 || dig2 >= 16) { return sconv_errc::invalid; }
+    b = static_cast<std::uint8_t>((dig1 << 4) | dig2);
+    return sconv_errc::ok;
+}
+template<typename CharT>
+void to_hex(std::uint8_t b, CharT* p, const char* digs) {
+    p[1] = digs[b & 0xf];
+    p[0] = digs[(b >> 4) & 0xf];
+}
+}  // namespace detail
+
+template<typename StrLikeTy, typename>
+sconv_errc guid::from_per_byte_string(const StrLikeTy& s) noexcept {
+    const auto sv = to_string_view(s);
+    if (sv.size() < 32) { return sconv_errc::invalid; }
+    const auto* p = sv.data();
+    guid::data8_t data;
+    for (std::uint8_t& b : data) {
+        if (detail::from_hex(p, b) != sconv_errc::ok) { return sconv_errc::invalid; }
+        p += 2;
+    }
+    *this = guid(data);
+    return sconv_errc::ok;
+}
 
 template<typename StrTy>
 void guid::to_per_byte_string_append(StrTy& out) const {
     std::array<typename StrTy::value_type, 32> buf;
     auto* p = buf.data();
-    for (const std::uint8_t b : data8()) { to_hex(b, p, 2, true), p += 2; }
+    for (const std::uint8_t b : data8()) { detail::to_hex(b, p, "0123456789ABCDEF"), p += 2; }
     out.append(buf.data(), p);
-}
-
-template<typename CharT, typename Traits>
-guid guid::from_per_byte_string_generic(std::basic_string_view<CharT, Traits> s) noexcept {
-    if (s.size() < 32) { return {}; }
-    const auto* p = s.data();
-    guid::data8_t data;
-    for (std::uint8_t& b : data) { b = from_hex(p, 2), p += 2; }
-    return guid(data);
 }
 
 template<typename CharT>
@@ -122,14 +140,18 @@ struct from_string_impl<guid, CharT> {
         if (first == last) { return {first, sconv_errc::empty}; }
         const std::size_t len = 38;
         if (static_cast<std::size_t>(last - first) < len) { return {first, sconv_errc::invalid}; }
-        const auto* p = first;
-        val.data.l = from_hex(p + 1, 8);
-        val.data.w[0] = from_hex(p + 10, 4);
-        val.data.w[1] = from_hex(p + 15, 4);
-        val.data.b[0] = from_hex(p + 20, 2);
-        val.data.b[1] = from_hex(p + 22, 2);
-        p += 25;
-        for (unsigned i = 2; i < 8; ++i, p += 2) { val.data.b[i] = from_hex(p, 2); }
+        if (first[0] != '{' || first[9] != '-' || first[14] != '-' || first[19] != '-' || first[24] != '-' ||
+            first[37] != '}') {
+            return {first, sconv_errc::invalid};
+        }
+        unsigned n = 0;
+        guid::data8_t data;
+        static const UXS_CONSTEXPR std::uint8_t byte_pos[16] = {7,  5,  3,  1,  12, 10, 17, 15,
+                                                                20, 22, 25, 27, 29, 31, 33, 35};
+        for (std::uint8_t& b : data) {
+            if (detail::from_hex(&first[byte_pos[n++]], b) != sconv_errc::ok) { return {first, sconv_errc::invalid}; }
+        }
+        val = guid(data);
         return {first + len, sconv_errc::ok};
     }
 };
@@ -139,17 +161,13 @@ struct to_string_impl<guid, CharT> {
     template<typename StrTy>
     void operator()(StrTy& out, guid val, fmt_opts fmt = {}) const {
         const unsigned len = 38;
-        const bool upper = !!(fmt.flags & fmt_flags::uppercase);
+        const char* digs = !!(fmt.flags & fmt_flags::uppercase) ? "0123456789ABCDEF" : "0123456789abcdef";
         std::array<typename StrTy::value_type, len> buf;
-        auto* p = buf.data();
-        p[0] = '{', p[9] = '-', p[14] = '-', p[19] = '-', p[24] = '-', p[37] = '}';
-        to_hex(val.data.l, p + 1, 8, upper);
-        to_hex(val.data.w[0], p + 10, 4, upper);
-        to_hex(val.data.w[1], p + 15, 4, upper);
-        to_hex(val.data.b[0], p + 20, 2, upper);
-        to_hex(val.data.b[1], p + 22, 2, upper);
-        p += 25;
-        for (unsigned i = 2; i < 8; ++i, p += 2) { to_hex(val.data.b[i], p, 2, upper); }
+        buf[0] = '{', buf[9] = '-', buf[14] = '-', buf[19] = '-', buf[24] = '-', buf[37] = '}';
+        unsigned n = 0;
+        static const UXS_CONSTEXPR std::uint8_t byte_pos[16] = {7,  5,  3,  1,  12, 10, 17, 15,
+                                                                20, 22, 25, 27, 29, 31, 33, 35};
+        for (const std::uint8_t b : val.data8()) { detail::to_hex(b, &buf[byte_pos[n++]], digs); }
         const auto fn = [&buf](StrTy& out) { out.append(buf.data(), buf.size()); };
         fmt.width > len ? append_adjusted(out, fn, len, fmt) : fn(out);
     }
@@ -179,7 +197,7 @@ struct formatter<guid, CharT> {
         if (width_arg_id_ != unspecified_size) {
             opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>();
         }
-        to_string_impl<guid, CharT>{}(ctx.out(), val, opts);
+        to_string_append(ctx.out(), val, opts);
     }
 };
 
