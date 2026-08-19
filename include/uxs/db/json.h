@@ -45,8 +45,7 @@ struct lexer {
 }  // namespace detail
 
 template<typename ValueFunc, typename ArrItemFunc, typename ObjItemFunc, typename PopFunc>
-void read(ibuf& in, const ValueFunc& fn_value, const ArrItemFunc& fn_arr_item, const ObjItemFunc& fn_obj_item,
-          const PopFunc& fn_pop) {
+void read(ibuf& in, ValueFunc&& fn_value, ArrItemFunc&& fn_arr_item, ObjItemFunc&& fn_obj_item, PopFunc&& fn_pop) {
     detail::lexer lexer(in);
     basic_inline_dynbuffer<char, 32> stack;
 

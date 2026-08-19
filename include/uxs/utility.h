@@ -231,4 +231,11 @@ struct grow {
     }
 };
 
+struct true_func {
+    template<typename... Ty>
+    bool operator()(const Ty&...) const {
+        return true;
+    }
+};
+
 }  // namespace uxs

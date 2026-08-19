@@ -551,7 +551,7 @@ std::size_t estimate_string_width(InputIt first, InputIt last) {
 }
 
 template<typename StrTy, typename Func>
-void append_adjusted(StrTy& out, Func fn, unsigned len, fmt_opts fmt, bool prefer_right = false) {
+void append_adjusted(StrTy& out, Func&& fn, unsigned len, fmt_opts fmt, bool prefer_right = false) {
     unsigned left = fmt.width - len;
     unsigned right = left;
     if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::left) {

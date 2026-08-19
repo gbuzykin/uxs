@@ -88,9 +88,9 @@ class basic_option_node : public basic_node<CharT> {
     std::basic_string<CharT> make_text(text_briefness briefness) const;
 
     template<typename EnumFunc>
-    bool traverse_options(const EnumFunc& fn) const;
+    bool traverse_options(EnumFunc&& fn) const;
     template<typename EnumFunc>
-    bool traverse_options(const EnumFunc& fn);
+    bool traverse_options(EnumFunc&& fn);
 };
 
 template<typename CharT>
@@ -145,10 +145,10 @@ class basic_option : public basic_option_node<CharT> {
 
 template<typename CharT>
 template<typename EnumFunc>
-bool basic_option_node<CharT>::traverse_options(const EnumFunc& fn) const {
+bool basic_option_node<CharT>::traverse_options(EnumFunc&& fn) const {
     if (this->get_type() == node_type::option_group) {
         for (const auto& opt : static_cast<const basic_option_group<CharT>&>(*this).get_children()) {
-            if (!std::as_const(*opt).traverse_options(fn)) { return false; }
+            if (!std::as_const(*opt).traverse_options(std::forward<EnumFunc>(fn))) { return false; }
         }
     }
     return fn(*this);
@@ -156,7 +156,7 @@ bool basic_option_node<CharT>::traverse_options(const EnumFunc& fn) const {
 
 template<typename CharT>
 template<typename EnumFunc>
-bool basic_option_node<CharT>::traverse_options(const EnumFunc& fn) {
+bool basic_option_node<CharT>::traverse_options(EnumFunc&& fn) {
     return std::as_const(*this).traverse_options(
         [&fn](const basic_option_node<CharT>& opt) { return fn(const_cast<basic_option_node<CharT>&>(opt)); });
 }
@@ -397,9 +397,9 @@ class basic_option_wrapper : public basic_option_node_wrapper<CharT> {
         return std::move(opt %= doc);
     }
 
-    template<typename Fn>
-    basic_option_wrapper call(const Fn& fn) {
-        static_cast<basic_option<CharT>&>(**this).set_handler(fn);
+    template<typename Func>
+    basic_option_wrapper call(Func&& fn) {
+        static_cast<basic_option<CharT>&>(**this).set_handler(std::forward<Func>(fn));
         return std::move(*this);
     }
     template<typename Ty>
@@ -454,9 +454,9 @@ class basic_command_wrapper {
         return std::move(cmd %= doc);
     }
 
-    template<typename Fn>
-    basic_command_wrapper call(const Fn& fn) {
-        ptr_->set_handler(fn);
+    template<typename Func>
+    basic_command_wrapper call(Func&& fn) {
+        ptr_->set_handler(std::forward<Func>(fn));
         return std::move(*this);
     }
     template<typename Ty>

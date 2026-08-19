@@ -1,43 +1,10 @@
 #pragma once
 
-#include "utility.h"
+#include "common.h"
 
 #include <functional>
 
 namespace uxs {
-
-//-----------------------------------------------------------------------------
-// Function pointer holder
-
-namespace detail {
-template<typename Ty>
-struct is_function_pointer : std::false_type {};
-template<typename Ret, typename... Args>
-struct is_function_pointer<Ret (*)(Args...)> : std::true_type {};
-
-template<typename Func, typename = void>
-struct func_ptr_holder {
-    const Func* func_;
-    explicit func_ptr_holder(const Func& func) : func_(&func) {}
-    const Func& get_func() const { return *func_; }
-};
-
-template<typename Func>
-struct func_ptr_holder<Func, std::enable_if_t<is_function_pointer<Func>::value>> {
-    Func func_;
-    explicit func_ptr_holder(Func func) : func_(func) {}
-    Func get_func() const { return func_; }
-};
-
-template<typename Func>
-struct func_ptr_holder<Func, std::enable_if_t<std::is_empty<Func>::value>> : public Func {
-    explicit func_ptr_holder(const Func& func) : Func(func) {}
-    ~func_ptr_holder() = default;
-    func_ptr_holder(const func_ptr_holder&) = default;
-    func_ptr_holder& operator=(const func_ptr_holder&) { return *this; }  // do nothing
-    const Func& get_func() const { return *this; }
-};
-}  // namespace detail
 
 //-----------------------------------------------------------------------------
 // Functors

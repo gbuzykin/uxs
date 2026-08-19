@@ -1,6 +1,7 @@
 #pragma once
 
 #include "functional.h"
+#include "utility.h"
 
 #include <algorithm>
 #include <iterator>
@@ -160,7 +161,8 @@ auto unique(Container& c, Range&& r, Pred p, Dummy&&...) -> decltype(std::end(c)
         if (p(*first0, *first)) {
             first = c.erase(first);
         } else {
-            first0 = first++;
+            first0 = first;
+            ++first;
         }
     }
     return prev_sz - c.size();
@@ -343,17 +345,20 @@ OutputIt copy_if(const Range& r, OutputIt out, Pred p) {
     return std::copy_if(std::begin(r), std::end(r), out, p);
 }
 
-template<typename Range, typename OutputIt, typename TransfFunc>
-OutputIt transform(const Range& r, OutputIt out, TransfFunc func) {
-    return std::transform(std::begin(r), std::end(r), out, func);
+template<typename Range, typename OutputIt, typename Op>
+OutputIt transform(const Range& r, OutputIt out, Op op) {
+    return std::transform(std::begin(r), std::end(r), out, op);
 }
 
-template<typename Range, typename OutputIt, typename TransfFunc, typename Pred>
-OutputIt transform_if(const Range& r, OutputIt out, TransfFunc func, Pred p) {
+template<typename Range, typename OutputIt, typename Op, typename Pred>
+OutputIt transform_if(const Range& r, OutputIt out, Op op, Pred p) {
     auto first = std::begin(r);
     const auto last = std::end(r);
     while (first != last) {
-        if (p(*first)) { *out++ = func(*first); }
+        if (p(*first)) {
+            *out = op(*first);
+            ++out;
+        }
         ++first;
     }
     return out;
@@ -405,8 +410,8 @@ auto max_element(Range&& r, Comp comp = Comp{}) -> decltype(std::end(r)) {
 }
 
 template<typename Range, typename UnaryFunc>
-UnaryFunc for_each(Range&& r, UnaryFunc func) {
-    return std::for_each(std::begin(r), std::end(r), func);
+UnaryFunc for_each(Range&& r, UnaryFunc fn) {
+    return std::for_each(std::begin(r), std::end(r), fn);
 }
 
 #if __cplusplus < 201703L
@@ -416,10 +421,10 @@ struct for_loop_helper;
 template<typename Func>
 struct for_loop_helper<Func, std::false_type> {
     template<typename Range, typename... InputIts>
-    auto operator()(Range&& r, Func func, InputIts... its) -> decltype(std::end(r)) {
+    auto operator()(Range&& r, Func fn, InputIts... its) -> decltype(std::end(r)) {
         auto first = std::begin(r);
         for (const auto last = std::end(r); first != last; ++first, detail::dummy_variadic(++its...)) {
-            if (!func(*first, *its...)) { break; }
+            if (!fn(*first, *its...)) { break; }
         }
         return first;
     }
@@ -427,29 +432,29 @@ struct for_loop_helper<Func, std::false_type> {
 template<typename Func>
 struct for_loop_helper<Func, std::true_type> {
     template<typename Range, typename... InputIts>
-    auto operator()(Range&& r, Func func, InputIts... its) -> decltype(std::end(r)) {
+    auto operator()(Range&& r, Func fn, InputIts... its) -> decltype(std::end(r)) {
         auto first = std::begin(r);
         for (const auto last = std::end(r); first != last; ++first, detail::dummy_variadic(++its...)) {
-            func(*first, *its...);
+            fn(*first, *its...);
         }
         return first;
     }
 };
 }  // namespace detail
 template<typename Range, typename Func, typename... InputIts>
-auto for_loop(Range&& r, Func func, InputIts... its) -> decltype(std::end(r)) {
-    return detail::for_loop_helper<Func, typename std::is_same<decltype(func(*std::begin(r), *its...)), void>::type>()(
-        std::forward<Range>(r), func, its...);
+auto for_loop(Range&& r, Func fn, InputIts... its) -> decltype(std::end(r)) {
+    return detail::for_loop_helper<Func, typename std::is_same<decltype(fn(*std::begin(r), *its...)), void>::type>()(
+        std::forward<Range>(r), fn, its...);
 }
 #else   // __cplusplus < 201703L
 template<typename Range, typename Func, typename... InputIts>
-auto for_loop(Range&& r, Func func, InputIts... its) -> decltype(std::end(r)) {
+auto for_loop(Range&& r, Func fn, InputIts... its) -> decltype(std::end(r)) {
     auto first = std::begin(r);
     for (const auto last = std::end(r); first != last; (++first, ..., ++its)) {
-        if constexpr (std::is_same_v<decltype(func(*std::begin(r), *its...)), void>) {
-            func(*first, *its...);
+        if constexpr (std::is_same_v<decltype(fn(*std::begin(r), *its...)), void>) {
+            fn(*first, *its...);
         } else {
-            if (!func(*first, *its...)) { break; }
+            if (!fn(*first, *its...)) { break; }
         }
     }
     return first;

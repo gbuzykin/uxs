@@ -1,6 +1,8 @@
 #pragma once
 
-#include "uxs/utility.h"
+#include "uxs/common.h"
+
+#include <type_traits>
 
 namespace uxs {
 

@@ -681,7 +681,7 @@ struct parse_context_utils {
 };
 
 template<typename ParseCtx, typename OnTextFn, typename OnArgFn>
-UXS_CONSTEXPR void parse_format(ParseCtx& ctx, const OnTextFn& on_text_fn, const OnArgFn& on_arg_fn) {
+UXS_CONSTEXPR void parse_format(ParseCtx& ctx, OnTextFn&& on_text_fn, OnArgFn&& on_arg_fn) {
     auto it0 = ctx.begin();
     for (auto it = it0; it != ctx.end(); ++it) {
         if (*it != '{' && *it != '}') { continue; }
@@ -739,7 +739,7 @@ class basic_format_arg {
     }
 
     template<typename Func>
-    void visit(const Func& func) {
+    void visit(Func&& func) {
         switch (index_) {
 #define UXS_FMT_FORMAT_ARG_VALUE(ty) \
     case format_arg_type_index<FmtCtx, ty>::value: { \

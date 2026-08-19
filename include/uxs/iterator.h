@@ -496,51 +496,6 @@ class list_iterator : public container_iterator_facade<Traits, list_iterator<Tra
     node_type* node_ = nullptr;
 };
 
-//-----------------------------------------------------------------------------
-// Limited output iterator
-
-template<typename BaseIt>
-class limited_output_iterator {
- public:
-    using iterator_type = BaseIt;
-    using iterator_category = std::output_iterator_tag;
-    using value_type = void;
-    using difference_type = std::ptrdiff_t;
-    using reference = void;
-    using pointer = void;
-
-    limited_output_iterator() : base_(), limit_(0) {}
-    limited_output_iterator(BaseIt base, difference_type limit) : base_(base), limit_(limit) {}
-
-    template<typename Ty>
-    limited_output_iterator& operator=(Ty&& v) {
-        if (limit_) { *base_ = std::forward<Ty>(v); }
-        return *this;
-    }
-
-    limited_output_iterator& operator*() { return *this; }
-    limited_output_iterator& operator++() {
-        if (limit_) { ++base_, --limit_; }
-        return *this;
-    }
-    limited_output_iterator operator++(int) {
-        limited_output_iterator it = *this;
-        ++*this;
-        return it;
-    }
-
-    iterator_type base() const { return base_; }
-
- private:
-    iterator_type base_;
-    difference_type limit_;
-};
-
-template<typename BaseIt>
-limited_output_iterator<BaseIt> make_limited_output_iterator(const BaseIt& base, std::ptrdiff_t limit) {
-    return limited_output_iterator<BaseIt>(base, limit);
-}
-
 }  // namespace uxs
 
 namespace std {
