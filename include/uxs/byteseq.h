@@ -87,7 +87,7 @@ class basic_byteseq : protected detail::byteseq_chunk<Alloc>::alloc_type {
     basic_byteseq& assign(std::size_t max_size, FillFunc func) {
         clear_and_reserve(max_size);
         if (head_) {
-            size_ = func(est::as_span(head_->data, max_size));
+            size_ = std::move(func)(est::as_span(head_->data, max_size));
             head_->end = head_->data + size_;
         }
         return *this;

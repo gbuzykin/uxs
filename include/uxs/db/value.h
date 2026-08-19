@@ -167,17 +167,21 @@ class flexarray_t {
     void resize(alloc_type& al, std::size_t sz, const Ty& v);
 
     template<typename Func>
-    void append(alloc_type& al, std::size_t count, const Func& func) {
+    void append(alloc_type& al, std::size_t max_count, Func func) {
         if (!p_) {
-            if (!count) { return; }
-            p_ = alloc_checked(al, count + tail_zero);
+            if (!max_count) { return; }
+            p_ = alloc_checked(al, max_count + tail_zero);
         } else {
             make_unique(al);
-            if (!count) { return; }
-            if (count + tail_zero > p_->capacity - p_->size) { grow(al, count + tail_zero); }
+            if (!max_count) { return; }
+            if (max_count + tail_zero > p_->capacity - p_->size) { grow(al, max_count + tail_zero); }
         }
-        func(est::as_span(p_->data() + p_->size, count));
-        p_->size += count;
+        try {
+            p_->size += std::move(func)(est::as_span(p_->data() + p_->size, max_count));
+        } catch (...) {
+            put_tail_zero();
+            throw;
+        }
         put_tail_zero();
     }
 
@@ -970,7 +974,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     template<typename Func>
-    basic_value(dtype type, const Func& func, const Alloc& al = Alloc()) : alloc_type(al), type_(type) {
+    basic_value(dtype type, Func&& func, const Alloc& al = Alloc()) : alloc_type(al), type_(type) {
         switch (type_) {
             case dtype::null: break;
             case dtype::boolean: func(scalar_tag, value_.b); break;
@@ -1108,10 +1112,10 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     basic_value& append_string(const char_type* cstr) { return append_string(std::basic_string_view<char_type>(cstr)); }
 
     template<typename Func>
-    void append_string(size_type count, const Func& func) {
+    void append_string(size_type max_length, Func func) {
         if (type_ != dtype::string) { init_as_string(); }
         typename char_array_t::alloc_type str_al(*this);
-        value_.str.append(str_al, count, func);
+        value_.str.append(str_al, max_length, func);
     }
 
     template<typename CharT_, typename Alloc_>
@@ -1288,7 +1292,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     template<typename Func>
-    auto visit(const Func& func) const -> decltype(func(nullptr)) {
+    auto visit(Func&& func) const -> decltype(func(nullptr)) {
         switch (type_) {
             case dtype::null: return func(nullptr);
             case dtype::boolean: return func(value_.b);

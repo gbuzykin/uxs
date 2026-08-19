@@ -32,17 +32,16 @@ std::wstring_view trim_string(std::wstring_view s) { return trim_string_generic(
 
 // --------------------------
 
-template<typename CharT, typename Traits>
-std::basic_string<CharT, Traits> encode_escapes_generic(std::basic_string_view<CharT, Traits> s,
-                                                        std::basic_string_view<CharT, Traits> symb,
-                                                        std::basic_string_view<CharT, Traits> code) {
-    std::basic_string<CharT, Traits> result;
+template<typename CharT>
+std::basic_string<CharT> encode_escapes_generic(std::basic_string_view<CharT> s, std::basic_string_view<CharT> symb,
+                                                std::basic_string_view<CharT> code) {
+    std::basic_string<CharT> result;
     result.reserve(s.size());
     auto p0 = s.begin();
     auto p = p0;
     for (; p != s.end(); ++p) {
         auto pos = symb.find(*p);
-        if (pos != std::basic_string_view<CharT, Traits>::npos) {
+        if (pos != std::basic_string_view<CharT>::npos) {
             result += to_string_view(p0, p);
             result += '\\';
             result += code[pos];
@@ -63,11 +62,10 @@ std::wstring encode_escapes(std::wstring_view s, std::wstring_view symb, std::ws
 
 // --------------------------
 
-template<typename CharT, typename Traits>
-std::basic_string<CharT, Traits> decode_escapes_generic(std::basic_string_view<CharT, Traits> s,
-                                                        std::basic_string_view<CharT, Traits> symb,
-                                                        std::basic_string_view<CharT, Traits> code) {
-    std::basic_string<CharT, Traits> result;
+template<typename CharT>
+std::basic_string<CharT> decode_escapes_generic(std::basic_string_view<CharT> s, std::basic_string_view<CharT> symb,
+                                                std::basic_string_view<CharT> code) {
+    std::basic_string<CharT> result;
     result.reserve(s.size());
     auto p0 = s.begin();
     auto p = p0;
@@ -77,7 +75,7 @@ std::basic_string<CharT, Traits> decode_escapes_generic(std::basic_string_view<C
         p0 = p + 1;
         if (++p == s.end()) { break; }
         auto pos = code.find(*p);
-        if (pos != std::basic_string_view<CharT, Traits>::npos) {
+        if (pos != std::basic_string_view<CharT>::npos) {
             result += symb[pos];
             p0 = p + 1;
         }
@@ -102,8 +100,8 @@ int compare_strings_nocase_generic(std::basic_string_view<CharT> lhs, std::basic
     for (auto p1 = lhs.begin(), p2 = rhs.begin(); p1 != p1_end; ++p1, ++p2) {
         CharT ch1 = to_lower(*p1);
         CharT ch2 = to_lower(*p2);
-        if (std::basic_string_view<CharT>::traits_type::lt(ch1, ch2)) { return -1; }
-        if (std::basic_string_view<CharT>::traits_type::lt(ch2, ch1)) { return 1; }
+        if (ch1 < ch2) { return -1; }
+        if (ch1 > ch2) { return 1; }
     }
     if (lhs.size() < rhs.size()) { return -1; }
     if (rhs.size() < lhs.size()) { return 1; }

@@ -4,6 +4,8 @@
 
 #include "uxs/string_util.h"
 
+#include <exception>
+
 namespace uxs {
 
 template<typename Ty>
@@ -39,8 +41,23 @@ template<typename CharT, typename Traits, typename Alloc>
 bibuf& operator>>(bibuf& is, std::basic_string<CharT, Traits, Alloc>& s) {
     std::uint64_t sz = 0;
     if (!(is >> sz)) { return is; }
+#if defined(__cpp_lib_string_resize_and_overwrite)
+    std::exception_ptr eptr = nullptr;
+    s.resize_and_overwrite(static_cast<std::size_t>(sz), [&is, &eptr](CharT* p, std::size_t sz) noexcept -> std::size_t {
+        try {
+            return is.read_with_endian(est::as_span(reinterpret_cast<std::uint8_t*>(p), sz * sizeof(CharT)),
+                                       sizeof(CharT));
+
+        } catch (...) {
+            eptr = std::current_exception();
+            return 0;
+        }
+    });
+    if (eptr) { std::rethrow_exception(eptr); }
+#else   // resize_and_overwrite
     s.resize(static_cast<std::size_t>(sz));
     is.read_with_endian(est::as_span(reinterpret_cast<std::uint8_t*>(&s[0]), s.size() * sizeof(CharT)), sizeof(CharT));
+#endif  // resize_and_overwrite
     return is;
 }
 

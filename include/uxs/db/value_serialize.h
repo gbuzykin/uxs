@@ -48,9 +48,9 @@ void deserialize(bibuf& is, db::basic_value<CharT, Alloc>& v, basic_dynbuffer<Ch
         if constexpr (std::is_same_v<decltype(type), db::string_tag_t>) {
             std::uint64_t sz = 0;
             if (!(is >> sz)) { return; }
-            x.append_string(static_cast<std::size_t>(sz), [&is](est::span<CharT> s) {
-                is.read_with_endian(est::as_span(reinterpret_cast<std::uint8_t*>(s.data()), s.size() * sizeof(CharT)),
-                                    sizeof(CharT));
+            x.append_string(static_cast<std::size_t>(sz), [&is](est::span<CharT> s) noexcept {
+                return is.read_with_endian(
+                    est::as_span(reinterpret_cast<std::uint8_t*>(s.data()), s.size() * sizeof(CharT)), sizeof(CharT));
             });
         } else if constexpr (std::is_same_v<decltype(type), db::array_tag_t>) {
             std::uint64_t sz = 0;

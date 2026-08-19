@@ -296,12 +296,15 @@ struct numeric_prefix {
     void push_back(char symbol) { chars[len++] = symbol; }
     template<typename OutputIt>
     void print(OutputIt out) const {
-        for (unsigned n = 0; n < len; ++n) { *out++ = chars[n]; }
+        for (unsigned n = 0; n < len; ++n) {
+            *out = chars[n];
+            ++out;
+        }
     }
 };
 
 template<typename CharT, typename Func, typename... Args>
-void adjust_numeric(basic_membuffer<CharT>& out, const Func& fn, unsigned len, numeric_prefix prefix, fmt_opts fmt,
+void adjust_numeric(basic_membuffer<CharT>& out, Func&& fn, unsigned len, numeric_prefix prefix, fmt_opts fmt,
                     Args&&... args) {
     unsigned left = fmt.width - len;
     unsigned right = left;
@@ -342,25 +345,25 @@ template<typename CharT, typename Ty, typename PrintFn>
 struct print_functor {
     basic_membuffer<CharT>& out;
     Ty val;
-    PrintFn generate_fn;
+    PrintFn print_fn;
     template<typename... Args>
     UXS_FORCE_INLINE void operator()(unsigned len, numeric_prefix prefix, Args&&... args) const {
         if (out.avail() >= len || out.try_grow(len) >= len) {
             prefix.print(out.endp());
-            generate_fn(out.endp(), val, len, std::forward<Args>(args)...);
+            print_fn(out.endp(), val, len, std::forward<Args>(args)...);
             out.advance(len);
         } else {
             std::array<CharT, 256> buf;
             prefix.print(buf.data());
-            generate_fn(buf.data(), val, len, std::forward<Args>(args)...);
+            print_fn(buf.data(), val, len, std::forward<Args>(args)...);
             out.append(buf.data(), len);
         }
     }
 };
 
 template<typename CharT, typename Ty, typename PrintFn>
-print_functor<CharT, Ty, PrintFn> make_print_functor(basic_membuffer<CharT>& out, Ty val, PrintFn generate_fn) {
-    return print_functor<CharT, Ty, PrintFn>{out, val, generate_fn};
+print_functor<CharT, Ty, PrintFn> make_print_functor(basic_membuffer<CharT>& out, Ty val, PrintFn&& print_fn) {
+    return print_functor<CharT, Ty, PrintFn>{out, val, std::forward<PrintFn>(print_fn)};
 }
 
 // ---- binary

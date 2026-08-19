@@ -8,17 +8,14 @@
 
 namespace uxs {
 
-enum class split_opts { no_opts = 0, skip_empty = 1 };
-UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(split_opts);
-
 namespace detail {
 
 template<typename CharT, typename Traits>
-struct string_finder {
+struct char_finder {
     CharT ch;
     using is_finder = int;
     using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
-    explicit string_finder(CharT tgt) : ch(tgt) {}
+    explicit char_finder(CharT tgt) : ch(tgt) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         for (; begin != end; ++begin) {
             if (Traits::eq(*begin, '\\')) {
@@ -32,14 +29,15 @@ struct string_finder {
 };
 
 template<typename CharT, typename Traits>
-struct reversed_string_finder {
+struct reverse_char_finder {
     CharT ch;
-    using is_reversed_finder = int;
+    using is_reverse_finder = int;
     using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
-    explicit reversed_string_finder(CharT tgt) : ch(tgt) {}
+    explicit reverse_char_finder(CharT tgt) : ch(tgt) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         while (begin != end) {
-            if (begin != --end && Traits::eq(*(end - 1), '\\')) {
+            --end;
+            if (begin != end && Traits::eq(*(end - 1), '\\')) {
             } else if (Traits::eq(*end, ch)) {
                 return std::make_pair(end, end + 1);
             }
@@ -49,7 +47,7 @@ struct reversed_string_finder {
 };
 
 template<typename CharT, typename Traits>
-struct string_finder<std::basic_string_view<CharT, Traits>, Traits> {
+struct string_finder {
     std::basic_string_view<CharT, Traits> s;
     using is_finder = int;
     using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
@@ -65,11 +63,11 @@ struct string_finder<std::basic_string_view<CharT, Traits>, Traits> {
 };
 
 template<typename CharT, typename Traits>
-struct reversed_string_finder<std::basic_string_view<CharT, Traits>, Traits> {
+struct reverse_string_finder {
     std::basic_string_view<CharT, Traits> s;
-    using is_reversed_finder = int;
+    using is_reverse_finder = int;
     using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
-    explicit reversed_string_finder(std::basic_string_view<CharT, Traits> tgt) : s(tgt) {}
+    explicit reverse_string_finder(std::basic_string_view<CharT, Traits> tgt) : s(tgt) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         if (static_cast<std::size_t>(end - begin) < s.size()) { return std::make_pair(begin, begin); }
         if (!s.size()) { return std::make_pair(end, end); }
@@ -84,239 +82,171 @@ struct reversed_string_finder<std::basic_string_view<CharT, Traits>, Traits> {
 
 }  // namespace detail
 
-inline detail::string_finder<char, std::char_traits<char>> sfinder(char ch) {
-    return detail::string_finder<char, std::char_traits<char>>(ch);
-}
-inline detail::reversed_string_finder<char, std::char_traits<char>> rsfinder(char ch) {
-    return detail::reversed_string_finder<char, std::char_traits<char>>(ch);
-}
-inline detail::string_finder<std::string_view, std::char_traits<char>> sfinder(std::string_view s) {
-    return detail::string_finder<std::string_view, std::char_traits<char>>(s);
-}
-inline detail::reversed_string_finder<std::string_view, std::char_traits<char>> rsfinder(std::string_view s) {
-    return detail::reversed_string_finder<std::string_view, std::char_traits<char>>(s);
+template<typename CharT, typename Traits = std::char_traits<CharT>,
+         typename = std::enable_if_t<is_character<CharT>::value>>
+detail::char_finder<CharT, Traits> sfinder(CharT ch) {
+    return detail::char_finder<CharT, Traits>(ch);
 }
 
-inline detail::string_finder<wchar_t, std::char_traits<wchar_t>> sfinder(wchar_t ch) {
-    return detail::string_finder<wchar_t, std::char_traits<wchar_t>>(ch);
+template<typename CharT, typename Traits = std::char_traits<CharT>,
+         typename = std::enable_if_t<is_character<CharT>::value>>
+detail::reverse_char_finder<CharT, Traits> rsfinder(CharT ch) {
+    return detail::reverse_char_finder<CharT, Traits>(ch);
 }
-inline detail::reversed_string_finder<wchar_t, std::char_traits<wchar_t>> rsfinder(wchar_t ch) {
-    return detail::reversed_string_finder<wchar_t, std::char_traits<wchar_t>>(ch);
+
+template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
+detail::string_finder<array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>> sfinder(const StrLikeTy& s) {
+    return detail::string_finder<array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>>(to_string_view(s));
 }
-inline detail::string_finder<std::wstring_view, std::char_traits<wchar_t>> sfinder(std::wstring_view s) {
-    return detail::string_finder<std::wstring_view, std::char_traits<wchar_t>>(s);
-}
-inline detail::reversed_string_finder<std::wstring_view, std::char_traits<wchar_t>> rsfinder(std::wstring_view s) {
-    return detail::reversed_string_finder<std::wstring_view, std::char_traits<wchar_t>>(s);
+
+template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
+detail::reverse_string_finder<array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>> rsfinder(const StrLikeTy& s) {
+    return detail::reverse_string_finder<array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>>(to_string_view(s));
 }
 
 // --------------------------
 
-template<typename CharT, typename Traits, typename Finder, typename = std::void_t<typename Finder::is_finder>>
-std::basic_string<CharT, Traits> replace_strings_generic(std::basic_string_view<CharT, Traits> s, Finder finder,
-                                                         std::basic_string_view<CharT, Traits> with) {
-    std::basic_string<CharT, Traits> result;
-    result.reserve(s.size());
-    auto p = s.begin();
-    while (p != s.end()) {
-        const auto sub = finder(p, s.end());
-        result += to_string_view(p, sub.first);
-        if (sub.first != sub.second) { result += with; }
+template<typename StrTy, typename StrLikeTy, typename Finder, typename WithTy,
+         typename = std::enable_if_t<is_string_like<StrLikeTy>::value>,
+         typename = std::void_t<typename Finder::is_finder>>
+void replace_strings_append(StrTy& out, const StrLikeTy& s, Finder finder, const WithTy& with) {
+    const auto sv = to_string_view(s);
+    auto p = sv.begin();
+    while (p != sv.end()) {
+        const auto sub = finder(p, sv.end());
+        out += sv.substr(p - sv.begin(), sub.first - p);
+        if (sub.first != sub.second) { out += with; }
         p = sub.second;
     }
+}
+
+template<typename StrLikeTy, typename Finder, typename WithTy,
+         typename = std::enable_if_t<is_string_like<StrLikeTy>::value>,
+         typename = std::void_t<typename Finder::is_finder>>
+auto replace_strings(const StrLikeTy& s, Finder finder, const WithTy& with) -> decltype(make_string(s)) {
+    decltype(make_string(s)) result;
+    const auto sv = to_string_view(s);
+    result.reserve(sv.size());
+    replace_strings_append(result, sv, finder, with);
     return result;
-}
-
-template<typename Finder, typename = std::void_t<typename Finder::is_finder>>
-std::string replace_strings(std::string_view s, Finder finder, std::string_view with) {
-    return replace_strings_generic(s, finder, with);
-}
-
-template<typename Finder, typename = std::void_t<typename Finder::is_finder>>
-std::wstring replace_strings(std::wstring_view s, Finder finder, std::wstring_view with) {
-    return replace_strings_generic(s, finder, with);
 }
 
 // --------------------------
 
 template<typename StrTy, typename Range, typename SepTy, typename JoinFn = grow>
-void join_strings_append(StrTy& out, const Range& r, SepTy sep, JoinFn fn = JoinFn{}) {
+void join_strings_append(StrTy& out, const Range& r, const SepTy& sep, JoinFn fn = JoinFn{}) {
     auto first = std::begin(r);
     const auto last = std::end(r);
     if (first == last) { return; }
     while (true) {
         fn(out, *first);
-        if (++first == last) { break; }
+        ++first;
+        if (first == last) { return; }
         out += sep;
     }
 }
 
-template<typename Range, typename SepTy, typename JoinFn = grow>
-std::string join_strings(const Range& r, SepTy sep, std::string prefix = {}, JoinFn fn = JoinFn{}) {
-    join_strings_append(prefix, r, sep, fn);
-    return prefix;
-}
-
-template<typename Range, typename SepTy, typename JoinFn = grow>
-std::wstring join_strings(const Range& r, SepTy sep, std::wstring prefix = {}, JoinFn fn = JoinFn{}) {
+template<typename CharT = char, typename Range, typename SepTy, typename JoinFn = grow>
+std::basic_string<CharT> join_strings(const Range& r, const SepTy& sep,
+                                      est::type_identity_t<std::basic_string<CharT>> prefix = {},
+                                      JoinFn fn = JoinFn{}) {
     join_strings_append(prefix, r, sep, fn);
     return prefix;
 }
 
 // --------------------------
 
-template<typename OutputIt>
-struct split_string_result {
-#if __cplusplus < 201703L
-    split_string_result(OutputIt out, std::size_t count) : out(out), count(count) {}
-#endif  // __cplusplus < 201703L
-    OutputIt out;
-    std::size_t count;
-};
-
-template<split_opts Opts, typename CharT, typename Traits, typename Finder, typename OutputIt,
-         typename OutputFn = nofunc, typename = std::void_t<typename Finder::is_finder>>
-split_string_result<OutputIt> split_string_generic(std::basic_string_view<CharT, Traits> s, Finder finder, OutputIt out,
-                                                   OutputFn fn = OutputFn{},
-                                                   std::size_t max_count = std::numeric_limits<std::size_t>::max()) {
-    if (!max_count) { return {out, 0}; }
-    std::size_t count = 0;
-    auto p = s.begin();
+template<typename StrLikeTy, typename Finder, typename OutputIt, typename OutputFn = nofunc,
+         typename OutputPred = true_func, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>,
+         typename = std::void_t<typename Finder::is_finder>>
+OutputIt split_string_to(const StrLikeTy& s, Finder finder, OutputIt out, OutputFn fn = OutputFn{},
+                         OutputPred pred = OutputPred{}) {
+    const auto sv = to_string_view(s);
+    auto p = sv.begin();
     while (true) {
-        const auto sub = finder(p, s.end());
-        if (!(Opts & split_opts::skip_empty) || p != sub.first) {
-            *out++ = fn(s.substr(p - s.begin(), sub.first - p));
-            if (++count == max_count) { break; }
+        const auto sub = finder(p, sv.end());
+        if (pred(p, sub.first)) {
+            *out = fn(sv.substr(p - sv.begin(), sub.first - p));
+            ++out;
         }
-        if (sub.first == s.end()) { break; }
+        if (sub.first == sv.end()) { return out; }
         p = sub.second;
     }
-    return {out, count};
 }
 
-template<split_opts Opts = split_opts::no_opts, typename Finder, typename OutputIt, typename OutputFn = nofunc,
-         typename = std::void_t<typename Finder::is_finder>>
-split_string_result<OutputIt> split_string_to(std::string_view s, Finder finder, OutputIt out, OutputFn fn = OutputFn{},
-                                              std::size_t max_count = std::numeric_limits<std::size_t>::max()) {
-    return split_string_generic<Opts>(s, finder, out, fn, max_count);
-}
-
-template<split_opts Opts = split_opts::no_opts, typename Finder, typename OutputFn = nofunc>
-auto split_string(std::string_view s, Finder finder, OutputFn fn = OutputFn{})
-    -> std::vector<std::decay_t<decltype(fn(s))>> {
-    std::vector<std::decay_t<decltype(fn(s))>> result;
-    split_string_generic<Opts>(s, finder, std::back_inserter(result), fn);
-    return result;
-}
-
-template<split_opts Opts = split_opts::no_opts, typename Finder, typename OutputIt, typename OutputFn = nofunc,
-         typename = std::void_t<typename Finder::is_finder>>
-split_string_result<OutputIt> split_string_to(std::wstring_view s, Finder finder, OutputIt out,
-                                              OutputFn fn = OutputFn{},
-                                              std::size_t max_count = std::numeric_limits<std::size_t>::max()) {
-    return split_string_generic<Opts>(s, finder, out, fn, max_count);
-}
-
-template<split_opts Opts = split_opts::no_opts, typename Finder, typename OutputFn = nofunc>
-auto split_string(std::wstring_view s, Finder finder, OutputFn fn = OutputFn{})
-    -> std::vector<std::decay_t<decltype(fn(s))>> {
-    std::vector<std::decay_t<decltype(fn(s))>> result;
-    split_string_generic<Opts>(s, finder, std::back_inserter(result), fn);
+template<typename StrLikeTy, typename Finder, typename OutputFn = nofunc, typename OutputPred = true_func,
+         typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
+auto split_string(const StrLikeTy& s, Finder finder, OutputFn fn = OutputFn{}, OutputPred pred = OutputPred{})
+    -> std::vector<std::decay_t<decltype(fn(to_string_view(s)))>> {
+    std::vector<std::decay_t<decltype(fn(to_string_view(s)))>> result;
+    split_string_to(s, finder, std::back_inserter(result), fn, pred);
     return result;
 }
 
 // --------------------------
 
-template<split_opts Opts, typename CharT, typename Traits, typename Finder>
-std::basic_string_view<CharT, Traits> string_section_generic(
-    std::basic_string_view<CharT, Traits> s, Finder finder,
-    est::type_identity_t<std::size_t, typename Finder::is_finder> start,
-    std::size_t fin = std::numeric_limits<std::size_t>::max()) {
-    if (fin < start) { fin = start; }
-    std::size_t count = 0;
-    auto p = s.begin();
-    auto from = s.end();
+template<typename StrLikeTy, typename Finder, typename Pred = true_func,
+         typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
+auto string_section(const StrLikeTy& s, Finder finder,
+                    est::type_identity_t<std::size_t, typename Finder::is_finder> start, std::size_t count = 0,
+                    Pred pred = Pred{}) -> decltype(to_string_view(s)) {
+    std::size_t n = 0;
+    const auto sv = to_string_view(s);
+    auto p = sv.begin();
+    auto from = sv.end();
+    const std::size_t fin = count ? start + count - 1 : std::numeric_limits<std::size_t>::max();
     while (true) {
-        const auto sub = finder(p, s.end());
-        if (!(Opts & split_opts::skip_empty) || p != sub.first) {
-            if (count == start) { from = p; }
-            if (count++ == fin) { return s.substr(from - s.begin(), sub.first - from); }
+        const auto sub = finder(p, sv.end());
+        if (pred(p, sub.first)) {
+            if (n == start) { from = p; }
+            if (n == fin) { return sv.substr(from - sv.begin(), sub.first - from); }
+            ++n;
         }
-        if (sub.first == s.end()) { break; }
+        if (sub.first == sv.end()) { return sv.substr(from - sv.begin(), sv.end() - from); }
         p = sub.second;
     }
-    return s.substr(from - s.begin(), s.end() - from);
 }
 
-template<split_opts Opts = split_opts::no_opts, typename Finder>
-std::string_view string_section(std::string_view s, Finder finder,
-                                est::type_identity_t<std::size_t, typename Finder::is_finder> start,
-                                std::size_t fin = std::numeric_limits<std::size_t>::max()) {
-    return string_section_generic<Opts>(s, finder, start, fin);
-}
-
-template<split_opts Opts = split_opts::no_opts, typename Finder>
-std::wstring_view string_section(std::wstring_view s, Finder finder,
-                                 est::type_identity_t<std::size_t, typename Finder::is_finder> start,
-                                 std::size_t fin = std::numeric_limits<std::size_t>::max()) {
-    return string_section_generic<Opts>(s, finder, start, fin);
-}
-
-// --------------------------
-
-template<split_opts Opts, typename CharT, typename Traits, typename Finder>
-std::basic_string_view<CharT, Traits> string_section_generic(
-    std::basic_string_view<CharT, Traits> s, Finder finder,
-    est::type_identity_t<std::size_t, typename Finder::is_reversed_finder> start, std::size_t fin = 0) {
-    if (fin > start) { fin = start; }
-    std::size_t count = 0;
-    auto p = s.end();
-    auto to = s.begin();
+template<typename StrLikeTy, typename Finder, typename Pred = true_func,
+         typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
+auto string_section(const StrLikeTy& s, Finder finder,
+                    est::type_identity_t<std::size_t, typename Finder::is_reverse_finder> start, std::size_t count = 0,
+                    Pred pred = Pred{}) -> decltype(to_string_view(s)) {
+    std::size_t n = 0;
+    const auto sv = to_string_view(s);
+    auto p = sv.end();
+    auto to = sv.begin();
+    const std::size_t fin = count ? start - count + 1 : 0;
     while (true) {
-        const auto sub = finder(s.begin(), p);
-        if (!(Opts & split_opts::skip_empty) || sub.second != p) {
-            if (count == fin) { to = p; }
-            if (count++ == start) { return s.substr(sub.second - s.begin(), to - sub.second); }
+        const auto sub = finder(sv.begin(), p);
+        if (pred(sub.second, p)) {
+            if (n == fin) { to = p; }
+            if (n == start) { return sv.substr(sub.second - sv.begin(), to - sub.second); }
+            ++n;
         }
-        if (sub.second == s.begin()) { break; }
+        if (sub.second == sv.begin()) { return sv.substr(0, to - sv.begin()); }
         p = sub.first;
     }
-    return s.substr(0, to - s.begin());
-}
-
-template<split_opts Opts = split_opts::no_opts, typename Finder>
-std::string_view string_section(std::string_view s, Finder finder,
-                                est::type_identity_t<std::size_t, typename Finder::is_reversed_finder> start,
-                                std::size_t fin = 0) {
-    return string_section_generic<Opts>(s, finder, start, fin);
-}
-
-template<split_opts Opts = split_opts::no_opts, typename Finder>
-std::wstring_view string_section(std::wstring_view s, Finder finder,
-                                 est::type_identity_t<std::size_t, typename Finder::is_reversed_finder> start,
-                                 std::size_t fin = 0) {
-    return string_section_generic<Opts>(s, finder, start, fin);
 }
 
 // --------------------------
 
-template<typename CharT, typename Traits, typename OutputIt, typename OutputFn = nofunc>
-split_string_result<OutputIt> string_to_words_generic(std::basic_string_view<CharT, Traits> s, CharT sep, OutputIt out,
-                                                      OutputFn fn = OutputFn{},
-                                                      std::size_t max_count = std::numeric_limits<std::size_t>::max()) {
-    if (!max_count) { return {out, 0}; }
-    std::size_t count = 0;
+template<typename StrLikeTy, typename OutputIt, typename OutputFn = nofunc, typename OutputPred = true_func,
+         typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
+OutputIt string_to_words_to(const StrLikeTy& s, array_element_t<StrLikeTy> sep, OutputIt out, OutputFn fn = OutputFn{},
+                            OutputPred pred = OutputPred{}) {
     enum class state_t { start = 0, sep_found, skip_sep } state = state_t::start;
-    for (auto p = s.begin();; ++p) {
-        while (p != s.end() && is_space(*p)) { ++p; }  // skip spaces
+    const auto sv = to_string_view(s);
+    for (auto p = sv.begin();; ++p) {
+        while (p != sv.end() && is_space(*p)) { ++p; }  // skip spaces
         const auto p0 = p;
-        if (p == s.end()) {
-            if (state != state_t::sep_found) { break; }
+        if (p == sv.end()) {
+            if (state != state_t::sep_found) { return out; }
         } else {
             state_t prev_state = state;
             do {  // find separator or blank
                 if (*p == '\\') {
-                    if (++p == s.end()) { break; }
+                    if (++p == sv.end()) { break; }
                 } else if (is_space(*p)) {
                     state = state_t::skip_sep;
                     break;
@@ -324,141 +254,98 @@ split_string_result<OutputIt> string_to_words_generic(std::basic_string_view<Cha
                     state = state_t::sep_found;
                     break;
                 }
-            } while (++p != s.end());
+            } while (++p != sv.end());
             if (p == p0 && prev_state == state_t::skip_sep) { continue; }
         }
-        *out++ = fn(s.substr(p0 - s.begin(), p - p0));
-        if (++count == max_count || p == s.end()) { break; }
+        if (pred(p0, p)) {
+            *out = fn(sv.substr(p0 - sv.begin(), p - p0));
+            ++out;
+        }
+        if (p == sv.end()) { return out; }
     }
-    return {out, count};
 }
 
-template<typename OutputIt, typename OutputFn = nofunc>
-split_string_result<OutputIt> string_to_words_to(std::string_view s, char sep, OutputIt out, OutputFn fn = OutputFn{},
-                                                 std::size_t max_count = std::numeric_limits<std::size_t>::max()) {
-    return string_to_words_generic(s, sep, out, fn, max_count);
-}
-
-template<typename OutputFn = nofunc>
-auto string_to_words(std::string_view s, char sep, OutputFn fn = OutputFn{})
-    -> std::vector<std::decay_t<decltype(fn(s))>> {
-    std::vector<std::decay_t<decltype(fn(s))>> result;
-    string_to_words_generic(s, sep, std::back_inserter(result), fn);
-    return result;
-}
-
-template<typename OutputIt, typename OutputFn = nofunc>
-split_string_result<OutputIt> string_to_words_to(std::wstring_view s, wchar_t sep, OutputIt out,
-                                                 OutputFn fn = OutputFn{},
-                                                 std::size_t max_count = std::numeric_limits<std::size_t>::max()) {
-    return string_to_words_generic(s, sep, out, fn, max_count);
-}
-
-template<typename OutputFn = nofunc>
-auto string_to_words(std::wstring_view s, wchar_t sep, OutputFn fn = OutputFn{})
-    -> std::vector<std::decay_t<decltype(fn(s))>> {
-    std::vector<std::decay_t<decltype(fn(s))>> result;
-    string_to_words_generic(s, sep, std::back_inserter(result), fn);
+template<typename StrLikeTy, typename OutputFn = nofunc, typename OutputPred = true_func,
+         typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
+auto string_to_words(const StrLikeTy& s, array_element_t<StrLikeTy> sep, OutputFn fn = OutputFn{},
+                     OutputPred pred = OutputPred{}) -> std::vector<std::decay_t<decltype(fn(to_string_view(s)))>> {
+    std::vector<std::decay_t<decltype(fn(to_string_view(s)))>> result;
+    string_to_words_to(s, sep, std::back_inserter(result), fn, pred);
     return result;
 }
 
 // --------------------------
 
 template<typename StrTy, typename Range, typename InputFn = nofunc>
-void pack_strings_append(StrTy& out, const Range& r, typename StrTy::value_type sep, InputFn fn = InputFn{}) {
+auto pack_strings_append(StrTy& out, const Range& r, typename StrTy::value_type sep, InputFn fn = InputFn{})
+    -> std::enable_if_t<is_string_like<std::decay_t<decltype(fn(*std::begin(r)))>>::value> {
     auto first = std::begin(r);
     const auto last = std::end(r);
     if (first == last) { return; }
     while (true) {
         const auto el = fn(*first);
-        auto p0 = std::begin(el);
+        const auto sv = to_string_view(el);
+        auto p0 = sv.begin();
         auto p = p0;
-        const auto p_end = std::end(el);
-        const bool is_empty = p0 == p_end;
-        for (; p != p_end; ++p) {
+        for (; p != sv.end(); ++p) {
             if (*p == '\\' || *p == sep) {
-                out += to_string_view(p0, p);
+                out += sv.substr(p0 - sv.begin(), p - p0);
                 out += '\\';
                 p0 = p;
             }
         }
-        out += to_string_view(p0, p);
-        if (++first == last) {
-            if (is_empty) { out += sep; }
-            break;
+        out += sv.substr(p0 - sv.begin(), p - p0);
+        ++first;
+        if (first == last) {
+            if (sv.empty()) { out += sep; }
+            return;
         }
         out += sep;
     }
 }
 
-template<typename Range, typename InputFn = nofunc>
-std::string pack_strings(const Range& r, char sep, std::string prefix = {}, InputFn fn = InputFn{}) {
-    pack_strings_append(prefix, r, sep, fn);
-    return prefix;
-}
-
-template<typename Range, typename InputFn = nofunc>
-std::wstring pack_strings(const Range& r, wchar_t sep, std::wstring prefix = {}, InputFn fn = InputFn{}) {
+template<typename CharT = char, typename Range, typename InputFn = nofunc>
+auto pack_strings(const Range& r, est::type_identity_t<CharT> sep,
+                  est::type_identity_t<std::basic_string<CharT>> prefix = {}, InputFn fn = InputFn{})
+    -> std::enable_if_t<is_string_like<std::decay_t<decltype(fn(*std::begin(r)))>>::value, std::basic_string<CharT>> {
     pack_strings_append(prefix, r, sep, fn);
     return prefix;
 }
 
 // --------------------------
 
-template<typename CharT, typename Traits, typename OutputIt, typename OutputFn = nofunc>
-split_string_result<OutputIt> unpack_strings_generic(std::basic_string_view<CharT, Traits> s, CharT sep, OutputIt out,
-                                                     OutputFn fn = OutputFn{},
-                                                     std::size_t max_count = std::numeric_limits<std::size_t>::max()) {
-    if (!max_count) { return {out, 0}; }
-    std::size_t count = 0;
-    for (auto p = s.begin();; ++p) {
-        std::basic_string<CharT, Traits> result;
+template<typename StrLikeTy, typename OutputIt, typename OutputFn = nofunc, typename OutputPred = true_func,
+         typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
+OutputIt unpack_strings_to(const StrLikeTy& s, array_element_t<StrLikeTy> sep, OutputIt out, OutputFn fn = OutputFn{},
+                           OutputPred pred = OutputPred{}) {
+    const auto sv = to_string_view(s);
+    for (auto p = sv.begin();; ++p) {
+        decltype(make_string(s)) val;
         auto p0 = p;  // append chars till separator
-        for (; p != s.end(); ++p) {
+        for (; p != sv.end(); ++p) {
             if (*p == '\\') {
-                result += to_string_view(p0, p);
+                val += sv.substr(p0 - sv.begin(), p - p0);
                 p0 = p + 1;
-                if (++p == s.end()) { break; }
+                if (++p == sv.end()) { break; }
             } else if (*p == sep) {
                 break;
             }
         }
-        result += to_string_view(p0, p);
-        if (p != s.end() || !result.empty()) {
-            *out++ = fn(std::move(result));
-            if (++count == max_count) { break; }
+        val += sv.substr(p0 - sv.begin(), p - p0);
+        if ((p != sv.end() || !val.empty()) && pred(val.begin(), val.end())) {
+            *out = fn(std::move(val));
+            ++out;
         }
-        if (p == s.end()) { break; }
+        if (p == sv.end()) { return out; }
     }
-    return {out, count};
 }
 
-template<typename OutputIt, typename OutputFn = nofunc>
-split_string_result<OutputIt> unpack_strings_to(std::string_view s, char sep, OutputIt out, OutputFn fn = OutputFn{},
-                                                std::size_t max_count = std::numeric_limits<std::size_t>::max()) {
-    return unpack_strings_generic(s, sep, out, fn, max_count);
-}
-
-template<typename OutputFn = nofunc>
-auto unpack_strings(std::string_view s, char sep, OutputFn fn = OutputFn{})
-    -> std::vector<std::decay_t<decltype(fn(std::string()))>> {
-    std::vector<std::decay_t<decltype(fn(std::string()))>> result;
-    unpack_strings_generic(s, sep, std::back_inserter(result), fn);
-    return result;
-}
-
-template<typename OutputIt, typename OutputFn = nofunc>
-split_string_result<OutputIt> unpack_strings_to(std::wstring_view s, wchar_t sep, OutputIt out,
-                                                OutputFn fn = OutputFn{},
-                                                std::size_t max_count = std::numeric_limits<std::size_t>::max()) {
-    return unpack_strings_generic(s, sep, out, fn, max_count);
-}
-
-template<typename OutputFn = nofunc>
-auto unpack_strings(std::wstring_view s, wchar_t sep, OutputFn fn = OutputFn{})
-    -> std::vector<std::decay_t<decltype(fn(std::wstring()))>> {
-    std::vector<std::decay_t<decltype(fn(std::wstring()))>> result;
-    unpack_strings_generic(s, sep, std::back_inserter(result), fn);
+template<typename StrLikeTy, typename OutputFn = nofunc, typename OutputPred = true_func,
+         typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
+auto unpack_strings(const StrLikeTy& s, array_element_t<StrLikeTy> sep, OutputFn fn = OutputFn{},
+                    OutputPred pred = OutputPred{}) -> std::vector<std::decay_t<decltype(fn(make_string(s)))>> {
+    std::vector<std::decay_t<decltype(fn(make_string(s)))>> result;
+    unpack_strings_to(s, sep, std::back_inserter(result), fn, pred);
     return result;
 }
 
