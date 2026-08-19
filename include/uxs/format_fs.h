@@ -1,10 +1,10 @@
 #pragma once
 
-#if __cplusplus < 201703L
-#    error Header file `format_fs.h` requires C++17
-#endif  // __cplusplus < 201703L
-
 #include "format_base.h"
+
+#if __cplusplus < 201703L || !UXS_HAS_INCLUDE(<filesystem>)
+#    error Header file `format_fs.h` requires C++17 and <filesystem> header
+#endif  // __cplusplus < 201703L
 
 #include <filesystem>
 
@@ -23,10 +23,10 @@ struct formatter<std::filesystem::path, CharT> {
     bool use_generic_ = false;
 
  public:
-    UXS_CONSTEXPR void set_debug_format() { opts_.flags |= fmt_flags::debug_format; }
+    constexpr void set_debug_format() { opts_.flags |= fmt_flags::debug_format; }
 
     template<typename ParseCtx>
-    UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) {
+    constexpr typename ParseCtx::iterator parse(ParseCtx& ctx) {
         auto it = ctx.begin();
         if (it == ctx.end() || *it != ':') { return it; }
         std::size_t dummy_id = unspecified_size;

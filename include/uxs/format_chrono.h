@@ -1,10 +1,10 @@
 #pragma once
 
-#if __cplusplus < 202002L
-#    error Header file `format_chrono.h` requires C++20
-#endif  // __cplusplus < 202002L
-
 #include "format_base.h"
+
+#if __cplusplus < 202002L || !UXS_HAS_INCLUDE(<chrono>)
+#    error Header file `format_chrono.h` requires C++20 and <chrono> header
+#endif  // __cplusplus < 202002L
 
 #include <chrono>
 #include <ctime>
