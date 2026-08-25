@@ -86,163 +86,156 @@ struct local_time_format_t {
 };
 
 template<typename... CharTs>
-constexpr bool check_chrono_modifier(char modifier) {
+constexpr bool check_chrono_modifier(char modifier) noexcept {
     return !modifier;
 }
 
 template<typename... CharTs>
-constexpr bool check_chrono_modifier(char modifier, char m, CharTs... others) {
+constexpr bool check_chrono_modifier(char modifier, char m, CharTs... others) noexcept {
     return modifier == m || check_chrono_modifier(modifier, others...);
 }
 
 template<typename Iter>
-constexpr chrono_specifier parse_chrono_format_spec(Iter& first, Iter last, char& modifier) {
-    modifier = '\0';
-    if (first == last || *first == '{' || *first == '}') { return chrono_specifier::end_of_format; }
-    if (*first++ != '%') { return chrono_specifier::ordinary_char; }
-    if (first == last) { return chrono_specifier::end_of_format; }
+constexpr std::pair<Iter, chrono_specifier> parse_chrono_format_spec(Iter first, Iter last, char& modifier) noexcept {
+    if (first == last || *first == '{' || *first == '}') { return {first, chrono_specifier::end_of_format}; }
+    if (*first++ != '%') { return {first, chrono_specifier::ordinary_char}; }
+    if (first == last) { return {first, chrono_specifier::end_of_format}; }
     switch (*first) {
-        case '%': {
-            ++first;
-            return chrono_specifier::percent;
-        } break;
-        case 'n': {
-            ++first;
-            return chrono_specifier::new_line;
-        } break;
-        case 't': {
-            ++first;
-            return chrono_specifier::tab;
-        } break;
+        case '%': return {first + 1, chrono_specifier::percent};
+        case 'n': return {first + 1, chrono_specifier::new_line};
+        case 't': return {first + 1, chrono_specifier::tab};
         case 'O':
         case 'E': {
             modifier = static_cast<char>(*first++);
-            if (first == last) { return chrono_specifier::end_of_format; }
+            if (first == last) { return {first, chrono_specifier::end_of_format}; }
         } break;
-        default: break;
+        default: modifier = '\0'; break;
     }
     switch (*first++) {
         // --- year ---
         case 'C': {
-            if (check_chrono_modifier(modifier, 'E')) { return chrono_specifier::century; }
+            if (check_chrono_modifier(modifier, 'E')) { return {first, chrono_specifier::century}; }
         } break;
         case 'y': {
-            if (check_chrono_modifier(modifier, 'O', 'E')) { return chrono_specifier::year_yy; }
+            if (check_chrono_modifier(modifier, 'O', 'E')) { return {first, chrono_specifier::year_yy}; }
         } break;
         case 'Y': {
-            if (check_chrono_modifier(modifier, 'E')) { return chrono_specifier::year_yyyy; }
+            if (check_chrono_modifier(modifier, 'E')) { return {first, chrono_specifier::year_yyyy}; }
         } break;
         // --- month ---
         case 'b':
         case 'h': {
-            if (check_chrono_modifier(modifier)) { return chrono_specifier::month_brief; }
+            if (check_chrono_modifier(modifier)) { return {first, chrono_specifier::month_brief}; }
         } break;
         case 'B': {
-            if (check_chrono_modifier(modifier)) { return chrono_specifier::month_full; }
+            if (check_chrono_modifier(modifier)) { return {first, chrono_specifier::month_full}; }
         } break;
         case 'm': {
-            if (check_chrono_modifier(modifier, 'O')) { return chrono_specifier::month_mm; }
+            if (check_chrono_modifier(modifier, 'O')) { return {first, chrono_specifier::month_mm}; }
         } break;
         // --- day ---
         case 'd': {
-            if (check_chrono_modifier(modifier, 'O')) { return chrono_specifier::day_zero; }
+            if (check_chrono_modifier(modifier, 'O')) { return {first, chrono_specifier::day_zero}; }
         } break;
         case 'e': {
-            if (check_chrono_modifier(modifier, 'O')) { return chrono_specifier::day_space; }
+            if (check_chrono_modifier(modifier, 'O')) { return {first, chrono_specifier::day_space}; }
         } break;
         // --- day of the week ---
         case 'a': {
-            if (check_chrono_modifier(modifier)) { return chrono_specifier::weekday_brief; }
+            if (check_chrono_modifier(modifier)) { return {first, chrono_specifier::weekday_brief}; }
         } break;
         case 'A': {
-            if (check_chrono_modifier(modifier)) { return chrono_specifier::weekday_full; }
+            if (check_chrono_modifier(modifier)) { return {first, chrono_specifier::weekday_full}; }
         } break;
         case 'u': {
-            if (check_chrono_modifier(modifier, 'O')) { return chrono_specifier::weekday_1_7; }
+            if (check_chrono_modifier(modifier, 'O')) { return {first, chrono_specifier::weekday_1_7}; }
         } break;
         case 'w': {
-            if (check_chrono_modifier(modifier, 'O')) { return chrono_specifier::weekday_0_6; }
+            if (check_chrono_modifier(modifier, 'O')) { return {first, chrono_specifier::weekday_0_6}; }
         } break;
         // -- ISO 8601 week-based year
         case 'g': {
-            if (check_chrono_modifier(modifier)) { return chrono_specifier::year_iso8601_yy; }
+            if (check_chrono_modifier(modifier)) { return {first, chrono_specifier::year_iso8601_yy}; }
         } break;
         case 'G': {
-            if (check_chrono_modifier(modifier)) { return chrono_specifier::year_iso8601_yyyy; }
+            if (check_chrono_modifier(modifier)) { return {first, chrono_specifier::year_iso8601_yyyy}; }
         } break;
         case 'V': {
-            if (check_chrono_modifier(modifier, 'O')) { return chrono_specifier::week_of_the_year_iso8601; }
+            if (check_chrono_modifier(modifier, 'O')) { return {first, chrono_specifier::week_of_the_year_iso8601}; }
         } break;
         // --- day/week of the year ---
         case 'j': {
-            if (check_chrono_modifier(modifier)) { return chrono_specifier::day_of_the_year; }
+            if (check_chrono_modifier(modifier)) { return {first, chrono_specifier::day_of_the_year}; }
         } break;
         case 'U': {
-            if (check_chrono_modifier(modifier, 'O')) { return chrono_specifier::week_of_the_year_monday_first; }
+            if (check_chrono_modifier(modifier, 'O')) {
+                return {first, chrono_specifier::week_of_the_year_monday_first};
+            }
         } break;
         case 'W': {
-            if (check_chrono_modifier(modifier, 'O')) { return chrono_specifier::week_of_the_year_sunday_first; }
+            if (check_chrono_modifier(modifier, 'O')) {
+                return {first, chrono_specifier::week_of_the_year_sunday_first};
+            }
         } break;
         // --- date ---
         case 'D': {
-            if (check_chrono_modifier(modifier)) { return chrono_specifier::month_day_year; }
+            if (check_chrono_modifier(modifier)) { return {first, chrono_specifier::month_day_year}; }
         } break;
         case 'F': {
-            if (check_chrono_modifier(modifier)) { return chrono_specifier::year_month_day; }
+            if (check_chrono_modifier(modifier)) { return {first, chrono_specifier::year_month_day}; }
         } break;
         case 'x': {
-            if (check_chrono_modifier(modifier, 'E')) { return chrono_specifier::locale_date; }
+            if (check_chrono_modifier(modifier, 'E')) { return {first, chrono_specifier::locale_date}; }
         } break;
         // --- time of day ---
         case 'H': {
-            if (check_chrono_modifier(modifier, 'O')) { return chrono_specifier::hours; }
+            if (check_chrono_modifier(modifier, 'O')) { return {first, chrono_specifier::hours}; }
         } break;
         case 'I': {
-            if (check_chrono_modifier(modifier, 'O')) { return chrono_specifier::hours_12; }
+            if (check_chrono_modifier(modifier, 'O')) { return {first, chrono_specifier::hours_12}; }
         } break;
         case 'M': {
-            if (check_chrono_modifier(modifier, 'O')) { return chrono_specifier::minutes; }
+            if (check_chrono_modifier(modifier, 'O')) { return {first, chrono_specifier::minutes}; }
         } break;
         case 'S': {
-            if (check_chrono_modifier(modifier, 'O')) { return chrono_specifier::seconds; }
+            if (check_chrono_modifier(modifier, 'O')) { return {first, chrono_specifier::seconds}; }
         } break;
         case 'p': {
-            if (check_chrono_modifier(modifier)) { return chrono_specifier::hours_am_pm; }
+            if (check_chrono_modifier(modifier)) { return {first, chrono_specifier::hours_am_pm}; }
         } break;
         case 'R': {
-            if (check_chrono_modifier(modifier)) { return chrono_specifier::hours_minutes; }
+            if (check_chrono_modifier(modifier)) { return {first, chrono_specifier::hours_minutes}; }
         } break;
         case 'T': {
-            if (check_chrono_modifier(modifier)) { return chrono_specifier::hours_minutes_seconds; }
+            if (check_chrono_modifier(modifier)) { return {first, chrono_specifier::hours_minutes_seconds}; }
         } break;
         case 'r': {
-            if (check_chrono_modifier(modifier)) { return chrono_specifier::locale_time_12; }
+            if (check_chrono_modifier(modifier)) { return {first, chrono_specifier::locale_time_12}; }
         } break;
         case 'X': {
-            if (check_chrono_modifier(modifier, 'E')) { return chrono_specifier::locale_time; }
+            if (check_chrono_modifier(modifier, 'E')) { return {first, chrono_specifier::locale_time}; }
         } break;
         // --- ticks ---
         case 'Q': {
-            if (check_chrono_modifier(modifier)) { return chrono_specifier::ticks; }
+            if (check_chrono_modifier(modifier)) { return {first, chrono_specifier::ticks}; }
         } break;
         case 'q': {
-            if (check_chrono_modifier(modifier)) { return chrono_specifier::unit_suffix; }
+            if (check_chrono_modifier(modifier)) { return {first, chrono_specifier::unit_suffix}; }
         } break;
         // --- time zone ---
         case 'z': {
-            if (check_chrono_modifier(modifier, 'O', 'E')) { return chrono_specifier::time_zone; }
+            if (check_chrono_modifier(modifier, 'O', 'E')) { return {first, chrono_specifier::time_zone}; }
         } break;
         case 'Z': {
-            if (check_chrono_modifier(modifier)) { return chrono_specifier::time_zone_abbreviation; }
+            if (check_chrono_modifier(modifier)) { return {first, chrono_specifier::time_zone_abbreviation}; }
         } break;
         // --- miscellaneous ---
         case 'c': {
-            if (check_chrono_modifier(modifier, 'E')) { return chrono_specifier::locale_date_time; }
+            if (check_chrono_modifier(modifier, 'E')) { return {first, chrono_specifier::locale_date_time}; }
         } break;
         default: break;
     }
-    first = last;
-    return chrono_specifier::end_of_format;
+    return {last, chrono_specifier::end_of_format};
 }
 
 template<typename FmtCtx, typename StreamBuf>
@@ -285,7 +278,7 @@ void format_chrono_locale(FmtCtx& ctx, const std::tm& tm, const chrono_specs& sp
     format_chrono_locale(ctx, tm, specs.spec_char, specs.modifier, specs.opts);
 }
 
-inline bool is_locale_classic(locale_ref loc, fmt_opts opts) {
+inline bool is_locale_classic(locale_ref loc, fmt_opts opts) noexcept {
     return !(opts.flags & fmt_flags::localize) || *loc == std::locale::classic();
 }
 
@@ -627,7 +620,7 @@ void format_chrono_seconds(FmtCtx& ctx, std::chrono::hh_mm_ss<Duration> hms, fmt
                                         static_cast<char_type>('.');
         ctx.out() += dec_point;
         sconv::fmt_integer(ctx.out(), subsecs,
-                           fmt_opts{fmt_flags::leading_zeroes, -1, std::chrono::hh_mm_ss<Duration>::fractional_width});
+                           fmt_opts(fmt_flags::leading_zeroes, -1, std::chrono::hh_mm_ss<Duration>::fractional_width));
     }
 }
 
@@ -773,7 +766,7 @@ UXS_FMT_IMPLEMENT_CHRONO_DURATION_SUFFIX(std::ratio<86400>, 'd')
 
 template<typename FmtCtx, typename Rep, typename Period>
 void duration_default_writer(FmtCtx& ctx, std::chrono::duration<Rep, Period> d, fmt_opts opts) {
-    to_string_append(ctx.out(), *ctx.locale(), d.count(), fmt_opts{opts.flags, opts.prec});
+    to_string_append(ctx.out(), *ctx.locale(), d.count(), fmt_opts(opts.flags, opts.prec));
     detail::duration_suffix_writer<typename Period::type>{}.write(ctx);
 }
 
@@ -793,24 +786,25 @@ struct chrono_formatter {
         auto it0 = fmt_.begin();
         auto it = it0;
         while (true) {
-            auto first = it;
-            specs.spec = parse_chrono_format_spec(it, fmt_.end(), specs.modifier);
-            if (specs.spec == chrono_specifier::end_of_format) { break; }
-            if (specs.spec != chrono_specifier::ordinary_char) {
-                ctx.out() += to_string_view(it0, first);
-                it0 = it;
-                switch (specs.spec) {
+            const auto result = parse_chrono_format_spec(it, fmt_.end(), specs.modifier);
+            if (result.second == chrono_specifier::end_of_format) { break; }
+            if (result.second != chrono_specifier::ordinary_char) {
+                ctx.out() += to_string_view(it0, it);
+                it0 = result.first;
+                switch (result.second) {
                     case chrono_specifier::percent: ctx.out() += '%'; break;
                     case chrono_specifier::new_line: ctx.out() += '\n'; break;
                     case chrono_specifier::tab: ctx.out() += '\t'; break;
                     default: {
-                        specs.spec_char = static_cast<char>(*(it - 1));
+                        specs.spec = result.second;
+                        specs.spec_char = static_cast<char>(*(result.first - 1));
                         DeriverFormatterTy::template value_writer<FmtCtx>(ctx, val, specs);
                     } break;
                 }
             }
+            it = result.first;
         }
-        ctx.out() += to_string_view(it0, it);
+        ctx.out() += to_string_view(it0, fmt_.end());
     }
 
  public:
@@ -824,23 +818,24 @@ struct chrono_formatter {
             ParseCtx::syntax_error();
         }
         if (it == ctx.end() || *it != '%') { return it; }
-        auto it0 = it;
+        const auto first = it;
         while (true) {
             char modifier = '\0';
-            auto spec = parse_chrono_format_spec(it, ctx.end(), modifier);
-            if (spec == chrono_specifier::end_of_format) { break; }
-            switch (spec) {
+            const auto result = parse_chrono_format_spec(it, ctx.end(), modifier);
+            if (result.second == chrono_specifier::end_of_format) { break; }
+            switch (result.second) {
                 case chrono_specifier::percent:
                 case chrono_specifier::new_line:
                 case chrono_specifier::tab: break;
                 default: {
-                    if (!DeriverFormatterTy::spec_checker(spec)) {
+                    if (!DeriverFormatterTy::spec_checker(result.second)) {
                         throw format_error("unacceptable chrono specifier");
                     }
                 } break;
             }
+            it = result.first;
         }
-        fmt_ = to_string_view(it0, it);
+        fmt_ = to_string_view(first, it);
         return it;
     }
 
@@ -856,7 +851,7 @@ struct chrono_formatter {
         }
         if (specs.opts.width == 0) { return format_impl(ctx, val, specs); }
         basic_inline_dynbuffer<CharT> buf;
-        basic_format_context<CharT> buf_ctx{buf, ctx};
+        basic_format_context<CharT> buf_ctx(buf, ctx);
         format_impl(buf_ctx, val, specs);
         const unsigned len = static_cast<unsigned>(buf.size());
         const auto fn = [&buf](basic_membuffer<CharT>& out) { out.append(buf.data(), buf.size()); };
@@ -881,7 +876,7 @@ struct formatter<std::chrono::duration<Rep, Period>, CharT>
     template<typename FmtCtx>
     static void value_writer(FmtCtx& ctx, value_type d, const detail::chrono_specs& specs) {
         if (specs.spec == detail::chrono_specifier::ticks) {
-            to_string_append(ctx.out(), *ctx.locale(), d.count(), fmt_opts{specs.opts.flags, specs.opts.prec});
+            to_string_append(ctx.out(), *ctx.locale(), d.count(), fmt_opts(specs.opts.flags, specs.opts.prec));
         } else if (specs.spec == detail::chrono_specifier::unit_suffix) {
             detail::duration_suffix_writer<typename Period::type>{}.write(ctx);
         } else {

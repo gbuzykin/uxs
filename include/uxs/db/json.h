@@ -188,9 +188,10 @@ struct formatter<db::basic_value<CharT, Alloc>, OutCharT> {
         if (it == ctx.end() || *it != ':') { return it; }
         if (++it == ctx.end()) { return it; }
         if (*it == '.') {
-            auto it0 = it++;
-            if (!ParseCtx::parse_integral_parameter(ctx, it, opts_.indent_size, indent_size_arg_id_)) { return it0; }
-            if (++it == ctx.end()) { return it; }
+            const auto result = ParseCtx::parse_integral_parameter(ctx, it + 1, opts_.indent_size, indent_size_arg_id_);
+            if (!result.second) { return it; }
+            it = result.first;
+            if (it == ctx.end()) { return it; }
         }
         switch (*it) {
             case 't': {

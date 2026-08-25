@@ -389,7 +389,7 @@ void to_string_append(StrTy& out, const Ty& val, fmt_opts fmt) {
 template<typename StrTy, typename Ty,
          typename = std::enable_if_t<uxs::is_to_string_convertible<Ty, StrTy, fmt_opts, locale_ref>::value>>
 void to_string_append(StrTy& out, const std::locale& loc, const Ty& val, fmt_opts fmt) {
-    to_string_impl<Ty, typename StrTy::value_type>{}(out, val, fmt, locale_ref{loc});
+    to_string_impl<Ty, typename StrTy::value_type>{}(out, val, fmt, locale_ref(loc));
 }
 
 template<typename CharT = char, typename Ty>
