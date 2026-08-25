@@ -91,13 +91,15 @@ struct formatter<Tuple, CharT, std::enable_if_t<is_tuple_formattable<Tuple, Char
     }
 
     template<typename ParseCtx>
-    UXS_CONSTEXPR void parse_element(ParseCtx& /*ctx*/, typename std::tuple_size<Tuple>::type) {}
+    UXS_CONSTEXPR typename ParseCtx::iterator parse_element(ParseCtx& ctx, typename std::tuple_size<Tuple>::type) {
+        return ctx.begin();
+    }
 
     template<typename ParseCtx, std::size_t I>
-    UXS_CONSTEXPR void parse_element(ParseCtx& ctx, std::integral_constant<std::size_t, I>) {
+    UXS_CONSTEXPR typename ParseCtx::iterator parse_element(ParseCtx& ctx, std::integral_constant<std::size_t, I>) {
         if (ctx.begin() == ctx.end() || *ctx.begin() != ':') { call_set_debug_format(std::get<I>(underlying_)); }
         ctx.advance_to(std::get<I>(underlying_).parse(ctx));
-        parse_element(ctx, std::integral_constant<std::size_t, I + 1>{});
+        return parse_element(ctx, std::integral_constant<std::size_t, I + 1>{});
     }
 
     template<typename FmtCtx>
@@ -142,8 +144,7 @@ struct formatter<Tuple, CharT, std::enable_if_t<is_tuple_formattable<Tuple, Char
             }
             ctx.advance_to(it);
         }
-        parse_element(ctx, std::integral_constant<std::size_t, 0>{});
-        return ctx.begin();
+        return parse_element(ctx, std::integral_constant<std::size_t, 0>{});
     }
 
     template<typename FmtCtx>
@@ -154,7 +155,7 @@ struct formatter<Tuple, CharT, std::enable_if_t<is_tuple_formattable<Tuple, Char
         }
         if (opts.width == 0) { return format_impl(ctx, val); }
         basic_inline_dynbuffer<CharT> buf;
-        basic_format_context<CharT> buf_ctx{buf, ctx};
+        basic_format_context<CharT> buf_ctx(buf, ctx);
         format_impl(buf_ctx, val);
         const std::size_t len = estimate_string_width<CharT>(buf.begin(), buf.end());
         const auto fn = [&buf](basic_membuffer<CharT>& out) { out.append(buf.data(), buf.size()); };
@@ -307,7 +308,7 @@ struct range_formatter {
                        format_impl(ctx, val);
         }
         basic_inline_dynbuffer<CharT> buf;
-        basic_format_context<CharT> buf_ctx{buf, ctx};
+        basic_format_context<CharT> buf_ctx(buf, ctx);
         std::size_t len = 0;
         if (format_as_string_) {
             len = format_as_string(buf, val, opts, std::is_same<Ty, CharT>{});

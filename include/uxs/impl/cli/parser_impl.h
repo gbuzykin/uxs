@@ -122,7 +122,7 @@ parsing_result<CharT> basic_command<CharT>::parse(const basic_command* cmd, int 
                 if (parse_value(*val, n_prefix)) {
                     n_prefix = 0;
                 } else if (n_prefix || !val->is_optional()) {
-                    return parsing_result<CharT>{parsing_status::invalid_value, argc0 - argc, &*val};
+                    return {parsing_status::invalid_value, argc0 - argc, &*val};
                 }
             }
             if (opt.get_handler()) { opt.get_handler()(); }
@@ -142,11 +142,11 @@ parsing_result<CharT> basic_command<CharT>::parse(const basic_command* cmd, int 
                 if (val->is_optional() || count_multiple) {
                     ++val_it, count_multiple = 0;
                 } else {
-                    return parsing_result<CharT>{parsing_status::invalid_value, argc0 - argc, &*val};
+                    return {parsing_status::invalid_value, argc0 - argc, &*val};
                 }
             } while (val_it != cmd->values_.end());
         } else {
-            return parsing_result<CharT>{parsing_status::unknown_option, argc0 - argc, cmd};
+            return {parsing_status::unknown_option, argc0 - argc, cmd};
         }
     }
 
@@ -154,9 +154,7 @@ parsing_result<CharT> basic_command<CharT>::parse(const basic_command* cmd, int 
 
     while (val_it != cmd->values_.end()) {
         const auto& val = *val_it++;
-        if (!val->is_optional()) {
-            return parsing_result<CharT>{parsing_status::unspecified_value, argc0 - argc, &*val};
-        }
+        if (!val->is_optional()) { return {parsing_status::unspecified_value, argc0 - argc, &*val}; }
     }
 
     parsing_result<CharT> result{parsing_status::ok, argc0 - argc, cmd};

@@ -802,7 +802,7 @@ class value_iterator : public container_iterator_facade<basic_value<CharT, Alloc
 template<typename Iter>
 class value_reverse_iterator : public std::reverse_iterator<Iter> {
  public:
-    explicit value_reverse_iterator(const Iter& it) noexcept : std::reverse_iterator<Iter>(it) {}
+    explicit value_reverse_iterator(Iter it) noexcept : std::reverse_iterator<Iter>(it) {}
     bool is_record() const noexcept { return (**this).is_record(); }
     auto key() const -> decltype((**this).key()) { return (**this).key(); }
     auto value() const noexcept -> decltype((**this).value()) { return (**this).value(); }
