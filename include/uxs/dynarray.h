@@ -270,7 +270,7 @@ void dynarray<Ty, Alloc>::resize_impl(size_type sz, Args&&... args) {
 }
 
 template<typename Ty, std::size_t InlineBufSize = 0, typename Alloc = std::allocator<Ty>>
-class inline_dynarray final : public dynarray<Ty, Alloc> {
+class inline_dynarray : public dynarray<Ty, Alloc> {
  public:
     using size_type = typename dynarray<Ty, Alloc>::size_type;
     using value_type = typename dynarray<Ty, Alloc>::value_type;
