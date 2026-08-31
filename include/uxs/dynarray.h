@@ -26,8 +26,8 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
     using const_pointer = const value_type*;
     using reference = value_type&;
     using const_reference = const value_type&;
-    using iterator = uxs::array_iterator<dynarray, pointer, false>;
-    using const_iterator = uxs::array_iterator<dynarray, pointer, true>;
+    using iterator = array_iterator<dynarray, pointer, false>;
+    using const_iterator = array_iterator<dynarray, pointer, true>;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 

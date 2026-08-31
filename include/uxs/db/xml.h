@@ -1,7 +1,7 @@
 #pragma once
 
 #include "uxs/io/iomembuffer.h"
-#include "uxs/string_conv.h"
+#include "uxs/string_conv_base.h"
 
 #include <forward_list>
 #include <map>
@@ -93,13 +93,13 @@ class attributes_t : public std::map<std::string_view, std::string> {
 
     std::string_view value(std::string_view key) const { return value_or(key, std::string_view()); }
 
-    template<typename Ty, typename U, typename = std::enable_if_t<uxs::is_from_string_convertible<Ty>::value>>
+    template<typename Ty, typename U, typename = std::enable_if_t<is_from_string_convertible<Ty>::value>>
     Ty value_or(std::string_view key, U&& default_value) const {
         auto it = find(key);
         return it != end() ? from_string<Ty>(it->second) : Ty(std::forward<U>(default_value));
     }
 
-    template<typename Ty, typename = std::enable_if_t<uxs::is_from_string_convertible<Ty>::value>>
+    template<typename Ty, typename = std::enable_if_t<is_from_string_convertible<Ty>::value>>
     Ty value(std::string_view key) const {
         return value_or<Ty>(key, Ty());
     }

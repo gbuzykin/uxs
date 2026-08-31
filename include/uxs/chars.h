@@ -3,7 +3,6 @@
 #include "utility.h"
 
 namespace uxs {
-
 namespace detail {
 struct char_tbl_t {
     enum : std::uint8_t {
@@ -36,15 +35,15 @@ struct char_tbl_t {
         0x00, 0x00, 0x00
 #if __cplusplus < 201703L
     const std::uint8_t* flags() const noexcept {
-        static const std::uint8_t v[] = {UXS_CHAR_FLAGS_TABLE_DATA};
-        return v;
+        static const std::uint8_t tbl[] = {UXS_CHAR_FLAGS_TABLE_DATA};
+        return tbl;
     }
 #else   // __cplusplus < 201703L
-    static constexpr std::uint8_t v_flags[] = {UXS_CHAR_FLAGS_TABLE_DATA};
-    constexpr const std::uint8_t* flags() const noexcept { return v_flags; }
+    static constexpr std::uint8_t tbl_flags[] = {UXS_CHAR_FLAGS_TABLE_DATA};
+    constexpr const std::uint8_t* flags() const noexcept { return tbl_flags; }
 #endif  // __cplusplus < 201703L
 #undef UXS_CHAR_FLAGS_TABLE_DATA
-#define UXS_CHAR_DIGS_TABLE_DATA \
+#define UXS_CHAR_DIG_V_TABLE_DATA \
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, \
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, \
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, \
@@ -61,34 +60,50 @@ struct char_tbl_t {
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, \
         0xff, 0xff, 0xff
 #if __cplusplus < 201703L
-    const std::uint8_t* digs() const noexcept {
-        static const std::uint8_t v[] = {UXS_CHAR_DIGS_TABLE_DATA};
-        return v;
+    const std::uint8_t* dig_v() const noexcept {
+        static const std::uint8_t tbl[] = {UXS_CHAR_DIG_V_TABLE_DATA};
+        return tbl;
     }
 #else   // __cplusplus < 201703L
-    static constexpr std::uint8_t v_digs[] = {UXS_CHAR_DIGS_TABLE_DATA};
-    constexpr const std::uint8_t* digs() const noexcept { return v_digs; }
+    static constexpr std::uint8_t tbl_dig_v[] = {UXS_CHAR_DIG_V_TABLE_DATA};
+    constexpr const std::uint8_t* dig_v() const noexcept { return tbl_dig_v; }
 #endif  // __cplusplus < 201703L
-#undef UXS_CHAR_DIGS_TABLE_DATA
+#undef UXS_CHAR_DIG_V_TABLE_DATA
+#define UXS_CHAR_DIGS100_TABLE_DATA \
+    "0001020304050607080910111213141516171819" \
+    "2021222324252627282930313233343536373839" \
+    "4041424344454647484950515253545556575859" \
+    "6061626364656667686970717273747576777879" \
+    "8081828384858687888990919293949596979899"
+#if __cplusplus < 201703L
+    const char* digs100(std::size_t n) const noexcept {
+        alignas(2) static const char tbl[] = UXS_CHAR_DIGS100_TABLE_DATA;
+        return &tbl[2 * n];
+    }
+#else   // __cplusplus < 201703L
+    alignas(2) static constexpr char tbl_digs100[] = UXS_CHAR_DIGS100_TABLE_DATA;
+    constexpr const char* digs100(std::size_t n) const noexcept { return &tbl_digs100[2 * n]; }
+#endif  // __cplusplus < 201703L
+#undef UXS_CHAR_DIGS100_TABLE_DATA
 };
 }  // namespace detail
 
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 UXS_CONSTEXPR std::enable_if_t<sizeof(CharT) != 1, bool> is_digit(CharT ch) noexcept {
-    return (ch & 0xff) == ch && detail::char_tbl_t{}.digs()[static_cast<std::uint8_t>(ch)] < 10;
+    return (ch & 0xff) == ch && detail::char_tbl_t{}.dig_v()[static_cast<std::uint8_t>(ch)] < 10;
 }
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 UXS_CONSTEXPR std::enable_if_t<sizeof(CharT) == 1, bool> is_digit(CharT ch) noexcept {
-    return detail::char_tbl_t{}.digs()[static_cast<std::uint8_t>(ch)] < 10;
+    return detail::char_tbl_t{}.dig_v()[static_cast<std::uint8_t>(ch)] < 10;
 }
 
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 UXS_CONSTEXPR std::enable_if_t<sizeof(CharT) != 1, bool> is_xdigit(CharT ch) noexcept {
-    return (ch & 0xff) == ch && detail::char_tbl_t{}.digs()[static_cast<std::uint8_t>(ch)] < 16;
+    return (ch & 0xff) == ch && detail::char_tbl_t{}.dig_v()[static_cast<std::uint8_t>(ch)] < 16;
 }
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 UXS_CONSTEXPR std::enable_if_t<sizeof(CharT) == 1, bool> is_xdigit(CharT ch) noexcept {
-    return detail::char_tbl_t{}.digs()[static_cast<std::uint8_t>(ch)] < 16;
+    return detail::char_tbl_t{}.dig_v()[static_cast<std::uint8_t>(ch)] < 16;
 }
 
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
@@ -158,11 +173,11 @@ UXS_CONSTEXPR CharT to_upper(CharT ch) noexcept {
 
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 UXS_CONSTEXPR std::enable_if_t<sizeof(CharT) != 1, unsigned> dig_v(CharT ch) noexcept {
-    return (ch & 0xff) == ch ? detail::char_tbl_t{}.digs()[static_cast<std::uint8_t>(ch)] : 255;
+    return (ch & 0xff) == ch ? detail::char_tbl_t{}.dig_v()[static_cast<std::uint8_t>(ch)] : 255;
 }
 template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
 UXS_CONSTEXPR std::enable_if_t<sizeof(CharT) == 1, unsigned> dig_v(CharT ch) noexcept {
-    return detail::char_tbl_t{}.digs()[static_cast<std::uint8_t>(ch)];
+    return detail::char_tbl_t{}.dig_v()[static_cast<std::uint8_t>(ch)];
 }
 
 }  // namespace uxs

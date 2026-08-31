@@ -1,7 +1,7 @@
 #pragma once
 
 #include "chars.h"
-#include "string_conv.h"
+#include "string_conv_base.h"
 
 #include <functional>
 

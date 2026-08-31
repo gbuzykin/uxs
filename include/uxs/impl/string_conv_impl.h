@@ -558,9 +558,10 @@ UXS_FORCE_INLINE Ty divmod(Ty& v) {
 
 template<typename CharT>
 UXS_FORCE_INLINE unsigned gen_digits(CharT* p, std::uint32_t v, unsigned pos) noexcept {
-    while (v >= 100U) { copy2(&p[pos -= 2], get_digits(static_cast<std::size_t>(divmod<100U>(v)))); }
+    using tbl = uxs::detail::char_tbl_t;
+    while (v >= 100U) { copy2(&p[pos -= 2], tbl{}.digs100(static_cast<std::size_t>(divmod<100U>(v)))); }
     if (v >= 10U) {
-        copy2(&p[pos -= 2], get_digits(static_cast<std::size_t>(v)));
+        copy2(&p[pos -= 2], tbl{}.digs100(static_cast<std::size_t>(v)));
     } else {
         p[--pos] = '0' + static_cast<unsigned>(v);
     }
@@ -569,10 +570,11 @@ UXS_FORCE_INLINE unsigned gen_digits(CharT* p, std::uint32_t v, unsigned pos) no
 
 template<typename CharT>
 UXS_FORCE_INLINE unsigned gen_digits_8(CharT* p, std::uint32_t v, unsigned pos) noexcept {
-    copy2(&p[pos -= 2], get_digits(static_cast<std::size_t>(divmod<100U>(v))));
-    copy2(&p[pos -= 2], get_digits(static_cast<std::size_t>(divmod<100U>(v))));
-    copy2(&p[pos -= 2], get_digits(static_cast<std::size_t>(divmod<100U>(v))));
-    copy2(&p[pos -= 2], get_digits(static_cast<std::size_t>(v)));
+    using tbl = uxs::detail::char_tbl_t;
+    copy2(&p[pos -= 2], tbl{}.digs100(static_cast<std::size_t>(divmod<100U>(v))));
+    copy2(&p[pos -= 2], tbl{}.digs100(static_cast<std::size_t>(divmod<100U>(v))));
+    copy2(&p[pos -= 2], tbl{}.digs100(static_cast<std::size_t>(divmod<100U>(v))));
+    copy2(&p[pos -= 2], tbl{}.digs100(static_cast<std::size_t>(v)));
     return pos;
 }
 
@@ -586,16 +588,18 @@ UXS_FORCE_INLINE unsigned gen_digits(CharT* p, std::uint64_t v, unsigned pos) no
 
 template<typename CharT>
 UXS_FORCE_INLINE std::uint32_t gen_digits_n(CharT* p, std::uint32_t v, unsigned n, unsigned pos) noexcept {
-    while (n >= 2) { copy2(&p[pos -= 2], get_digits(static_cast<std::size_t>(divmod<100U>(v)))), n -= 2; }
+    using tbl = uxs::detail::char_tbl_t;
+    while (n >= 2) { copy2(&p[pos -= 2], tbl{}.digs100(static_cast<std::size_t>(divmod<100U>(v)))), n -= 2; }
     if (n) { p[--pos] = '0' + static_cast<unsigned>(divmod<10U>(v)); }
     return v;
 }
 
 template<typename CharT>
 UXS_FORCE_INLINE std::uint64_t gen_digits_n(CharT* p, std::uint64_t v, unsigned n, unsigned pos) noexcept {
+    using tbl = uxs::detail::char_tbl_t;
     if (v > std::numeric_limits<std::uint32_t>::max()) {
         while (n >= 8) { pos = gen_digits_8(p, static_cast<std::uint32_t>(divmod<100000000U>(v)), pos), n -= 8; }
-        while (n >= 2) { copy2(&p[pos -= 2], get_digits(static_cast<std::size_t>(divmod<100U>(v)))), n -= 2; }
+        while (n >= 2) { copy2(&p[pos -= 2], tbl{}.digs100(static_cast<std::size_t>(divmod<100U>(v)))), n -= 2; }
         if (n) { p[--pos] = '0' + static_cast<unsigned>(divmod<10U>(v)); }
         return v;
     }
@@ -913,14 +917,15 @@ class fp_dec_fmt_t {
 template<typename CharT>
 void fp_dec_fmt_t::generate_scientific(CharT* p, unsigned pos, bool uppercase, CharT dec_point) const noexcept {
     // generate exponent
+    using tbl = uxs::detail::char_tbl_t;
     int exp10 = exp_;
     char exp_sign = '+';
     if (exp10 < 0) { exp_sign = '-', exp10 = -exp10; }
     if (exp10 < 100) {
-        copy2(&p[pos -= 2], get_digits(exp10));
+        copy2(&p[pos -= 2], tbl{}.digs100(exp10));
     } else {
         const int t = (656 * exp10) >> 16;
-        copy2(&p[pos -= 2], get_digits(exp10 - 100 * t));
+        copy2(&p[pos -= 2], tbl{}.digs100(exp10 - 100 * t));
         p[--pos] = '0' + t;
     }
     p[--pos] = exp_sign;
