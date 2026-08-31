@@ -66,8 +66,8 @@ std::enable_if_t<is_string_like<Ty>::value, biobuf&> operator<<(biobuf& os, cons
     const auto s = to_string_view(v);
     os << static_cast<std::uint64_t>(s.size());
     return os.write_with_endian(
-        est::as_span(reinterpret_cast<const std::uint8_t*>(s.data()), s.size() * sizeof(array_element_t<Ty>)),
-        sizeof(array_element_t<Ty>));
+        est::as_span(reinterpret_cast<const std::uint8_t*>(s.data()), s.size() * sizeof(est::array_element_t<Ty>)),
+        sizeof(est::array_element_t<Ty>));
 }
 
 }  // namespace uxs

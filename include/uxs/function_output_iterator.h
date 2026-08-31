@@ -4,7 +4,7 @@
 
 #include <iterator>
 
-namespace uxs {
+namespace est {
 
 template<typename Func>
 class function_output_iterator_facade {
@@ -26,4 +26,4 @@ class function_output_iterator_facade {
     UXS_CONSTEXPR function_output_iterator_facade operator++(int) { return *this; }
 };
 
-}  // namespace uxs
+}  // namespace est

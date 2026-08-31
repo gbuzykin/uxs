@@ -28,7 +28,7 @@ std::reverse_iterator<Iter> make_reverse_iterator(Iter it) {
 }  // namespace std
 #endif  // make reverse iterator
 
-namespace uxs {
+namespace est {
 
 //-----------------------------------------------------------------------------
 // Iterator traits
@@ -199,14 +199,14 @@ class iterator_facade {
 
     template<typename Iter_ = Iter>
     UXS_CONSTEXPR auto operator+=(difference_type j) noexcept(noexcept(std::declval<Iter&>().advance(j)))
-        -> est::type_identity_t<Iter&, decltype(std::declval<Iter_&>().advance(j))> {
+        -> type_identity_t<Iter&, decltype(std::declval<Iter_&>().advance(j))> {
         static_cast<Iter&>(*this).advance(j);
         return static_cast<Iter&>(*this);
     }
 
     template<typename Iter_ = Iter>
     UXS_CONSTEXPR auto operator+(difference_type j) const noexcept(noexcept(std::declval<Iter&>().advance(j)))
-        -> est::type_identity_t<Iter, decltype(std::declval<Iter_&>().advance(j))> {
+        -> type_identity_t<Iter, decltype(std::declval<Iter_&>().advance(j))> {
         auto it = static_cast<const Iter&>(*this);
         it.advance(j);
         return it;
@@ -214,14 +214,14 @@ class iterator_facade {
 
     template<typename Iter_ = Iter>
     UXS_CONSTEXPR auto operator-=(difference_type j) noexcept(noexcept(std::declval<Iter&>().advance(j)))
-        -> est::type_identity_t<Iter&, decltype(std::declval<Iter_&>().advance(j))> {
+        -> type_identity_t<Iter&, decltype(std::declval<Iter_&>().advance(j))> {
         static_cast<Iter&>(*this).advance(-j);
         return static_cast<Iter&>(*this);
     }
 
     template<typename Iter_ = Iter>
     UXS_CONSTEXPR auto operator-(difference_type j) const noexcept(noexcept(std::declval<Iter&>().advance(j)))
-        -> est::type_identity_t<Iter, decltype(std::declval<Iter_&>().advance(j))> {
+        -> type_identity_t<Iter, decltype(std::declval<Iter_&>().advance(j))> {
         auto it = static_cast<const Iter&>(*this);
         it.advance(-j);
         return it;
@@ -321,7 +321,7 @@ template<typename Iter, typename ValTy, typename Tag, typename RefTy, typename P
 UXS_CONSTEXPR auto operator+(typename iterator_facade<Iter, ValTy, Tag, RefTy, PtrTy, DiffTy>::difference_type j,
                              const iterator_facade<Iter, ValTy, Tag, RefTy, PtrTy, DiffTy>&
                                  it) noexcept(noexcept(std::declval<Iter&>().advance(j)))
-    -> est::type_identity_t<Iter, decltype(std::declval<Iter&>().advance(j))> {
+    -> type_identity_t<Iter, decltype(std::declval<Iter&>().advance(j))> {
     auto result = static_cast<const Iter&>(it);
     result.advance(j);
     return result;
@@ -518,13 +518,13 @@ class list_iterator : public container_iterator_facade<Traits, list_iterator<Tra
     node_type* node_ = nullptr;
 };
 
-}  // namespace uxs
+}  // namespace est
 
 #if __cplusplus >= 202002L && defined(__cpp_concepts) && defined(__cpp_lib_addressof_constexpr)
 namespace std {
 template<typename Traits, typename UnderlyingPtrTy, bool Const>
-struct pointer_traits<uxs::array_iterator<Traits, UnderlyingPtrTy, Const>> {
-    using pointer = uxs::array_iterator<Traits, UnderlyingPtrTy, Const>;
+struct pointer_traits<est::array_iterator<Traits, UnderlyingPtrTy, Const>> {
+    using pointer = est::array_iterator<Traits, UnderlyingPtrTy, Const>;
     using element_type = std::conditional_t<Const, const typename pointer::value_type, typename pointer::value_type>;
     using difference_type = typename pointer::difference_type;
     [[nodiscard]] static constexpr element_type* to_address(const pointer iter) noexcept {

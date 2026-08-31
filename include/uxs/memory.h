@@ -4,7 +4,7 @@
 
 #include <memory>
 
-namespace uxs {
+namespace est {
 
 template<typename Alloc, typename = void>
 struct is_allocator : std::false_type {};
@@ -27,10 +27,6 @@ template<typename ToTy, typename FromTy>
 std::unique_ptr<ToTy> const_pointer_cast(std::unique_ptr<FromTy> p) {
     return std::unique_ptr<ToTy>(const_cast<ToTy*>(p.release()));
 }
-
-}  // namespace uxs
-
-namespace est {
 
 #if __cplusplus < 201402L
 template<typename Ty, typename... Args>

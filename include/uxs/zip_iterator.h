@@ -6,7 +6,7 @@
 #include <array>
 #include <tuple>
 
-namespace uxs {
+namespace est {
 
 namespace detail {
 template<typename... Iters>
@@ -58,7 +58,7 @@ class zip_iterator
     }
 
     template<std::size_t I>
-    UXS_CONSTEXPR est::type_pack_element_t<I, Iters...> base() const {
+    UXS_CONSTEXPR type_pack_element_t<I, Iters...> base() const {
         return std::get<I>(curr_);
     }
 
@@ -122,4 +122,4 @@ auto zip(Range&&... r) -> iterator_range<zip_iterator<decltype(std::end(r))...>>
     return {make_zip_iterator(std::begin(r)...), make_zip_iterator(std::end(r)...)};
 }
 
-}  // namespace uxs
+}  // namespace est

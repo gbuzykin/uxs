@@ -147,8 +147,8 @@ class list_enumerator {
     using const_reference = const value_type&;
     using pointer = value_type*;
     using const_pointer = const value_type*;
-    using iterator = list_iterator<list_enumerator, node_traits, false>;
-    using const_iterator = list_iterator<list_enumerator, node_traits, true>;
+    using iterator = est::list_iterator<list_enumerator, node_traits, false>;
+    using const_iterator = est::list_iterator<list_enumerator, node_traits, true>;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 

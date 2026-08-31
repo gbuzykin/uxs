@@ -28,14 +28,14 @@ class basic_string_view {
     using const_pointer = const CharT*;
     using reference = CharT&;
     using const_reference = const CharT&;
-    using const_iterator = uxs::array_iterator<basic_string_view, const_pointer, true>;
+    using const_iterator = est::array_iterator<basic_string_view, const_pointer, true>;
     using iterator = const_iterator;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
     using reverse_iterator = const_reverse_iterator;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
 
-    static const size_type npos = std::string::npos;
+    static constexpr size_type npos = std::string::npos;
 
     basic_string_view() noexcept = default;
     basic_string_view(const CharT* s, size_type count) : begin_(s), size_(count) {}

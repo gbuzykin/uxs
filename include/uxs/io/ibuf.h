@@ -71,8 +71,8 @@ class basic_ibuf : public iostate {
         pos_ += n;
     }
 
-    template<typename OutputIt, typename = std::enable_if_t<is_random_access_iterator<OutputIt>::value &&
-                                                            is_output_iterator<OutputIt, CharT>::value>>
+    template<typename OutputIt, typename = std::enable_if_t<est::is_random_access_iterator<OutputIt>::value &&
+                                                            est::is_output_iterator<OutputIt, CharT>::value>>
     size_type read(OutputIt first, OutputIt last) {
         assert(first <= last);
         const size_type count0 = static_cast<size_type>(last - first);

@@ -131,8 +131,8 @@ class parser {
     template<typename CharT = char, typename Alloc = std::allocator<CharT>>
     UXS_EXPORT basic_value<CharT, Alloc> read(std::string_view root_element, const Alloc& al = Alloc());
 
-    class iterator
-        : public iterator_facade<iterator, value_type, std::input_iterator_tag, const value_type&, const value_type*> {
+    class iterator : public est::iterator_facade<iterator, value_type, std::input_iterator_tag, const value_type&,
+                                                 const value_type*> {
      public:
         using value_type = value_type;
         using reference = const value_type&;

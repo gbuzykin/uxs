@@ -17,7 +17,7 @@ basic_option_group<CharT>::basic_option_group(const basic_option_group& group)
     : basic_option_node<CharT>(group), is_exclusive_(group.is_exclusive_) {
     children_.reserve(group.children_.size());
     for (const auto& child : group.children_) {
-        add_child(static_pointer_cast<basic_option_node<CharT>>(child->clone()));
+        add_child(est::static_pointer_cast<basic_option_node<CharT>>(child->clone()));
     }
 }
 
@@ -228,7 +228,7 @@ std::basic_string<CharT> basic_option_node<CharT>::make_text(text_briefness brie
         std::basic_string<CharT> s(keys.front());
         bool no_space = !s.empty() && s.back() == '=';
         if (briefness == text_briefness::full) {
-            for (const auto& key : make_subrange(keys, 1)) { s += ',', s += ' ', s += key; }
+            for (const auto& key : est::make_subrange(keys, 1)) { s += ',', s += ' ', s += key; }
             no_space = !keys.back().empty() && keys.back().back() == '=';
         }
         for (const auto& val : opt.get_values()) {
@@ -251,7 +251,7 @@ std::basic_string<CharT> basic_option_node<CharT>::make_text(text_briefness brie
     };
     if (group.get_children().empty()) { return {}; }
     std::basic_string<CharT> s(make_child_string(*group.get_children().front()));
-    for (const auto& opt : make_subrange(group.get_children(), 1)) {
+    for (const auto& opt : est::make_subrange(group.get_children(), 1)) {
         s += group.is_exclusive() ? '|' : ' ';
         s += make_child_string(*opt);
     }
@@ -302,7 +302,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring color
         }
 
         if (coloring == text_coloring::colored) { osb.write(color_green); }
-        for (const auto& name : make_reverse_range(cmd_names)) {
+        for (const auto& name : est::make_reverse_range(cmd_names)) {
             width += 1 + name.size();
             osb.write(name).put(' ');
         }
@@ -337,7 +337,7 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring color
             const auto label_subcommand = string_literal<CharT, '{', 'S', 'U', 'B', 'C', 'O', 'M', 'M', 'A', 'N', 'D',
                                                          '}', ' ', '.', '.', '.'>{}();
             osb.put('\n').fill_n(left_margin, ' ');
-            for (const auto& name : make_reverse_range(cmd_names)) { osb.write(name).put(' '); }
+            for (const auto& name : est::make_reverse_range(cmd_names)) { osb.write(name).put(' '); }
             osb.write(name_).put(' ').write(label_subcommand);
         }
         if (coloring == text_coloring::colored) { osb.write(color_normal); }

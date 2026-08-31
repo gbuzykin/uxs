@@ -28,7 +28,7 @@ struct is_pair_like<Ty, std::enable_if_t<std::tuple_size<Ty>::value == 2>> : std
 template<typename Range, typename = void>
 struct is_range_of_pairs : std::false_type {};
 template<typename Range>
-struct is_range_of_pairs<Range, std::enable_if_t<is_pair_like<range_element_t<Range>>::value>> : std::true_type {};
+struct is_range_of_pairs<Range, std::enable_if_t<is_pair_like<est::range_element_t<Range>>::value>> : std::true_type {};
 template<typename Range, typename = void>
 struct is_key_type_defined : std::false_type {};
 template<typename Range>
@@ -43,7 +43,7 @@ template<typename Range, typename CharT>
 struct is_range_formattable<Range, CharT,
                             std::enable_if_t<std::is_same<decltype(std::begin(std::declval<const Range&>())),
                                                           decltype(std::end(std::declval<const Range&>()))>::value &&
-                                             is_formattable<range_element_t<Range>>::value>> : std::true_type {};
+                                             is_formattable<est::range_element_t<Range>>::value>> : std::true_type {};
 }  // namespace detail
 
 template<typename Range, typename CharT>
@@ -293,7 +293,7 @@ struct range_formatter {
 
     template<typename FmtCtx, typename Range>
     void format(FmtCtx& ctx, const Range& val) const {
-        static_assert(std::is_same<fmt::reduce_type_t<range_element_t<Range>, CharT>, Ty>::value,
+        static_assert(std::is_same<fmt::reduce_type_t<est::range_element_t<Range>, CharT>, Ty>::value,
                       "inconsistent template parameter and range types");
         fmt_opts opts = opts_;
         if (width_arg_id_ != unspecified_size) {
@@ -326,7 +326,7 @@ using range_formatter_t = range_formatter<fmt::reduce_type_t<Ty, CharT>, CharT>;
 
 template<typename Range, typename CharT>
 struct formatter<Range, CharT, std::enable_if_t<format_kind<Range, CharT>::value == range_format::map>>
-    : range_formatter_t<range_element_t<Range>, CharT> {
+    : range_formatter_t<est::range_element_t<Range>, CharT> {
     UXS_CONSTEXPR formatter() noexcept {
         this->set_brackets(string_literal<CharT, '{'>{}, string_literal<CharT, '}'>{});
         this->underlying().set_separator(string_literal<CharT, ':', ' '>{});
@@ -336,7 +336,7 @@ struct formatter<Range, CharT, std::enable_if_t<format_kind<Range, CharT>::value
 
 template<typename Range, typename CharT>
 struct formatter<Range, CharT, std::enable_if_t<format_kind<Range, CharT>::value == range_format::set>>
-    : range_formatter_t<range_element_t<Range>, CharT> {
+    : range_formatter_t<est::range_element_t<Range>, CharT> {
     UXS_CONSTEXPR formatter() noexcept {
         this->set_brackets(string_literal<CharT, '{'>{}, string_literal<CharT, '}'>{});
     }
@@ -344,6 +344,6 @@ struct formatter<Range, CharT, std::enable_if_t<format_kind<Range, CharT>::value
 
 template<typename Range, typename CharT>
 struct formatter<Range, CharT, std::enable_if_t<format_kind<Range, CharT>::value == range_format::sequence>>
-    : range_formatter_t<range_element_t<Range>, CharT> {};
+    : range_formatter_t<est::range_element_t<Range>, CharT> {};
 
 }  // namespace uxs
