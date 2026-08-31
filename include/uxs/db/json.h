@@ -4,7 +4,7 @@
 
 #include "uxs/io/iflatbuf.h"
 #include "uxs/io/iomembuffer.h"
-#include "uxs/string_conv.h"
+#include "uxs/string_conv_base.h"
 
 namespace uxs {
 namespace db {
@@ -151,7 +151,7 @@ template<typename CharT, typename Alloc>
 struct from_string_impl<db::basic_value<CharT, Alloc>, char> {
     from_chars_result<char> operator()(const char* first, const char* last, db::basic_value<CharT, Alloc>& val) const {
         if (first == last) { return {first, sconv_errc::empty}; }
-        uxs::iflatbuf in(est::as_span(first, static_cast<std::size_t>(last - first)));
+        iflatbuf in(est::as_span(first, static_cast<std::size_t>(last - first)));
         try {
             auto result = db::json::read(in);
             val = std::move(result);

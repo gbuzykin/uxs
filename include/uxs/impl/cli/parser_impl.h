@@ -2,6 +2,7 @@
 
 #include "uxs/cli/parser.h"
 #include "uxs/io/oflatbuf.h"
+#include "uxs/string_util.h"
 
 #include <numeric>
 #include <unordered_set>

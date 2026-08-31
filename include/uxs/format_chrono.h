@@ -285,7 +285,7 @@ inline bool is_locale_classic(locale_ref loc, fmt_opts opts) noexcept {
 template<typename FmtCtx>
 void format_append_2digs(FmtCtx& ctx, int v) {
     assert(v >= 0 && v < 100);
-    const char* digs = sconv::get_digits(v);
+    const char* digs = char_tbl_t{}.digs100(v);
     if constexpr (std::is_same_v<typename FmtCtx::char_type, char>) {
         ctx.out().append(digs, 2);
     } else {

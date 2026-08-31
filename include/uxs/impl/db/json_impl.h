@@ -2,6 +2,7 @@
 
 #include "uxs/db/json.h"
 #include "uxs/dynarray.h"
+#include "uxs/string_conv.h"
 
 namespace uxs {
 namespace db {

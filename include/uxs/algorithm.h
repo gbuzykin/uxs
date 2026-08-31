@@ -119,14 +119,14 @@ auto erase_if(Container& c, Range&& r, Pred p, Dummy&&...) -> decltype(std::end(
 }
 }  // namespace detail
 
-template<typename Container, typename Range, typename Pred>
-auto erase_if(Container& c, Range&& r, Pred p) -> decltype(c.size()) {
-    return detail::erase_if(c, std::forward<Range>(r), p);
-}
-
 template<typename Container, typename Pred>
 auto erase_if(Container& c, Pred p) -> decltype(c.size()) {
     return detail::erase_if(c, c, p);
+}
+
+template<typename Container, typename Range, typename Pred>
+auto erase_if(Container& c, Range&& r, Pred p) -> decltype(c.size()) {
+    return detail::erase_if(c, std::forward<Range>(r), p);
 }
 
 // ---- erase_duplicates
