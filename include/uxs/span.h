@@ -20,7 +20,7 @@ class span {
     using const_pointer = const Ty*;
     using reference = Ty&;
     using const_reference = const Ty&;
-    using iterator = uxs::array_iterator<span, pointer, std::is_const<Ty>::value>;
+    using iterator = array_iterator<span, pointer, std::is_const<Ty>::value>;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
@@ -31,12 +31,10 @@ class span {
     template<typename Ty2, std::size_t N, typename = std::enable_if_t<std::is_convertible<Ty2*, Ty*>::value>>
     explicit UXS_CONSTEXPR span(Ty2 (&v)[N]) noexcept : begin_(v), size_(N) {}
 #if __cplusplus < 201703L
-    template<typename Range,
-             typename = std::enable_if_t<uxs::is_contiguous_range<std::remove_reference_t<Range>, Ty>::value>>
+    template<typename Range, typename = std::enable_if_t<is_contiguous_range<std::remove_reference_t<Range>, Ty>::value>>
     UXS_CONSTEXPR span(Range&& r) noexcept : begin_(r.data()), size_(r.size()) {}
 #else   // __cplusplus < 201703L
-    template<typename Range,
-             typename = std::enable_if_t<uxs::is_contiguous_range<std::remove_reference_t<Range>, Ty>::value>>
+    template<typename Range, typename = std::enable_if_t<is_contiguous_range<std::remove_reference_t<Range>, Ty>::value>>
     UXS_CONSTEXPR span(Range&& r) noexcept : begin_(std::data(r)), size_(std::size(r)) {}
 #endif  // __cplusplus < 201703L
 

@@ -48,17 +48,18 @@ class flexarray_t {
     };
 
  public:
-    using const_view_type = std::conditional_t<is_character<Ty>::value, std::basic_string_view<Ty>, est::span<const Ty>>;
+    using const_view_type =
+        std::conditional_t<est::is_character<Ty>::value, std::basic_string_view<Ty>, est::span<const Ty>>;
     using view_type = est::span<Ty>;
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<data_t>;
     using alloc_traits = std::allocator_traits<alloc_type>;
 
-    enum : unsigned { tail_zero = is_character<Ty>::value ? 1 : 0 };
+    enum : unsigned { tail_zero = est::is_character<Ty>::value ? 1 : 0 };
 
     std::size_t size() const noexcept { return p_ ? p_->size : 0; }
     const_view_type cview() const noexcept { return p_ ? const_view_type(p_->data(), p_->size) : const_view_type(); }
 
-    template<typename Ty_ = Ty, typename = std::enable_if_t<is_character<Ty_>::value>>
+    template<typename Ty_ = Ty, typename = std::enable_if_t<est::is_character<Ty_>::value>>
     const Ty_* c_str() const noexcept {
         static const Ty zero = '\0';
         return p_ ? p_->data() : &zero;
@@ -96,7 +97,7 @@ class flexarray_t {
     void construct(alloc_type& al, InputIt first, InputIt last) {
         p_ = nullptr;
         try {
-            create_impl(al, first, last, is_random_access_iterator<InputIt>());
+            create_impl(al, first, last, est::is_random_access_iterator<InputIt>());
         } catch (...) {
             if (p_) { destruct(al); }
             throw;
@@ -114,7 +115,9 @@ class flexarray_t {
 
     template<typename InputIt>
     void assign(alloc_type& al, InputIt first, InputIt last) {
-        if (p_ && p_->ref_count == 1) { return assign_impl(al, first, last, is_random_access_iterator<InputIt>()); }
+        if (p_ && p_->ref_count == 1) {
+            return assign_impl(al, first, last, est::is_random_access_iterator<InputIt>());
+        }
         flexarray_t new_arr;
         new_arr.construct(al, first, last);
         reset(al, new_arr.p_);
@@ -122,10 +125,10 @@ class flexarray_t {
 
     template<typename InputIt>
     void insert(alloc_type& al, std::size_t pos, InputIt first, InputIt last) {
-        if (!p_) { return create_impl(al, first, last, is_random_access_iterator<InputIt>()); }
+        if (!p_) { return create_impl(al, first, last, est::is_random_access_iterator<InputIt>()); }
         ensure_unique(al);
         const std::size_t prev_sz = p_->size;
-        append_impl(al, first, last, is_random_access_iterator<InputIt>());
+        append_impl(al, first, last, est::is_random_access_iterator<InputIt>());
         if (pos < prev_sz) { std::rotate(p_->data() + pos, p_->data() + prev_sz, p_->data() + p_->size); }
     }
 
@@ -531,8 +534,8 @@ class record_t {
     using node_traits = record_node_traits<CharT, Alloc>;
     using node_t = typename node_traits::node_t;
     using hasher_t = std::hash<key_type>;
-    using iterator = list_iterator<record_t, node_traits, false>;
-    using const_iterator = list_iterator<record_t, node_traits, true>;
+    using iterator = est::list_iterator<record_t, node_traits, false>;
+    using const_iterator = est::list_iterator<record_t, node_traits, true>;
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<data_t>;
     using alloc_traits = std::allocator_traits<alloc_type>;
 
@@ -574,9 +577,9 @@ class record_t {
 
     template<typename InputIt>
     void construct(alloc_type& al, InputIt first, InputIt last) {
-        construct(al, initial_bucket_count(first, last, is_random_access_iterator<InputIt>()));
+        construct(al, initial_bucket_count(first, last, est::is_random_access_iterator<InputIt>()));
         try {
-            insert_impl(al, first, last, is_random_access_iterator<InputIt>());
+            insert_impl(al, first, last, est::is_random_access_iterator<InputIt>());
         } catch (...) {
             destruct(al);
             throw;
@@ -587,14 +590,14 @@ class record_t {
 
     template<typename InputIt>
     void assign(alloc_type& al, InputIt first, InputIt last) {
-        clear_impl(al, initial_bucket_count(first, last, is_random_access_iterator<InputIt>()));
-        insert_impl(al, first, last, is_random_access_iterator<InputIt>());
+        clear_impl(al, initial_bucket_count(first, last, est::is_random_access_iterator<InputIt>()));
+        insert_impl(al, first, last, est::is_random_access_iterator<InputIt>());
     }
 
     template<typename InputIt>
     void insert(alloc_type& al, InputIt first, InputIt last) {
         ensure_unique(al);
-        insert_impl(al, first, last, is_random_access_iterator<InputIt>());
+        insert_impl(al, first, last, est::is_random_access_iterator<InputIt>());
     }
 
     template<typename... Args>
@@ -707,8 +710,9 @@ void record_t<CharT, Alloc>::insert_impl(alloc_type& al, InputIt first, InputIt 
 // Universal value iterator
 
 template<typename CharT, typename Alloc, bool Const>
-class value_iterator : public container_iterator_facade<basic_value<CharT, Alloc>, value_iterator<CharT, Alloc, Const>,
-                                                        std::bidirectional_iterator_tag, Const> {
+class value_iterator
+    : public est::container_iterator_facade<basic_value<CharT, Alloc>, value_iterator<CharT, Alloc, Const>,
+                                            std::bidirectional_iterator_tag, Const> {
  public:
     using char_type = CharT;
     using key_type = std::basic_string_view<CharT>;
@@ -944,16 +948,16 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
     basic_value(const char_type* cstr, const Alloc& al) : basic_value(std::basic_string_view<char_type>(cstr), al) {}
 
-    template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
+    template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value>>
     basic_value(InputIt first, InputIt last, const Alloc& al = Alloc())
         : basic_value(detail::select_construct_t<CharT, Alloc, InputIt>(0), first, last, al) {}
-    template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
+    template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value>>
     basic_value(array_tag_t, InputIt first, InputIt last, const Alloc& al = Alloc())
         : alloc_type(al), type_(dtype::array) {
         typename value_array_t::alloc_type arr_al(*this);
         value_.arr.construct(arr_al, first, last);
     }
-    template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value &&
+    template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value &&
                                                            detail::is_record_iterator<CharT, Alloc, InputIt>::value>>
     basic_value(record_tag_t, InputIt first, InputIt last, const Alloc& al = Alloc())
         : alloc_type(al), type_(dtype::record) {
@@ -1039,13 +1043,13 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         return *this;
     }
 
-    template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
+    template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value>>
     void assign(InputIt first, InputIt last) {
         assign(detail::select_construct_t<CharT, Alloc, InputIt>(0), first, last);
     }
-    template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
+    template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value>>
     void assign(array_tag_t, InputIt first, InputIt last);
-    template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value &&
+    template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value &&
                                                            detail::is_record_iterator<CharT, Alloc, InputIt>::value>>
     void assign(record_tag_t, InputIt first, InputIt last);
 
@@ -1334,11 +1338,11 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     std::pair<iterator, bool> insert_unique(key_type key, const basic_value& v) { return emplace_unique(key, v); }
     std::pair<iterator, bool> insert_unique(key_type key, basic_value&& v) { return emplace_unique(key, std::move(v)); }
 
-    template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
+    template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value>>
     void insert(size_type pos, InputIt first, InputIt last);
     UXS_EXPORT void insert(size_type pos, std::initializer_list<basic_value> init);
 
-    template<typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value &&
+    template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value &&
                                                            detail::is_record_iterator<CharT, Alloc, InputIt>::value>>
     void insert(InputIt first, InputIt last);
     UXS_EXPORT void insert(std::initializer_list<std::pair<key_type, basic_value>> init);
@@ -1406,7 +1410,8 @@ void basic_value<CharT, Alloc>::assign(record_tag_t, InputIt first, InputIt last
     typename record_t::alloc_type rec_al(*this);
     if (type_ != dtype::record) {
         if (type_ != dtype::null) { destroy(); }
-        value_.rec.construct(rec_al, detail::initial_bucket_count(first, last, is_random_access_iterator<InputIt>()));
+        value_.rec.construct(rec_al,
+                             detail::initial_bucket_count(first, last, est::is_random_access_iterator<InputIt>()));
         type_ = dtype::record;
     }
     value_.rec.assign(rec_al, first, last);
@@ -1467,7 +1472,8 @@ void basic_value<CharT, Alloc>::insert(InputIt first, InputIt last) {
     typename record_t::alloc_type rec_al(*this);
     if (type_ != dtype::record) {
         if (type_ != dtype::null) { throw database_error("not a record"); }
-        value_.rec.construct(rec_al, detail::initial_bucket_count(first, last, is_random_access_iterator<InputIt>()));
+        value_.rec.construct(rec_al,
+                             detail::initial_bucket_count(first, last, est::is_random_access_iterator<InputIt>()));
         type_ = dtype::record;
     }
     value_.rec.insert(rec_al, first, last);
@@ -1592,7 +1598,7 @@ basic_value<CharT, Alloc> make_array(const Alloc& al) {
 }
 
 template<typename CharT = char, typename Alloc = std::allocator<CharT>, typename InputIt,
-         typename = std::enable_if_t<is_input_iterator<InputIt>::value>>
+         typename = std::enable_if_t<est::is_input_iterator<InputIt>::value>>
 basic_value<CharT, Alloc> make_array(InputIt first, InputIt last, const Alloc& al = Alloc()) {
     return basic_value<CharT, Alloc>(array_tag, first, last, al);
 }
@@ -1613,7 +1619,7 @@ basic_value<CharT, Alloc> make_record(const Alloc& al) {
 }
 
 template<typename CharT = char, typename Alloc = std::allocator<CharT>, typename InputIt,
-         typename = std::enable_if_t<is_input_iterator<InputIt>::value &&
+         typename = std::enable_if_t<est::is_input_iterator<InputIt>::value &&
                                      detail::is_record_iterator<CharT, Alloc, InputIt>::value>>
 basic_value<CharT, Alloc> make_record(InputIt first, InputIt last, const Alloc& al = Alloc()) {
     return basic_value<CharT, Alloc>(record_tag, first, last, al);

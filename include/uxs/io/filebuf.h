@@ -22,10 +22,10 @@ class basic_filebuf : public basic_devbuf<CharT> {
     }
     basic_filebuf(const char* fname, const char* mode)
         : basic_filebuf(fname,
-                        detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::text : iomode::none)) {}
+                        detail::iomode_from_str(mode, est::is_character<CharT>::value ? iomode::text : iomode::none)) {}
     basic_filebuf(const wchar_t* fname, const char* mode)
         : basic_filebuf(fname,
-                        detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::text : iomode::none)) {}
+                        detail::iomode_from_str(mode, est::is_character<CharT>::value ? iomode::text : iomode::none)) {}
 
     ~basic_filebuf() override { this->freebuf(); }
 
@@ -63,10 +63,10 @@ class basic_filebuf : public basic_devbuf<CharT> {
         return res;
     }
     bool open(const char* fname, const char* mode) {
-        return open(fname, detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::text : iomode::none));
+        return open(fname, detail::iomode_from_str(mode, est::is_character<CharT>::value ? iomode::text : iomode::none));
     }
     bool open(const wchar_t* fname, const char* mode) {
-        return open(fname, detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::text : iomode::none));
+        return open(fname, detail::iomode_from_str(mode, est::is_character<CharT>::value ? iomode::text : iomode::none));
     }
     void close() noexcept {
         this->freebuf();

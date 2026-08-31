@@ -90,10 +90,6 @@ void as_const(const Ty&&) = delete;
 template<typename... Ts>
 using void_t = typename est::type_identity<void, Ts...>::type;
 #    endif  // void_t
-#    if !defined(__cpp_lib_is_swappable)
-template<typename Ty>
-using is_nothrow_swappable = bool_constant<noexcept(swap(declval<Ty&>(), declval<Ty&>()))>;
-#    endif  // is swappable
 #    if __cplusplus < 201402L && !defined(__cpp_lib_integer_sequence)
 template<std::size_t... Indices>
 using index_sequence = est::detail::index_sequence<Indices...>;
@@ -105,36 +101,16 @@ using index_sequence_for = make_index_sequence<sizeof...(Ts)>;
 }  // namespace std
 #endif  // __cplusplus < 201703L
 
-#if __cplusplus < 202002L
-#    if !defined(__cpp_lib_remove_cvref)
+#if __cplusplus < 202002L && !defined(__cpp_lib_remove_cvref)
 namespace std {
 template<typename Ty>
 using remove_cvref = remove_cv<remove_reference_t<Ty>>;
 template<typename Ty>
 using remove_cvref_t = typename remove_cvref<Ty>::type;
 }  // namespace std
-#    endif  // remove_cvref
-#endif      // __cplusplus < 202002L
+#endif  // remove_cvref
 
 namespace est {
-
-template<typename Ty>
-struct remove_const : std::remove_const<Ty> {};
-template<typename Ty1, typename Ty2>
-struct remove_const<std::pair<Ty1, Ty2>> {
-    using type = std::pair<std::remove_const_t<Ty1>, std::remove_const_t<Ty2>>;
-};
-template<typename Ty>
-using remove_const_t = typename remove_const<Ty>::type;
-
-template<typename Ty>
-struct remove_cv : std::remove_cv<Ty> {};
-template<typename Ty1, typename Ty2>
-struct remove_cv<std::pair<Ty1, Ty2>> {
-    using type = std::pair<std::remove_cv_t<Ty1>, std::remove_cv_t<Ty2>>;
-};
-template<typename Ty>
-using remove_cv_t = typename remove_cv<Ty>::type;
 
 struct in_place_t {
     explicit constexpr in_place_t() = default;
@@ -150,10 +126,6 @@ constexpr in_place_t in_place{};
 template<typename Ty>
 constexpr in_place_type_t<Ty> in_place_type{};
 #endif  // __cplusplus >= 201402L
-
-}  // namespace est
-
-namespace uxs {
 
 template<typename Ty>
 using is_boolean = std::is_same<std::remove_cv_t<Ty>, bool>;
@@ -179,6 +151,30 @@ struct array_element<Ty, std::void_t<std::remove_cvref_t<decltype(std::declval<T
 };
 template<typename Ty>
 using array_element_t = typename array_element<Ty>::type;
+
+struct identity {
+    using is_transparent = int;
+    template<typename Ty>
+    UXS_CONSTEXPR auto operator()(Ty&& v) const -> decltype(std::forward<Ty>(v)) {
+        return std::forward<Ty>(v);
+    }
+};
+
+struct true_fn {
+    using is_transparent = int;
+    template<typename... Ty>
+    UXS_CONSTEXPR bool operator()(const Ty&...) const {
+        return true;
+    }
+};
+
+struct grow {
+    using is_transparent = int;
+    template<typename TyL, typename TyR>
+    UXS_CONSTEXPR TyL& operator()(TyL& lhs, const TyR& rhs) const {
+        return lhs += rhs;
+    }
+};
 
 namespace detail {
 template<typename... Ts>
@@ -212,33 +208,13 @@ constexpr bool or_variadic(const Ty& v1, const Ts&... vn) {
 #endif  // __cplusplus < 201703L
 }  // namespace detail
 
+}  // namespace est
+
+namespace uxs {
+
 template<typename Ty, std::size_t Offset, typename MemberTy>
 Ty* get_containing_record(MemberTy* member_ptr) {
     return reinterpret_cast<Ty*>(reinterpret_cast<std::uint8_t*>(member_ptr) - Offset);
 }
-
-struct identity {
-    using is_transparent = int;
-    template<typename Ty>
-    UXS_CONSTEXPR auto operator()(Ty&& v) const -> decltype(std::forward<Ty>(v)) {
-        return std::forward<Ty>(v);
-    }
-};
-
-struct true_fn {
-    using is_transparent = int;
-    template<typename... Ty>
-    UXS_CONSTEXPR bool operator()(const Ty&...) const {
-        return true;
-    }
-};
-
-struct grow {
-    using is_transparent = int;
-    template<typename TyL, typename TyR>
-    UXS_CONSTEXPR TyL& operator()(TyL& lhs, const TyR& rhs) const {
-        return lhs += rhs;
-    }
-};
 
 }  // namespace uxs

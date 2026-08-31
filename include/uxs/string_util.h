@@ -26,10 +26,11 @@ struct string_literal {
 namespace detail {
 template<typename Ty, typename = void>
 struct string_traits {
-    using type = std::char_traits<array_element_t<Ty>>;
+    using type = std::char_traits<est::array_element_t<Ty>>;
 };
 template<typename Ty>
-struct string_traits<Ty, std::enable_if_t<std::is_same<typename Ty::traits_type::char_type, array_element_t<Ty>>::value>> {
+struct string_traits<
+    Ty, std::enable_if_t<std::is_same<typename Ty::traits_type::char_type, est::array_element_t<Ty>>::value>> {
     using type = typename Ty::traits_type;
 };
 }  // namespace detail
@@ -37,28 +38,29 @@ struct string_traits<Ty, std::enable_if_t<std::is_same<typename Ty::traits_type:
 template<typename Ty, typename = void>
 struct is_string_like : std::false_type {};
 template<typename Ty>
-struct is_string_like<Ty, std::enable_if_t<is_character<array_element_t<Ty>>::value>>
+struct is_string_like<Ty, std::enable_if_t<est::is_character<est::array_element_t<Ty>>::value>>
     : std::is_convertible<const Ty&,
-                          std::basic_string_view<array_element_t<Ty>, typename detail::string_traits<Ty>::type>> {};
+                          std::basic_string_view<est::array_element_t<Ty>, typename detail::string_traits<Ty>::type>> {
+};
 
 template<typename Ty, typename = void>
 struct string_traits {};
 template<typename Ty>
-struct string_traits<Ty, std::enable_if_t<is_character<array_element_t<Ty>>::value>> {
+struct string_traits<Ty, std::enable_if_t<est::is_character<est::array_element_t<Ty>>::value>> {
     using type = typename detail::string_traits<Ty>::type;
 };
 template<typename Ty>
 using string_traits_t = typename string_traits<Ty>::type;
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-UXS_CONSTEXPR std::basic_string_view<array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>> to_string_view(
+UXS_CONSTEXPR std::basic_string_view<est::array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>> to_string_view(
     const StrLikeTy& s) {
-    return std::basic_string_view<array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>>(s);
+    return std::basic_string_view<est::array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>>(s);
 }
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-std::basic_string<array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>> make_string(const StrLikeTy& s) {
-    return std::basic_string<array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>>(to_string_view(s));
+std::basic_string<est::array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>> make_string(const StrLikeTy& s) {
+    return std::basic_string<est::array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>>(to_string_view(s));
 }
 
 namespace detail {
@@ -66,25 +68,25 @@ template<typename Iter, typename = void>
 struct is_contiguous_string_iterator : std::false_type {};
 template<typename Iter>
 struct is_contiguous_string_iterator<
-    Iter,
-    std::enable_if_t<is_character<iterator_value_t<Iter>>::value &&
-                     (std::is_pointer<Iter>::value ||
-                      std::is_same<Iter, typename std::basic_string_view<iterator_value_t<Iter>>::iterator>::value ||
-                      std::is_same<Iter, typename std::basic_string<iterator_value_t<Iter>>::iterator>::value ||
-                      std::is_same<Iter, typename std::basic_string<iterator_value_t<Iter>>::const_iterator>::value)>>
+    Iter, std::enable_if_t<
+              est::is_character<est::iterator_value_t<Iter>>::value &&
+              (std::is_pointer<Iter>::value ||
+               std::is_same<Iter, typename std::basic_string_view<est::iterator_value_t<Iter>>::iterator>::value ||
+               std::is_same<Iter, typename std::basic_string<est::iterator_value_t<Iter>>::iterator>::value ||
+               std::is_same<Iter, typename std::basic_string<est::iterator_value_t<Iter>>::const_iterator>::value)>>
     : std::true_type {};
 }  // namespace detail
 
 template<typename Iter, typename = std::enable_if_t<detail::is_contiguous_string_iterator<Iter>::value>>
-UXS_CONSTEXPR std::basic_string_view<iterator_value_t<Iter>> to_string_view(Iter first, Iter last) {
+UXS_CONSTEXPR std::basic_string_view<est::iterator_value_t<Iter>> to_string_view(Iter first, Iter last) {
 #if __cplusplus >= 202002L
-    if constexpr (std::is_constructible_v<std::basic_string_view<iterator_value_t<Iter>>, Iter, Iter>) {
-        return std::basic_string_view<iterator_value_t<Iter>>(first, last);
+    if constexpr (std::is_constructible_v<std::basic_string_view<est::iterator_value_t<Iter>>, Iter, Iter>) {
+        return std::basic_string_view<est::iterator_value_t<Iter>>(first, last);
     } else {
 #endif  // __cplusplus >= 202002L
         const std::size_t size = static_cast<std::size_t>(last - first);
         if (!size) { return {}; }
-        return std::basic_string_view<iterator_value_t<Iter>>(&*first, size);
+        return std::basic_string_view<est::iterator_value_t<Iter>>(&*first, size);
 #if __cplusplus >= 202002L
     }
 #endif  // __cplusplus >= 202002L

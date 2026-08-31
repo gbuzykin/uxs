@@ -83,25 +83,25 @@ struct reverse_string_finder {
 }  // namespace detail
 
 template<typename CharT, typename Traits = std::char_traits<CharT>,
-         typename = std::enable_if_t<is_character<CharT>::value>>
+         typename = std::enable_if_t<est::is_character<CharT>::value>>
 detail::char_finder<CharT, Traits> sfinder(CharT ch) {
     return detail::char_finder<CharT, Traits>(ch);
 }
 
 template<typename CharT, typename Traits = std::char_traits<CharT>,
-         typename = std::enable_if_t<is_character<CharT>::value>>
+         typename = std::enable_if_t<est::is_character<CharT>::value>>
 detail::reverse_char_finder<CharT, Traits> rsfinder(CharT ch) {
     return detail::reverse_char_finder<CharT, Traits>(ch);
 }
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-detail::string_finder<array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>> sfinder(const StrLikeTy& s) {
-    return detail::string_finder<array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>>(to_string_view(s));
+detail::string_finder<est::array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>> sfinder(const StrLikeTy& s) {
+    return detail::string_finder<est::array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>>(to_string_view(s));
 }
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-detail::reverse_string_finder<array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>> rsfinder(const StrLikeTy& s) {
-    return detail::reverse_string_finder<array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>>(to_string_view(s));
+detail::reverse_string_finder<est::array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>> rsfinder(const StrLikeTy& s) {
+    return detail::reverse_string_finder<est::array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>>(to_string_view(s));
 }
 
 // --------------------------
@@ -133,7 +133,7 @@ auto replace_strings(const StrLikeTy& s, Finder finder, const WithTy& with) -> d
 
 // --------------------------
 
-template<typename StrTy, typename Range, typename SepTy, typename JoinFn = grow>
+template<typename StrTy, typename Range, typename SepTy, typename JoinFn = est::grow>
 void join_strings_append(StrTy& out, const Range& r, const SepTy& sep, JoinFn fn = JoinFn{}) {
     auto first = std::begin(r);
     const auto last = std::end(r);
@@ -146,7 +146,7 @@ void join_strings_append(StrTy& out, const Range& r, const SepTy& sep, JoinFn fn
     }
 }
 
-template<typename CharT = char, typename Range, typename SepTy, typename JoinFn = grow>
+template<typename CharT = char, typename Range, typename SepTy, typename JoinFn = est::grow>
 std::basic_string<CharT> join_strings(const Range& r, const SepTy& sep,
                                       est::type_identity_t<std::basic_string<CharT>> prefix = {},
                                       JoinFn fn = JoinFn{}) {
@@ -156,8 +156,8 @@ std::basic_string<CharT> join_strings(const Range& r, const SepTy& sep,
 
 // --------------------------
 
-template<typename StrLikeTy, typename Finder, typename OutputIt, typename OutputFn = identity,
-         typename OutputPred = true_fn, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>,
+template<typename StrLikeTy, typename Finder, typename OutputIt, typename OutputFn = est::identity,
+         typename OutputPred = est::true_fn, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>,
          typename = std::void_t<typename Finder::is_finder>>
 UXS_CONSTEXPR OutputIt split_string_to(const StrLikeTy& s, Finder finder, OutputIt out, OutputFn fn = OutputFn{},
                                        OutputPred pred = OutputPred{}) {
@@ -174,7 +174,7 @@ UXS_CONSTEXPR OutputIt split_string_to(const StrLikeTy& s, Finder finder, Output
     }
 }
 
-template<typename StrLikeTy, typename Finder, typename OutputFn = identity, typename OutputPred = true_fn,
+template<typename StrLikeTy, typename Finder, typename OutputFn = est::identity, typename OutputPred = est::true_fn,
          typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
 auto split_string(const StrLikeTy& s, Finder finder, OutputFn fn = OutputFn{}, OutputPred pred = OutputPred{})
     -> std::vector<std::decay_t<decltype(fn(to_string_view(s)))>> {
@@ -185,7 +185,7 @@ auto split_string(const StrLikeTy& s, Finder finder, OutputFn fn = OutputFn{}, O
 
 // --------------------------
 
-template<typename StrLikeTy, typename Finder, typename Pred = true_fn,
+template<typename StrLikeTy, typename Finder, typename Pred = est::true_fn,
          typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
 UXS_CONSTEXPR auto string_section(const StrLikeTy& s, Finder finder,
                                   est::type_identity_t<std::size_t, typename Finder::is_finder> start,
@@ -207,7 +207,7 @@ UXS_CONSTEXPR auto string_section(const StrLikeTy& s, Finder finder,
     }
 }
 
-template<typename StrLikeTy, typename Finder, typename Pred = true_fn,
+template<typename StrLikeTy, typename Finder, typename Pred = est::true_fn,
          typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
 UXS_CONSTEXPR auto string_section(const StrLikeTy& s, Finder finder,
                                   est::type_identity_t<std::size_t, typename Finder::is_reverse_finder> start,
@@ -231,9 +231,9 @@ UXS_CONSTEXPR auto string_section(const StrLikeTy& s, Finder finder,
 
 // --------------------------
 
-template<typename StrLikeTy, typename OutputIt, typename OutputFn = identity, typename OutputPred = true_fn,
+template<typename StrLikeTy, typename OutputIt, typename OutputFn = est::identity, typename OutputPred = est::true_fn,
          typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-UXS_CONSTEXPR OutputIt string_to_words_to(const StrLikeTy& s, array_element_t<StrLikeTy> sep, OutputIt out,
+UXS_CONSTEXPR OutputIt string_to_words_to(const StrLikeTy& s, est::array_element_t<StrLikeTy> sep, OutputIt out,
                                           OutputFn fn = OutputFn{}, OutputPred pred = OutputPred{}) {
     enum class state_t { start = 0, sep_found, skip_sep } state = state_t::start;
     const auto sv = to_string_view(s);
@@ -265,9 +265,9 @@ UXS_CONSTEXPR OutputIt string_to_words_to(const StrLikeTy& s, array_element_t<St
     }
 }
 
-template<typename StrLikeTy, typename OutputFn = identity, typename OutputPred = true_fn,
+template<typename StrLikeTy, typename OutputFn = est::identity, typename OutputPred = est::true_fn,
          typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-auto string_to_words(const StrLikeTy& s, array_element_t<StrLikeTy> sep, OutputFn fn = OutputFn{},
+auto string_to_words(const StrLikeTy& s, est::array_element_t<StrLikeTy> sep, OutputFn fn = OutputFn{},
                      OutputPred pred = OutputPred{}) -> std::vector<std::decay_t<decltype(fn(to_string_view(s)))>> {
     std::vector<std::decay_t<decltype(fn(to_string_view(s)))>> result;
     string_to_words_to(s, sep, std::back_inserter(result), fn, pred);
@@ -276,7 +276,7 @@ auto string_to_words(const StrLikeTy& s, array_element_t<StrLikeTy> sep, OutputF
 
 // --------------------------
 
-template<typename StrTy, typename Range, typename InputFn = identity>
+template<typename StrTy, typename Range, typename InputFn = est::identity>
 auto pack_strings_append(StrTy& out, const Range& r, typename StrTy::value_type sep, InputFn fn = InputFn{})
     -> std::enable_if_t<is_string_like<std::decay_t<decltype(fn(*std::begin(r)))>>::value> {
     auto first = std::begin(r);
@@ -304,7 +304,7 @@ auto pack_strings_append(StrTy& out, const Range& r, typename StrTy::value_type 
     }
 }
 
-template<typename CharT = char, typename Range, typename InputFn = identity>
+template<typename CharT = char, typename Range, typename InputFn = est::identity>
 auto pack_strings(const Range& r, est::type_identity_t<CharT> sep,
                   est::type_identity_t<std::basic_string<CharT>> prefix = {}, InputFn fn = InputFn{})
     -> std::enable_if_t<is_string_like<std::decay_t<decltype(fn(*std::begin(r)))>>::value, std::basic_string<CharT>> {
@@ -314,10 +314,10 @@ auto pack_strings(const Range& r, est::type_identity_t<CharT> sep,
 
 // --------------------------
 
-template<typename StrLikeTy, typename OutputIt, typename OutputFn = identity, typename OutputPred = true_fn,
+template<typename StrLikeTy, typename OutputIt, typename OutputFn = est::identity, typename OutputPred = est::true_fn,
          typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-OutputIt unpack_strings_to(const StrLikeTy& s, array_element_t<StrLikeTy> sep, OutputIt out, OutputFn fn = OutputFn{},
-                           OutputPred pred = OutputPred{}) {
+OutputIt unpack_strings_to(const StrLikeTy& s, est::array_element_t<StrLikeTy> sep, OutputIt out,
+                           OutputFn fn = OutputFn{}, OutputPred pred = OutputPred{}) {
     const auto sv = to_string_view(s);
     for (auto p = sv.begin();; ++p) {
         decltype(make_string(s)) val;
@@ -340,9 +340,9 @@ OutputIt unpack_strings_to(const StrLikeTy& s, array_element_t<StrLikeTy> sep, O
     }
 }
 
-template<typename StrLikeTy, typename OutputFn = identity, typename OutputPred = true_fn,
+template<typename StrLikeTy, typename OutputFn = est::identity, typename OutputPred = est::true_fn,
          typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-auto unpack_strings(const StrLikeTy& s, array_element_t<StrLikeTy> sep, OutputFn fn = OutputFn{},
+auto unpack_strings(const StrLikeTy& s, est::array_element_t<StrLikeTy> sep, OutputFn fn = OutputFn{},
                     OutputPred pred = OutputPred{}) -> std::vector<std::decay_t<decltype(fn(make_string(s)))>> {
     std::vector<std::decay_t<decltype(fn(make_string(s)))>> result;
     unpack_strings_to(s, sep, std::back_inserter(result), fn, pred);

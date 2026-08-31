@@ -15,13 +15,13 @@ struct reduce_type {
 template<typename Ty, typename CharT>
 struct reduce_type<Ty, CharT,
                    std::enable_if_t<std::is_integral<Ty>::value && std::is_unsigned<Ty>::value &&
-                                    !is_boolean<Ty>::value && !is_character<Ty>::value>> {
+                                    !est::is_boolean<Ty>::value && !est::is_character<Ty>::value>> {
     using type = std::conditional_t<(sizeof(Ty) <= sizeof(std::uint32_t)), std::uint32_t, std::uint64_t>;
 };
 template<typename Ty, typename CharT>
 struct reduce_type<Ty, CharT,
                    std::enable_if_t<std::is_integral<Ty>::value && std::is_signed<Ty>::value &&
-                                    !is_boolean<Ty>::value && !is_character<Ty>::value>> {
+                                    !est::is_boolean<Ty>::value && !est::is_character<Ty>::value>> {
     using type = std::conditional_t<(sizeof(Ty) <= sizeof(std::int32_t)), std::int32_t, std::int64_t>;
 };
 template<typename Ty>
@@ -38,7 +38,7 @@ struct reduce_type<std::basic_string<CharT, Traits, Alloc>, CharT> {
 };
 template<typename Ty, typename CharT>
 struct reduce_type<Ty*, CharT,
-                   std::enable_if_t<!is_character<Ty>::value || std::is_same<std::remove_cv_t<Ty>, CharT>::value>> {
+                   std::enable_if_t<!est::is_character<Ty>::value || std::is_same<std::remove_cv_t<Ty>, CharT>::value>> {
     using type = std::conditional_t<std::is_same<std::remove_cv_t<Ty>, CharT>::value, const CharT*, const void*>;
 };
 template<typename Ty, typename CharT>
@@ -421,7 +421,7 @@ template<typename FmtCtx, typename... Args>
 class arg_store {
  public:
     using char_type = typename FmtCtx::char_type;
-    static const std::size_t arg_count = sizeof...(Args);
+    static constexpr std::size_t arg_count = sizeof...(Args);
 
     static_assert(std::is_trivially_copyable<std::basic_string_view<char_type>>::value &&
                       std::is_trivially_destructible<std::basic_string_view<char_type>>::value,
@@ -440,9 +440,9 @@ class arg_store {
     UXS_CONSTEXPR const void* data() const noexcept { return data_; }
 
  private:
-    static const std::size_t storage_size =
+    static constexpr std::size_t storage_size =
         arg_store_size_evaluator<FmtCtx, arg_count * sizeof(unsigned), Args...>::value;
-    static const std::size_t storage_alignment = arg_store_alignment_evaluator<FmtCtx, unsigned, Args...>::value;
+    static constexpr std::size_t storage_alignment = arg_store_alignment_evaluator<FmtCtx, unsigned, Args...>::value;
     alignas(storage_alignment) std::uint8_t data_[storage_size];
 
     template<typename Ty, typename = std::enable_if_t<is_formattable<Ty, char_type>::value>>
@@ -477,7 +477,7 @@ template<typename FmtCtx>
 class arg_store<FmtCtx> {
  public:
     using char_type = typename FmtCtx::char_type;
-    static const std::size_t arg_count = 0;
+    static constexpr std::size_t arg_count = 0;
 #if __cplusplus >= 201703L
     arg_store(const arg_store&) = delete;
 #else   // __cplusplus >= 201703L
@@ -1106,7 +1106,7 @@ inline char* vformat_to(char* p, std::string_view fmt, format_args args) {
     return buf.endp();
 }
 
-template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
+template<typename OutputIt, typename = std::enable_if_t<est::is_output_iterator<OutputIt, const char&>::value>>
 OutputIt vformat_to(OutputIt out, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
     vformat_append(buf, fmt, args);
@@ -1119,7 +1119,7 @@ inline wchar_t* vformat_to(wchar_t* p, std::wstring_view fmt, wformat_args args)
     return buf.endp();
 }
 
-template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
+template<typename OutputIt, typename = std::enable_if_t<est::is_output_iterator<OutputIt, const wchar_t&>::value>>
 OutputIt vformat_to(OutputIt out, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
     vformat_append(buf, fmt, args);
@@ -1132,7 +1132,7 @@ inline char* vformat_to(char* p, const std::locale& loc, std::string_view fmt, f
     return buf.endp();
 }
 
-template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
+template<typename OutputIt, typename = std::enable_if_t<est::is_output_iterator<OutputIt, const char&>::value>>
 OutputIt vformat_to(OutputIt out, const std::locale& loc, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
     vformat_append(buf, loc, fmt, args);
@@ -1145,7 +1145,7 @@ inline wchar_t* vformat_to(wchar_t* p, const std::locale& loc, std::wstring_view
     return buf.endp();
 }
 
-template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
+template<typename OutputIt, typename = std::enable_if_t<est::is_output_iterator<OutputIt, const wchar_t&>::value>>
 OutputIt vformat_to(OutputIt out, const std::locale& loc, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
     vformat_append(buf, loc, fmt, args);
@@ -1155,25 +1155,25 @@ OutputIt vformat_to(OutputIt out, const std::locale& loc, std::wstring_view fmt,
 // ---- format_to
 
 template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
+         typename = std::enable_if_t<est::is_output_iterator<OutputIt, const char&>::value>>
 OutputIt format_to(OutputIt out, format_string<Args...> fmt, const Args&... args) {
     return vformat_to(std::move(out), fmt.get(), make_format_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
+         typename = std::enable_if_t<est::is_output_iterator<OutputIt, const wchar_t&>::value>>
 OutputIt format_to(OutputIt out, wformat_string<Args...> fmt, const Args&... args) {
     return vformat_to(std::move(out), fmt.get(), make_wformat_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
+         typename = std::enable_if_t<est::is_output_iterator<OutputIt, const char&>::value>>
 OutputIt format_to(OutputIt out, const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
     return vformat_to(std::move(out), loc, fmt.get(), make_format_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
+         typename = std::enable_if_t<est::is_output_iterator<OutputIt, const wchar_t&>::value>>
 OutputIt format_to(OutputIt out, const std::locale& loc, wformat_string<Args...> fmt, const Args&... args) {
     return vformat_to(std::move(out), loc, fmt.get(), make_wformat_args(args...));
 }
@@ -1195,7 +1195,7 @@ inline format_to_n_result<char*> vformat_to_n(char* p, std::size_t n, std::strin
     return {buf.endp(), buf.tracked_size()};
 }
 
-template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
+template<typename OutputIt, typename = std::enable_if_t<est::is_output_iterator<OutputIt, const char&>::value>>
 format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, std::string_view fmt, format_args args) {
     inline_dynbuffer buf;
     vformat_append(buf, fmt, args);
@@ -1208,7 +1208,7 @@ inline format_to_n_result<wchar_t*> vformat_to_n(wchar_t* p, std::size_t n, std:
     return {buf.endp(), buf.tracked_size()};
 }
 
-template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
+template<typename OutputIt, typename = std::enable_if_t<est::is_output_iterator<OutputIt, const wchar_t&>::value>>
 format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, std::wstring_view fmt, wformat_args args) {
     inline_wdynbuffer buf;
     vformat_append(buf, fmt, args);
@@ -1222,7 +1222,7 @@ inline format_to_n_result<char*> vformat_to_n(char* p, std::size_t n, const std:
     return {buf.endp(), buf.tracked_size()};
 }
 
-template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
+template<typename OutputIt, typename = std::enable_if_t<est::is_output_iterator<OutputIt, const char&>::value>>
 format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, const std::locale& loc, std::string_view fmt,
                                           format_args args) {
     inline_dynbuffer buf;
@@ -1237,7 +1237,7 @@ inline format_to_n_result<wchar_t*> vformat_to_n(wchar_t* p, std::size_t n, cons
     return {buf.endp(), buf.tracked_size()};
 }
 
-template<typename OutputIt, typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
+template<typename OutputIt, typename = std::enable_if_t<est::is_output_iterator<OutputIt, const wchar_t&>::value>>
 format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, const std::locale& loc, std::wstring_view fmt,
                                           wformat_args args) {
     inline_wdynbuffer buf;
@@ -1248,26 +1248,26 @@ format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, const std
 // ---- format_to_n
 
 template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
+         typename = std::enable_if_t<est::is_output_iterator<OutputIt, const char&>::value>>
 format_to_n_result<OutputIt> format_to_n(OutputIt out, std::size_t n, format_string<Args...> fmt, const Args&... args) {
     return vformat_to_n(std::move(out), n, fmt.get(), make_format_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
+         typename = std::enable_if_t<est::is_output_iterator<OutputIt, const wchar_t&>::value>>
 format_to_n_result<OutputIt> format_to_n(OutputIt out, std::size_t n, wformat_string<Args...> fmt, const Args&... args) {
     return vformat_to_n(std::move(out), n, fmt.get(), make_wformat_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<is_output_iterator<OutputIt, const char&>::value>>
+         typename = std::enable_if_t<est::is_output_iterator<OutputIt, const char&>::value>>
 format_to_n_result<OutputIt> format_to_n(OutputIt out, std::size_t n, const std::locale& loc,
                                          format_string<Args...> fmt, const Args&... args) {
     return vformat_to_n(std::move(out), n, loc, fmt.get(), make_format_args(args...));
 }
 
 template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<is_output_iterator<OutputIt, const wchar_t&>::value>>
+         typename = std::enable_if_t<est::is_output_iterator<OutputIt, const wchar_t&>::value>>
 format_to_n_result<OutputIt> format_to_n(OutputIt out, std::size_t n, const std::locale& loc,
                                          wformat_string<Args...> fmt, const Args&... args) {
     return vformat_to_n(std::move(out), n, loc, fmt.get(), make_wformat_args(args...));

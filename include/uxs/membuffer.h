@@ -25,7 +25,7 @@ class basic_membuffer {
     using const_pointer = const value_type*;
     using reference = value_type&;
     using const_reference = const value_type&;
-    using const_iterator = array_iterator<basic_membuffer, const_pointer, true>;
+    using const_iterator = est::array_iterator<basic_membuffer, const_pointer, true>;
     using iterator = const_iterator;
 
  protected:
@@ -95,8 +95,8 @@ class basic_membuffer {
         size_ += n;
     }
 
-    template<typename InputIt, typename = std::enable_if_t<is_random_access_iterator<InputIt>::value &&
-                                                           std::is_same<iterator_value_t<InputIt>, Ty>::value>>
+    template<typename InputIt, typename = std::enable_if_t<est::is_random_access_iterator<InputIt>::value &&
+                                                           std::is_same<est::iterator_value_t<InputIt>, Ty>::value>>
     basic_membuffer& append(InputIt first, InputIt last) {
         assert(first <= last);
         size_type count = static_cast<size_type>(last - first);
@@ -137,19 +137,19 @@ class basic_membuffer {
     }
 
     template<typename CharT = value_type>
-    std::enable_if_t<is_character<CharT>::value, basic_membuffer&> append(const_pointer s, size_type count) {
+    std::enable_if_t<est::is_character<CharT>::value, basic_membuffer&> append(const_pointer s, size_type count) {
         return append(s, s + count);
     }
     template<typename CharT = value_type>
-    std::enable_if_t<is_character<CharT>::value, basic_membuffer&> operator+=(std::basic_string_view<value_type> s) {
+    std::enable_if_t<est::is_character<CharT>::value, basic_membuffer&> operator+=(std::basic_string_view<value_type> s) {
         return append(s.data(), s.size());
     }
     template<typename CharT = value_type>
-    std::enable_if_t<is_character<CharT>::value, basic_membuffer&> operator+=(const_pointer s) {
+    std::enable_if_t<est::is_character<CharT>::value, basic_membuffer&> operator+=(const_pointer s) {
         return *this += std::basic_string_view<value_type>(s);
     }
     template<typename CharT = value_type>
-    std::enable_if_t<is_character<CharT>::value, basic_membuffer&> operator+=(value_type ch) {
+    std::enable_if_t<est::is_character<CharT>::value, basic_membuffer&> operator+=(value_type ch) {
         push_back(ch);
         return *this;
     }

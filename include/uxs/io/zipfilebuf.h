@@ -18,11 +18,13 @@ class basic_zipfilebuf : public basic_devbuf<CharT> {
         if (zip_file_.valid()) { this->initbuf(mode); }
     }
     basic_zipfilebuf(ziparch& arch, const char* fname, const char* mode)
-        : basic_zipfilebuf(arch, fname,
-                           detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::text : iomode::none)) {}
+        : basic_zipfilebuf(
+              arch, fname,
+              detail::iomode_from_str(mode, est::is_character<CharT>::value ? iomode::text : iomode::none)) {}
     basic_zipfilebuf(ziparch& arch, const wchar_t* fname, const char* mode)
-        : basic_zipfilebuf(arch, fname,
-                           detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::text : iomode::none)) {}
+        : basic_zipfilebuf(
+              arch, fname,
+              detail::iomode_from_str(mode, est::is_character<CharT>::value ? iomode::text : iomode::none)) {}
 
     ~basic_zipfilebuf() override { this->freebuf(); }
 
@@ -52,11 +54,11 @@ class basic_zipfilebuf : public basic_devbuf<CharT> {
     }
     bool open(ziparch& arch, const char* fname, const char* mode) {
         return open(arch, fname,
-                    detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::text : iomode::none));
+                    detail::iomode_from_str(mode, est::is_character<CharT>::value ? iomode::text : iomode::none));
     }
     bool open(ziparch& arch, const wchar_t* fname, const char* mode) {
         return open(arch, fname,
-                    detail::iomode_from_str(mode, is_character<CharT>::value ? iomode::text : iomode::none));
+                    detail::iomode_from_str(mode, est::is_character<CharT>::value ? iomode::text : iomode::none));
     }
     void set_compression(zipfile_compression compr, unsigned level = 0) { zip_file_.set_compression(compr, level); }
     void close() noexcept {

@@ -34,7 +34,7 @@ class basic_iobuf : public basic_ibuf<CharT> {
         return *this;
     }
 
-    template<typename InputIt, typename = std::enable_if_t<is_random_access_iterator<InputIt>::value>>
+    template<typename InputIt, typename = std::enable_if_t<est::is_random_access_iterator<InputIt>::value>>
     basic_iobuf& write(InputIt first, InputIt last) {
         assert(first <= last);
         size_type count = static_cast<size_type>(last - first);

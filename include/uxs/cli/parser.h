@@ -265,7 +265,7 @@ class basic_value_wrapper {
 #endif  // __cplusplus < 201703L
 
     basic_value_wrapper clone() const {
-        return basic_value_wrapper(static_pointer_cast<basic_value<CharT>>(ptr_->clone()));
+        return basic_value_wrapper(est::static_pointer_cast<basic_value<CharT>>(ptr_->clone()));
     }
     basic_value<CharT>& operator*() const noexcept { return *ptr_; }
     basic_value<CharT>* operator->() const noexcept { return ptr_.get(); }
@@ -309,7 +309,7 @@ class basic_option_node_wrapper {
 #endif  // __cplusplus < 201703L
 
     basic_option_node_wrapper clone() const {
-        return basic_option_node_wrapper(static_pointer_cast<basic_option_node<CharT>>(ptr_->clone()));
+        return basic_option_node_wrapper(est::static_pointer_cast<basic_option_node<CharT>>(ptr_->clone()));
     }
     basic_option_node<CharT>& operator*() const noexcept { return *ptr_; }
     basic_option_node<CharT>* operator->() const noexcept { return ptr_.get(); }
@@ -439,7 +439,7 @@ class basic_command_wrapper {
 #endif  // __cplusplus < 201703L
 
     basic_command_wrapper clone() const {
-        return basic_command_wrapper(static_pointer_cast<basic_command<CharT>>(ptr_->clone()));
+        return basic_command_wrapper(est::static_pointer_cast<basic_command<CharT>>(ptr_->clone()));
     }
     basic_command<CharT>& operator*() const noexcept { return *ptr_; }
     basic_command<CharT>* operator->() const noexcept { return ptr_.get(); }

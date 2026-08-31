@@ -217,17 +217,17 @@ Iter upper_bound(Iter first, std::size_t count, const Key& k, KeyFn fn) {
 }
 }  // namespace detail
 
-template<typename Range, typename Key, typename KeyFn = identity>
+template<typename Range, typename Key, typename KeyFn = est::identity>
 auto lower_bound(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::begin(r) + 1) {
     return detail::lower_bound(std::begin(r), static_cast<std::size_t>(std::end(r) - std::begin(r)), k, fn);
 }
 
-template<typename Range, typename Key, typename KeyFn = identity>
+template<typename Range, typename Key, typename KeyFn = est::identity>
 auto upper_bound(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::begin(r) + 1) {
     return detail::upper_bound(std::begin(r), static_cast<std::size_t>(std::end(r) - std::begin(r)), k, fn);
 }
 
-template<typename Range, typename Key, typename KeyFn = identity>
+template<typename Range, typename Key, typename KeyFn = est::identity>
 auto equal_range(Range&& r, const Key& k, KeyFn fn = KeyFn{})
     -> std::pair<decltype(std::begin(r) + 1), decltype(std::end(r))> {
     auto first = std::begin(r);
@@ -250,13 +250,13 @@ auto equal_range(Range&& r, const Key& k, KeyFn fn = KeyFn{})
 
 // ---- sorted range find
 
-template<typename Range, typename Key, typename KeyFn = identity>
+template<typename Range, typename Key, typename KeyFn = est::identity>
 auto binary_find(Range&& r, const Key& k, KeyFn fn = KeyFn{}) -> std::pair<decltype(std::end(r)), bool> {
     const auto it = lower_bound(r, k, fn);
     return std::make_pair(it, (it != std::end(r)) && !(k < fn(*it)));
 }
 
-template<typename Range, typename Key, typename KeyFn = identity>
+template<typename Range, typename Key, typename KeyFn = est::identity>
 bool binary_contains(const Range& r, const Key& k, KeyFn fn = KeyFn{}) {
     return binary_find(r, k, fn).second;
 }
@@ -278,18 +278,18 @@ auto binary_emplace_new(Container& c, const Key& k, std::tuple<Args...>& args, s
 }
 }  // namespace detail
 
-template<typename Container, typename Key, typename... Args, typename KeyFn = identity>
+template<typename Container, typename Key, typename... Args, typename KeyFn = est::identity>
 auto binary_emplace_unique(Container& c, const Key& k, std::tuple<Args...> args, KeyFn fn = KeyFn{})
     -> std::pair<decltype(std::end(c)), bool> {
     return detail::binary_emplace_unique(c, k, args, std::index_sequence_for<Args...>(), fn);
 }
 
-template<typename Container, typename Val, typename KeyFn = identity>
+template<typename Container, typename Val, typename KeyFn = est::identity>
 auto binary_insert_unique(Container& c, Val&& v, KeyFn fn = KeyFn{}) -> std::pair<decltype(std::end(c)), bool> {
     return binary_emplace_unique(c, fn(v), std::forward_as_tuple(std::forward<Val>(v)), fn);
 }
 
-template<typename Container, typename Key, typename KeyFn = identity>
+template<typename Container, typename Key, typename KeyFn = est::identity>
 auto binary_access_unique(Container& c, Key&& k, KeyFn fn = KeyFn{}) -> decltype(*std::begin(c)) {
     auto result = binary_find(c, k, fn);
     if (result.second) { return *result.first; }
@@ -298,32 +298,32 @@ auto binary_access_unique(Container& c, Key&& k, KeyFn fn = KeyFn{}) -> decltype
     return *result.first;
 }
 
-template<typename Container, typename Key, typename... Args, typename KeyFn = identity>
+template<typename Container, typename Key, typename... Args, typename KeyFn = est::identity>
 auto binary_emplace_new(Container& c, const Key& k, std::tuple<Args...> args, KeyFn fn = KeyFn{})
     -> decltype(std::end(c)) {
     return detail::binary_emplace_new(c, k, args, std::index_sequence_for<Args...>(), fn);
 }
 
-template<typename Container, typename Val, typename KeyFn = identity>
+template<typename Container, typename Val, typename KeyFn = est::identity>
 auto binary_insert_new(Container& c, Val&& v, KeyFn fn = KeyFn{}) -> decltype(std::end(c)) {
     return binary_emplace_new(c, fn(v), std::forward_as_tuple(std::forward<Val>(v)), fn);
 }
 
-template<typename Container, typename Key, typename KeyFn = identity>
+template<typename Container, typename Key, typename KeyFn = est::identity>
 auto binary_access_new(Container& c, Key&& k, KeyFn fn = KeyFn{}) -> decltype(*std::begin(c)) {
     const auto it = c.emplace(lower_bound(c, k, fn));
     fn(*it) = std::forward<Key>(k);
     return *it;
 }
 
-template<typename Container, typename Key, typename KeyFn = identity>
+template<typename Container, typename Key, typename KeyFn = est::identity>
 auto binary_erase_one(Container& c, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::end(c)) {
     const auto result = binary_find(c, k, fn);
     if (result.second) { return c.erase(result.first); }
     return result.first;
 }
 
-template<typename Container, typename Key, typename KeyFn = identity>
+template<typename Container, typename Key, typename KeyFn = est::identity>
 auto binary_erase_all(Container& c, const Key& k, KeyFn fn = KeyFn{}) -> decltype(std::end(c)) {
     const auto prev_sz = c.size();
     const auto result = equal_range(c, k, fn);
@@ -342,7 +342,7 @@ struct loop_helper<Func, std::false_type> {
     template<typename Range, typename... InputIts>
     auto operator()(Range&& r, Func fn, InputIts... its) -> decltype(std::end(r)) {
         auto first = std::begin(r);
-        for (const auto last = std::end(r); first != last; ++first, detail::dummy_variadic(++its...)) {
+        for (const auto last = std::end(r); first != last; ++first, est::detail::dummy_variadic(++its...)) {
             if (!fn(*first, *its...)) { break; }
         }
         return first;
@@ -353,7 +353,7 @@ struct loop_helper<Func, std::true_type> {
     template<typename Range, typename... InputIts>
     auto operator()(Range&& r, Func fn, InputIts... its) -> decltype(std::end(r)) {
         auto first = std::begin(r);
-        for (const auto last = std::end(r); first != last; ++first, detail::dummy_variadic(++its...)) {
+        for (const auto last = std::end(r); first != last; ++first, est::detail::dummy_variadic(++its...)) {
             fn(*first, *its...);
         }
         return first;
