@@ -253,7 +253,7 @@ using wstring_view = basic_string_view<wchar_t>;
 template<typename CharT, typename Traits>
 struct hash<basic_string_view<CharT, Traits>> {
     std::size_t operator()(basic_string_view<CharT, Traits> s) const {
-        return std::hash<std::basic_string<CharT, Traits>>{}(static_cast<std::basic_string<CharT, Traits>>(s));
+        return std::hash<std::basic_string<CharT, Traits>>()(static_cast<std::basic_string<CharT, Traits>>(s));
     }
 };
 }  // namespace std

@@ -99,7 +99,7 @@ struct formatter<Tuple, CharT, std::enable_if_t<is_tuple_formattable<Tuple, Char
     UXS_CONSTEXPR typename ParseCtx::iterator parse_element(ParseCtx& ctx, std::integral_constant<std::size_t, I>) {
         if (ctx.begin() == ctx.end() || *ctx.begin() != ':') { call_set_debug_format(std::get<I>(underlying_)); }
         ctx.advance_to(std::get<I>(underlying_).parse(ctx));
-        return parse_element(ctx, std::integral_constant<std::size_t, I + 1>{});
+        return parse_element(ctx, std::integral_constant<std::size_t, I + 1>());
     }
 
     template<typename FmtCtx>
@@ -109,13 +109,13 @@ struct formatter<Tuple, CharT, std::enable_if_t<is_tuple_formattable<Tuple, Char
     void format_element(FmtCtx& ctx, const Tuple& val, std::integral_constant<std::size_t, I>) const {
         if UXS_CONSTEXPR (I != 0) { ctx.out() += separator_; }
         std::get<I>(underlying_).format(ctx, std::get<I>(val));
-        format_element(ctx, val, std::integral_constant<std::size_t, I + 1>{});
+        format_element(ctx, val, std::integral_constant<std::size_t, I + 1>());
     }
 
     template<typename FmtCtx>
     void format_impl(FmtCtx& ctx, const Tuple& val) const {
         ctx.out() += opening_bracket_;
-        format_element(ctx, val, std::integral_constant<std::size_t, 0>{});
+        format_element(ctx, val, std::integral_constant<std::size_t, 0>());
         ctx.out() += closing_bracket_;
     }
 
@@ -138,13 +138,13 @@ struct formatter<Tuple, CharT, std::enable_if_t<is_tuple_formattable<Tuple, Char
             it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
             if (opts_.prec >= 0 || !!(opts_.flags & ~fmt_flags::adjust_field)) { ParseCtx::syntax_error(); }
             if (it != ctx.end() && (*it == 'n' || *it == 'm')) {
-                if (*it == 'm') { switch_to_map_style(detail::is_pair_like<Tuple>{}); }
+                if (*it == 'm') { switch_to_map_style(detail::is_pair_like<Tuple>()); }
                 set_brackets({}, {});
                 ++it;
             }
             ctx.advance_to(it);
         }
-        return parse_element(ctx, std::integral_constant<std::size_t, 0>{});
+        return parse_element(ctx, std::integral_constant<std::size_t, 0>());
     }
 
     template<typename FmtCtx>
@@ -267,13 +267,13 @@ struct range_formatter {
                         ++it;
                     } break;
                     case 's': {
-                        switch_to_string_style(std::is_same<Ty, CharT>{});
+                        switch_to_string_style(std::is_same<Ty, CharT>());
                         return it + 1;
                     } break;
                     case '?': {
                         if (it + 1 == ctx.end() || *(it + 1) != 's') { return it; }
                         opts_.flags |= fmt_flags::debug_format;
-                        switch_to_string_style(std::is_same<Ty, CharT>{});
+                        switch_to_string_style(std::is_same<Ty, CharT>());
                         return it + 2;
                     } break;
                     default: break;
@@ -281,7 +281,7 @@ struct range_formatter {
             }
             if (opts_.prec >= 0) { ParseCtx::unexpected_prec_error(); }
             if (it != ctx.end() && *it == 'm') {
-                switch_to_map_style(detail::is_pair_like<Ty>{});
+                switch_to_map_style(detail::is_pair_like<Ty>());
                 if (*(it - 1) != 'n') { set_brackets(string_literal<CharT, '{'>{}, string_literal<CharT, '}'>{}); }
                 ++it;
             }
@@ -304,14 +304,14 @@ struct range_formatter {
         }
         if (opts.width == 0) {
             return format_as_string_ ?
-                       static_cast<void>(format_as_string(ctx.out(), val, opts, std::is_same<Ty, CharT>{})) :
+                       static_cast<void>(format_as_string(ctx.out(), val, opts, std::is_same<Ty, CharT>())) :
                        format_impl(ctx, val);
         }
         basic_inline_dynbuffer<CharT> buf;
         basic_format_context<CharT> buf_ctx(buf, ctx);
         std::size_t len = 0;
         if (format_as_string_) {
-            len = format_as_string(buf, val, opts, std::is_same<Ty, CharT>{});
+            len = format_as_string(buf, val, opts, std::is_same<Ty, CharT>());
         } else {
             format_impl(buf_ctx, val);
             len = estimate_string_width<CharT>(buf.begin(), buf.end());

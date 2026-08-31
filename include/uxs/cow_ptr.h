@@ -29,14 +29,18 @@ class cow_ptr {
     }
     cow_ptr(cow_ptr&& other) noexcept : ptr_(other.ptr_) { other.ptr_ = nullptr; }
     cow_ptr& operator=(cow_ptr&& other) noexcept {
-        if (&other != this) {
-            reset(other.ptr_);
-            other.ptr_ = nullptr;
-        }
+        if (&other == this) { return *this; }
+        reset(other.ptr_);
+        other.ptr_ = nullptr;
         return *this;
     }
 
     explicit operator bool() const noexcept { return ptr_ != nullptr; }
+
+    void ensure_unique() {
+        assert(ptr_);
+        if (ptr_->ref_count > 1) { reset(::new object_body_t(ptr_->obj)); }
+    }
 
     const Ty& operator*() const noexcept {
         assert(ptr_);
@@ -44,8 +48,7 @@ class cow_ptr {
     }
 
     Ty& operator*() {
-        assert(ptr_);
-        if (ptr_->ref_count > 1) { reset(::new object_body_t(ptr_->obj)); }
+        ensure_unique();
         return ptr_->obj;
     }
 

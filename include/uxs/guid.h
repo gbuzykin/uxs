@@ -107,8 +107,8 @@ sconv_errc from_hex(const CharT* p, std::uint8_t& b) {
 }
 template<typename CharT>
 void to_hex(std::uint8_t b, CharT* p, const char* digs) {
-    p[1] = digs[b & 0xf];
     p[0] = digs[(b >> 4) & 0xf];
+    p[1] = digs[b & 0xf];
 }
 }  // namespace detail
 

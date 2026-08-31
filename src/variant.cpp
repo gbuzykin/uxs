@@ -20,7 +20,7 @@ const char* est::bad_optional_access::what() const noexcept { return "bad option
 
 detail::variant_vtable_t* variant::vtables_[max_type_id] = {};
 
-variant::variant(variant_id type, const variant& v) : vtable_(get_vtable(type)) {
+variant::variant(variant_id_t type, const variant& v) : vtable_(get_vtable(type)) {
     if (!vtable_) { return; }
     if (vtable_ == v.vtable_) {
         vtable_->construct_copy(&data_, &v.data_);
@@ -79,7 +79,7 @@ variant& variant::operator=(variant&& v) noexcept {
     return *this;
 }
 
-bool variant::convert(variant_id type) {
+bool variant::convert(variant_id_t type) {
     auto* tgt_vtable = get_vtable(type);
     if (vtable_ == tgt_vtable) { return true; }
     if (!tgt_vtable) {
@@ -152,7 +152,7 @@ bool variant::is_equal_to(const variant& v) const {
 
 namespace uxs {
 bibuf& operator>>(bibuf& is, variant& v) {
-    variant_id type = variant_id::invalid;
+    variant_id_t type = variant_id::invalid;
     if (!(is >> type)) { return is; }
     auto* tgt_vtable = variant::get_vtable(type);
     if (v.vtable_ != tgt_vtable) {
@@ -175,7 +175,7 @@ biobuf& operator<<(biobuf& os, const variant& v) {
 //---------------------------------------------------------------------------------
 // Basic type convertors
 
-bool variant_type_impl<std::int32_t>::convert_from(variant_id type, void* to, const void* from) {
+bool variant_type_impl<std::int32_t>::convert_from(variant_id_t type, void* to, const void* from) {
     auto& result = *static_cast<std::int32_t*>(to);
     switch (type) {
         case variant_id::string: {
@@ -186,7 +186,7 @@ bool variant_type_impl<std::int32_t>::convert_from(variant_id type, void* to, co
     return true;
 }
 
-bool variant_type_impl<std::int32_t>::convert_to(variant_id type, void* to, const void* from) {
+bool variant_type_impl<std::int32_t>::convert_to(variant_id_t type, void* to, const void* from) {
     const auto& v = *static_cast<const std::int32_t*>(from);
     switch (type) {
         case variant_id::string: {
@@ -200,7 +200,7 @@ bool variant_type_impl<std::int32_t>::convert_to(variant_id type, void* to, cons
     return true;
 }
 
-bool variant_type_impl<std::uint32_t>::convert_from(variant_id type, void* to, const void* from) {
+bool variant_type_impl<std::uint32_t>::convert_from(variant_id_t type, void* to, const void* from) {
     auto& result = *static_cast<std::uint32_t*>(to);
     switch (type) {
         case variant_id::string: {
@@ -216,7 +216,7 @@ bool variant_type_impl<std::uint32_t>::convert_from(variant_id type, void* to, c
     return true;
 }
 
-bool variant_type_impl<std::uint32_t>::convert_to(variant_id type, void* to, const void* from) {
+bool variant_type_impl<std::uint32_t>::convert_to(variant_id_t type, void* to, const void* from) {
     const auto& v = *static_cast<const std::uint32_t*>(from);
     switch (type) {
         case variant_id::string: {
@@ -234,7 +234,7 @@ bool variant_type_impl<std::uint32_t>::convert_to(variant_id type, void* to, con
     return true;
 }
 
-bool variant_type_impl<std::int64_t>::convert_from(variant_id type, void* to, const void* from) {
+bool variant_type_impl<std::int64_t>::convert_from(variant_id_t type, void* to, const void* from) {
     auto& result = *static_cast<std::int64_t*>(to);
     switch (type) {
         case variant_id::string: {
@@ -251,7 +251,7 @@ bool variant_type_impl<std::int64_t>::convert_from(variant_id type, void* to, co
     return true;
 }
 
-bool variant_type_impl<std::int64_t>::convert_to(variant_id type, void* to, const void* from) {
+bool variant_type_impl<std::int64_t>::convert_to(variant_id_t type, void* to, const void* from) {
     const auto& v = *static_cast<const std::int64_t*>(from);
     switch (type) {
         case variant_id::string: {
@@ -275,7 +275,7 @@ bool variant_type_impl<std::int64_t>::convert_to(variant_id type, void* to, cons
     return true;
 }
 
-bool variant_type_impl<std::uint64_t>::convert_from(variant_id type, void* to, const void* from) {
+bool variant_type_impl<std::uint64_t>::convert_from(variant_id_t type, void* to, const void* from) {
     auto& result = *static_cast<std::uint64_t*>(to);
     switch (type) {
         case variant_id::string: {
@@ -299,7 +299,7 @@ bool variant_type_impl<std::uint64_t>::convert_from(variant_id type, void* to, c
     return true;
 }
 
-bool variant_type_impl<std::uint64_t>::convert_to(variant_id type, void* to, const void* from) {
+bool variant_type_impl<std::uint64_t>::convert_to(variant_id_t type, void* to, const void* from) {
     const auto& v = *static_cast<const std::uint64_t*>(from);
     switch (type) {
         case variant_id::string: {
@@ -325,7 +325,7 @@ bool variant_type_impl<std::uint64_t>::convert_to(variant_id type, void* to, con
     return true;
 }
 
-bool variant_type_impl<double>::convert_from(variant_id type, void* to, const void* from) {
+bool variant_type_impl<double>::convert_from(variant_id_t type, void* to, const void* from) {
     auto& result = *static_cast<double*>(to);
     switch (type) {
         case variant_id::string: {
@@ -348,7 +348,7 @@ bool variant_type_impl<double>::convert_from(variant_id type, void* to, const vo
     return true;
 }
 
-bool variant_type_impl<double>::convert_to(variant_id type, void* to, const void* from) {
+bool variant_type_impl<double>::convert_to(variant_id_t type, void* to, const void* from) {
     const auto& v = *static_cast<const double*>(from);
     switch (type) {
         case variant_id::string: {

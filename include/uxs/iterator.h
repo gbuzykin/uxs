@@ -14,10 +14,19 @@
 #endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
 
 #if __cplusplus < 201703L
-const std::size_t unspecified_size = ~std::size_t(0);
+constexpr std::size_t unspecified_size = ~std::size_t(0);
 #else   // __cplusplus < 201703L
 constexpr std::size_t unspecified_size = std::numeric_limits<std::size_t>::max();
 #endif  // __cplusplus < 201703L
+
+#if __cplusplus < 201402L && !defined(__cpp_lib_make_reverse_iterator)
+namespace std {
+template<typename Iter>
+std::reverse_iterator<Iter> make_reverse_iterator(Iter it) {
+    return std::reverse_iterator<Iter>(it);
+}
+}  // namespace std
+#endif  // make reverse iterator
 
 namespace uxs {
 
@@ -49,8 +58,8 @@ struct is_output_iterator<Iter, Ty, std::void_t<decltype(*std::declval<Iter&>()+
 template<typename Iter, typename = void>
 struct iterator_value {};
 template<typename Iter>
-struct iterator_value<Iter, std::void_t<std::remove_cvref_t<decltype(*std::declval<Iter>())>>> {
-    using type = std::remove_cvref_t<decltype(*std::declval<Iter>())>;
+struct iterator_value<Iter, std::void_t<std::remove_cvref_t<decltype(*std::declval<Iter&>())>>> {
+    using type = std::remove_cvref_t<decltype(*std::declval<Iter&>())>;
 };
 template<typename Iter>
 using iterator_value_t = typename iterator_value<Iter>::type;
@@ -61,8 +70,8 @@ using iterator_value_t = typename iterator_value<Iter>::type;
 template<typename Range, typename = void>
 struct range_element {};
 template<typename Range>
-struct range_element<Range, std::void_t<decltype(*std::end(std::declval<const Range&>()))>> {
-    using type = std::remove_cvref_t<decltype(*std::end(std::declval<const Range&>()))>;
+struct range_element<Range, std::void_t<decltype(*std::end(std::declval<Range&>()))>> {
+    using type = std::remove_cvref_t<decltype(*std::end(std::declval<Range&>()))>;
 };
 template<typename Range>
 using range_element_t = typename range_element<Range>::type;
@@ -90,56 +99,55 @@ template<typename Iter>
 class iterator_range<Iter, std::enable_if_t<is_input_iterator<Iter>::value>> {
  public:
     using iterator = Iter;
-    iterator_range(Iter from, Iter to) noexcept : from_(from), to_(to) {}
-    Iter begin() const noexcept { return from_; }
-    Iter end() const noexcept { return to_; }
-    bool empty() const noexcept { return from_ == to_; }
+    UXS_CONSTEXPR iterator_range(Iter from, Iter to) : from_(from), to_(to) {}
+    UXS_CONSTEXPR Iter begin() const { return from_; }
+    UXS_CONSTEXPR Iter end() const { return to_; }
+    UXS_CONSTEXPR bool empty() const { return from_ == to_; }
 
  private:
     Iter from_, to_;
 };
 
 template<typename Iter>
-iterator_range<Iter> make_range(Iter from, Iter to) noexcept {
+UXS_CONSTEXPR iterator_range<Iter> make_range(Iter from, Iter to) {
     return {from, to};
 }
 
 template<typename Iter>
-iterator_range<Iter> make_range(const std::pair<Iter, Iter>& p) noexcept {
+UXS_CONSTEXPR iterator_range<Iter> make_range(const std::pair<Iter, Iter>& p) {
     return {p.first, p.second};
 }
 
 template<typename Range>
-auto make_range(Range&& r) noexcept -> iterator_range<decltype(std::end(r))> {
+UXS_CONSTEXPR auto make_range(Range&& r) -> iterator_range<decltype(std::end(r))> {
     return {std::begin(r), std::end(r)};
 }
 
 template<typename Iter>
-iterator_range<std::reverse_iterator<Iter>> make_reverse_range(Iter from, Iter to) noexcept {
-    return {std::reverse_iterator<Iter>(to), std::reverse_iterator<Iter>(from)};
+UXS_CONSTEXPR iterator_range<std::reverse_iterator<Iter>> make_reverse_range(Iter from, Iter to) {
+    return {std::make_reverse_iterator(to), std::make_reverse_iterator(from)};
 }
 
 template<typename Iter>
-iterator_range<std::reverse_iterator<Iter>> make_reverse_range(const std::pair<Iter, Iter>& p) noexcept {
-    return {std::reverse_iterator<Iter>(p.second), std::reverse_iterator<Iter>(p.first)};
+UXS_CONSTEXPR iterator_range<std::reverse_iterator<Iter>> make_reverse_range(const std::pair<Iter, Iter>& p) {
+    return {std::make_reverse_iterator(p.second), std::make_reverse_iterator(p.first)};
 }
 
 template<typename Range>
-auto make_reverse_range(Range&& r) noexcept -> iterator_range<std::reverse_iterator<decltype(std::end(r))>> {
-    return {std::reverse_iterator<decltype(std::end(r))>(std::end(r)),
-            std::reverse_iterator<decltype(std::end(r))>(std::begin(r))};
+UXS_CONSTEXPR auto make_reverse_range(Range&& r) -> iterator_range<std::reverse_iterator<decltype(std::end(r))>> {
+    return {std::make_reverse_iterator(std::end(r)), std::make_reverse_iterator(std::begin(r))};
 }
 
 template<typename Iter, typename = std::enable_if_t<is_random_access_iterator<Iter>::value>>
-iterator_range<Iter> make_subrange(const std::pair<Iter, Iter>& p, std::size_t offset,
-                                   std::size_t count = unspecified_size) noexcept {
+UXS_CONSTEXPR iterator_range<Iter> make_subrange(const std::pair<Iter, Iter>& p, std::size_t offset,
+                                                 std::size_t count = unspecified_size) {
     std::size_t sz = p.second - p.first;
     if (offset > sz) { offset = sz; }
     return {p.first + offset, p.first + (count < sz - offset ? offset + count : sz)};
 }
 
 template<typename Range>
-auto make_subrange(Range&& r, std::size_t offset, std::size_t count = unspecified_size) noexcept
+UXS_CONSTEXPR auto make_subrange(Range&& r, std::size_t offset, std::size_t count = unspecified_size)
     -> std::enable_if_t<is_random_access_iterator<decltype(std::end(r))>::value, iterator_range<decltype(std::end(r))>> {
     const std::size_t sz = std::end(r) - std::begin(r);
     if (offset > sz) { offset = sz; }
@@ -147,11 +155,11 @@ auto make_subrange(Range&& r, std::size_t offset, std::size_t count = unspecifie
 }
 
 template<typename IterL, typename IterR>
-bool operator==(const iterator_range<IterL>& lhs, const iterator_range<IterR>& rhs) {
+UXS_CONSTEXPR bool operator==(const iterator_range<IterL>& lhs, const iterator_range<IterR>& rhs) {
     return std::begin(lhs) == std::begin(rhs) && std::end(lhs) == std::end(rhs);
 }
 template<typename IterL, typename IterR>
-bool operator!=(const iterator_range<IterL>& lhs, const iterator_range<IterR>& rhs) {
+UXS_CONSTEXPR bool operator!=(const iterator_range<IterL>& lhs, const iterator_range<IterR>& rhs) {
     return !(lhs == rhs);
 }
 
@@ -167,139 +175,153 @@ class iterator_facade {
     using reference = RefTy;
     using pointer = PtrTy;
 
-    Iter& operator++() noexcept(noexcept(std::declval<Iter>().increment())) {
+    UXS_CONSTEXPR Iter& operator++() noexcept(noexcept(std::declval<Iter&>().increment())) {
         static_cast<Iter&>(*this).increment();
         return static_cast<Iter&>(*this);
     }
 
-    Iter operator++(int) noexcept(noexcept(std::declval<Iter>().increment())) {
+    UXS_CONSTEXPR Iter operator++(int) noexcept(noexcept(std::declval<Iter&>().increment())) {
         auto it = static_cast<Iter&>(*this);
         static_cast<Iter&>(*this).increment();
         return it;
     }
 
-    Iter& operator--() noexcept(noexcept(std::declval<Iter>().decrement())) {
+    UXS_CONSTEXPR Iter& operator--() noexcept(noexcept(std::declval<Iter&>().decrement())) {
         static_cast<Iter&>(*this).decrement();
         return static_cast<Iter&>(*this);
     }
 
-    Iter operator--(int) noexcept(noexcept(std::declval<Iter>().decrement())) {
+    UXS_CONSTEXPR Iter operator--(int) noexcept(noexcept(std::declval<Iter&>().decrement())) {
         auto it = static_cast<Iter&>(*this);
         static_cast<Iter&>(*this).decrement();
         return it;
     }
 
     template<typename Iter_ = Iter>
-    auto operator+=(difference_type j) noexcept(noexcept(std::declval<Iter>().advance(j)))
-        -> est::type_identity_t<Iter&, decltype(std::declval<Iter_>().advance(j))> {
+    UXS_CONSTEXPR auto operator+=(difference_type j) noexcept(noexcept(std::declval<Iter&>().advance(j)))
+        -> est::type_identity_t<Iter&, decltype(std::declval<Iter_&>().advance(j))> {
         static_cast<Iter&>(*this).advance(j);
         return static_cast<Iter&>(*this);
     }
 
     template<typename Iter_ = Iter>
-    auto operator+(difference_type j) const noexcept(noexcept(std::declval<Iter>().advance(j)))
-        -> est::type_identity_t<Iter, decltype(std::declval<Iter_>().advance(j))> {
+    UXS_CONSTEXPR auto operator+(difference_type j) const noexcept(noexcept(std::declval<Iter&>().advance(j)))
+        -> est::type_identity_t<Iter, decltype(std::declval<Iter_&>().advance(j))> {
         auto it = static_cast<const Iter&>(*this);
         it.advance(j);
         return it;
     }
 
     template<typename Iter_ = Iter>
-    auto operator-=(difference_type j) noexcept(noexcept(std::declval<Iter>().advance(j)))
-        -> est::type_identity_t<Iter&, decltype(std::declval<Iter_>().advance(j))> {
+    UXS_CONSTEXPR auto operator-=(difference_type j) noexcept(noexcept(std::declval<Iter&>().advance(j)))
+        -> est::type_identity_t<Iter&, decltype(std::declval<Iter_&>().advance(j))> {
         static_cast<Iter&>(*this).advance(-j);
         return static_cast<Iter&>(*this);
     }
 
     template<typename Iter_ = Iter>
-    auto operator-(difference_type j) const noexcept(noexcept(std::declval<Iter>().advance(j)))
-        -> est::type_identity_t<Iter, decltype(std::declval<Iter_>().advance(j))> {
+    UXS_CONSTEXPR auto operator-(difference_type j) const noexcept(noexcept(std::declval<Iter&>().advance(j)))
+        -> est::type_identity_t<Iter, decltype(std::declval<Iter_&>().advance(j))> {
         auto it = static_cast<const Iter&>(*this);
         it.advance(-j);
         return it;
     }
 
     template<typename Iter_ = Iter>
-    auto operator*() const noexcept(noexcept(std::declval<Iter>().dereference()))
-        -> decltype(std::declval<Iter_>().dereference()) {
+    UXS_CONSTEXPR auto operator*() const noexcept(noexcept(std::declval<Iter&>().dereference()))
+        -> decltype(std::declval<Iter_&>().dereference()) {
         return static_cast<const Iter&>(*this).dereference();
     }
 
     template<typename Iter_ = Iter>
-    auto operator->() const noexcept(noexcept(std::addressof(std::declval<Iter>().dereference())))
-        -> decltype(std::addressof(std::declval<Iter_>().dereference())) {
+    UXS_CONSTEXPR auto operator->() const noexcept(noexcept(std::addressof(std::declval<Iter&>().dereference())))
+        -> decltype(std::addressof(std::declval<Iter_&>().dereference())) {
         return std::addressof(**this);
     }
 
     template<typename Iter_ = Iter>
-    auto operator[](difference_type j) const
-        noexcept(noexcept(std::declval<Iter>().dereference()) && noexcept(std::declval<Iter>().advance(j)))
-            -> decltype(std::declval<Iter_>().dereference()) {
+    UXS_CONSTEXPR auto operator[](difference_type j) const
+        noexcept(noexcept(std::declval<Iter&>().dereference()) && noexcept(std::declval<Iter&>().advance(j)))
+            -> decltype(std::declval<Iter_&>().dereference()) {
         return *(*this + j);
     }
 };
 
 template<typename IterL, typename ValTy, typename Tag, typename RefTyL, typename PtrTyL, typename DiffTy,
          typename IterR, typename RefTyR, typename PtrTyR>
-auto operator==(const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
-                const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>& rhs) noexcept
+UXS_CONSTEXPR auto operator==(
+    const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
+    const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
+        rhs) noexcept(noexcept(std::declval<const IterL&>().is_equal_to(std::declval<const IterR&>())))
     -> decltype(static_cast<const IterL&>(lhs).is_equal_to(static_cast<const IterR&>(rhs))) {
     return static_cast<const IterL&>(lhs).is_equal_to(static_cast<const IterR&>(rhs));
 }
 
 template<typename IterL, typename ValTy, typename Tag, typename RefTyL, typename PtrTyL, typename DiffTy,
          typename IterR, typename RefTyR, typename PtrTyR>
-auto operator!=(const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
-                const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>& rhs) noexcept
-    -> decltype(static_cast<const IterL&>(lhs).is_equal_to(static_cast<const IterR&>(rhs))) {
+UXS_CONSTEXPR auto operator!=(
+    const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
+    const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
+        rhs) noexcept(noexcept(!std::declval<const IterL&>().is_equal_to(std::declval<const IterR&>())))
+    -> decltype(!static_cast<const IterL&>(lhs).is_equal_to(static_cast<const IterR&>(rhs))) {
     return !static_cast<const IterL&>(lhs).is_equal_to(static_cast<const IterR&>(rhs));
 }
 
 template<typename IterL, typename ValTy, typename Tag, typename RefTyL, typename PtrTyL, typename DiffTy,
          typename IterR, typename RefTyR, typename PtrTyR>
-auto operator<(const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
-               const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>& rhs) noexcept
+UXS_CONSTEXPR auto operator<(
+    const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
+    const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
+        rhs) noexcept(noexcept(std::declval<const IterL&>().is_less_than(std::declval<const IterR&>())))
     -> decltype(static_cast<const IterL&>(lhs).is_less_than(static_cast<const IterR&>(rhs))) {
     return static_cast<const IterL&>(lhs).is_less_than(static_cast<const IterR&>(rhs));
 }
 
 template<typename IterL, typename ValTy, typename Tag, typename RefTyL, typename PtrTyL, typename DiffTy,
          typename IterR, typename RefTyR, typename PtrTyR>
-auto operator<=(const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
-                const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>& rhs) noexcept
-    -> decltype(static_cast<const IterR&>(rhs).is_less_than(static_cast<const IterL&>(lhs))) {
+UXS_CONSTEXPR auto operator<=(
+    const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
+    const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
+        rhs) noexcept(noexcept(!std::declval<const IterR&>().is_less_than(std::declval<const IterL&>())))
+    -> decltype(!static_cast<const IterR&>(rhs).is_less_than(static_cast<const IterL&>(lhs))) {
     return !static_cast<const IterR&>(rhs).is_less_than(static_cast<const IterL&>(lhs));
 }
 
 template<typename IterL, typename ValTy, typename Tag, typename RefTyL, typename PtrTyL, typename DiffTy,
          typename IterR, typename RefTyR, typename PtrTyR>
-auto operator>(const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
-               const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>& rhs) noexcept
+UXS_CONSTEXPR auto operator>(
+    const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
+    const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
+        rhs) noexcept(noexcept(std::declval<const IterR&>().is_less_than(std::declval<const IterL&>())))
     -> decltype(static_cast<const IterR&>(rhs).is_less_than(static_cast<const IterL&>(lhs))) {
     return static_cast<const IterR&>(rhs).is_less_than(static_cast<const IterL&>(lhs));
 }
 
 template<typename IterL, typename ValTy, typename Tag, typename RefTyL, typename PtrTyL, typename DiffTy,
          typename IterR, typename RefTyR, typename PtrTyR>
-auto operator>=(const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
-                const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>& rhs) noexcept
-    -> decltype(static_cast<const IterL&>(lhs).is_less_than(static_cast<const IterR&>(rhs))) {
+UXS_CONSTEXPR auto operator>=(
+    const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
+    const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
+        rhs) noexcept(noexcept(!std::declval<const IterL&>().is_less_than(std::declval<const IterR&>())))
+    -> decltype(!static_cast<const IterL&>(lhs).is_less_than(static_cast<const IterR&>(rhs))) {
     return !static_cast<const IterL&>(lhs).is_less_than(static_cast<const IterR&>(rhs));
 }
 
 template<typename IterL, typename ValTy, typename Tag, typename RefTyL, typename PtrTyL, typename DiffTy,
          typename IterR, typename RefTyR, typename PtrTyR>
-auto operator-(const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
-               const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>& rhs) noexcept
+UXS_CONSTEXPR auto operator-(
+    const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
+    const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
+        rhs) noexcept(noexcept(std::declval<const IterR&>().distance_to(std::declval<const IterL&>())))
     -> decltype(static_cast<const IterR&>(rhs).distance_to(static_cast<const IterL&>(lhs))) {
     return static_cast<const IterR&>(rhs).distance_to(static_cast<const IterL&>(lhs));
 }
 
 template<typename Iter, typename ValTy, typename Tag, typename RefTy, typename PtrTy, typename DiffTy>
-auto operator+(typename iterator_facade<Iter, ValTy, Tag, RefTy, PtrTy, DiffTy>::difference_type j,
-               const iterator_facade<Iter, ValTy, Tag, RefTy, PtrTy, DiffTy>& it) noexcept(noexcept(std::declval<Iter>()
-                                                                                                        .advance(0)))
-    -> est::type_identity_t<Iter, decltype(std::declval<Iter>().advance(j))> {
+UXS_CONSTEXPR auto operator+(typename iterator_facade<Iter, ValTy, Tag, RefTy, PtrTy, DiffTy>::difference_type j,
+                             const iterator_facade<Iter, ValTy, Tag, RefTy, PtrTy, DiffTy>&
+                                 it) noexcept(noexcept(std::declval<Iter&>().advance(j)))
+    -> est::type_identity_t<Iter, decltype(std::declval<Iter&>().advance(j))> {
     auto result = static_cast<const Iter&>(it);
     result.advance(j);
     return result;
@@ -357,8 +379,8 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
         ptr_ = it.ptr_, begin_ = it.begin_, end_ = it.end_;
         return *this;
     }
-    underlying_ptr debug_begin() const { return begin_; }
-    underlying_ptr debug_end() const { return end_; }
+    underlying_ptr debug_begin() const noexcept { return begin_; }
+    underlying_ptr debug_end() const noexcept { return end_; }
 #else   // UXS_ITERATOR_DEBUG_LEVEL != 0
     explicit array_iterator(underlying_ptr ptr, underlying_ptr begin, underlying_ptr end) noexcept : ptr_(ptr) {
         (void)begin, (void)end;
@@ -498,8 +520,8 @@ class list_iterator : public container_iterator_facade<Traits, list_iterator<Tra
 
 }  // namespace uxs
 
-namespace std {
 #if __cplusplus >= 202002L && defined(__cpp_concepts) && defined(__cpp_lib_addressof_constexpr)
+namespace std {
 template<typename Traits, typename UnderlyingPtrTy, bool Const>
 struct pointer_traits<uxs::array_iterator<Traits, UnderlyingPtrTy, Const>> {
     using pointer = uxs::array_iterator<Traits, UnderlyingPtrTy, Const>;
@@ -510,11 +532,5 @@ struct pointer_traits<uxs::array_iterator<Traits, UnderlyingPtrTy, Const>> {
         return std::to_address(iter.ptr());
     }
 };
-#endif  // pointer_traits
-#if __cplusplus < 201402L && !defined(__cpp_lib_make_reverse_iterator)
-template<typename Iter>
-std::reverse_iterator<Iter> make_reverse_iterator(Iter it) {
-    return std::reverse_iterator<Iter>(it);
-}
-#endif  // make reverse iterator
 }  // namespace std
+#endif  // pointer_traits

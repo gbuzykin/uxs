@@ -47,8 +47,8 @@ namespace est {
 namespace detail {
 template<std::size_t... Indices>
 struct index_sequence {};
-template<std::size_t N, std::size_t... Next>
-struct make_index_sequence : make_index_sequence<N - 1U, N - 1U, Next...> {};
+template<std::size_t I, std::size_t... Next>
+struct make_index_sequence : make_index_sequence<I - 1U, I - 1U, Next...> {};
 template<std::size_t... Next>
 struct make_index_sequence<0U, Next...> {
     using type = index_sequence<Next...>;
@@ -97,8 +97,8 @@ using is_nothrow_swappable = bool_constant<noexcept(swap(declval<Ty&>(), declval
 #    if __cplusplus < 201402L && !defined(__cpp_lib_integer_sequence)
 template<std::size_t... Indices>
 using index_sequence = est::detail::index_sequence<Indices...>;
-template<std::size_t N>
-using make_index_sequence = typename est::detail::make_index_sequence<N>::type;
+template<std::size_t I>
+using make_index_sequence = typename est::detail::make_index_sequence<I>::type;
 template<typename... Ts>
 using index_sequence_for = make_index_sequence<sizeof...(Ts)>;
 #    endif  // integer sequence
@@ -174,15 +174,15 @@ struct is_character<CharT, std::enable_if_t<std::is_same<std::remove_cv_t<CharT>
 template<typename Ty, typename = void>
 struct array_element {};
 template<typename Ty>
-struct array_element<Ty, std::void_t<std::remove_cvref_t<decltype(std::declval<Ty>()[0])>>> {
-    using type = std::remove_cvref_t<decltype(std::declval<Ty>()[0])>;
+struct array_element<Ty, std::void_t<std::remove_cvref_t<decltype(std::declval<Ty&>()[0])>>> {
+    using type = std::remove_cvref_t<decltype(std::declval<Ty&>()[0])>;
 };
 template<typename Ty>
 using array_element_t = typename array_element<Ty>::type;
 
 namespace detail {
 template<typename... Ts>
-void dummy_variadic(Ts&&...) {}
+UXS_CONSTEXPR void dummy_variadic(Ts&&...) {}
 #if __cplusplus < 201703L
 template<typename Ty>
 bool and_variadic(const Ty& v1) {
@@ -202,11 +202,11 @@ bool or_variadic(const Ty& v1, const Ts&... vn) {
 }
 #else   // __cplusplus < 201703L
 template<typename Ty, typename... Ts>
-bool and_variadic(const Ty& v1, const Ts&... vn) {
+constexpr bool and_variadic(const Ty& v1, const Ts&... vn) {
     return (!!v1 && ... && !!vn);
 }
 template<typename Ty, typename... Ts>
-bool or_variadic(const Ty& v1, const Ts&... vn) {
+constexpr bool or_variadic(const Ty& v1, const Ts&... vn) {
     return (!!v1 || ... || !!vn);
 }
 #endif  // __cplusplus < 201703L
@@ -217,24 +217,27 @@ Ty* get_containing_record(MemberTy* member_ptr) {
     return reinterpret_cast<Ty*>(reinterpret_cast<std::uint8_t*>(member_ptr) - Offset);
 }
 
-struct nofunc {
+struct identity {
+    using is_transparent = int;
     template<typename Ty>
-    auto operator()(Ty&& v) const -> decltype(std::forward<Ty>(v)) {
+    UXS_CONSTEXPR auto operator()(Ty&& v) const -> decltype(std::forward<Ty>(v)) {
         return std::forward<Ty>(v);
     }
 };
 
-struct grow {
-    template<typename TyL, typename TyR>
-    TyL& operator()(TyL& lhs, const TyR& rhs) const {
-        return lhs += rhs;
+struct true_fn {
+    using is_transparent = int;
+    template<typename... Ty>
+    UXS_CONSTEXPR bool operator()(const Ty&...) const {
+        return true;
     }
 };
 
-struct true_func {
-    template<typename... Ty>
-    bool operator()(const Ty&...) const {
-        return true;
+struct grow {
+    using is_transparent = int;
+    template<typename TyL, typename TyR>
+    UXS_CONSTEXPR TyL& operator()(TyL& lhs, const TyR& rhs) const {
+        return lhs += rhs;
     }
 };
 

@@ -123,7 +123,7 @@ void flexarray_t<Ty, Alloc>::rotate_back(std::size_t pos) noexcept {
 }
 
 template<typename Ty, typename Alloc>
-void flexarray_t<Ty, Alloc>::make_unique_impl(alloc_type& al) {
+void flexarray_t<Ty, Alloc>::ensure_unique_impl(alloc_type& al) {
     flexarray_t new_arr;
     new_arr.construct(al, p_->data(), p_->data() + p_->size);
     reset(al, new_arr.p_);
@@ -164,7 +164,7 @@ void flexarray_t<Ty, Alloc>::assign(alloc_type& al, const_view_type init) {
 template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::append(alloc_type& al, const_view_type init) {
     if (!p_) { return create_impl(al, init.size(), init.data()); }
-    make_unique(al);
+    ensure_unique(al);
     append_impl(al, init.size(), init.data());
 }
 
@@ -183,7 +183,7 @@ void flexarray_t<Ty, Alloc>::reserve(alloc_type& al, std::size_t sz) {
         if (!sz) { return; }
         p_ = alloc_checked(al, sz + tail_zero);
     } else {
-        make_unique(al);
+        ensure_unique(al);
         if (sz + tail_zero <= p_->capacity) { return; }
         grow(al, sz - p_->size + tail_zero);
     }
@@ -196,7 +196,7 @@ void flexarray_t<Ty, Alloc>::resize(alloc_type& al, std::size_t sz, const Ty& v)
         if (!sz) { return; }
         p_ = alloc_checked(al, sz + tail_zero);
     } else {
-        make_unique(al);
+        ensure_unique(al);
         if (sz == p_->size) { return; }
         if (sz + tail_zero > p_->capacity) { grow(al, sz - p_->size + tail_zero); }
     }
@@ -213,7 +213,7 @@ template<typename Ty, typename Alloc>
 Ty* flexarray_t<Ty, Alloc>::erase(alloc_type& al, const Ty* item_to_erase) {
     assert(p_ && item_to_erase >= p_->data() && item_to_erase < p_->data() + p_->size);
     const std::size_t pos = item_to_erase - p_->data();
-    make_unique(al);
+    ensure_unique(al);
     Ty* next_item = p_->data() + pos;
     Ty* last = p_->data() + --p_->size;
     for (Ty* item = next_item; item != last; ++item) { *item = std::move(*(item + 1)); }
@@ -311,7 +311,7 @@ void record_t<CharT, Alloc>::assign(alloc_type& al, std::initializer_list<mapped
 
 template<typename CharT, typename Alloc>
 void record_t<CharT, Alloc>::reserve(alloc_type& al, std::size_t sz) {
-    make_unique(al);
+    ensure_unique(al);
     if (p_->bucket_count < sz) { rehash(al, sz - p_->size); }
 }
 
@@ -371,7 +371,7 @@ void record_t<CharT, Alloc>::rehash(alloc_type& al, std::size_t extra) {
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::make_unique_impl(alloc_type& al) {
+void record_t<CharT, Alloc>::ensure_unique_impl(alloc_type& al) {
     record_t new_rec;
     new_rec.construct(al, *this);
     reset(al, new_rec.p_);
@@ -452,7 +452,7 @@ list_links_t* record_t<CharT, Alloc>::erase(alloc_type& al, list_links_t* node) 
 
 template<typename CharT, typename Alloc>
 std::size_t record_t<CharT, Alloc>::erase(alloc_type& al, key_type key) {
-    make_unique(al);
+    ensure_unique(al);
     const std::size_t prev_sz = p_->size;
     const std::size_t hash_code = hasher_t{}(key);
     typename node_t::alloc_type node_al(al);
@@ -560,19 +560,19 @@ void basic_value<CharT, Alloc>::clear() {
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::make_unique() {
+void basic_value<CharT, Alloc>::ensure_unique() {
     switch (type_) {
         case dtype::string: {
             typename char_array_t::alloc_type str_al(*this);
-            value_.str.make_unique(str_al);
+            value_.str.ensure_unique(str_al);
         } break;
         case dtype::array: {
             typename value_array_t::alloc_type arr_al(*this);
-            value_.arr.make_unique(arr_al);
+            value_.arr.ensure_unique(arr_al);
         } break;
         case dtype::record: {
             typename record_t::alloc_type rec_al(*this);
-            value_.rec.make_unique(rec_al);
+            value_.rec.ensure_unique(rec_al);
         } break;
         default: break;
     }
@@ -974,7 +974,7 @@ template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::begin() -> iterator {
     if (type_ == dtype::record) {
         typename record_t::alloc_type rec_al(*this);
-        value_.rec.make_unique(rec_al);
+        value_.rec.ensure_unique(rec_al);
         return iterator(value_.rec.cbegin());
     }
     const auto range = as_array();
@@ -992,7 +992,7 @@ template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::end() -> iterator {
     if (type_ == dtype::record) {
         typename record_t::alloc_type rec_al(*this);
-        value_.rec.make_unique(rec_al);
+        value_.rec.ensure_unique(rec_al);
         return iterator(value_.rec.cend());
     }
     const auto range = as_array();
@@ -1016,7 +1016,7 @@ template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::find(key_type key) -> iterator {
     if (type_ != dtype::record) { return end(); }
     typename record_t::alloc_type rec_al(*this);
-    value_.rec.make_unique(rec_al);
+    value_.rec.ensure_unique(rec_al);
     return iterator(value_.rec.find(key));
 }
 

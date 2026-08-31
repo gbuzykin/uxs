@@ -16,14 +16,14 @@ class function_output_iterator_facade {
     using pointer = void;
 
     template<typename Ty>
-    function_output_iterator_facade& operator=(Ty&& v) {
+    UXS_CONSTEXPR function_output_iterator_facade& operator=(Ty&& v) {
         static_cast<Func&>(*this)(std::forward<Ty>(v));
         return *this;
     }
 
-    function_output_iterator_facade& operator*() { return *this; }
-    function_output_iterator_facade& operator++() { return *this; }
-    function_output_iterator_facade operator++(int) { return *this; }
+    UXS_CONSTEXPR function_output_iterator_facade& operator*() { return *this; }
+    UXS_CONSTEXPR function_output_iterator_facade& operator++() { return *this; }
+    UXS_CONSTEXPR function_output_iterator_facade operator++(int) { return *this; }
 };
 
 }  // namespace uxs
