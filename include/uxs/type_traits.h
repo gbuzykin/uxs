@@ -53,6 +53,8 @@ template<typename Ty, typename... Rest>
 struct type_pack_element<0, Ty, Rest...> {
     using type = Ty;
 };
+template<std::size_t I, typename... Ts>
+using type_pack_element_t = typename type_pack_element<I, Ts...>::type;
 
 template<typename... Ts>
 struct size_of : maximum<size_of<Ts>...> {};

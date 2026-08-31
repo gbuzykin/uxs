@@ -181,14 +181,14 @@ class parser {
 namespace detail {
 template<typename OutCharT, typename CharT, typename Alloc>
 UXS_EXPORT void write(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v,
-                      est::type_identity_t<std::basic_string_view<CharT>> element, xml_fmt_opts opts, unsigned indent);
+                      std::basic_string_view<CharT> element, xml_fmt_opts opts, unsigned indent);
 }
 
 template<typename OutCharT, typename CharT, typename Alloc>
 void write(basic_iobuf<OutCharT>& out, const basic_value<CharT, Alloc>& v,
            est::type_identity_t<std::basic_string_view<CharT>> element, xml_fmt_opts opts = {}, unsigned indent = 0) {
     basic_iomembuffer<OutCharT> buf(out);
-    detail::write(buf, v, element, opts, indent);
+    detail::write<OutCharT, CharT, Alloc>(buf, v, element, opts, indent);
 }
 
 }  // namespace xml

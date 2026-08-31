@@ -11,27 +11,16 @@
     template<> \
     struct variant_type_impl<ty> : variant_type_base_impl<ty, id> { \
         static detail::variant_vtable_t vtable; \
-        static bool convert_from(variant_id, void*, const void*); \
-        static bool convert_to(variant_id, void*, const void*); \
+        static bool convert_from(variant_id_t, void*, const void*); \
+        static bool convert_to(variant_id_t, void*, const void*); \
         variant_type_impl(); \
     }
 
-#define UXS_IMPLEMENT_VARIANT_STRING_CONVERTER(ty) \
-    bool uxs::variant_type_impl<ty>::convert_from(variant_id type, void* to, const void* from) { \
-        if (type != variant_id::string) { return false; } \
-        return !!uxs::from_string_v(*static_cast<const std::string*>(from), *static_cast<ty*>(to)); \
-    } \
-    bool uxs::variant_type_impl<ty>::convert_to(variant_id type, void* to, const void* from) { \
-        if (type != variant_id::string) { return false; } \
-        *static_cast<std::string*>(to) = uxs::to_string(*static_cast<const ty*>(from)); \
-        return true; \
-    }
-
-#define UXS_IMPLEMENT_VARIANT_TYPE(ty, ...) \
+#define UXS_IMPLEMENT_VARIANT_TYPE(ty, convert_from, convert_to) \
     uxs::detail::variant_vtable_t uxs::variant_type_impl<ty>::vtable{ \
         type_id,     construct_default, construct_copy,      construct_move, destroy, \
         assign_copy, assign_move,       get_value_const_ptr, get_value_ptr,  is_equal, \
-        serialize,   deserialize,       __VA_ARGS__}; \
+        serialize,   deserialize,       convert_from,        convert_to}; \
     uxs::variant_type_impl<ty>::variant_type_impl() { \
         static_assert(static_cast<unsigned>(type_id) < uxs::variant::max_type_id, "bad variant identifier"); \
         assert(vtable.type == type_id); \
@@ -41,13 +30,21 @@
     static uxs::variant_type_impl<ty> UXS_TOKENPASTE2(g_variant_type_impl_, __LINE__)
 
 #define UXS_IMPLEMENT_VARIANT_TYPE_WITH_STRING_CONVERTER(ty) \
-    UXS_IMPLEMENT_VARIANT_STRING_CONVERTER(ty) \
+    bool uxs::variant_type_impl<ty>::convert_from(variant_id_t type, void* to, const void* from) { \
+        if (type != variant_id::string) { return false; } \
+        return !!uxs::from_string_v(*static_cast<const std::string*>(from), *static_cast<ty*>(to)); \
+    } \
+    bool uxs::variant_type_impl<ty>::convert_to(variant_id_t type, void* to, const void* from) { \
+        if (type != variant_id::string) { return false; } \
+        *static_cast<std::string*>(to) = uxs::to_string(*static_cast<const ty*>(from)); \
+        return true; \
+    } \
     UXS_IMPLEMENT_VARIANT_TYPE(ty, convert_from, convert_to)
 
 namespace uxs {
 
 // Two variant are compared as values of type with greater identifier.
-enum class variant_id : std::uint32_t {
+enum class variant_id_t : std::uint32_t {
     invalid = 0,
     string,
     boolean,
@@ -56,19 +53,26 @@ enum class variant_id : std::uint32_t {
     long_integer,
     unsigned_long_integer,
     double_precision,
-    vector2d,
-    vector3d,
-    vector4d,
-    quaternion,
-    matrix4x4,
-    custom0,
+    custom,
 };
-inline UXS_CONSTEXPR variant_id operator+(variant_id lhs, std::uint32_t rhs) {
-    return static_cast<variant_id>(static_cast<std::uint32_t>(lhs) + rhs);
+constexpr variant_id_t operator+(variant_id_t lhs, std::uint32_t rhs) {
+    return static_cast<variant_id_t>(static_cast<std::uint32_t>(lhs) + rhs);
 }
-inline UXS_CONSTEXPR variant_id operator+(std::uint32_t lhs, variant_id rhs) {
-    return static_cast<variant_id>(lhs + static_cast<std::uint32_t>(rhs));
+constexpr variant_id_t operator+(std::uint32_t lhs, variant_id_t rhs) {
+    return static_cast<variant_id_t>(lhs + static_cast<std::uint32_t>(rhs));
 }
+
+namespace variant_id {
+constexpr variant_id_t invalid = variant_id_t::invalid;
+constexpr variant_id_t string = variant_id_t::string;
+constexpr variant_id_t boolean = variant_id_t::boolean;
+constexpr variant_id_t integer = variant_id_t::integer;
+constexpr variant_id_t unsigned_integer = variant_id_t::unsigned_integer;
+constexpr variant_id_t long_integer = variant_id_t::long_integer;
+constexpr variant_id_t unsigned_long_integer = variant_id_t::unsigned_long_integer;
+constexpr variant_id_t double_precision = variant_id_t::double_precision;
+constexpr variant_id_t custom = variant_id_t::custom;
+}  // namespace variant_id
 
 class UXS_EXPORT_ALL_STUFF_FOR_GNUC variant_error : public std::runtime_error {
  public:
@@ -92,7 +96,7 @@ struct variant_traits {
 };
 
 struct variant_vtable_t {
-    variant_id type;
+    variant_id_t type;
     void* (*construct_default)(void*);
     void (*construct_copy)(void*, const void*);
     void (*construct_move)(void*, void*) noexcept;
@@ -104,18 +108,18 @@ struct variant_vtable_t {
     bool (*is_equal)(const void*, const void*);
     void (*serialize)(biobuf&, const void*);
     void (*deserialize)(bibuf&, void*);
-    bool (*convert_from)(variant_id, void*, const void*);
-    bool (*convert_to)(variant_id, void*, const void*);
+    bool (*convert_from)(variant_id_t, void*, const void*);
+    bool (*convert_to)(variant_id_t, void*, const void*);
 };
 }  // namespace detail
 
 template<typename Ty>
 struct variant_type_impl;
 
-template<typename Ty, variant_id TypeId, typename = void>
+template<typename Ty, variant_id_t TypeId, typename = void>
 struct variant_type_base_impl {
     using is_variant_type_impl = int;
-    static const variant_id type_id = TypeId;
+    static const variant_id_t type_id = TypeId;
 
     static const cow_ptr<Ty>& deref(const void* p) { return *static_cast<const cow_ptr<Ty>*>(p); }
     static cow_ptr<Ty>& deref(void* p) { return *static_cast<cow_ptr<Ty>*>(p); }
@@ -148,14 +152,14 @@ struct variant_type_base_impl {
     }
 };
 
-template<typename Ty, variant_id TypeId>
+template<typename Ty, variant_id_t TypeId>
 struct variant_type_base_impl<
     Ty, TypeId,
     std::enable_if_t<(sizeof(Ty) <= detail::variant_traits::storage_size) &&
                      (std::alignment_of<Ty>::value <= detail::variant_traits::storage_alignment) &&
                      std::is_nothrow_move_constructible<Ty>::value && std::is_nothrow_move_assignable<Ty>::value>> {
     using is_variant_type_impl = int;
-    static const variant_id type_id = TypeId;
+    static const variant_id_t type_id = TypeId;
 
     static const Ty& deref(const void* p) { return *static_cast<const Ty*>(p); }
     static Ty& deref(void* p) { return *static_cast<Ty*>(p); }
@@ -196,7 +200,7 @@ class variant {
     enum : unsigned { max_type_id = 256 };
 
     variant() noexcept = default;
-    explicit variant(variant_id type) : vtable_(get_vtable(type)) {
+    explicit variant(variant_id_t type) : vtable_(get_vtable(type)) {
         if (vtable_) { vtable_->construct_default(&data_); }
     }
 
@@ -206,7 +210,7 @@ class variant {
     variant(variant&& v) noexcept : vtable_(v.vtable_) {
         if (vtable_) { vtable_->construct_move(&data_, &v.data_); }
     }
-    UXS_EXPORT variant(variant_id type, const variant& v);
+    UXS_EXPORT variant(variant_id_t type, const variant& v);
 
     ~variant() {
         if (vtable_) { vtable_->destroy(&data_); }
@@ -237,7 +241,7 @@ class variant {
     }
 
     bool has_value() const noexcept { return vtable_ != nullptr; }
-    variant_id type() const noexcept { return vtable_ ? vtable_->type : variant_id::invalid; }
+    variant_id_t type() const noexcept { return vtable_ ? vtable_->type : variant_id::invalid; }
 
     void reset() noexcept {
         if (vtable_) { vtable_->destroy(&data_); }
@@ -279,7 +283,7 @@ class variant {
     bool convert() {
         return convert(variant_type_impl<Ty>::type_id);
     }
-    UXS_EXPORT bool convert(variant_id type);
+    UXS_EXPORT bool convert(variant_id_t type);
 
     template<typename Ty, typename = std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
     bool is_equal_to(const Ty& val) const {
@@ -288,7 +292,7 @@ class variant {
     UXS_EXPORT bool is_equal_to(const variant& v) const;
 
 #define UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(ty, internal_ty) \
-    variant(ty val) : variant(est::in_place_type_t<internal_ty>{}, static_cast<internal_ty>(val)) {} \
+    variant(ty val) : variant(est::in_place_type_t<internal_ty>(), static_cast<internal_ty>(val)) {} \
     variant& operator=(ty val) { \
         assign_impl<internal_ty>(static_cast<internal_ty>(val)); \
         return *this; \
@@ -352,7 +356,7 @@ class variant {
     detail::variant_vtable_t* vtable_ = nullptr;
     detail::variant_storage_t data_;
 
-    static detail::variant_vtable_t* get_vtable(variant_id type) {
+    static detail::variant_vtable_t* get_vtable(variant_id_t type) {
         assert(static_cast<std::uint32_t>(type) < max_type_id);
         return vtables_[static_cast<std::uint32_t>(type)];
     }
