@@ -7,10 +7,10 @@ template class flexarray_t<char, std::allocator<char>>;
 template class flexarray_t<wchar_t, std::allocator<wchar_t>>;
 template class UXS_EXPORT_ALL_STUFF_FOR_GNUC flexarray_t<basic_value<char>, std::allocator<char>>;
 template class UXS_EXPORT_ALL_STUFF_FOR_GNUC flexarray_t<basic_value<wchar_t>, std::allocator<wchar_t>>;
-template class record_t<char, std::allocator<char>>;
-template class record_t<wchar_t, std::allocator<wchar_t>>;
-template class record_value<char, std::allocator<char>>;
-template class record_value<wchar_t, std::allocator<wchar_t>>;
+template class object_t<char, std::allocator<char>>;
+template class object_t<wchar_t, std::allocator<wchar_t>>;
+template class object_value<char, std::allocator<char>>;
+template class object_value<wchar_t, std::allocator<wchar_t>>;
 }  // namespace detail
 template class basic_value<char>;
 template class basic_value<wchar_t>;

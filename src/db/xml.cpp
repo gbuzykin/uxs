@@ -30,7 +30,7 @@ std::pair<token_t, std::string_view> parser::next_impl() {
 
                 attrs_.clear();
 
-                const auto read_attribute = [this, &name_cache_it, &name_cache_prev_it](std::string_view lval) {
+                const auto parse_attribute = [this, &name_cache_it, &name_cache_prev_it](std::string_view lval) {
                     if (name_cache_it != name_cache_.end()) {
                         name_cache_it->assign(lval.data(), lval.size());
                     } else {
@@ -53,7 +53,7 @@ std::pair<token_t, std::string_view> parser::next_impl() {
                         while (true) {
                             auto tt = lexer_.lex(lval);
                             if (tt == detail::lex_token_t::name) {
-                                read_attribute(lval);
+                                parse_attribute(lval);
                             } else if (tt == detail::lex_token_t::close) {
                                 return {token_t::start_element, name_cache_.front()};
                             } else if (tt == detail::lex_token_t::end_element_close) {
@@ -81,7 +81,7 @@ std::pair<token_t, std::string_view> parser::next_impl() {
                         while (true) {
                             auto tt = lexer_.lex(lval);
                             if (tt == detail::lex_token_t::name) {
-                                read_attribute(lval);
+                                parse_attribute(lval);
                             } else if (tt == detail::lex_token_t::pi_close) {
                                 return {token_t::preamble, name_cache_.front()};
                             } else {
@@ -148,8 +148,8 @@ value_class parser::classify_value(const std::string_view& sval) {
     }
 }
 
-template UXS_EXPORT basic_value<char> parser::read(std::string_view, const std::allocator<char>&);
-template UXS_EXPORT basic_value<wchar_t> parser::read(std::string_view, const std::allocator<wchar_t>&);
+template UXS_EXPORT basic_value<char> parser::parse(std::string_view, const std::allocator<char>&);
+template UXS_EXPORT basic_value<wchar_t> parser::parse(std::string_view, const std::allocator<wchar_t>&);
 
 namespace detail {
 

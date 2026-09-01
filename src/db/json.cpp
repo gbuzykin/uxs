@@ -11,8 +11,8 @@ namespace lex_detail {
 namespace uxs {
 namespace db {
 namespace json {
-template UXS_EXPORT basic_value<char> read(ibuf&, const std::allocator<char>&);
-template UXS_EXPORT basic_value<wchar_t> read(ibuf&, const std::allocator<wchar_t>&);
+template UXS_EXPORT basic_value<char> parse(ibuf&, const std::allocator<char>&);
+template UXS_EXPORT basic_value<wchar_t> parse(ibuf&, const std::allocator<wchar_t>&);
 
 namespace detail {
 

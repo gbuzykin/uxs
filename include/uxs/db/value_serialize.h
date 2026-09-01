@@ -25,7 +25,7 @@ void serialize_db_value(biobuf& os, const db::basic_value<CharT, Alloc>& v) {
         } else if constexpr (std::is_same_v<decltype(x), decltype(std::declval<value_ty>().as_array())>) {
             os << static_cast<std::uint64_t>(x.size());
             for (const auto& el : x) { serialize_db_value(os, el); }
-        } else if constexpr (std::is_same_v<decltype(x), decltype(std::declval<value_ty>().as_record())>) {
+        } else if constexpr (std::is_same_v<decltype(x), decltype(std::declval<value_ty>().as_object())>) {
             os << static_cast<std::uint64_t>(x.size());
             for (const auto& [key, value] : x) {
                 os << static_cast<std::uint64_t>(key.size());
@@ -57,10 +57,10 @@ void deserialize_db_value(bibuf& is, db::basic_value<CharT, Alloc>& v, basic_dyn
             if (!(is >> sz)) { return; }
             x.reserve(db::array_tag, static_cast<std::size_t>(sz));
             for (; sz && is; --sz) { deserialize_db_value(is, x.emplace_back(x.get_allocator()), key_buf); }
-        } else if constexpr (std::is_same_v<decltype(type), db::record_tag_t>) {
+        } else if constexpr (std::is_same_v<decltype(type), db::object_tag_t>) {
             std::uint64_t sz = 0;
             if (!(is >> sz)) { return; }
-            x.reserve(db::record_tag, static_cast<std::size_t>(sz));
+            x.reserve(db::object_tag, static_cast<std::size_t>(sz));
             for (; sz; --sz) {
                 std::uint64_t key_sz = 0;
                 if (!(is >> key_sz)) { return; }
