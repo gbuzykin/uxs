@@ -129,7 +129,7 @@ class parser {
     attributes_t& attributes() { return attrs_; }
 
     template<typename CharT = char, typename Alloc = std::allocator<CharT>>
-    UXS_EXPORT basic_value<CharT, Alloc> read(std::string_view root_element, const Alloc& al = Alloc());
+    UXS_EXPORT basic_value<CharT, Alloc> parse(std::string_view root_element, const Alloc& al = Alloc());
 
     class iterator : public est::iterator_facade<iterator, value_type, std::input_iterator_tag, const value_type&,
                                                  const value_type*> {

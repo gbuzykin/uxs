@@ -27,7 +27,7 @@ inline std::pair<std::uint64_t, bool> parse_uint64(const char* p, const char* en
 }  // namespace detail
 
 template<typename CharT, typename Alloc>
-basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Alloc& al) {
+basic_value<CharT, Alloc> parser::parse(std::string_view root_element, const Alloc& al) {
     static const auto text_to_value = [](std::string_view lval, const Alloc& al) -> basic_value<CharT, Alloc> {
         switch (classify_value(lval)) {
             case value_class::empty:
@@ -73,7 +73,7 @@ basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Allo
                 return {from_string<double>(lval), al};
             } break;
             case value_class::floating_point_number: return {from_string<double>(lval), al};
-            case value_class::ws_with_nl: return make_record<CharT>(al);
+            case value_class::ws_with_nl: return make_object<CharT>(al);
             case value_class::other: return {utf_string_adapter<CharT>{}(lval), al};
             default: UXS_UNREACHABLE_CODE;
         }
@@ -98,7 +98,7 @@ basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Allo
             case token_t::preamble: throw database_error(to_string(lexer_.ln) + ": unexpected document preamble");
             case token_t::entity: throw database_error(to_string(lexer_.ln) + ": unknown entity name");
             case token_t::plain_text: {
-                if (!top.first->is_record()) { txt += text(); }
+                if (!top.first->is_object()) { txt += text(); }
             } break;
             case token_t::start_element: {
                 txt.clear();
@@ -114,7 +114,7 @@ basic_value<CharT, Alloc> parser::read(std::string_view root_element, const Allo
                 if (top.second != name()) {
                     throw database_error(to_string(lexer_.ln) + ": unterminated element " + top.second);
                 }
-                if (!top.first->is_record() && !txt.empty()) {
+                if (!top.first->is_object() && !txt.empty()) {
                     *(top.first) = text_to_value(std::string_view(txt.data(), txt.size()), al);
                 }
                 stack.pop_back();
@@ -134,20 +134,20 @@ template<typename CharT, typename Alloc>
 struct writer_stack_item_t {
  public:
     using value_t = basic_value<CharT, Alloc>;
-    using record_iterator = typename value_t::const_record_iterator;
+    using object_iterator = typename value_t::const_object_iterator;
 
-    writer_stack_item_t(const value_t* first, const value_t* last) noexcept : is_record_(false), arr_{first, last} {}
-    writer_stack_item_t(record_iterator first, record_iterator last) noexcept : is_record_(true), rec_{first, last} {}
+    writer_stack_item_t(const value_t* first, const value_t* last) noexcept : is_object_(false), arr_{first, last} {}
+    writer_stack_item_t(object_iterator first, object_iterator last) noexcept : is_object_(true), obj_{first, last} {}
 
     std::basic_string_view<CharT> element() const noexcept { return element_; }
     void set_element(std::basic_string_view<CharT> element) noexcept { element_ = element; }
 
-    bool is_record() const noexcept { return is_record_; }
-    bool empty() const noexcept { return is_record_ ? rec_.first == rec_.last : arr_.first == arr_.last; }
-    typename value_t::key_type key() const noexcept { return rec_.first->key(); }
-    const value_t& get_and_advance() noexcept { return is_record_ ? (rec_.first++)->value() : *arr_.first++; }
+    bool is_object() const noexcept { return is_object_; }
+    bool empty() const noexcept { return is_object_ ? obj_.first == obj_.last : arr_.first == arr_.last; }
+    typename value_t::key_type key() const noexcept { return obj_.first->key(); }
+    const value_t& get_and_advance() noexcept { return is_object_ ? (obj_.first++)->value() : *arr_.first++; }
     const value_t& prev() const noexcept {
-        return is_record_ ? std::prev(rec_.first)->value() : *std::prev(arr_.first);
+        return is_object_ ? std::prev(obj_.first)->value() : *std::prev(arr_.first);
     }
 
  private:
@@ -155,16 +155,16 @@ struct writer_stack_item_t {
         const value_t* first;
         const value_t* last;
     };
-    struct record_range_t {
-        record_iterator first;
-        record_iterator last;
+    struct object_range_t {
+        object_iterator first;
+        object_iterator last;
     };
 
     std::basic_string_view<CharT> element_;
-    bool is_record_;
+    bool is_object_;
     union {
         array_range_t arr_;
-        record_range_t rec_;
+        object_range_t obj_;
     };
 };
 
@@ -230,7 +230,7 @@ struct value_visitor {
         return true;
     }
 
-    bool operator()(decltype(std::declval<ValueTy>().as_record()) r) const {
+    bool operator()(decltype(std::declval<ValueTy>().as_object()) r) const {
         stack.emplace_back(r.begin(), r.end());
         return true;
     }
@@ -264,7 +264,7 @@ void write(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v, s
 loop:
     auto& top = stack.back();
 
-    if (is_first_element && top.is_record()) { indent += opts.indent_size; }
+    if (is_first_element && top.is_object()) { indent += opts.indent_size; }
 
     while (true) {
         if (!is_first_element && !top.prev().is_array()) {
@@ -273,7 +273,7 @@ loop:
             out += '>';
         }
         if (top.empty()) { break; }
-        if (top.is_record()) { element = top.key(); }
+        if (top.is_object()) { element = top.key(); }
         const auto& value = top.get_and_advance();
         if (!value.is_array()) {
             out += '\n';
@@ -290,7 +290,7 @@ loop:
         is_first_element = false;
     }
 
-    if (top.is_record()) {
+    if (top.is_object()) {
         indent -= opts.indent_size;
         out += '\n';
         out.append(indent, opts.indent_char);

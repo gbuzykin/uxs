@@ -45,7 +45,7 @@ struct lexer {
 }  // namespace detail
 
 template<typename ValueFunc, typename ArrItemFunc, typename ObjItemFunc, typename PopFunc>
-void read(ibuf& in, ValueFunc&& fn_value, ArrItemFunc&& fn_arr_item, ObjItemFunc&& fn_obj_item, PopFunc&& fn_pop) {
+void parse(ibuf& in, ValueFunc&& fn_value, ArrItemFunc&& fn_arr_item, ObjItemFunc&& fn_obj_item, PopFunc&& fn_pop) {
     detail::lexer lexer(in);
     basic_inline_dynbuffer<char, 32> stack;
 
@@ -120,6 +120,29 @@ loop:
     }
 }
 
+template<typename CharT = char, typename Alloc = std::allocator<CharT>>
+UXS_EXPORT basic_value<CharT, Alloc> parse(ibuf& in, const Alloc& al = Alloc());
+
+template<typename CharT = char, typename Alloc = std::allocator<CharT>, typename StrLikeTy,
+         typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
+basic_value<CharT, Alloc> parse(const StrLikeTy& s, const Alloc& al = Alloc()) {
+    iflatbuf in(to_string_view(s));
+    return parse<CharT, Alloc>(in, al);
+}
+
+#if __cplusplus >= 201402L
+namespace literals {
+inline value operator""_json(const char* s, std::size_t len) {
+    iflatbuf in(est::as_span(s, len));
+    return parse(in);
+}
+inline basic_value<wchar_t> operator""_wjson(const char* s, std::size_t len) {
+    iflatbuf in(est::as_span(s, len));
+    return parse<wchar_t>(in);
+}
+}  // namespace literals
+#endif  // __cplusplus >= 201402L
+
 namespace detail {
 template<typename OutCharT, typename CharT, typename Alloc>
 UXS_EXPORT void write(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v);
@@ -127,9 +150,6 @@ template<typename OutCharT, typename CharT, typename Alloc>
 UXS_EXPORT void write_formatted(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v, json_fmt_opts opts,
                                 unsigned indent);
 }  // namespace detail
-
-template<typename CharT = char, typename Alloc = std::allocator<CharT>>
-UXS_EXPORT basic_value<CharT, Alloc> read(ibuf& in, const Alloc& al = Alloc());
 
 template<typename OutCharT, typename CharT, typename Alloc>
 void write(basic_iobuf<OutCharT>& out, const basic_value<CharT, Alloc>& v) {
@@ -153,8 +173,7 @@ struct from_string_impl<db::basic_value<CharT, Alloc>, char> {
         if (first == last) { return {first, sconv_errc::empty}; }
         iflatbuf in(est::as_span(first, static_cast<std::size_t>(last - first)));
         try {
-            auto result = db::json::read(in);
-            val = std::move(result);
+            val = db::json::parse(in);
             return {in.curr(), sconv_errc::ok};
         } catch (const db::database_error&) { return {first, sconv_errc::invalid}; }
     }

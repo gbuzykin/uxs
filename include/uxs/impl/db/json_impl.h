@@ -26,7 +26,7 @@ inline std::pair<std::uint64_t, bool> parse_uint64(const char* p, const char* en
 }  // namespace detail
 
 template<typename CharT, typename Alloc>
-basic_value<CharT, Alloc> read(ibuf& in, const Alloc& al) {
+basic_value<CharT, Alloc> parse(ibuf& in, const Alloc& al) {
     static const auto token_to_value = [](token_t tt, std::string_view lval,
                                           const Alloc& al) -> basic_value<CharT, Alloc> {
         switch (tt) {
@@ -82,14 +82,14 @@ basic_value<CharT, Alloc> read(ibuf& in, const Alloc& al) {
     basic_value<CharT, Alloc> val(al);
     auto* item = &val;
 
-    read(
+    parse(
         in,
         [&stack, &item](token_t tt, std::string_view lval) {
             if (tt >= token_t::null_value) {
                 *item = token_to_value(tt, lval, item->get_allocator());
             } else {
                 *item = tt == token_t::array ? make_array<CharT>(item->get_allocator()) :
-                                               make_record<CharT>(item->get_allocator());
+                                               make_object<CharT>(item->get_allocator());
                 stack.push_back(item);
             }
             return parse_step::into;
@@ -111,30 +111,30 @@ template<typename CharT, typename Alloc>
 struct writer_stack_item_t {
  public:
     using value_t = basic_value<CharT, Alloc>;
-    using record_iterator = typename value_t::const_record_iterator;
+    using object_iterator = typename value_t::const_object_iterator;
 
-    writer_stack_item_t(const value_t* first, const value_t* last) noexcept : is_record_(false), arr_{first, last} {}
-    writer_stack_item_t(record_iterator first, record_iterator last) noexcept : is_record_(true), rec_{first, last} {}
+    writer_stack_item_t(const value_t* first, const value_t* last) noexcept : is_object_(false), arr_{first, last} {}
+    writer_stack_item_t(object_iterator first, object_iterator last) noexcept : is_object_(true), obj_{first, last} {}
 
-    bool is_record() const noexcept { return is_record_; }
-    bool empty() const noexcept { return is_record_ ? rec_.first == rec_.last : arr_.first == arr_.last; }
-    typename value_t::key_type key() const noexcept { return rec_.first->key(); }
-    const value_t& get_and_advance() noexcept { return is_record_ ? (rec_.first++)->value() : *arr_.first++; }
+    bool is_object() const noexcept { return is_object_; }
+    bool empty() const noexcept { return is_object_ ? obj_.first == obj_.last : arr_.first == arr_.last; }
+    typename value_t::key_type key() const noexcept { return obj_.first->key(); }
+    const value_t& get_and_advance() noexcept { return is_object_ ? (obj_.first++)->value() : *arr_.first++; }
 
  private:
     struct array_range_t {
         const value_t* first;
         const value_t* last;
     };
-    struct record_range_t {
-        record_iterator first;
-        record_iterator last;
+    struct object_range_t {
+        object_iterator first;
+        object_iterator last;
     };
 
-    bool is_record_;
+    bool is_object_;
     union {
         array_range_t arr_;
-        record_range_t rec_;
+        object_range_t obj_;
     };
 };
 
@@ -218,7 +218,7 @@ struct value_visitor {
         return true;
     }
 
-    bool operator()(decltype(std::declval<ValueTy>().as_record()) r) const {
+    bool operator()(decltype(std::declval<ValueTy>().as_object()) r) const {
         if (r.empty()) {
             out += string_literal<char_type, '{', '}'>{}();
             return false;
@@ -245,7 +245,7 @@ void write(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v) {
 loop:
     auto& top = stack.back();
 
-    if (top.is_record()) {
+    if (top.is_object()) {
         while (!top.empty()) {
             out += is_first_element ? '{' : ',';
             detail::write_text<OutCharT>(out, utf_string_adapter<OutCharT>{}(top.key()));
@@ -285,11 +285,11 @@ void write_formatted(basic_membuffer<OutCharT>& out, const basic_value<CharT, Al
 
 loop:
     auto& top = stack.back();
-    const char ws_char = top.is_record() ? opts.object_ws_char : opts.array_ws_char;
+    const char ws_char = top.is_object() ? opts.object_ws_char : opts.array_ws_char;
 
     while (!top.empty()) {
         if (is_first_element) {
-            out += top.is_record() ? '{' : '[';
+            out += top.is_object() ? '{' : '[';
             if (ws_char == '\n') {
                 out += '\n';
                 indent += opts.indent_size;
@@ -300,7 +300,7 @@ loop:
             out += ws_char;
             if (ws_char == '\n') { out.append(indent, opts.indent_char); }
         }
-        if (top.is_record()) {
+        if (top.is_object()) {
             detail::write_text<OutCharT>(out, utf_string_adapter<OutCharT>{}(top.key()));
             out += string_literal<OutCharT, ':', ' '>{}();
         }
@@ -316,7 +316,7 @@ loop:
         indent -= opts.indent_size;
         out.append(indent, opts.indent_char);
     }
-    out += top.is_record() ? '}' : ']';
+    out += top.is_object() ? '}' : ']';
 
     stack.pop_back();
     if (!stack.empty()) { goto loop; }

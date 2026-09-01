@@ -45,7 +45,7 @@ UXS_EXPORT bool operator==(const basic_value<CharT, Alloc>& lhs, const basic_val
         case dtype::double_precision: return rhs.type_ == dtype::double_precision && lhs.value_.dbl == rhs.value_.dbl;
         case dtype::string: return rhs.type_ == dtype::string && lhs.value_.str.equal(rhs.value_.str);
         case dtype::array: return rhs.type_ == dtype::array && lhs.value_.arr.equal(rhs.value_.arr);
-        case dtype::record: return rhs.type_ == dtype::record && lhs.value_.rec.equal(rhs.value_.rec);
+        case dtype::object: return rhs.type_ == dtype::object && lhs.value_.obj.equal(rhs.value_.obj);
         default: UXS_UNREACHABLE_CODE;
     }
 }
@@ -229,10 +229,10 @@ Ty* flexarray_t<Ty, Alloc>::erase(alloc_type& al, const Ty* item_to_erase) {
 namespace detail {
 
 template<typename CharT, typename Alloc>
-record_value<CharT, Alloc>* record_value<CharT, Alloc>::alloc(alloc_type& al, key_type key) {
+object_value<CharT, Alloc>* object_value<CharT, Alloc>::alloc(alloc_type& al, key_type key) {
     if (key.size() + 1 > max_name_alloc_size(al)) { throw std::length_error("too much to reserve"); }
     const std::size_t alloc_sz = get_alloc_sz(key.size() + 1);
-    record_value* node = alloc_traits::allocate(al, alloc_sz);
+    object_value* node = alloc_traits::allocate(al, alloc_sz);
     node->key_sz_ = key.size();
     std::copy_n(key.data(), key.size(), node->key_chars_);
     node->key_chars_[key.size()] = '\0';
@@ -240,7 +240,7 @@ record_value<CharT, Alloc>* record_value<CharT, Alloc>::alloc(alloc_type& al, ke
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::data_t::init() noexcept {
+void object_t<CharT, Alloc>::data_t::init() noexcept {
     dllist_make_cycle(&head);
     size = 0;
     node_traits::set_head(&head, &head);
@@ -248,7 +248,7 @@ void record_t<CharT, Alloc>::data_t::init() noexcept {
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::data_t::init_from(data_t* p) noexcept {
+void object_t<CharT, Alloc>::data_t::init_from(data_t* p) noexcept {
     if (p->size) {
         head = p->head;
         head.next->prev = &head;
@@ -262,7 +262,7 @@ void record_t<CharT, Alloc>::data_t::init_from(data_t* p) noexcept {
 }
 
 template<typename CharT, typename Alloc>
-auto record_t<CharT, Alloc>::alloc(alloc_type& al, std::size_t bucket_count) -> data_t* {
+auto object_t<CharT, Alloc>::alloc(alloc_type& al, std::size_t bucket_count) -> data_t* {
     const std::size_t alloc_sz = get_alloc_sz(bucket_count);
     data_t* p = alloc_traits::allocate(al, alloc_sz);
     ::new (&p->ref_count) std::atomic<std::size_t>{1};
@@ -272,11 +272,11 @@ auto record_t<CharT, Alloc>::alloc(alloc_type& al, std::size_t bucket_count) -> 
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::construct(alloc_type& al, record_t rec) {
-    construct(al, rec.size());
+void object_t<CharT, Alloc>::construct(alloc_type& al, object_t obj) {
+    construct(al, obj.size());
     try {
         typename node_t::alloc_type node_al(al);
-        for (list_links_t* item = rec.p_->head.next; item != &rec.p_->head; item = item->next) {
+        for (list_links_t* item = obj.p_->head.next; item != &obj.p_->head; item = item->next) {
             const auto& v = *node_t::from_links(item);
             node_t* node = node_t::create(node_al, v.key(), v.value());
             insert_node(node, v.hash_code_);
@@ -288,7 +288,7 @@ void record_t<CharT, Alloc>::construct(alloc_type& al, record_t rec) {
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::construct(alloc_type& al, std::initializer_list<mapped_type> init) {
+void object_t<CharT, Alloc>::construct(alloc_type& al, std::initializer_list<mapped_type> init) {
     construct(al, init.size());
     try {
         insert_impl(al, init);
@@ -299,24 +299,24 @@ void record_t<CharT, Alloc>::construct(alloc_type& al, std::initializer_list<map
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::construct(alloc_type& al, std::initializer_list<std::pair<key_type, mapped_type>> init) {
+void object_t<CharT, Alloc>::construct(alloc_type& al, std::initializer_list<std::pair<key_type, mapped_type>> init) {
     construct(al, init.begin(), init.end());
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::assign(alloc_type& al, std::initializer_list<mapped_type> init) {
+void object_t<CharT, Alloc>::assign(alloc_type& al, std::initializer_list<mapped_type> init) {
     clear_impl(al, init.size());
     insert_impl(al, init);
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::reserve(alloc_type& al, std::size_t sz) {
+void object_t<CharT, Alloc>::reserve(alloc_type& al, std::size_t sz) {
     ensure_unique(al);
     if (p_->bucket_count < sz) { rehash(al, sz - p_->size); }
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::destruct_items(alloc_type& al) noexcept {
+void object_t<CharT, Alloc>::destruct_items(alloc_type& al) noexcept {
     typename node_t::alloc_type node_al(al);
     list_links_t* node = p_->head.next;
     while (node != &p_->head) {
@@ -327,7 +327,7 @@ void record_t<CharT, Alloc>::destruct_items(alloc_type& al) noexcept {
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::add_to_hash(node_t* node) noexcept {
+void object_t<CharT, Alloc>::add_to_hash(node_t* node) noexcept {
     node_traits::set_head(&node->links_, &p_->head);
     list_links_t** p_next_bucket = &p_->hashtbl[node->hash_code_ % p_->bucket_count];
     node->next_bucket_ = *p_next_bucket;
@@ -335,7 +335,7 @@ void record_t<CharT, Alloc>::add_to_hash(node_t* node) noexcept {
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::insert_node(node_t* node, std::size_t hash_code) noexcept {
+void object_t<CharT, Alloc>::insert_node(node_t* node, std::size_t hash_code) noexcept {
     node->hash_code_ = hash_code;
     add_to_hash(node);
     dllist_insert_before(&p_->head, &node->links_);
@@ -343,7 +343,7 @@ void record_t<CharT, Alloc>::insert_node(node_t* node, std::size_t hash_code) no
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::insert_impl(alloc_type& al, std::initializer_list<mapped_type> init) {
+void object_t<CharT, Alloc>::insert_impl(alloc_type& al, std::initializer_list<mapped_type> init) {
     if (p_->bucket_count - p_->size < init.size()) { rehash(al, init.size()); }
     typename node_t::alloc_type node_al(al);
     for (auto first = init.begin(); first != init.end(); ++first) {
@@ -354,7 +354,7 @@ void record_t<CharT, Alloc>::insert_impl(alloc_type& al, std::initializer_list<m
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::rehash(alloc_type& al, std::size_t extra) {
+void object_t<CharT, Alloc>::rehash(alloc_type& al, std::size_t extra) {
     std::size_t delta_count = std::max(extra, p_->size >> 1);
     const std::size_t max_count = max_size(al);
     if (delta_count > max_count - p_->size) {
@@ -371,14 +371,14 @@ void record_t<CharT, Alloc>::rehash(alloc_type& al, std::size_t extra) {
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::ensure_unique_impl(alloc_type& al) {
-    record_t new_rec;
-    new_rec.construct(al, *this);
-    reset(al, new_rec.p_);
+void object_t<CharT, Alloc>::ensure_unique_impl(alloc_type& al) {
+    object_t new_obj;
+    new_obj.construct(al, *this);
+    reset(al, new_obj.p_);
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::clear_impl(alloc_type& al, std::false_type) {
+void object_t<CharT, Alloc>::clear_impl(alloc_type& al, std::false_type) {
     if (p_->ref_count != 1) {
         reset(al, alloc(al, 0));
     } else {
@@ -388,7 +388,7 @@ void record_t<CharT, Alloc>::clear_impl(alloc_type& al, std::false_type) {
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::clear_impl(alloc_type& al, std::size_t bucket_count) {
+void object_t<CharT, Alloc>::clear_impl(alloc_type& al, std::size_t bucket_count) {
     if (p_->ref_count != 1) {
         if (bucket_count > max_size(al)) { throw std::length_error("too much to reserve"); }
         reset(al, alloc(al, bucket_count));
@@ -399,13 +399,13 @@ void record_t<CharT, Alloc>::clear_impl(alloc_type& al, std::size_t bucket_count
 }
 
 template<typename CharT, typename Alloc>
-void record_t<CharT, Alloc>::destruct(alloc_type& al) noexcept {
+void object_t<CharT, Alloc>::destruct(alloc_type& al) noexcept {
     destruct_items(al);
     dealloc(al, p_);
 }
 
 template<typename CharT, typename Alloc>
-list_links_t* record_t<CharT, Alloc>::find_impl(key_type key, std::size_t hash_code) const noexcept {
+list_links_t* object_t<CharT, Alloc>::find_impl(key_type key, std::size_t hash_code) const noexcept {
     list_links_t* next_bucket = p_->hashtbl[hash_code % p_->bucket_count];
     while (next_bucket) {
         const auto& v = *node_t::from_links(next_bucket);
@@ -416,7 +416,7 @@ list_links_t* record_t<CharT, Alloc>::find_impl(key_type key, std::size_t hash_c
 }
 
 template<typename CharT, typename Alloc>
-std::size_t record_t<CharT, Alloc>::count(key_type key) const noexcept {
+std::size_t object_t<CharT, Alloc>::count(key_type key) const noexcept {
     std::size_t count = 0;
     const std::size_t hash_code = hasher_t{}(key);
     list_links_t* next_bucket = p_->hashtbl[hash_code % p_->bucket_count];
@@ -429,15 +429,15 @@ std::size_t record_t<CharT, Alloc>::count(key_type key) const noexcept {
 }
 
 template<typename CharT, typename Alloc>
-list_links_t* record_t<CharT, Alloc>::erase(alloc_type& al, list_links_t* node) {
+list_links_t* object_t<CharT, Alloc>::erase(alloc_type& al, list_links_t* node) {
     assert(node != &p_->head);
     if (p_->ref_count != 1) {
-        record_t new_rec;
-        new_rec.construct(al, *this);
-        list_links_t* new_node = new_rec.p_->head.next;
+        object_t new_obj;
+        new_obj.construct(al, *this);
+        list_links_t* new_node = new_obj.p_->head.next;
         for (list_links_t* item = p_->head.next; item != node; item = item->next) { new_node = new_node->next; }
         node = new_node;
-        reset(al, new_rec.p_);
+        reset(al, new_obj.p_);
     }
     auto& v = *node_t::from_links(node);
     list_links_t** p_next_bucket = &p_->hashtbl[v.hash_code_ % p_->bucket_count];
@@ -451,7 +451,7 @@ list_links_t* record_t<CharT, Alloc>::erase(alloc_type& al, list_links_t* node) 
 }
 
 template<typename CharT, typename Alloc>
-std::size_t record_t<CharT, Alloc>::erase(alloc_type& al, key_type key) {
+std::size_t object_t<CharT, Alloc>::erase(alloc_type& al, key_type key) {
     ensure_unique(al);
     const std::size_t prev_sz = p_->size;
     const std::size_t hash_code = hasher_t{}(key);
@@ -477,7 +477,7 @@ std::size_t record_t<CharT, Alloc>::erase(alloc_type& al, key_type key) {
 
 namespace detail {
 template<typename CharT, typename Alloc>
-bool is_record(std::initializer_list<basic_value<CharT, Alloc>> init) noexcept {
+bool is_object(std::initializer_list<basic_value<CharT, Alloc>> init) noexcept {
     return std::all_of(init.begin(), init.end(), [](const basic_value<CharT, Alloc>& v) {
         return v.is_array() && v.size() == 2 && v[0].is_string();
     });
@@ -486,10 +486,10 @@ bool is_record(std::initializer_list<basic_value<CharT, Alloc>> init) noexcept {
 
 template<typename CharT, typename Alloc>
 basic_value<CharT, Alloc>::basic_value(std::initializer_list<basic_value> init, const Alloc& al)
-    : alloc_type(al), type_(detail::is_record(init) ? dtype::record : dtype::array) {
-    if (type_ == dtype::record) {
-        typename record_t::alloc_type rec_al(*this);
-        value_.rec.construct(rec_al, init);
+    : alloc_type(al), type_(detail::is_object(init) ? dtype::object : dtype::array) {
+    if (type_ == dtype::object) {
+        typename object_t::alloc_type obj_al(*this);
+        value_.obj.construct(obj_al, init);
     } else {
         typename value_array_t::alloc_type arr_al(*this);
         value_.arr.construct(arr_al, init);
@@ -510,14 +510,14 @@ basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::operator=(std::basic_strin
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::assign(std::initializer_list<basic_value> init) {
-    if (!detail::is_record(init)) { return assign(array_tag, init.begin(), init.end()); }
-    typename record_t::alloc_type rec_al(*this);
-    if (type_ != dtype::record) {
+    if (!detail::is_object(init)) { return assign(array_tag, init.begin(), init.end()); }
+    typename object_t::alloc_type obj_al(*this);
+    if (type_ != dtype::object) {
         if (type_ != dtype::null) { destroy(); }
-        value_.rec.construct(rec_al, init.size());
-        type_ = dtype::record;
+        value_.obj.construct(obj_al, init.size());
+        type_ = dtype::object;
     }
-    value_.rec.assign(rec_al, init);
+    value_.obj.assign(obj_al, init);
 }
 
 template<typename CharT, typename Alloc>
@@ -526,8 +526,8 @@ void basic_value<CharT, Alloc>::assign(array_tag_t, std::initializer_list<basic_
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::assign(record_tag_t, std::initializer_list<std::pair<key_type, basic_value>> init) {
-    assign(record_tag, init.begin(), init.end());
+void basic_value<CharT, Alloc>::assign(object_tag_t, std::initializer_list<std::pair<key_type, basic_value>> init) {
+    assign(object_tag, init.begin(), init.end());
 }
 
 template<typename CharT, typename Alloc>
@@ -551,9 +551,9 @@ void basic_value<CharT, Alloc>::clear() {
             typename value_array_t::alloc_type arr_al(*this);
             value_.arr.clear(arr_al);
         } break;
-        case dtype::record: {
-            typename record_t::alloc_type rec_al(*this);
-            value_.rec.clear(rec_al);
+        case dtype::object: {
+            typename object_t::alloc_type obj_al(*this);
+            value_.obj.clear(obj_al);
         } break;
         default: break;
     }
@@ -570,9 +570,9 @@ void basic_value<CharT, Alloc>::ensure_unique() {
             typename value_array_t::alloc_type arr_al(*this);
             value_.arr.ensure_unique(arr_al);
         } break;
-        case dtype::record: {
-            typename record_t::alloc_type rec_al(*this);
-            value_.rec.ensure_unique(rec_al);
+        case dtype::object: {
+            typename object_t::alloc_type obj_al(*this);
+            value_.obj.ensure_unique(obj_al);
         } break;
         default: break;
     }
@@ -595,10 +595,10 @@ void basic_value<CharT, Alloc>::reserve(string_tag_t, size_type size) {
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::reserve(record_tag_t, size_type size) {
-    if (type_ != dtype::record) { init_as_record(); }
-    typename record_t::alloc_type rec_al(*this);
-    value_.rec.reserve(rec_al, size);
+void basic_value<CharT, Alloc>::reserve(object_tag_t, size_type size) {
+    if (type_ != dtype::object) { init_as_object(); }
+    typename object_t::alloc_type obj_al(*this);
+    value_.obj.reserve(obj_al, size);
 }
 
 template<typename CharT, typename Alloc>
@@ -635,12 +635,12 @@ void basic_value<CharT, Alloc>::erase(size_type pos) {
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::erase(const_iterator it) -> iterator {
-    if (it.is_record()) {
-        if (type_ != dtype::record) { throw database_error("not a record"); }
+    if (it.is_object()) {
+        if (type_ != dtype::object) { throw database_error("not an object"); }
         detail::list_links_t* node = static_cast<detail::list_links_t*>(it.ptr_);
-        uxs_iterator_assert(record_t::node_traits::get_head(node) == value_.rec.cend());
-        typename record_t::alloc_type rec_al(*this);
-        return iterator(value_.rec.erase(rec_al, node));
+        uxs_iterator_assert(object_t::node_traits::get_head(node) == value_.obj.cend());
+        typename object_t::alloc_type obj_al(*this);
+        return iterator(value_.obj.erase(obj_al, node));
     }
     if (type_ != dtype::array) { throw database_error("not an array"); }
     basic_value* item = static_cast<basic_value*>(it.ptr_);
@@ -652,9 +652,9 @@ auto basic_value<CharT, Alloc>::erase(const_iterator it) -> iterator {
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::erase(key_type key) -> size_type {
-    if (type_ != dtype::record) { throw database_error("not a record"); }
-    typename record_t::alloc_type rec_al(*this);
-    return value_.rec.erase(rec_al, key);
+    if (type_ != dtype::object) { throw database_error("not an object"); }
+    typename object_t::alloc_type obj_al(*this);
+    return value_.obj.erase(obj_al, key);
 }
 
 // --------------------------
@@ -681,7 +681,7 @@ est::optional<bool> basic_value<CharT, Alloc>::get_bool() const {
             return from_string_v(value_.str.cview(), *result) ? result : est::nullopt;
         } break;
         case dtype::array: return est::nullopt;
-        case dtype::record: return est::nullopt;
+        case dtype::object: return est::nullopt;
         default: UXS_UNREACHABLE_CODE;
     }
 }
@@ -715,7 +715,7 @@ est::optional<std::int32_t> basic_value<CharT, Alloc>::get_int() const {
             return from_string_v(value_.str.cview(), *result) ? result : est::nullopt;
         } break;
         case dtype::array: return est::nullopt;
-        case dtype::record: return est::nullopt;
+        case dtype::object: return est::nullopt;
         default: UXS_UNREACHABLE_CODE;
     }
 }
@@ -746,7 +746,7 @@ est::optional<std::uint32_t> basic_value<CharT, Alloc>::get_uint() const {
             return from_string_v(value_.str.cview(), *result) ? result : est::nullopt;
         } break;
         case dtype::array: return est::nullopt;
-        case dtype::record: return est::nullopt;
+        case dtype::object: return est::nullopt;
         default: UXS_UNREACHABLE_CODE;
     }
 }
@@ -774,7 +774,7 @@ est::optional<std::int64_t> basic_value<CharT, Alloc>::get_int64() const {
             return from_string_v(value_.str.cview(), *result) ? result : est::nullopt;
         } break;
         case dtype::array: return est::nullopt;
-        case dtype::record: return est::nullopt;
+        case dtype::object: return est::nullopt;
         default: UXS_UNREACHABLE_CODE;
     }
 }
@@ -800,7 +800,7 @@ est::optional<std::uint64_t> basic_value<CharT, Alloc>::get_uint64() const {
             return from_string_v(value_.str.cview(), *result) ? result : est::nullopt;
         } break;
         case dtype::array: return est::nullopt;
-        case dtype::record: return est::nullopt;
+        case dtype::object: return est::nullopt;
         default: UXS_UNREACHABLE_CODE;
     }
 }
@@ -820,7 +820,7 @@ est::optional<double> basic_value<CharT, Alloc>::get_double() const {
             return from_string_v(value_.str.cview(), *result) ? result : est::nullopt;
         } break;
         case dtype::array: return est::nullopt;
-        case dtype::record: return est::nullopt;
+        case dtype::object: return est::nullopt;
         default: UXS_UNREACHABLE_CODE;
     }
 }
@@ -863,7 +863,7 @@ est::optional<std::basic_string<CharT>> basic_value<CharT, Alloc>::get_string() 
         } break;
         case dtype::string: return est::make_optional<std::basic_string<CharT>>(value_.str.cview());
         case dtype::array: return est::nullopt;
-        case dtype::record: return est::nullopt;
+        case dtype::object: return est::nullopt;
         default: UXS_UNREACHABLE_CODE;
     }
 }
@@ -964,7 +964,7 @@ auto basic_value<CharT, Alloc>::size() const noexcept -> size_type {
     switch (type_) {
         case dtype::null: return 0;
         case dtype::array: return value_.arr.size();
-        case dtype::record: return value_.rec.size();
+        case dtype::object: return value_.obj.size();
         default: break;
     }
     return 1;
@@ -972,10 +972,10 @@ auto basic_value<CharT, Alloc>::size() const noexcept -> size_type {
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::begin() -> iterator {
-    if (type_ == dtype::record) {
-        typename record_t::alloc_type rec_al(*this);
-        value_.rec.ensure_unique(rec_al);
-        return iterator(value_.rec.cbegin());
+    if (type_ == dtype::object) {
+        typename object_t::alloc_type obj_al(*this);
+        value_.obj.ensure_unique(obj_al);
+        return iterator(value_.obj.cbegin());
     }
     const auto range = as_array();
     return iterator(range.data(), range.data(), range.data() + range.size());
@@ -983,17 +983,17 @@ auto basic_value<CharT, Alloc>::begin() -> iterator {
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::begin() const noexcept -> const_iterator {
-    if (type_ == dtype::record) { return const_iterator(value_.rec.cbegin()); }
+    if (type_ == dtype::object) { return const_iterator(value_.obj.cbegin()); }
     const auto range = as_array();
     return const_iterator(const_cast<value_type*>(range.data()), range.data(), range.data() + range.size());
 }
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::end() -> iterator {
-    if (type_ == dtype::record) {
-        typename record_t::alloc_type rec_al(*this);
-        value_.rec.ensure_unique(rec_al);
-        return iterator(value_.rec.cend());
+    if (type_ == dtype::object) {
+        typename object_t::alloc_type obj_al(*this);
+        value_.obj.ensure_unique(obj_al);
+        return iterator(value_.obj.cend());
     }
     const auto range = as_array();
     return iterator(range.data() + range.size(), range.data(), range.data() + range.size());
@@ -1001,7 +1001,7 @@ auto basic_value<CharT, Alloc>::end() -> iterator {
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::end() const noexcept -> const_iterator {
-    if (type_ == dtype::record) { return const_iterator(value_.rec.cend()); }
+    if (type_ == dtype::object) { return const_iterator(value_.obj.cend()); }
     const auto range = as_array();
     return const_iterator(const_cast<value_type*>(range.data()) + range.size(), range.data(),
                           range.data() + range.size());
@@ -1009,15 +1009,15 @@ auto basic_value<CharT, Alloc>::end() const noexcept -> const_iterator {
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::find(key_type key) const noexcept -> const_iterator {
-    return type_ == dtype::record ? const_iterator(value_.rec.find(key)) : end();
+    return type_ == dtype::object ? const_iterator(value_.obj.find(key)) : end();
 }
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::find(key_type key) -> iterator {
-    if (type_ != dtype::record) { return end(); }
-    typename record_t::alloc_type rec_al(*this);
-    value_.rec.ensure_unique(rec_al);
-    return iterator(value_.rec.find(key));
+    if (type_ != dtype::object) { return end(); }
+    typename object_t::alloc_type obj_al(*this);
+    value_.obj.ensure_unique(obj_al);
+    return iterator(value_.obj.find(key));
 }
 
 // --------------------------
@@ -1028,7 +1028,7 @@ void basic_value<CharT, Alloc>::init_from(const basic_value& other) noexcept {
     switch (other.type_) {
         case dtype::string: value_.str.ref(); break;
         case dtype::array: value_.arr.ref(); break;
-        case dtype::record: value_.rec.ref(); break;
+        case dtype::object: value_.obj.ref(); break;
         default: break;
     }
 }
@@ -1044,9 +1044,9 @@ void basic_value<CharT, Alloc>::destroy() noexcept {
             typename value_array_t::alloc_type arr_al(*this);
             value_.arr.unref(arr_al);
         } break;
-        case dtype::record: {
-            typename record_t::alloc_type rec_al(*this);
-            value_.rec.unref(rec_al);
+        case dtype::object: {
+            typename object_t::alloc_type obj_al(*this);
+            value_.obj.unref(obj_al);
         } break;
         default: break;
     }
@@ -1068,11 +1068,11 @@ void basic_value<CharT, Alloc>::init_as_array() {
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::init_as_record() {
-    if (type_ != dtype::null) { throw database_error("not a record"); }
-    typename record_t::alloc_type rec_al(*this);
-    value_.rec.construct(rec_al);
-    type_ = dtype::record;
+void basic_value<CharT, Alloc>::init_as_object() {
+    if (type_ != dtype::null) { throw database_error("not an object"); }
+    typename object_t::alloc_type obj_al(*this);
+    value_.obj.construct(obj_al);
+    type_ = dtype::object;
 }
 
 template<typename CharT, typename Alloc>
