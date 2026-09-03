@@ -1,5 +1,7 @@
 #include "uxs/variant.h"
 
+#include "uxs/string_conv.h"  // NOLINT
+
 using namespace uxs;
 
 UXS_IMPLEMENT_VARIANT_TYPE(std::string, nullptr, nullptr);

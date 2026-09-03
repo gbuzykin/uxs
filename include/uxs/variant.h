@@ -2,7 +2,7 @@
 
 #include "cow_ptr.h"
 #include "optional.h"
-#include "string_conv.h"  // NOLINT
+#include "string_conv_base.h"  // NOLINT
 #include "type_traits.h"
 
 #include "io/serialize.h"  // NOLINT
@@ -11,6 +11,7 @@
     template<> \
     struct variant_type_impl<ty> : variant_type_base_impl<ty, id> { \
         static detail::variant_vtable_t vtable; \
+        static variant_type_impl<ty> impl; \
         static bool convert_from(variant_id_t, void*, const void*); \
         static bool convert_to(variant_id_t, void*, const void*); \
         variant_type_impl(); \
@@ -27,7 +28,7 @@
         assert(!uxs::variant::vtables_[static_cast<unsigned>(type_id)]); \
         uxs::variant::vtables_[static_cast<unsigned>(type_id)] = &vtable; \
     } \
-    static uxs::variant_type_impl<ty> UXS_TOKENPASTE2(g_variant_type_impl_, __LINE__)
+    uxs::variant_type_impl<ty> uxs::variant_type_impl<ty>::impl
 
 #define UXS_IMPLEMENT_VARIANT_TYPE_WITH_STRING_CONVERTER(ty) \
     bool uxs::variant_type_impl<ty>::convert_from(variant_id_t type, void* to, const void* from) { \
@@ -343,8 +344,8 @@ class variant {
     template<typename Ty, typename = std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
     est::optional<Ty> get_impl() const;
 
-    friend UXS_EXPORT bibuf& operator>>(bibuf& is, variant& v);
-    friend UXS_EXPORT biobuf& operator<<(biobuf& os, const variant& v);
+    UXS_EXPORT friend bibuf& operator>>(bibuf& is, variant& v);
+    UXS_EXPORT friend biobuf& operator<<(biobuf& os, const variant& v);
 
     template<typename>
     friend struct variant_type_impl;

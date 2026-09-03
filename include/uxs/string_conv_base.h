@@ -67,7 +67,7 @@ UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(fmt_flags);
 
 struct fmt_opts {
     UXS_CONSTEXPR fmt_opts() noexcept = default;
-    UXS_CONSTEXPR explicit fmt_opts(fmt_flags fl, int p = -1, unsigned w = 0, int f = ' ') noexcept
+    explicit UXS_CONSTEXPR fmt_opts(fmt_flags fl, int p = -1, unsigned w = 0, int f = ' ') noexcept
         : flags(fl), prec(p), width(w), fill(f) {}
     fmt_flags flags = fmt_flags::none;
     int prec = -1;

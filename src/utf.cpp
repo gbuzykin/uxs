@@ -5,7 +5,7 @@
 namespace uxs {
 
 bool is_utf_code_printable(std::uint32_t code) noexcept {
-    static const UXS_CONSTEXPR std::uint32_t v[] = {
+    static UXS_CONSTEXPR_DATA std::uint32_t v[] = {
         0x12,       0x1d9,      0x377,      0x37d,      0x37f,      0x380,      0x381,      0x382,      0x383,
         0x384,      0x385,      0x386,      0x387,      0x388,      0x389,      0x38a,      0x38b,      0x38c,
         0x1f0000,   0x21007f,   0xad,       0x6f0300,   0x10378,    0x30380,    0x38b,      0x38d,      0x3a2,
@@ -119,7 +119,7 @@ bool is_utf_code_printable(std::uint32_t code) noexcept {
 }
 
 unsigned get_utf_code_width(std::uint32_t code) noexcept {
-    static const UXS_CONSTEXPR std::uint32_t v[] = {
+    static UXS_CONSTEXPR_DATA std::uint32_t v[] = {
         0x12,      0x4e,     0x77,       0x7d,       0x7f,      0x7f,       0x7f,       0x7f,       0x7f,
         0x7f,      0x7f,     0x7f,       0x7f,       0x7f,      0x7f,       0x7f,       0x7f,       0x7f,
         0x5f1100,  0x1231a,  0x12329,    0x323e9,    0x23f0,    0x23f3,     0x125fd,    0x12614,    0xb2648,

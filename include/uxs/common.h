@@ -6,9 +6,6 @@
 #include <cstddef>  // NOLINT
 #include <cstdint>  // NOLINT
 
-#define UXS_TOKENPASTE(x, y)  x##y
-#define UXS_TOKENPASTE2(x, y) UXS_TOKENPASTE(x, y)
-
 #if !defined(UXS_HAS_INCLUDE)
 #    if defined(__has_include) || _MSC_VER >= 1900
 #        define UXS_HAS_INCLUDE(x) __has_include(x)
@@ -45,9 +42,13 @@
 
 #if !defined(UXS_CONSTEXPR)
 #    if __cplusplus < 201703L
-#        define UXS_CONSTEXPR
+#        define UXS_CONSTEXPR      inline
+#        define UXS_CONSTEXPR_DATA const
+#        define UXS_CONSTEXPR_IF
 #    else  // __cplusplus < 201703L
-#        define UXS_CONSTEXPR constexpr
+#        define UXS_CONSTEXPR      constexpr
+#        define UXS_CONSTEXPR_DATA constexpr
+#        define UXS_CONSTEXPR_IF   constexpr
 #    endif  // __cplusplus < 201703L
 #endif      // !defined(UXS_CONSTEXPR)
 

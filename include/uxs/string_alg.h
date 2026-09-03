@@ -15,7 +15,7 @@ struct char_finder {
     CharT ch;
     using is_finder = int;
     using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
-    UXS_CONSTEXPR explicit char_finder(CharT tgt) : ch(tgt) {}
+    explicit UXS_CONSTEXPR char_finder(CharT tgt) : ch(tgt) {}
     UXS_CONSTEXPR std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         for (; begin != end; ++begin) {
             if (Traits::eq(*begin, '\\')) {
@@ -33,7 +33,7 @@ struct reverse_char_finder {
     CharT ch;
     using is_reverse_finder = int;
     using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
-    UXS_CONSTEXPR explicit reverse_char_finder(CharT tgt) : ch(tgt) {}
+    explicit UXS_CONSTEXPR reverse_char_finder(CharT tgt) : ch(tgt) {}
     UXS_CONSTEXPR std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         while (begin != end) {
             --end;
@@ -51,7 +51,7 @@ struct string_finder {
     std::basic_string_view<CharT, Traits> s;
     using is_finder = int;
     using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
-    UXS_CONSTEXPR explicit string_finder(std::basic_string_view<CharT, Traits> tgt) : s(tgt) {}
+    explicit UXS_CONSTEXPR string_finder(std::basic_string_view<CharT, Traits> tgt) : s(tgt) {}
     UXS_CONSTEXPR std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         if (static_cast<std::size_t>(end - begin) < s.size()) { return std::make_pair(end, end); }
         if (!s.size()) { return std::make_pair(begin, begin); }
@@ -67,7 +67,7 @@ struct reverse_string_finder {
     std::basic_string_view<CharT, Traits> s;
     using is_reverse_finder = int;
     using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
-    UXS_CONSTEXPR explicit reverse_string_finder(std::basic_string_view<CharT, Traits> tgt) : s(tgt) {}
+    explicit UXS_CONSTEXPR reverse_string_finder(std::basic_string_view<CharT, Traits> tgt) : s(tgt) {}
     UXS_CONSTEXPR std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         if (static_cast<std::size_t>(end - begin) < s.size()) { return std::make_pair(begin, begin); }
         if (!s.size()) { return std::make_pair(end, end); }

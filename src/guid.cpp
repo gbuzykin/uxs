@@ -41,9 +41,9 @@ struct guid_random_generator {
 
         guid id(data);
         // set version: must be 0b0100xxxx
-        id.data.w[1] = (id.data.w[1] & 0x4FFF) | 0x4000;
+        id.data.w[1] = (id.data.w[1] & 0x4fff) | 0x4000;
         // set variant: must be 0b10xxxxxx
-        id.data.b[0] = (id.data.b[0] & 0xBF) | 0x80;
+        id.data.b[0] = (id.data.b[0] & 0xbf) | 0x80;
         return id;
     }
 };
