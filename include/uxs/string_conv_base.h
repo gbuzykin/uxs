@@ -14,11 +14,13 @@ struct from_chars_result {
 #if __cplusplus < 201703L
     from_chars_result(const CharT* ptr, sconv_errc ec) noexcept : ptr(ptr), ec(ec) {}
 #endif  // __cplusplus < 201703L
-    explicit operator bool() const noexcept { return ec == sconv_errc::ok; }
-    friend bool operator==(const from_chars_result& lhs, const from_chars_result& rhs) {
+    explicit UXS_CONSTEXPR operator bool() const noexcept { return ec == sconv_errc::ok; }
+    friend UXS_CONSTEXPR bool operator==(const from_chars_result& lhs, const from_chars_result& rhs) noexcept {
         return lhs.ptr == rhs.ptr && lhs.ec == rhs.ec;
     }
-    friend bool operator!=(const from_chars_result& lhs, const from_chars_result& rhs) { return !(lhs == rhs); }
+    friend UXS_CONSTEXPR bool operator!=(const from_chars_result& lhs, const from_chars_result& rhs) noexcept {
+        return !(lhs == rhs);
+    }
     const CharT* ptr;
     sconv_errc ec;
 };
@@ -27,11 +29,13 @@ struct from_string_result {
 #if __cplusplus < 201703L
     from_string_result(std::size_t count, sconv_errc ec) noexcept : count(count), ec(ec) {}
 #endif  // __cplusplus < 201703L
-    explicit operator bool() const noexcept { return ec == sconv_errc::ok; }
-    friend bool operator==(const from_string_result& lhs, const from_string_result& rhs) {
+    explicit UXS_CONSTEXPR operator bool() const noexcept { return ec == sconv_errc::ok; }
+    friend UXS_CONSTEXPR bool operator==(const from_string_result& lhs, const from_string_result& rhs) noexcept {
         return lhs.count == rhs.count && lhs.ec == rhs.ec;
     }
-    friend bool operator!=(const from_string_result& lhs, const from_string_result& rhs) { return !(lhs == rhs); }
+    friend UXS_CONSTEXPR bool operator!=(const from_string_result& lhs, const from_string_result& rhs) noexcept {
+        return !(lhs == rhs);
+    }
     std::size_t count;
     sconv_errc ec;
 };
@@ -108,26 +112,26 @@ struct is_from_string_convertible<
                      from_chars_result<CharT>>::value>> : std::true_type {};
 
 template<typename CharT, typename Ty, typename = std::enable_if_t<is_from_string_convertible<Ty, CharT>::value>>
-from_chars_result<CharT> from_chars(const CharT* first, const CharT* last, Ty& val) {
+UXS_CONSTEXPR from_chars_result<CharT> from_chars(const CharT* first, const CharT* last, Ty& val) {
     return from_string_impl<Ty, CharT>{}(first, last, val);
 }
 
 template<typename StrLikeTy, typename Ty, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-from_string_result from_string_v(const StrLikeTy& s, Ty& val) {
+UXS_CONSTEXPR from_string_result from_string_v(const StrLikeTy& s, Ty& val) {
     const auto sv = to_string_view(s);
     const auto result = from_chars(sv.data(), sv.data() + sv.size(), val);
     return {static_cast<std::size_t>(result.ptr - sv.data()), result.ec};
 }
 
 template<typename Ty, typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>, typename... Args>
-Ty from_string(const StrLikeTy& s, Args&&... args) {
+UXS_CONSTEXPR Ty from_string(const StrLikeTy& s, Args&&... args) {
     Ty val(std::forward<Args>(args)...);
     from_string_v(s, val);
     return val;
 }
 
 template<typename Ty, typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>, typename... Args>
-Ty from_string_errc(const StrLikeTy& s, sconv_errc& ec, Args&&... args) {
+UXS_CONSTEXPR Ty from_string_errc(const StrLikeTy& s, sconv_errc& ec, Args&&... args) {
     Ty val(std::forward<Args>(args)...);
     ec = from_string_v(s, val).ec;
     return val;

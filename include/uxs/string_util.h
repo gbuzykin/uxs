@@ -112,7 +112,7 @@ struct utf_string_adapter<char> {
         auto p = s.begin();
         while (p != s.end()) {
             std::uint32_t code = 0;
-            p = from_wchar(p, s.end(), code).iter;
+            p = from_wchars(p, s.end(), code).iter;
             to_utf8(code, std::back_inserter(out));
         }
     }
@@ -129,7 +129,7 @@ struct utf_string_adapter<wchar_t> {
         while (p != s.end()) {
             std::uint32_t code = 0;
             p = from_utf8(p, s.end(), code).iter;
-            to_wchar(code, std::back_inserter(out));
+            to_wchars(code, std::back_inserter(out));
         }
     }
     template<typename StrTy>
