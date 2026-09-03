@@ -7,7 +7,7 @@ namespace uxs {
 class crc32_calc {
  public:
     template<typename InputIt>
-    UXS_CONSTEXPR std::uint32_t operator()(InputIt it, InputIt end, std::uint32_t crc32 = 0xffffffff) const noexcept {
+    UXS_CONSTEXPR std::uint32_t operator()(InputIt it, InputIt end, std::uint32_t crc32 = 0xffffffff) const {
         while (it != end) { crc32 = (crc32 >> 8) ^ table()[(crc32 & 0xff) ^ static_cast<std::uint8_t>(*it++)]; }
         return crc32;
     }

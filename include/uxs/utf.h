@@ -13,7 +13,7 @@ struct from_utf_result {
 #if __cplusplus < 201703L
     from_utf_result(InputIt iter, utf_errc ec) : iter(iter), ec(ec) {}
 #endif  // __cplusplus < 201703L
-    explicit operator bool() const noexcept { return ec == utf_errc::wellformed; }
+    explicit UXS_CONSTEXPR operator bool() const noexcept { return ec == utf_errc::wellformed; }
     InputIt iter;
     utf_errc ec;
 };
@@ -27,10 +27,10 @@ struct to_utf_result {
     unsigned count;
 };
 
-inline bool is_acceptable_utf32(std::uint32_t ch) { return ch < 0x110000 && (ch & 0x1ff800) != 0xd800; }
+UXS_CONSTEXPR bool is_acceptable_utf32(std::uint32_t ch) { return ch < 0x110000 && (ch & 0x1ff800) != 0xd800; }
 
 template<typename InputIt>
-from_utf_result<InputIt> from_utf8(InputIt first, InputIt last, std::uint32_t& code) {
+UXS_CONSTEXPR from_utf_result<InputIt> from_utf8(InputIt first, InputIt last, std::uint32_t& code) {
     if (first == last) { return {first, utf_errc::empty}; }
     std::uint8_t ch0 = static_cast<std::uint8_t>(*first++);
     code = ch0;
@@ -57,8 +57,8 @@ from_utf_result<InputIt> from_utf8(InputIt first, InputIt last, std::uint32_t& c
 }
 
 template<typename OutputIt>
-to_utf_result<OutputIt> to_utf8(std::uint32_t code, OutputIt out,
-                                std::size_t avail = std::numeric_limits<std::size_t>::max()) {
+UXS_CONSTEXPR to_utf_result<OutputIt> to_utf8(std::uint32_t code, OutputIt out,
+                                              std::size_t avail = std::numeric_limits<std::size_t>::max()) {
     if (avail == 0) { return {out, 0}; }
     if (code < 0x80) {
         *out = static_cast<std::uint8_t>(code);
@@ -68,7 +68,7 @@ to_utf_result<OutputIt> to_utf8(std::uint32_t code, OutputIt out,
     if (!is_acceptable_utf32(code)) { code = 0xfffd; }
     const std::uint8_t mask[] = {0, 0x1f, 0xf, 0x7};
     const std::uint8_t hdr[] = {0, 0xc0, 0xe0, 0xf0};
-    std::uint8_t ch[4];
+    std::uint8_t ch[4] = {};
     unsigned count = 0;
     do { ch[count] = 0x80 | (code & 0x3f); } while ((code >>= 6) > mask[++count]);
     const unsigned n_written = count + 1;
@@ -83,7 +83,7 @@ to_utf_result<OutputIt> to_utf8(std::uint32_t code, OutputIt out,
 }
 
 template<typename InputIt>
-from_utf_result<InputIt> from_utf16(InputIt first, InputIt last, std::uint32_t& code) {
+UXS_CONSTEXPR from_utf_result<InputIt> from_utf16(InputIt first, InputIt last, std::uint32_t& code) {
     if (first == last) { return {first, utf_errc::empty}; }
     const std::uint16_t ch0 = static_cast<std::uint16_t>(*first++);
     code = ch0;
@@ -94,8 +94,8 @@ from_utf_result<InputIt> from_utf16(InputIt first, InputIt last, std::uint32_t& 
 }
 
 template<typename OutputIt>
-to_utf_result<OutputIt> to_utf16(std::uint32_t code, OutputIt out,
-                                 std::size_t avail = std::numeric_limits<std::size_t>::max()) {
+UXS_CONSTEXPR to_utf_result<OutputIt> to_utf16(std::uint32_t code, OutputIt out,
+                                               std::size_t avail = std::numeric_limits<std::size_t>::max()) {
     if (avail == 0) { return {out, 0}; }
     if (code >= 0x10000) {
         if (code < 0x110000) {
@@ -117,15 +117,15 @@ to_utf_result<OutputIt> to_utf16(std::uint32_t code, OutputIt out,
 }
 
 template<typename InputIt>
-from_utf_result<InputIt> from_utf32(InputIt first, InputIt last, std::uint32_t& code) {
+UXS_CONSTEXPR from_utf_result<InputIt> from_utf32(InputIt first, InputIt last, std::uint32_t& code) {
     if (first == last) { return {first, utf_errc::empty}; }
     code = static_cast<std::uint32_t>(*first++);
     return {first, is_acceptable_utf32(code) ? utf_errc::wellformed : utf_errc::invalid};
 }
 
 template<typename OutputIt>
-to_utf_result<OutputIt> to_utf32(std::uint32_t code, OutputIt out,
-                                 std::size_t avail = std::numeric_limits<std::size_t>::max()) {
+UXS_CONSTEXPR to_utf_result<OutputIt> to_utf32(std::uint32_t code, OutputIt out,
+                                               std::size_t avail = std::numeric_limits<std::size_t>::max()) {
     if (avail == 0) { return {out, 0}; }
     *out = is_acceptable_utf32(code) ? code : 0xfffd;
     ++out;
@@ -134,22 +134,22 @@ to_utf_result<OutputIt> to_utf32(std::uint32_t code, OutputIt out,
 
 #if WCHAR_MAX > 0xffff
 template<typename InputIt>
-from_utf_result<InputIt> from_wchar(InputIt first, InputIt last, std::uint32_t& code) {
+UXS_CONSTEXPR from_utf_result<InputIt> from_wchars(InputIt first, InputIt last, std::uint32_t& code) {
     return from_utf32(first, last, code);
 }
 template<typename OutputIt>
-to_utf_result<OutputIt> to_wchar(std::uint32_t code, OutputIt out,
-                                 std::size_t avail = std::numeric_limits<std::size_t>::max()) {
+UXS_CONSTEXPR to_utf_result<OutputIt> to_wchars(std::uint32_t code, OutputIt out,
+                                                std::size_t avail = std::numeric_limits<std::size_t>::max()) {
     return to_utf32(code, out, avail);
 }
 #else   // WCHAR_MAX > 0xffff
 template<typename InputIt>
-from_utf_result<InputIt> from_wchar(InputIt first, InputIt last, std::uint32_t& code) {
+UXS_CONSTEXPR from_utf_result<InputIt> from_wchars(InputIt first, InputIt last, std::uint32_t& code) {
     return from_utf16(first, last, code);
 }
 template<typename OutputIt>
-to_utf_result<OutputIt> to_wchar(std::uint32_t code, OutputIt out,
-                                 std::size_t avail = std::numeric_limits<std::size_t>::max()) {
+UXS_CONSTEXPR to_utf_result<OutputIt> to_wchars(std::uint32_t code, OutputIt out,
+                                                std::size_t avail = std::numeric_limits<std::size_t>::max()) {
     return to_utf16(code, out, avail);
 }
 #endif  // WCHAR_MAX > 0xffff
@@ -160,7 +160,7 @@ struct utf_decoder;
 template<>
 struct utf_decoder<char> {
     template<typename InputIt>
-    from_utf_result<InputIt> decode(InputIt first, InputIt last, std::uint32_t& code) const {
+    UXS_CONSTEXPR from_utf_result<InputIt> decode(InputIt first, InputIt last, std::uint32_t& code) const {
         return from_utf8(first, last, code);
     }
 };
@@ -168,8 +168,8 @@ struct utf_decoder<char> {
 template<>
 struct utf_decoder<wchar_t> {
     template<typename InputIt>
-    from_utf_result<InputIt> decode(InputIt first, InputIt last, std::uint32_t& code) const {
-        return from_wchar(first, last, code);
+    UXS_CONSTEXPR from_utf_result<InputIt> decode(InputIt first, InputIt last, std::uint32_t& code) const {
+        return from_wchars(first, last, code);
     }
 };
 
@@ -179,8 +179,8 @@ struct utf_encoder;
 template<>
 struct utf_encoder<char> {
     template<typename OutputIt>
-    to_utf_result<OutputIt> encode(std::uint32_t code, OutputIt out,
-                                   std::size_t avail = std::numeric_limits<std::size_t>::max()) const {
+    UXS_CONSTEXPR to_utf_result<OutputIt> encode(std::uint32_t code, OutputIt out,
+                                                 std::size_t avail = std::numeric_limits<std::size_t>::max()) const {
         return to_utf8(code, out, avail);
     }
 };
@@ -188,9 +188,9 @@ struct utf_encoder<char> {
 template<>
 struct utf_encoder<wchar_t> {
     template<typename OutputIt>
-    to_utf_result<OutputIt> encode(std::uint32_t code, OutputIt out,
-                                   std::size_t avail = std::numeric_limits<std::size_t>::max()) const {
-        return to_wchar(code, out, avail);
+    UXS_CONSTEXPR to_utf_result<OutputIt> encode(std::uint32_t code, OutputIt out,
+                                                 std::size_t avail = std::numeric_limits<std::size_t>::max()) const {
+        return to_wchars(code, out, avail);
     }
 };
 

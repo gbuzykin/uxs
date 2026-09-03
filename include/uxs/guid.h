@@ -11,77 +11,46 @@ struct guid {
     using data8_t = std::array<std::uint8_t, 16>;
     using data16_t = std::array<std::uint16_t, 8>;
     using data32_t = std::array<std::uint32_t, 4>;
-
-    struct data64_t : std::array<std::uint64_t, 2> {
-        bool valid() const noexcept { return (*this)[0] || (*this)[1]; }
-        friend bool operator==(data64_t lhs, data64_t rhs) noexcept { return lhs[0] == rhs[0] && lhs[1] == rhs[1]; }
-        friend bool operator<(data64_t lhs, data64_t rhs) noexcept {
-            return lhs[0] < rhs[0] || (lhs[0] == rhs[0] && lhs[1] < rhs[1]);
-        }
-    };
+    using data64_t = std::array<std::uint64_t, 2>;
 
     struct layout_t {
-        layout_t() noexcept = default;
-        UXS_CONSTEXPR layout_t(std::uint32_t l, std::uint16_t w1, std::uint16_t w2, std::uint8_t b1, std::uint8_t b2,
-                               std::uint8_t b3, std::uint8_t b4, std::uint8_t b5, std::uint8_t b6, std::uint8_t b7,
-                               std::uint8_t b8) noexcept
-            : l{l}, w{w1, w2}, b{b1, b2, b3, b4, b5, b6, b7, b8} {}
         std::uint32_t l;
         std::array<std::uint16_t, 2> w;
         std::array<std::uint8_t, 8> b;
     };
 
-    static_assert(sizeof(data8_t) == sizeof(data64_t), "type size mismatch");
-    static_assert(sizeof(data16_t) == sizeof(data64_t), "type size mismatch");
-    static_assert(sizeof(data32_t) == sizeof(data64_t), "type size mismatch");
-    static_assert(sizeof(layout_t) == sizeof(data64_t), "type size mismatch");
+    static_assert(sizeof(data8_t) == sizeof(layout_t), "type size mismatch");
+    static_assert(sizeof(data16_t) == sizeof(layout_t), "type size mismatch");
+    static_assert(sizeof(data32_t) == sizeof(layout_t), "type size mismatch");
+    static_assert(sizeof(data64_t) == sizeof(layout_t), "type size mismatch");
 
-    layout_t data;
+    union {
+        layout_t layout;
+        data8_t data8;
+        data16_t data16;
+        data32_t data32;
+        data64_t data64;
+    };
 
-    UXS_CONSTEXPR guid() noexcept : data{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0} {}
+    UXS_CONSTEXPR guid() noexcept : data64{0, 0} {}
+    explicit UXS_CONSTEXPR guid(data8_t b) : data8(b) {}
+    explicit UXS_CONSTEXPR guid(data16_t w) : data16(w) {}
+    explicit UXS_CONSTEXPR guid(data32_t l) : data32(l) {}
+    explicit UXS_CONSTEXPR guid(data64_t q) : data64(q) {}
     UXS_CONSTEXPR guid(std::uint32_t l, std::uint16_t w1, std::uint16_t w2, std::uint8_t b1, std::uint8_t b2,
                        std::uint8_t b3, std::uint8_t b4, std::uint8_t b5, std::uint8_t b6, std::uint8_t b7,
                        std::uint8_t b8) noexcept
-        : data{l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8} {}
+        : layout{l, {w1, w2}, {b1, b2, b3, b4, b5, b6, b7, b8}} {}
 
-    explicit guid(data8_t b) noexcept { std::memcpy(&data, &b, sizeof(data)); }
-    explicit guid(data16_t w) noexcept { std::memcpy(&data, &w, sizeof(data)); }
-    explicit guid(data32_t l) noexcept { std::memcpy(&data, &l, sizeof(data)); }
-    explicit guid(data64_t q) noexcept { std::memcpy(&data, &q, sizeof(data)); }
+    UXS_CONSTEXPR bool valid() const noexcept { return data64[0] || data64[1]; }
 
-    bool valid() const noexcept { return data64().valid(); }
-
-    data8_t data8() const {
-        data8_t b;
-        std::memcpy(&b, &data, sizeof(data));
-        return b;
+    friend UXS_CONSTEXPR bool operator==(guid lhs, guid rhs) noexcept {
+        return lhs.data64[0] == rhs.data64[0] && lhs.data64[1] == rhs.data64[1];
     }
-    data16_t data16() const {
-        data16_t w;
-        std::memcpy(&w, &data, sizeof(data));
-        return w;
-    }
-    data32_t data32() const {
-        data32_t l;
-        std::memcpy(&l, &data, sizeof(data));
-        return l;
-    }
-    data64_t data64() const {
-        data64_t q;
-        std::memcpy(&q, &data, sizeof(data));
-        return q;
-    }
-
-    friend bool operator==(guid lhs, guid rhs) noexcept { return lhs.data64() == rhs.data64(); }
-    friend bool operator!=(guid lhs, guid rhs) noexcept { return !(lhs.data64() == rhs.data64()); }
-
-    friend bool operator<(guid lhs, guid rhs) noexcept { return lhs.data64() < rhs.data64(); }
-    friend bool operator<=(guid lhs, guid rhs) noexcept { return !(rhs.data64() < lhs.data64()); }
-    friend bool operator>(guid lhs, guid rhs) noexcept { return rhs.data64() < lhs.data64(); }
-    friend bool operator>=(guid lhs, guid rhs) noexcept { return !(lhs.data64() < rhs.data64()); }
+    friend UXS_CONSTEXPR bool operator!=(guid lhs, guid rhs) noexcept { return !(lhs == rhs); }
 
     template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-    sconv_errc from_per_byte_string(const StrLikeTy& s) noexcept;
+    UXS_CONSTEXPR from_string_result from_per_byte_string(const StrLikeTy& s) noexcept;
 
     template<typename StrTy>
     void to_per_byte_string_append(StrTy& out) const;
@@ -98,7 +67,7 @@ struct guid {
 
 namespace detail {
 template<typename CharT>
-sconv_errc from_hex(const CharT* p, std::uint8_t& b) {
+UXS_CONSTEXPR sconv_errc from_hex(const CharT* p, std::uint8_t& b) {
     const unsigned dig1 = dig_v(p[0]);
     const unsigned dig2 = dig_v(p[1]);
     if (dig1 >= 16 || dig2 >= 16) { return sconv_errc::invalid; }
@@ -106,37 +75,38 @@ sconv_errc from_hex(const CharT* p, std::uint8_t& b) {
     return sconv_errc::ok;
 }
 template<typename CharT>
-void to_hex(std::uint8_t b, CharT* p, const char* digs) {
+UXS_CONSTEXPR void to_hex(std::uint8_t b, CharT* p, const char* digs) {
     p[0] = digs[(b >> 4) & 0xf];
     p[1] = digs[b & 0xf];
 }
 }  // namespace detail
 
 template<typename StrLikeTy, typename>
-sconv_errc guid::from_per_byte_string(const StrLikeTy& s) noexcept {
+UXS_CONSTEXPR from_string_result guid::from_per_byte_string(const StrLikeTy& s) noexcept {
     const auto sv = to_string_view(s);
-    if (sv.size() < 32) { return sconv_errc::invalid; }
+    const std::size_t len = 32;
+    if (sv.size() < len) { return {0, sconv_errc::invalid}; }
     const auto* p = sv.data();
-    guid::data8_t data;
-    for (std::uint8_t& b : data) {
-        if (detail::from_hex(p, b) != sconv_errc::ok) { return sconv_errc::invalid; }
+    data8_t bytes{};
+    for (std::uint8_t& b : bytes) {
+        if (detail::from_hex(p, b) != sconv_errc::ok) { return {0, sconv_errc::invalid}; }
         p += 2;
     }
-    *this = guid(data);
-    return sconv_errc::ok;
+    *this = guid(bytes);
+    return {len, sconv_errc::ok};
 }
 
 template<typename StrTy>
 void guid::to_per_byte_string_append(StrTy& out) const {
     std::array<typename StrTy::value_type, 32> buf;
     auto* p = buf.data();
-    for (const std::uint8_t b : data8()) { detail::to_hex(b, p, "0123456789ABCDEF"), p += 2; }
+    for (const std::uint8_t b : data8) { detail::to_hex(b, p, "0123456789ABCDEF"), p += 2; }
     out.append(buf.data(), p);
 }
 
 template<typename CharT>
 struct from_string_impl<guid, CharT> {
-    from_chars_result<CharT> operator()(const CharT* first, const CharT* last, guid& val) const noexcept {
+    UXS_CONSTEXPR from_chars_result<CharT> operator()(const CharT* first, const CharT* last, guid& val) const noexcept {
         if (first == last) { return {first, sconv_errc::empty}; }
         const std::size_t len = 38;
         if (static_cast<std::size_t>(last - first) < len) { return {first, sconv_errc::invalid}; }
@@ -145,13 +115,12 @@ struct from_string_impl<guid, CharT> {
             return {first, sconv_errc::invalid};
         }
         unsigned n = 0;
-        guid::data8_t data;
-        static const UXS_CONSTEXPR std::uint8_t byte_pos[16] = {7,  5,  3,  1,  12, 10, 17, 15,
-                                                                20, 22, 25, 27, 29, 31, 33, 35};
-        for (std::uint8_t& b : data) {
+        guid::data8_t data8{};
+        UXS_CONSTEXPR_DATA std::uint8_t byte_pos[16] = {7, 5, 3, 1, 12, 10, 17, 15, 20, 22, 25, 27, 29, 31, 33, 35};
+        for (std::uint8_t& b : data8) {
             if (detail::from_hex(&first[byte_pos[n++]], b) != sconv_errc::ok) { return {first, sconv_errc::invalid}; }
         }
-        val = guid(data);
+        val = guid(data8);
         return {first + len, sconv_errc::ok};
     }
 };
@@ -165,9 +134,8 @@ struct to_string_impl<guid, CharT> {
         std::array<typename StrTy::value_type, len> buf;
         buf[0] = '{', buf[9] = '-', buf[14] = '-', buf[19] = '-', buf[24] = '-', buf[37] = '}';
         unsigned n = 0;
-        static const UXS_CONSTEXPR std::uint8_t byte_pos[16] = {7,  5,  3,  1,  12, 10, 17, 15,
-                                                                20, 22, 25, 27, 29, 31, 33, 35};
-        for (const std::uint8_t b : val.data8()) { detail::to_hex(b, &buf[byte_pos[n++]], digs); }
+        UXS_CONSTEXPR_DATA std::uint8_t byte_pos[16] = {7, 5, 3, 1, 12, 10, 17, 15, 20, 22, 25, 27, 29, 31, 33, 35};
+        for (const std::uint8_t b : val.data8) { detail::to_hex(b, &buf[byte_pos[n++]], digs); }
         const auto fn = [&buf](StrTy& out) { out.append(buf.data(), buf.size()); };
         fmt.width > len ? append_adjusted(out, fn, len, fmt) : fn(out);
     }
@@ -206,9 +174,8 @@ struct formatter<guid, CharT> {
 namespace std {
 template<>
 struct hash<uxs::guid> {
-    std::size_t operator()(uxs::guid id) const {
-        const auto q = id.data64();
-        return hash<std::uint64_t>{}(q[0]) ^ (hash<std::uint64_t>{}(q[1]) << 1);
+    std::size_t operator()(uxs::guid val) const {
+        return hash<std::uint64_t>{}(val.data64[0]) ^ (hash<std::uint64_t>{}(val.data64[1]) << 1);
     }
 };
 }  // namespace std

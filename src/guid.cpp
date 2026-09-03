@@ -22,35 +22,40 @@ class spin_mutex {
     std::atomic_flag flag_ = ATOMIC_FLAG_INIT;
 };
 
-struct guid_random_generator {
+struct random_generator {
     std::mt19937 generator;
-    std::uniform_int_distribution<std::uint32_t> distribution;
-    spin_mutex generator_lock;
-    guid_random_generator() : distribution(0, std::numeric_limits<std::uint32_t>::max()) {
+    std::uniform_int_distribution<std::uint64_t> distribution;
+    random_generator() : distribution(0, std::numeric_limits<std::uint64_t>::max()) {
         std::random_device r;
         std::seed_seq seed{r(), r(), r(), r(), r()};
         generator.seed(seed);
     }
-    guid operator()() {
-        guid::data32_t data;
+    static guid::data64_t generate() {
+        static bool is_initialized = false;
+        static spin_mutex lock;
+        alignas(std::alignment_of<random_generator>::value) static std::uint8_t v[sizeof(random_generator)];
 
-        {
-            std::lock_guard<spin_mutex> lk(generator_lock);
-            for (std::uint32_t& l : data) { l = distribution(generator); }
+        std::lock_guard<spin_mutex> lk(lock);
+
+        auto& g = *reinterpret_cast<random_generator*>(&v);
+        if (!is_initialized) {
+            new (&g) random_generator;
+            is_initialized = true;
         }
 
-        guid id(data);
-        // set version: must be 0b0100xxxx
-        id.data.w[1] = (id.data.w[1] & 0x4fff) | 0x4000;
-        // set variant: must be 0b10xxxxxx
-        id.data.b[0] = (id.data.b[0] & 0xbf) | 0x80;
-        return id;
+        return {g.distribution(g.generator), g.distribution(g.generator)};
     }
 };
 
 }  // namespace
 
 guid guid::generate() {
-    static guid_random_generator generator;
-    return generator();
+    guid id(random_generator::generate());
+
+    // set version: must be 0b0100xxxxxxxxxxxx
+    id.layout.w[1] = (id.layout.w[1] & 0x0fff) | 0x4000;
+    // set variant: must be 0b10xxxxxx
+    id.layout.b[0] = (id.layout.b[0] & 0x3f) | 0x80;
+
+    return id;
 }
