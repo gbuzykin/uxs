@@ -43,7 +43,7 @@ struct fp_m64_t {
     int exp;
 };
 
-const UXS_CONSTEXPR std::uint64_t msb64 = 1ULL << 63;
+UXS_CONSTEXPR_DATA std::uint64_t msb64 = 1ULL << 63;
 UXS_FORCE_INLINE std::uint64_t lo32(std::uint64_t x) { return x & 0xffffffff; }
 UXS_FORCE_INLINE std::uint64_t hi32(std::uint64_t x) { return x >> 32; }
 template<typename TyH, typename TyL>
@@ -67,7 +67,7 @@ UXS_FORCE_INLINE unsigned ulog2(std::uint32_t x) { return __builtin_clz(x | 1) ^
 UXS_FORCE_INLINE unsigned ulog2(std::uint64_t x) { return __builtin_clzll(x | 1) ^ 63; }
 #else
 UXS_FORCE_INLINE unsigned ulog2(std::uint32_t x) {
-    static const UXS_CONSTEXPR std::uint8_t v[] = {
+    static UXS_CONSTEXPR_DATA std::uint8_t v[] = {
         0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5,
         5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
         6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
@@ -76,12 +76,12 @@ UXS_FORCE_INLINE unsigned ulog2(std::uint32_t x) {
         7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
         7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7};
     unsigned bias = 0;
-    if (x >= 1u << 16) { x >>= 16, bias += 16; }
-    if (x >= 1u << 8) { x >>= 8, bias += 8; }
+    if (x >= 1U << 16) { x >>= 16, bias += 16; }
+    if (x >= 1U << 8) { x >>= 8, bias += 8; }
     return bias + v[x];
 }
 UXS_FORCE_INLINE unsigned ulog2(std::uint64_t x) {
-    if (x >= 1ull << 32) { return 32 + ulog2(static_cast<std::uint32_t>(hi32(x))); }
+    if (x >= 1ULL << 32) { return 32 + ulog2(static_cast<std::uint32_t>(hi32(x))); }
     return ulog2(static_cast<std::uint32_t>(lo32(x)));
 }
 #endif
@@ -175,8 +175,8 @@ parse_result<Ty, CharT> parse_unsigned_integer_common(const CharT* p, const Char
     return {result, p, sconv_errc::ok};
 }
 
-const UXS_CONSTEXPR unsigned max_pow10_size = 13;
-const UXS_CONSTEXPR unsigned max_fp10_mantissa_size = 41;  // ceil(log2(10^(768 + 18)))
+UXS_CONSTEXPR_DATA unsigned max_pow10_size = 13;
+UXS_CONSTEXPR_DATA unsigned max_fp10_mantissa_size = 41;  // ceil(log2(10^(768 + 18)))
 struct fp10_t {
     int exp = 0;
     std::uint8_t bits_used = 1;
@@ -188,7 +188,7 @@ UXS_EXPORT std::uint64_t bignum_mul32(std::uint64_t* x, unsigned sz, std::uint32
 
 template<typename CharT>
 const CharT* accum_mantissa(const CharT* p, const CharT* end, fp10_t& fp10) noexcept {
-    const UXS_CONSTEXPR std::uint64_t short_lim = 1000000000000000000ULL;
+    UXS_CONSTEXPR_DATA std::uint64_t short_lim = 1000000000000000000ULL;
     std::uint64_t* m10 = &fp10.bits[max_fp10_mantissa_size - fp10.bits_used];
     if (fp10.bits_used == 1) {
         std::uint64_t m = *m10;
@@ -270,7 +270,7 @@ parse_result<std::uint64_t, CharT> parse_float_common(const CharT* p, const Char
 
 // minimal digit count for numbers 2^N <= x < 2^(N+1), N = 0, 1, 2, ...
 UXS_FORCE_INLINE unsigned get_exp2_dig_count(std::size_t exp) noexcept {
-    static const UXS_CONSTEXPR unsigned dig_count[] = {
+    static UXS_CONSTEXPR_DATA unsigned dig_count[] = {
         1,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  4,  5,  5,  5,  6,  6,  6,  7,  7,
         7,  7,  8,  8,  8,  9,  9,  9,  10, 10, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 13, 13,
         14, 14, 14, 15, 15, 15, 16, 16, 16, 16, 17, 17, 17, 18, 18, 18, 19, 19, 19, 19, 20};
@@ -283,8 +283,8 @@ UXS_FORCE_INLINE std::uint64_t get_pow10(std::make_signed<std::size_t>::type pow
 #define UXS_SCONV_POWERS_OF_10(base) \
     base, (base) * 10, (base) * 100, (base) * 1000, (base) * 10000, (base) * 100000, (base) * 1000000, \
         (base) * 10000000, (base) * 100000000, (base) * 1000000000
-    static const UXS_CONSTEXPR std::uint64_t ten_pows[] = {UXS_SCONV_POWERS_OF_10(1ULL),
-                                                           UXS_SCONV_POWERS_OF_10(10000000000ULL)};
+    static UXS_CONSTEXPR_DATA std::uint64_t ten_pows[] = {UXS_SCONV_POWERS_OF_10(1ULL),
+                                                          UXS_SCONV_POWERS_OF_10(10000000000ULL)};
 #undef UXS_SCONV_POWERS_OF_10
     assert(pow >= 0 && pow < static_cast<int>(sizeof(ten_pows) / sizeof(ten_pows[0])));
     return ten_pows[pow];
@@ -831,8 +831,8 @@ void fp_hex_fmt_t::generate(CharT* p, unsigned pos, bool uppercase, CharT dec_po
 
 // ---- float dec
 
-const UXS_CONSTEXPR int max_double_digits = 767;
-const UXS_CONSTEXPR int digs_per_64 = 18;  // size of 64-bit digit pack
+UXS_CONSTEXPR_DATA int max_double_digits = 767;
+UXS_CONSTEXPR_DATA int digs_per_64 = 18;  // size of 64-bit digit pack
 
 class fp_dec_fmt_t {
  public:

@@ -359,7 +359,7 @@ class custom_arg_handle {
     using format_func_type = typename parse_context::iterator (*)(FmtCtx&, parse_context&, const void*);
 
     template<typename Ty>
-    UXS_CONSTEXPR explicit custom_arg_handle(const Ty& val) noexcept
+    explicit UXS_CONSTEXPR custom_arg_handle(const Ty& val) noexcept
         : val_(&val), print_fn_(func<fmt::reduce_type_t<Ty, typename FmtCtx::char_type>>) {}
 
     typename parse_context::iterator format(FmtCtx& ctx, parse_context& parse_ctx) const {
@@ -434,7 +434,7 @@ class arg_store {
 #endif  // __cplusplus >= 201703L
     arg_store& operator=(const arg_store&) = delete;
 
-    UXS_CONSTEXPR explicit arg_store(const Args&... args) noexcept {
+    explicit UXS_CONSTEXPR arg_store(const Args&... args) noexcept {
         store_values(0, arg_count * sizeof(unsigned), args...);
     }
     UXS_CONSTEXPR const void* data() const noexcept { return data_; }

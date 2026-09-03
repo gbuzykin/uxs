@@ -1123,7 +1123,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     template<typename CharT_, typename Alloc_>
-    friend UXS_EXPORT bool operator==(const basic_value<CharT_, Alloc_>& lhs,
+    UXS_EXPORT friend bool operator==(const basic_value<CharT_, Alloc_>& lhs,
                                       const basic_value<CharT_, Alloc_>& rhs) noexcept;
     template<typename CharT_, typename Alloc_>
     friend bool operator!=(const basic_value<CharT_, Alloc_>& lhs, const basic_value<CharT_, Alloc_>& rhs) noexcept;

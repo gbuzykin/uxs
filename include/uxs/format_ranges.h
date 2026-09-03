@@ -107,7 +107,7 @@ struct formatter<Tuple, CharT, std::enable_if_t<is_tuple_formattable<Tuple, Char
 
     template<typename FmtCtx, std::size_t I>
     void format_element(FmtCtx& ctx, const Tuple& val, std::integral_constant<std::size_t, I>) const {
-        if UXS_CONSTEXPR (I != 0) { ctx.out() += separator_; }
+        if UXS_CONSTEXPR_IF (I != 0) { ctx.out() += separator_; }
         std::get<I>(underlying_).format(ctx, std::get<I>(val));
         format_element(ctx, val, std::integral_constant<std::size_t, I + 1>());
     }

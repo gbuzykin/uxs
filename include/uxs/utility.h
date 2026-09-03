@@ -27,9 +27,8 @@
     modifiers ty& operator&=(ty& lhs, ty rhs) { return lhs = lhs & rhs; } \
     modifiers ty& operator^=(ty& lhs, ty rhs) { return lhs = lhs ^ rhs; } \
     static_assert(true, "")
-#define UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(ty) UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM_(ty, inline UXS_CONSTEXPR)
-#define UXS_IMPLEMENT_FRIEND_BITWISE_OPS_FOR_ENUM(ty) \
-    UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM_(ty, friend inline UXS_CONSTEXPR)
+#define UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(ty)        UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM_(ty, UXS_CONSTEXPR)
+#define UXS_IMPLEMENT_FRIEND_BITWISE_OPS_FOR_ENUM(ty) UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM_(ty, friend UXS_CONSTEXPR)
 
 namespace est {
 template<typename... Ts>
