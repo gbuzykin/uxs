@@ -23,7 +23,7 @@
         assign_copy, assign_move,       get_value_const_ptr, get_value_ptr,  is_equal, \
         serialize,   deserialize,       convert_from,        convert_to}; \
     uxs::variant_type_impl<ty>::variant_type_impl() { \
-        static_assert(static_cast<unsigned>(type_id) < uxs::variant::max_type_id, "bad variant identifier"); \
+        static_assert(type_id <= uxs::variant_id::max_type_id, "bad variant identifier"); \
         assert(vtable.type == type_id); \
         assert(!uxs::variant::vtables_[static_cast<unsigned>(type_id)]); \
         uxs::variant::vtables_[static_cast<unsigned>(type_id)] = &vtable; \
@@ -44,7 +44,6 @@
 
 namespace uxs {
 
-// Two variant are compared as values of type with greater identifier.
 enum class variant_id_t : std::uint32_t {
     invalid = 0,
     string,
@@ -73,6 +72,7 @@ constexpr variant_id_t long_integer = variant_id_t::long_integer;
 constexpr variant_id_t unsigned_long_integer = variant_id_t::unsigned_long_integer;
 constexpr variant_id_t double_precision = variant_id_t::double_precision;
 constexpr variant_id_t custom = variant_id_t::custom;
+constexpr variant_id_t max_type_id = static_cast<variant_id_t>(255);
 }  // namespace variant_id
 
 class UXS_EXPORT_ALL_STUFF_FOR_GNUC variant_error : public std::runtime_error {
@@ -87,7 +87,7 @@ template<typename... Ts>
 struct alignas(est::alignment_of<Ts...>::value) aligned_storage_t {
     std::uint8_t x[est::size_of<Ts...>::value];
 };
-using variant_storage_t = aligned_storage_t<std::int64_t, double, void*, std::string>;
+using variant_storage_t = aligned_storage_t<std::uintptr_t, double[4], std::string>;
 
 struct variant_traits {
     enum : std::size_t {
@@ -116,6 +116,13 @@ struct variant_vtable_t {
 
 template<typename Ty>
 struct variant_type_impl;
+
+template<typename Ty, typename = void>
+struct is_variant_type_implemented : std::false_type {};
+
+template<typename Ty>
+struct is_variant_type_implemented<Ty, std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
+    : std::true_type {};
 
 template<typename Ty, variant_id_t TypeId, typename = void>
 struct variant_type_base_impl {
@@ -198,8 +205,6 @@ UXS_DECLARE_VARIANT_TYPE(double, variant_id::double_precision);
 
 class variant {
  public:
-    enum : unsigned { max_type_id = 256 };
-
     variant() noexcept = default;
     explicit variant(variant_id_t type) : vtable_(get_vtable(type)) {
         if (vtable_) { vtable_->construct_default(&data_); }
@@ -217,29 +222,34 @@ class variant {
         if (vtable_) { vtable_->destroy(&data_); }
     }
 
-    template<typename Ty, typename... Args, typename = std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
+    template<typename Ty, typename... Args, typename = std::enable_if_t<is_variant_type_implemented<Ty>::value>>
     explicit variant(est::in_place_type_t<Ty>, Args&&... args) : vtable_(get_vtable(variant_type_impl<Ty>::type_id)) {
         assert(vtable_);
         variant_type_impl<Ty>::construct(&data_, std::forward<Args>(args)...);
     }
 
-    template<typename U, typename = std::void_t<typename variant_type_impl<std::decay_t<U>>::is_variant_type_impl>>
+    template<typename U, typename = std::enable_if_t<is_variant_type_implemented<std::decay_t<U>>::value>>
     variant(U&& val) : vtable_(get_vtable(variant_type_impl<std::decay_t<U>>::type_id)) {
         assert(vtable_);
         variant_type_impl<std::decay_t<U>>::construct(&data_, std::forward<U>(val));
     }
 
+    template<typename StrLikeTy,
+             typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::string_view>::value &&
+                                         !is_variant_type_implemented<StrLikeTy>::value>>
+    variant(const StrLikeTy& s) : variant(std::string(s)) {}
+
     UXS_EXPORT variant& operator=(const variant& v);
     UXS_EXPORT variant& operator=(variant&& v) noexcept;
 
-    template<typename Ty, typename... Args, typename = std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
-    Ty& emplace(Args&&... args);
-
-    template<typename U, typename = std::void_t<typename variant_type_impl<std::decay_t<U>>::is_variant_type_impl>>
+    template<typename U, typename = std::enable_if_t<!std::is_same<std::decay_t<U>, variant>::value>>
     variant& operator=(U&& val) {
-        assign_impl<std::decay_t<U>>(std::forward<U>(val));
+        assign_impl(std::forward<U>(val));
         return *this;
     }
+
+    template<typename Ty, typename... Args, typename = std::enable_if_t<is_variant_type_implemented<Ty>::value>>
+    Ty& emplace(Args&&... args);
 
     bool has_value() const noexcept { return vtable_ != nullptr; }
     variant_id_t type() const noexcept { return vtable_ ? vtable_->type : variant_id::invalid; }
@@ -280,25 +290,27 @@ class variant {
         return value_or<Ty>(Ty());
     }
 
-    template<typename Ty, typename = std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
+    UXS_EXPORT bool convert(variant_id_t type);
+
+    template<typename Ty, typename = std::enable_if_t<is_variant_type_implemented<Ty>::value>>
     bool convert() {
         return convert(variant_type_impl<Ty>::type_id);
     }
-    UXS_EXPORT bool convert(variant_id_t type);
 
-    template<typename Ty, typename = std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
-    bool is_equal_to(const Ty& val) const {
-        return is_equal_to_impl<Ty>(val);
-    }
     UXS_EXPORT bool is_equal_to(const variant& v) const;
+
+    template<typename U, typename = std::enable_if_t<!std::is_same<U, variant>::value>>
+    bool is_equal_to(const U& val) const {
+        return is_equal_to_impl(val);
+    }
 
 #define UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(ty, internal_ty) \
     variant(ty val) : variant(est::in_place_type_t<internal_ty>(), static_cast<internal_ty>(val)) {} \
     variant& operator=(ty val) { \
-        assign_impl<internal_ty>(static_cast<internal_ty>(val)); \
+        assign_impl(static_cast<internal_ty>(val)); \
         return *this; \
     } \
-    bool is_equal_to(ty val) const { return is_equal_to_impl<internal_ty>(val); }
+    bool is_equal_to(ty val) const { return is_equal_to_impl(static_cast<internal_ty>(val)); }
     UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(signed, std::int32_t)
     UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(unsigned, std::uint32_t)
 #if ULONG_MAX > 0xffffffff
@@ -315,33 +327,41 @@ class variant {
     UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(long double, double)
 #undef UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE
 
-    variant(std::string_view s) : variant(std::string(s)) {}
-    variant& operator=(std::string_view s) { return operator=(std::string(s)); }
-    bool is_equal_to(std::string_view s) const { return is_equal_to_impl<std::string, std::string_view>(s); }
-
-    variant(const char* cstr) : variant(std::string(cstr)) {}
-    variant& operator=(const char* cstr) { return operator=(std::string(cstr)); }
-    bool is_equal_to(const char* cstr) const { return is_equal_to_impl<std::string, std::string_view>(cstr); }
-
  private:
-    template<typename Ty, typename U>
+    template<typename U, typename = std::enable_if_t<is_variant_type_implemented<std::decay_t<U>>::value>>
     void assign_impl(U&& val);
 
-    template<typename Ty, typename LightTy = Ty, typename U>
+    template<typename StrLikeTy,
+             typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::string_view>::value &&
+                                         !is_variant_type_implemented<StrLikeTy>::value>>
+    void assign_impl(const StrLikeTy& s) {
+        return assign_impl(std::string(s));
+    }
+
+    template<typename U, typename Ty = std::decay_t<U>,
+             typename = std::enable_if_t<is_variant_type_implemented<Ty>::value>>
     bool is_equal_to_impl(const U& val) const;
 
-    template<typename Ty, typename = std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
+    template<typename StrLikeTy,
+             typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::string_view>::value &&
+                                         !is_variant_type_implemented<StrLikeTy>::value>,
+             typename... Dummy>
+    bool is_equal_to_impl(const StrLikeTy& s, Dummy&&...) const {
+        return is_equal_to_impl<std::string_view, std::string>(std::string_view(s));
+    }
+
+    template<typename Ty, typename = std::enable_if_t<is_variant_type_implemented<Ty>::value>>
     bool is_impl() const noexcept {
         return vtable_ && vtable_->type == variant_type_impl<Ty>::type_id;
     }
 
-    template<typename Ty, typename = std::void_t<typename variant_type_impl<std::decay_t<Ty>>::is_variant_type_impl>>
-    Ty as_impl() const;
+    template<typename U, typename = std::enable_if_t<is_variant_type_implemented<std::decay_t<U>>::value>>
+    U as_impl() const;
 
-    template<typename Ty, typename = std::void_t<typename variant_type_impl<std::decay_t<Ty>>::is_variant_type_impl>>
-    Ty as_impl();
+    template<typename U, typename = std::enable_if_t<is_variant_type_implemented<std::decay_t<U>>::value>>
+    U as_impl();
 
-    template<typename Ty, typename = std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
+    template<typename Ty, typename = std::enable_if_t<is_variant_type_implemented<Ty>::value>>
     est::optional<Ty> get_impl() const;
 
     UXS_EXPORT friend bibuf& operator>>(bibuf& is, variant& v);
@@ -358,7 +378,7 @@ class variant {
     detail::variant_storage_t data_;
 
     static detail::variant_vtable_t* get_vtable(variant_id_t type) {
-        assert(static_cast<std::uint32_t>(type) < max_type_id);
+        assert(type <= variant_id::max_type_id);
         return vtables_[static_cast<std::uint32_t>(type)];
     }
 };
@@ -373,41 +393,38 @@ Ty& variant::emplace(Args&&... args) {
     return val;
 }
 
-template<typename Ty, typename U>
+template<typename U, typename>
 void variant::assign_impl(U&& val) {
-    auto* val_vtable = get_vtable(variant_type_impl<Ty>::type_id);
+    using type = std::decay_t<U>;
+    auto* val_vtable = get_vtable(variant_type_impl<type>::type_id);
     assert(val_vtable);
     if (vtable_ == val_vtable) {
-        variant_type_impl<Ty>::assign(&data_, std::forward<U>(val));
+        variant_type_impl<type>::assign(&data_, std::forward<U>(val));
     } else {
         if (!vtable_) {
-            variant_type_impl<Ty>::construct(&data_, std::forward<U>(val));
+            variant_type_impl<type>::construct(&data_, std::forward<U>(val));
         } else {
             U tmp(std::forward<U>(val));
             vtable_->destroy(&data_);
-            variant_type_impl<Ty>::construct(&data_, std::move(tmp));
+            variant_type_impl<type>::construct(&data_, std::move(tmp));
         }
         vtable_ = val_vtable;
     }
 }
 
-template<typename Ty, typename LightTy, typename U>
+template<typename U, typename Ty, typename>
 bool variant::is_equal_to_impl(const U& val) const {
     if (!vtable_) { return false; }
     auto* val_vtable = get_vtable(variant_type_impl<Ty>::type_id);
     assert(vtable_ && val_vtable);
-    if (vtable_ == val_vtable) {
-        return *static_cast<const Ty*>(vtable_->get_value_const_ptr(&data_)) == static_cast<LightTy>(val);
-    }
+    if (vtable_ == val_vtable) { return *static_cast<const Ty*>(vtable_->get_value_const_ptr(&data_)) == val; }
     Ty tmp;
     if (vtable_->type > val_vtable->type) {
         return vtable_->convert_to &&
-               vtable_->convert_to(val_vtable->type, &tmp, vtable_->get_value_const_ptr(&data_)) &&
-               tmp == static_cast<LightTy>(val);
+               vtable_->convert_to(val_vtable->type, &tmp, vtable_->get_value_const_ptr(&data_)) && tmp == val;
     }
     return val_vtable->convert_from &&
-           val_vtable->convert_from(vtable_->type, &tmp, vtable_->get_value_const_ptr(&data_)) &&
-           tmp == static_cast<LightTy>(val);
+           val_vtable->convert_from(vtable_->type, &tmp, vtable_->get_value_const_ptr(&data_)) && tmp == val;
 }
 
 #define UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(ty, internal_ty) \
@@ -446,7 +463,7 @@ UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(long double, double)
 
 template<typename Ty, typename>
 struct variant::getters_specializer {
-    template<typename Ty_ = Ty, typename = std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
+    template<typename Ty_ = Ty, typename = std::enable_if_t<is_variant_type_implemented<Ty_>::value>>
     static Ty_ as(const variant& v) {
         auto result = v.get_impl<Ty>();
         if (result) { return *result; }
@@ -454,32 +471,32 @@ struct variant::getters_specializer {
     }
 };
 
-template<typename Ty>
-struct variant::getters_specializer<Ty, std::enable_if_t<std::is_reference<Ty>::value>> {
-    using decayed_ty = std::decay_t<Ty>;
-    static Ty as(const variant& v) {
-        auto* val_vtable = get_vtable(variant_type_impl<decayed_ty>::type_id);
+template<typename U>
+struct variant::getters_specializer<U, std::enable_if_t<std::is_reference<U>::value>> {
+    using type = std::decay_t<U>;
+    static U as(const variant& v) {
+        auto* val_vtable = get_vtable(variant_type_impl<type>::type_id);
         assert(val_vtable);
         if (v.vtable_ != val_vtable) { throw variant_error("invalid value type"); }
-        return *static_cast<const decayed_ty*>(v.vtable_->get_value_const_ptr(&v.data_));
+        return *static_cast<const type*>(v.vtable_->get_value_const_ptr(&v.data_));
     }
-    template<typename Ty_ = Ty, typename = std::enable_if_t<!std::is_const<std::remove_reference_t<Ty_>>::value>>
-    static Ty_ as(variant& v) {
-        auto* val_vtable = get_vtable(variant_type_impl<decayed_ty>::type_id);
+    template<typename U_ = U, typename = std::enable_if_t<!std::is_const<std::remove_reference_t<U_>>::value>>
+    static U_ as(variant& v) {
+        auto* val_vtable = get_vtable(variant_type_impl<type>::type_id);
         assert(val_vtable);
         if (v.vtable_ != val_vtable) { throw variant_error("invalid value type"); }
-        return std::forward<Ty>(*static_cast<decayed_ty*>(v.vtable_->get_value_ptr(&v.data_)));
+        return std::forward<U>(*static_cast<type*>(v.vtable_->get_value_ptr(&v.data_)));
     }
 };
 
-template<typename Ty, typename>
-Ty variant::as_impl() const {
-    return getters_specializer<Ty>::as(*this);
+template<typename U, typename>
+U variant::as_impl() const {
+    return getters_specializer<U>::as(*this);
 }
 
-template<typename Ty, typename>
-Ty variant::as_impl() {
-    return getters_specializer<Ty>::as(*this);
+template<typename U, typename>
+U variant::as_impl() {
+    return getters_specializer<U>::as(*this);
 }
 
 template<typename Ty, typename>

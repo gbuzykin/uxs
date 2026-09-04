@@ -64,13 +64,13 @@ using wformat_context = basic_format_context<wchar_t>;
 namespace detail {
 template<typename Ty, typename FmtCtx>
 struct is_formattable_impl {
-    template<typename U, typename V>
-    static auto test(U* ctx, V* parse_ctx, const Ty* val) -> est::always_true<
-        decltype(parse_ctx->advance_to(std::declval<formatter<Ty, typename V::char_type>&>().parse(*parse_ctx))),
+    template<typename U>
+    static auto test(U* ctx, typename FmtCtx::parse_context* parse_ctx, const Ty* val) -> est::always_true<
+        decltype(parse_ctx->advance_to(std::declval<formatter<Ty, typename U::char_type>&>().parse(*parse_ctx))),
         decltype(std::declval<const formatter<Ty, typename U::char_type>&>().format(*ctx, *val))>;
-    template<typename U, typename V>
+    template<typename U>
     static std::false_type test(...);
-    using type = decltype(test<FmtCtx, typename FmtCtx::parse_context>(nullptr, nullptr, nullptr));
+    using type = decltype(test<FmtCtx>(nullptr, nullptr, nullptr));
 };
 }  // namespace detail
 
