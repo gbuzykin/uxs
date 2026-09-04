@@ -205,7 +205,7 @@ struct value_visitor {
     }
 
     bool operator()(double f) const {
-        sconv::fmt_float(out, f, fmt_flags::mandatory_frac);
+        sconv::fmt_float(out, f, fmt_flags::mandatory_frac | fmt_flags::throw_on_inf_nan);
         return false;
     }
 

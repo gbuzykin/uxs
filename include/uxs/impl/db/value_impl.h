@@ -858,7 +858,7 @@ est::optional<std::basic_string<CharT>> basic_value<CharT, Alloc>::get_string() 
         } break;
         case dtype::double_precision: {
             basic_inline_dynbuffer<CharT> buf;
-            sconv::fmt_float(buf, value_.dbl, fmt_flags::mandatory_frac);
+            sconv::fmt_float(buf, value_.dbl);
             return est::make_optional<std::basic_string<CharT>>(buf.data(), buf.size());
         } break;
         case dtype::string: return est::make_optional<std::basic_string<CharT>>(value_.str.cview());
