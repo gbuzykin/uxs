@@ -63,9 +63,10 @@ enum class fmt_flags : unsigned {
     adjust_field = 0x300,
     leading_zeroes = 0x400,
     alternate = 0x800,
-    mandatory_frac = 0x1000,
-    localize = 0x2000,
-    debug_format = 0x4000,
+    localize = 0x1000,
+    debug_format = 0x2000,
+    mandatory_frac = 0x4000,
+    throw_on_inf_nan = 0x8000,
 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(fmt_flags);
 
