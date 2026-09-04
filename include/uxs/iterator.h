@@ -228,21 +228,20 @@ class iterator_facade {
     }
 
     template<typename Iter_ = Iter>
-    UXS_CONSTEXPR auto operator*() const noexcept(noexcept(std::declval<Iter&>().dereference()))
-        -> decltype(std::declval<Iter_&>().dereference()) {
+    UXS_CONSTEXPR auto operator*() const noexcept(noexcept(std::declval<const Iter&>().dereference()))
+        -> decltype(std::declval<const Iter_&>().dereference()) {
         return static_cast<const Iter&>(*this).dereference();
     }
 
     template<typename Iter_ = Iter>
-    UXS_CONSTEXPR auto operator->() const noexcept(noexcept(std::addressof(std::declval<Iter&>().dereference())))
-        -> decltype(std::addressof(std::declval<Iter_&>().dereference())) {
+    UXS_CONSTEXPR auto operator->() const noexcept(noexcept(std::addressof(*std::declval<const Iter&>())))
+        -> decltype(std::addressof(*std::declval<const Iter_&>())) {
         return std::addressof(**this);
     }
 
     template<typename Iter_ = Iter>
-    UXS_CONSTEXPR auto operator[](difference_type j) const
-        noexcept(noexcept(std::declval<Iter&>().dereference()) && noexcept(std::declval<Iter&>().advance(j)))
-            -> decltype(std::declval<Iter_&>().dereference()) {
+    UXS_CONSTEXPR auto operator[](difference_type j) const noexcept(noexcept(*(std::declval<const Iter&>() + j)))
+        -> decltype(*(std::declval<const Iter_&>() + j)) {
         return *(*this + j);
     }
 };

@@ -20,7 +20,7 @@ const char* est::bad_optional_access::what() const noexcept { return "bad option
 //---------------------------------------------------------------------------------
 // Variant type implementation
 
-detail::variant_vtable_t* variant::vtables_[max_type_id] = {};
+detail::variant_vtable_t* variant::vtables_[static_cast<unsigned>(variant_id::max_type_id)] = {};
 
 variant::variant(variant_id_t type, const variant& v) : vtable_(get_vtable(type)) {
     if (!vtable_) { return; }
@@ -126,6 +126,7 @@ bool variant::is_equal_to(const variant& v) const {
     detail::variant_storage_t tmp;
     bool result = false;
     assert(vtable_ && v.vtable_);
+    // Two variant are compared as values of type with greater identifier
     if (vtable_->type > v.vtable_->type) {
         if (vtable_->convert_from) {
             void* tgt = vtable_->construct_default(&tmp);

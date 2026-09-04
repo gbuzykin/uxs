@@ -20,6 +20,11 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC bad_optional_access : public std::exception 
 
 template<typename Ty>
 class optional {
+ private:
+    template<typename U>
+    static std::true_type test_for_optional(const optional<U>&);
+    static std::false_type test_for_optional(...);
+
  public:
     using value_type = Ty;
 
@@ -43,9 +48,9 @@ class optional {
         ::new (&data_) value_type(std::forward<Args>(args)...);
     }
 
-    template<typename U, typename = std::enable_if_t<std::is_constructible<Ty, U&&>::value &&
-                                                     !std::is_same<std::decay_t<U>, in_place_t>::value &&
-                                                     !std::is_same<std::decay_t<U>, optional<Ty>>::value>>
+    template<typename U, typename = std::enable_if_t<
+                             std::is_constructible<Ty, U&&>::value && !std::is_same<std::decay_t<U>, in_place_t>::value &&
+                             !decltype(test_for_optional(std::declval<const std::decay_t<U>&>()))::value>>
     optional(U&& v) : valid_(true) {
         ::new (&data_) value_type(std::forward<U>(v));
     }

@@ -926,11 +926,13 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         typename object_t::alloc_type obj_al(*this);
         value_.obj.construct(obj_al);
     }
-    basic_value(std::basic_string_view<char_type> s) : alloc_type(), type_(dtype::string) {
+
+    template<typename StrLikeTy,
+             typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::basic_string_view<char_type>>::value>>
+    basic_value(const StrLikeTy& s) : alloc_type(), type_(dtype::string) {
         typename char_array_t::alloc_type str_al(*this);
-        value_.str.construct(str_al, s);
+        value_.str.construct(str_al, std::basic_string_view<char_type>(s));
     }
-    basic_value(const char_type* cstr) : basic_value(std::basic_string_view<char_type>(cstr)) {}
 
     explicit basic_value(const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) {}
     basic_value(std::nullptr_t, const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) {}
@@ -942,11 +944,13 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         typename object_t::alloc_type obj_al(*this);
         value_.obj.construct(obj_al);
     }
-    basic_value(std::basic_string_view<char_type> s, const Alloc& al) : alloc_type(al), type_(dtype::string) {
+
+    template<typename StrLikeTy,
+             typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::basic_string_view<char_type>>::value>>
+    basic_value(const StrLikeTy& s, const Alloc& al) : alloc_type(al), type_(dtype::string) {
         typename char_array_t::alloc_type str_al(*this);
-        value_.str.construct(str_al, s);
+        value_.str.construct(str_al, std::basic_string_view<char_type>(s));
     }
-    basic_value(const char_type* cstr, const Alloc& al) : basic_value(std::basic_string_view<char_type>(cstr), al) {}
 
     template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value>>
     basic_value(InputIt first, InputIt last, const Alloc& al = Alloc())
@@ -1087,7 +1091,12 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 #undef UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT
 
     UXS_EXPORT basic_value& operator=(std::basic_string_view<char_type> s);
-    basic_value& operator=(const char_type* cstr) { return (*this = std::basic_string_view<char_type>(cstr)); }
+
+    template<typename StrLikeTy,
+             typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::basic_string_view<char_type>>::value>>
+    basic_value& operator=(const StrLikeTy& s) {
+        return (*this = std::basic_string_view<char_type>(s));
+    }
 
     basic_value& operator=(std::nullptr_t) noexcept {
         if (type_ == dtype::null) { return *this; }
@@ -1113,7 +1122,12 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     UXS_EXPORT void resize(size_type size, const basic_value& v);
 
     UXS_EXPORT basic_value& append_string(std::basic_string_view<char_type> s);
-    basic_value& append_string(const char_type* cstr) { return append_string(std::basic_string_view<char_type>(cstr)); }
+
+    template<typename StrLikeTy,
+             typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::basic_string_view<char_type>>::value>>
+    basic_value& append_string(const StrLikeTy& s) {
+        return append_string(std::basic_string_view<char_type>(s));
+    }
 
     template<typename Func>
     void append_string(size_type max_length, Func func) {
