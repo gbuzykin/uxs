@@ -278,8 +278,8 @@ chars_to_n_result<CharT> to_chars_n(CharT* p, std::size_t n, const std::locale& 
 template<typename Ty, typename CharT = char, typename = void>
 struct formatter;
 
-template<typename StrTy, typename Func>
-void append_adjusted(StrTy& out, Func&& fn, unsigned len, fmt_opts fmt, bool prefer_right = false) {
+template<typename StrTy, typename PrintFn>
+void append_adjusted(StrTy& out, PrintFn&& fn, unsigned len, fmt_opts fmt, bool prefer_right = false) {
     unsigned left = fmt.width - len;
     unsigned right = left;
     if ((fmt.flags & fmt_flags::adjust_field) == fmt_flags::left) {

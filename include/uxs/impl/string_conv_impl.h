@@ -303,8 +303,8 @@ struct numeric_prefix {
     }
 };
 
-template<typename CharT, typename Func, typename... Args>
-void adjust_numeric(basic_membuffer<CharT>& out, Func&& fn, unsigned len, numeric_prefix prefix, fmt_opts fmt,
+template<typename CharT, typename PrintFn, typename... Args>
+void adjust_numeric(basic_membuffer<CharT>& out, PrintFn&& fn, unsigned len, numeric_prefix prefix, fmt_opts fmt,
                     Args&&... args) {
     unsigned left = fmt.width - len;
     unsigned right = left;
