@@ -49,11 +49,31 @@ template<typename Iter>
 using is_random_access_iterator =
     std::is_base_of<std::random_access_iterator_tag, typename std::iterator_traits<Iter>::iterator_category>;
 
+template<typename Iter, typename = void>
+struct is_input_or_output_iterator : std::false_type {};
+template<typename Iter>
+struct is_input_or_output_iterator<Iter, std::void_t<decltype(*std::declval<Iter&>()++)>> : std::true_type {};
+
 template<typename Iter, typename Ty, typename = void>
 struct is_output_iterator : std::false_type {};
 template<typename Iter, typename Ty>
 struct is_output_iterator<Iter, Ty, std::void_t<decltype(*std::declval<Iter&>()++ = std::declval<Ty>())>>
     : std::true_type {};
+
+#if __cplusplus >= 201402L
+template<typename Iter>
+constexpr bool is_input_iterator_v = is_input_iterator<Iter>::value;
+template<typename Iter>
+constexpr bool is_forward_iterator_v = is_forward_iterator<Iter>::value;
+template<typename Iter>
+constexpr bool is_bidirectional_iterator_v = is_bidirectional_iterator<Iter>::value;
+template<typename Iter>
+constexpr bool is_random_access_iterator_v = is_random_access_iterator<Iter>::value;
+template<typename Iter>
+constexpr bool is_input_or_output_iterator_v = is_input_or_output_iterator<Iter>::value;
+template<typename Iter, typename Ty>
+constexpr bool is_output_iterator_v = is_output_iterator<Iter, Ty>::value;
+#endif  // __cplusplus >= 201402L
 
 template<typename Iter, typename = void>
 struct iterator_value {};

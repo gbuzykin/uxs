@@ -118,11 +118,17 @@ template<typename Ty>
 struct variant_type_impl;
 
 template<typename Ty, typename = void>
-struct is_variant_type_implemented : std::false_type {};
-
+struct is_variant_compatible : std::false_type {};
 template<typename Ty>
-struct is_variant_type_implemented<Ty, std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>>
-    : std::true_type {};
+struct is_variant_compatible<Ty, std::void_t<typename variant_type_impl<Ty>::is_variant_type_impl>> : std::true_type {};
+#if __cplusplus >= 201402L
+template<typename Ty>
+constexpr bool is_variant_compatible_v = is_variant_compatible<Ty>::value;
+#endif  // __cplusplus >= 201402L
+#if __cplusplus >= 202002L && defined(__cpp_concepts)
+template<typename Ty>
+concept variant_compatible = is_variant_compatible_v<Ty>;
+#endif  // cpp_concepts
 
 template<typename Ty, variant_id_t TypeId, typename = void>
 struct variant_type_base_impl {
@@ -222,13 +228,13 @@ class variant {
         if (vtable_) { vtable_->destroy(&data_); }
     }
 
-    template<typename Ty, typename... Args, typename = std::enable_if_t<is_variant_type_implemented<Ty>::value>>
+    template<typename Ty, typename... Args, typename = std::enable_if_t<is_variant_compatible<Ty>::value>>
     explicit variant(est::in_place_type_t<Ty>, Args&&... args) : vtable_(get_vtable(variant_type_impl<Ty>::type_id)) {
         assert(vtable_);
         variant_type_impl<Ty>::construct(&data_, std::forward<Args>(args)...);
     }
 
-    template<typename U, typename = std::enable_if_t<is_variant_type_implemented<std::decay_t<U>>::value>>
+    template<typename U, typename = std::enable_if_t<is_variant_compatible<std::decay_t<U>>::value>>
     variant(U&& val) : vtable_(get_vtable(variant_type_impl<std::decay_t<U>>::type_id)) {
         assert(vtable_);
         variant_type_impl<std::decay_t<U>>::construct(&data_, std::forward<U>(val));
@@ -236,7 +242,7 @@ class variant {
 
     template<typename StrLikeTy,
              typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::string_view>::value &&
-                                         !is_variant_type_implemented<StrLikeTy>::value>>
+                                         !is_variant_compatible<StrLikeTy>::value>>
     variant(const StrLikeTy& s) : variant(std::string(s)) {}
 
     UXS_EXPORT variant& operator=(const variant& v);
@@ -248,7 +254,7 @@ class variant {
         return *this;
     }
 
-    template<typename Ty, typename... Args, typename = std::enable_if_t<is_variant_type_implemented<Ty>::value>>
+    template<typename Ty, typename... Args, typename = std::enable_if_t<is_variant_compatible<Ty>::value>>
     Ty& emplace(Args&&... args);
 
     bool has_value() const noexcept { return vtable_ != nullptr; }
@@ -292,7 +298,7 @@ class variant {
 
     UXS_EXPORT bool convert(variant_id_t type);
 
-    template<typename Ty, typename = std::enable_if_t<is_variant_type_implemented<Ty>::value>>
+    template<typename Ty, typename = std::enable_if_t<is_variant_compatible<Ty>::value>>
     bool convert() {
         return convert(variant_type_impl<Ty>::type_id);
     }
@@ -328,40 +334,39 @@ class variant {
 #undef UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE
 
  private:
-    template<typename U, typename = std::enable_if_t<is_variant_type_implemented<std::decay_t<U>>::value>>
+    template<typename U, typename = std::enable_if_t<is_variant_compatible<std::decay_t<U>>::value>>
     void assign_impl(U&& val);
 
     template<typename StrLikeTy,
              typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::string_view>::value &&
-                                         !is_variant_type_implemented<StrLikeTy>::value>>
+                                         !is_variant_compatible<StrLikeTy>::value>>
     void assign_impl(const StrLikeTy& s) {
         return assign_impl(std::string(s));
     }
 
-    template<typename U, typename Ty = std::decay_t<U>,
-             typename = std::enable_if_t<is_variant_type_implemented<Ty>::value>>
+    template<typename U, typename Ty = std::decay_t<U>, typename = std::enable_if_t<is_variant_compatible<Ty>::value>>
     bool is_equal_to_impl(const U& val) const;
 
     template<typename StrLikeTy,
              typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::string_view>::value &&
-                                         !is_variant_type_implemented<StrLikeTy>::value>,
+                                         !is_variant_compatible<StrLikeTy>::value>,
              typename... Dummy>
     bool is_equal_to_impl(const StrLikeTy& s, Dummy&&...) const {
         return is_equal_to_impl<std::string_view, std::string>(std::string_view(s));
     }
 
-    template<typename Ty, typename = std::enable_if_t<is_variant_type_implemented<Ty>::value>>
+    template<typename Ty, typename = std::enable_if_t<is_variant_compatible<Ty>::value>>
     bool is_impl() const noexcept {
         return vtable_ && vtable_->type == variant_type_impl<Ty>::type_id;
     }
 
-    template<typename U, typename = std::enable_if_t<is_variant_type_implemented<std::decay_t<U>>::value>>
+    template<typename U, typename = std::enable_if_t<is_variant_compatible<std::decay_t<U>>::value>>
     U as_impl() const;
 
-    template<typename U, typename = std::enable_if_t<is_variant_type_implemented<std::decay_t<U>>::value>>
+    template<typename U, typename = std::enable_if_t<is_variant_compatible<std::decay_t<U>>::value>>
     U as_impl();
 
-    template<typename Ty, typename = std::enable_if_t<is_variant_type_implemented<Ty>::value>>
+    template<typename Ty, typename = std::enable_if_t<is_variant_compatible<Ty>::value>>
     est::optional<Ty> get_impl() const;
 
     UXS_EXPORT friend bibuf& operator>>(bibuf& is, variant& v);
@@ -463,7 +468,7 @@ UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(long double, double)
 
 template<typename Ty, typename>
 struct variant::getters_specializer {
-    template<typename Ty_ = Ty, typename = std::enable_if_t<is_variant_type_implemented<Ty_>::value>>
+    template<typename Ty_ = Ty, typename = std::enable_if_t<is_variant_compatible<Ty_>::value>>
     static Ty_ as(const variant& v) {
         auto result = v.get_impl<Ty>();
         if (result) { return *result; }

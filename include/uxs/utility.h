@@ -129,18 +129,24 @@ constexpr in_place_type_t<Ty> in_place_type{};
 template<typename Ty>
 using is_boolean = std::is_same<std::remove_cv_t<Ty>, bool>;
 
-template<typename CharT, typename = void>
+template<typename Ty, typename = void>
 struct is_character : std::false_type {};
-template<typename CharT>
-struct is_character<CharT, std::enable_if_t<std::is_same<std::remove_cv_t<CharT>, char>::value ||
-                                            std::is_same<std::remove_cv_t<CharT>, wchar_t>::value ||
-                                            std::is_same<std::remove_cv_t<CharT>, char16_t>::value ||
-                                            std::is_same<std::remove_cv_t<CharT>, char32_t>::value>> : std::true_type {
-};
+template<typename Ty>
+struct is_character<Ty, std::enable_if_t<std::is_same<std::remove_cv_t<Ty>, char>::value ||
+                                         std::is_same<std::remove_cv_t<Ty>, wchar_t>::value ||
+                                         std::is_same<std::remove_cv_t<Ty>, char16_t>::value ||
+                                         std::is_same<std::remove_cv_t<Ty>, char32_t>::value>> : std::true_type {};
 #if __cplusplus >= 202002L
-template<typename CharT>
-struct is_character<CharT, std::enable_if_t<std::is_same<std::remove_cv_t<CharT>, char8_t>::value>> : std::true_type {};
+template<typename Ty>
+struct is_character<Ty, std::enable_if_t<std::is_same<std::remove_cv_t<Ty>, char8_t>::value>> : std::true_type {};
 #endif  // __cplusplus >= 202002L
+
+#if __cplusplus >= 201402L
+template<typename Ty>
+constexpr bool is_boolean_v = is_boolean<Ty>::value;
+template<typename Ty>
+constexpr bool is_character_v = is_character<Ty>::value;
+#endif  // __cplusplus >= 201402L
 
 template<typename Ty, typename = void>
 struct array_element {};
