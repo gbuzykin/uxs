@@ -44,13 +44,13 @@ struct lexer {
 };
 }  // namespace detail
 
-template<typename ValueFunc, typename ArrItemFunc, typename ObjItemFunc, typename PopFunc>
-void parse(ibuf& in, ValueFunc&& fn_value, ArrItemFunc&& fn_arr_item, ObjItemFunc&& fn_obj_item, PopFunc&& fn_pop) {
+template<typename ValueFn, typename ArrItemFn, typename ObjItemFn, typename PopFn>
+void parse(ibuf& in, ValueFn&& value_fn, ArrItemFn&& arr_item_fn, ObjItemFn&& obj_item_fn, PopFn&& pop_fn) {
     detail::lexer lexer(in);
     basic_inline_dynbuffer<char, 32> stack;
 
-    const auto fn_value_checked = [&lexer, &fn_value](token_t tt, std::string_view lval) -> parse_step {
-        if (tt >= token_t::null_value || tt == token_t('[') || tt == token_t('{')) { return fn_value(tt, lval); }
+    const auto fn_value_checked = [&lexer, &value_fn](token_t tt, std::string_view lval) -> parse_step {
+        if (tt >= token_t::null_value || tt == token_t('[') || tt == token_t('{')) { return value_fn(tt, lval); }
         throw database_error(to_string(lexer.ln) + ": invalid value or unexpected character");
     };
 
@@ -67,7 +67,7 @@ loop:
     if (current == token_t('[')) {
         if (comma || tt != token_t(']')) {
             while (true) {
-                fn_arr_item();
+                arr_item_fn();
                 const auto ret = fn_value_checked(tt, lval);
                 if (ret == parse_step::into) {
                     if (tt < token_t::null_value) {
@@ -86,7 +86,7 @@ loop:
     } else if (comma || tt != token_t('}')) {
         while (true) {
             if (tt != token_t::string) { throw database_error(to_string(lexer.ln) + ": expected valid string"); }
-            fn_obj_item(lval);
+            obj_item_fn(lval);
             if (lexer.lex(lval) != token_t(':')) { throw database_error(to_string(lexer.ln) + ": expected `:`"); }
             tt = lexer.lex(lval);
             const auto ret = fn_value_checked(tt, lval);
@@ -108,7 +108,7 @@ loop:
     while (!stack.empty()) {
         current = token_t(stack.back());
         stack.pop_back();
-        fn_pop();
+        pop_fn();
         const char close_char = current == token_t('[') ? ']' : '}';
         if ((tt = lexer.lex(lval)) != token_t(close_char)) {
             if (tt != token_t(',')) {

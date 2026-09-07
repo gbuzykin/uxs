@@ -752,11 +752,11 @@ class basic_format_arg {
     }
 
     template<typename Func>
-    auto visit(Func&& func) -> decltype(func(std::int32_t{})) {
+    auto visit(Func&& fn) -> decltype(fn(std::int32_t{})) {
         switch (index_) {
 #define UXS_FMT_FORMAT_ARG_VALUE(ty) \
     case format_arg_type_index<FmtCtx, ty>::value: { \
-        return func(*static_cast<ty const*>(data_)); \
+        return fn(*static_cast<ty const*>(data_)); \
     } break;
             UXS_FMT_FORMAT_ARG_VALUE(bool)
             UXS_FMT_FORMAT_ARG_VALUE(char_type)

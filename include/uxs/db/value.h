@@ -169,8 +169,8 @@ class flexarray_t {
     void reserve(alloc_type& al, std::size_t sz);
     void resize(alloc_type& al, std::size_t sz, const Ty& v);
 
-    template<typename Func>
-    void append(alloc_type& al, std::size_t max_count, Func func) {
+    template<typename FillFn>
+    void append(alloc_type& al, std::size_t max_count, FillFn fn) {
         if (!p_) {
             if (!max_count) { return; }
             p_ = alloc_checked(al, max_count + tail_zero);
@@ -180,7 +180,7 @@ class flexarray_t {
             if (max_count + tail_zero > p_->capacity - p_->size) { grow(al, max_count + tail_zero); }
         }
         try {
-            p_->size += std::move(func)(est::as_span(p_->data() + p_->size, max_count));
+            p_->size += std::move(fn)(est::as_span(p_->data() + p_->size, max_count));
         } catch (...) {
             put_tail_zero();
             throw;
@@ -982,27 +982,27 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     template<typename Func>
-    basic_value(dtype type, Func&& func, const Alloc& al = Alloc()) : alloc_type(al), type_(type) {
+    basic_value(dtype type, Func&& fn, const Alloc& al = Alloc()) : alloc_type(al), type_(type) {
         switch (type_) {
             case dtype::null: break;
-            case dtype::boolean: func(scalar_tag, value_.b); break;
-            case dtype::integer: func(scalar_tag, value_.i); break;
-            case dtype::unsigned_integer: func(scalar_tag, value_.u); break;
-            case dtype::long_integer: func(scalar_tag, value_.i64); break;
-            case dtype::unsigned_long_integer: func(scalar_tag, value_.u64); break;
-            case dtype::double_precision: func(scalar_tag, value_.dbl); break;
+            case dtype::boolean: fn(scalar_tag, value_.b); break;
+            case dtype::integer: fn(scalar_tag, value_.i); break;
+            case dtype::unsigned_integer: fn(scalar_tag, value_.u); break;
+            case dtype::long_integer: fn(scalar_tag, value_.i64); break;
+            case dtype::unsigned_long_integer: fn(scalar_tag, value_.u64); break;
+            case dtype::double_precision: fn(scalar_tag, value_.dbl); break;
             case dtype::string: {
                 value_.str.construct();
-                func(string_tag, *this);
+                fn(string_tag, *this);
             } break;
             case dtype::array: {
                 value_.arr.construct();
-                func(array_tag, *this);
+                fn(array_tag, *this);
             } break;
             case dtype::object: {
                 typename object_t::alloc_type obj_al(*this);
                 value_.obj.construct(obj_al);
-                func(object_tag, *this);
+                fn(object_tag, *this);
             } break;
             default: UXS_UNREACHABLE_CODE;
         }
@@ -1129,11 +1129,11 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         return append_string(std::basic_string_view<char_type>(s));
     }
 
-    template<typename Func>
-    void append_string(size_type max_length, Func func) {
+    template<typename FillFn>
+    void append_string(size_type max_length, FillFn fn) {
         if (type_ != dtype::string) { init_as_string(); }
         typename char_array_t::alloc_type str_al(*this);
-        value_.str.append(str_al, max_length, func);
+        value_.str.append(str_al, max_length, fn);
     }
 
     template<typename CharT_, typename Alloc_>
@@ -1310,18 +1310,18 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     template<typename Func>
-    auto visit(Func&& func) const -> decltype(func(nullptr)) {
+    auto visit(Func&& fn) const -> decltype(fn(nullptr)) {
         switch (type_) {
-            case dtype::null: return func(nullptr);
-            case dtype::boolean: return func(value_.b);
-            case dtype::integer: return func(value_.i);
-            case dtype::unsigned_integer: return func(value_.u);
-            case dtype::long_integer: return func(value_.i64);
-            case dtype::unsigned_long_integer: return func(value_.u64);
-            case dtype::double_precision: return func(value_.dbl);
-            case dtype::string: return func(value_.str.cview());
-            case dtype::array: return func(value_.arr.cview());
-            case dtype::object: return func(value_.obj.crange());
+            case dtype::null: return fn(nullptr);
+            case dtype::boolean: return fn(value_.b);
+            case dtype::integer: return fn(value_.i);
+            case dtype::unsigned_integer: return fn(value_.u);
+            case dtype::long_integer: return fn(value_.i64);
+            case dtype::unsigned_long_integer: return fn(value_.u64);
+            case dtype::double_precision: return fn(value_.dbl);
+            case dtype::string: return fn(value_.str.cview());
+            case dtype::array: return fn(value_.arr.cview());
+            case dtype::object: return fn(value_.obj.crange());
             default: UXS_UNREACHABLE_CODE;
         }
     }

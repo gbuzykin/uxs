@@ -88,10 +88,10 @@ class basic_option_node : public basic_node<CharT> {
 
     std::basic_string<CharT> make_text(text_briefness briefness) const;
 
-    template<typename EnumFunc>
-    bool traverse_options(EnumFunc&& fn) const;
-    template<typename EnumFunc>
-    bool traverse_options(EnumFunc&& fn);
+    template<typename EnumFn>
+    bool traverse_options(EnumFn&& fn) const;
+    template<typename EnumFn>
+    bool traverse_options(EnumFn&& fn);
 };
 
 template<typename CharT>
@@ -145,19 +145,19 @@ class basic_option : public basic_option_node<CharT> {
 };
 
 template<typename CharT>
-template<typename EnumFunc>
-bool basic_option_node<CharT>::traverse_options(EnumFunc&& fn) const {
+template<typename EnumFn>
+bool basic_option_node<CharT>::traverse_options(EnumFn&& fn) const {
     if (this->get_type() == node_type::option_group) {
         for (const auto& opt : static_cast<const basic_option_group<CharT>&>(*this).get_children()) {
-            if (!std::as_const(*opt).traverse_options(std::forward<EnumFunc>(fn))) { return false; }
+            if (!std::as_const(*opt).traverse_options(std::forward<EnumFn>(fn))) { return false; }
         }
     }
     return fn(*this);
 }
 
 template<typename CharT>
-template<typename EnumFunc>
-bool basic_option_node<CharT>::traverse_options(EnumFunc&& fn) {
+template<typename EnumFn>
+bool basic_option_node<CharT>::traverse_options(EnumFn&& fn) {
     return std::as_const(*this).traverse_options(
         [&fn](const basic_option_node<CharT>& opt) { return fn(const_cast<basic_option_node<CharT>&>(opt)); });
 }

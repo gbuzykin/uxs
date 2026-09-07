@@ -83,23 +83,23 @@ class basic_byteseq : protected detail::byteseq_chunk<Alloc>::alloc_type {
         std::swap(head_, other.head_);
     }
 
-    template<typename FillFunc>
-    basic_byteseq& assign(std::size_t max_size, FillFunc func) {
+    template<typename FillFn>
+    basic_byteseq& assign(std::size_t max_size, FillFn fn) {
         clear_and_reserve(max_size);
         if (head_) {
-            size_ = std::move(func)(est::as_span(head_->data, max_size));
+            size_ = std::move(fn)(est::as_span(head_->data, max_size));
             head_->end = head_->data + size_;
         }
         return *this;
     }
 
-    template<typename ScanFunc>
-    void scan(std::size_t count, ScanFunc func) const {
+    template<typename ScanFn>
+    void scan(std::size_t count, ScanFn fn) const {
         if (!size_ || !count) { return; }
         const chunk_t* chunk = head_->next;
         do {
             const std::size_t chunk_sz = chunk->size() < count ? chunk->size() : count;
-            func(est::as_span(chunk->data, chunk_sz));
+            fn(est::as_span(chunk->data, chunk_sz));
             count -= chunk_sz;
             chunk = chunk->next;
         } while (count && chunk != head_->next);
