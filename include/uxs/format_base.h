@@ -63,28 +63,35 @@ using wformat_context = basic_format_context<wchar_t>;
 
 namespace detail {
 template<typename Ty, typename FmtCtx>
-struct is_formattable_impl {
+struct formattable_impl {
     template<typename U>
-    static auto test(U* ctx, typename FmtCtx::parse_context* parse_ctx, const Ty* val) -> est::always_true<
+    static auto test(U* ctx, typename FmtCtx::parse_context* parse_ctx) -> est::always_true<
         decltype(parse_ctx->advance_to(std::declval<formatter<Ty, typename U::char_type>&>().parse(*parse_ctx))),
-        decltype(std::declval<const formatter<Ty, typename U::char_type>&>().format(*ctx, *val))>;
+        decltype(std::declval<const formatter<Ty, typename U::char_type>&>().format(*ctx, std::declval<const Ty&>()))>;
     template<typename U>
     static std::false_type test(...);
-    using type = decltype(test<FmtCtx>(nullptr, nullptr, nullptr));
+    using type = decltype(test<FmtCtx>(nullptr, nullptr));
 };
 }  // namespace detail
 
 template<typename Ty, typename CharT = char>
-struct is_formattable : detail::is_formattable_impl<fmt::reduce_type_t<Ty, CharT>, basic_format_context<CharT>>::type {
-};
+struct is_formattable : detail::formattable_impl<fmt::reduce_type_t<Ty, CharT>, basic_format_context<CharT>>::type {};
+#if __cplusplus >= 201402L
+template<typename Ty, typename CharT = char>
+constexpr bool is_formattable_v = is_formattable<Ty, CharT>::value;
+#endif  // __cplusplus >= 201402L
+#if __cplusplus >= 202002L && defined(__cpp_concepts)
+template<typename Ty, typename CharT = char>
+concept formattable = is_formattable_v<Ty, CharT>;
+#endif  // cpp_concepts
+
+template<typename Ty, typename CharT = char>
+using formatter_t = formatter<fmt::reduce_type_t<Ty, CharT>, CharT>;
 
 enum class range_format { disabled = 0, sequence, set, map, string };
 
 template<typename Range, typename CharT = char>
 struct format_kind;
-
-template<typename Ty, typename CharT = char>
-using formatter_t = formatter<fmt::reduce_type_t<Ty, CharT>, CharT>;
 
 // --------------------------
 
@@ -332,7 +339,7 @@ enum class index_t : std::uint8_t {
 };
 
 template<typename Ty, typename CharT>
-struct type_index;
+struct type_index {};
 #define UXS_FMT_DECLARE_ARG_TYPE_INDEX(ty, index) \
     template<typename CharT> \
     struct type_index<ty, CharT> : std::integral_constant<index_t, index> {};

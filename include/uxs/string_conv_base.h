@@ -112,6 +112,15 @@ struct is_from_string_convertible<
         std::is_same<decltype(std::declval<const from_string_impl<Ty, CharT>&>()(nullptr, nullptr, std::declval<Ty&>())),
                      from_chars_result<CharT>>::value>> : std::true_type {};
 
+#if __cplusplus >= 201402L
+template<typename Ty, typename CharT = char>
+constexpr bool is_from_string_convertible_v = is_from_string_convertible<Ty, CharT>::value;
+#endif  // __cplusplus >= 201402L
+#if __cplusplus >= 202002L && defined(__cpp_concepts)
+template<typename Ty, typename CharT = char>
+concept from_string_convertible = is_from_string_convertible_v<Ty, CharT>;
+#endif  // cpp_concepts
+
 template<typename CharT, typename Ty, typename = std::enable_if_t<is_from_string_convertible<Ty, CharT>::value>>
 UXS_CONSTEXPR from_chars_result<CharT> from_chars(const CharT* first, const CharT* last, Ty& val) {
     return from_string_impl<Ty, CharT>{}(first, last, val);
@@ -145,34 +154,45 @@ struct to_string_impl;
 
 namespace detail {
 template<typename Ty, typename StrTy, typename... Args>
-struct is_to_string_convertible_impl {
+struct to_string_convertible_impl {
     template<typename U>
-    static auto test(U* out, const Ty* val)
+    static auto test(U* out)
         -> est::always_true<decltype(std::declval<const to_string_impl<Ty, typename StrTy::value_type>&>()(
-            *out, *val, std::declval<const Args&>()...))>;
+            *out, std::declval<const Ty&>(), std::declval<const Args&>()...))>;
     template<typename U>
     static std::false_type test(...);
-    using type = decltype(test<StrTy>(nullptr, nullptr));
+    using type = decltype(test<StrTy>(nullptr));
 };
 }  // namespace detail
 
-template<typename Ty, typename StrTy = membuffer, typename... Args>
-struct is_to_string_convertible : detail::is_to_string_convertible_impl<Ty, StrTy, Args...>::type {};
+template<typename Ty, typename CharT = char, typename... Args>
+struct is_to_string_convertible : detail::to_string_convertible_impl<Ty, basic_membuffer<CharT>, Args...>::type {};
+#if __cplusplus >= 201402L
+template<typename Ty, typename CharT = char>
+constexpr bool is_to_string_convertible_v = is_to_string_convertible<Ty, CharT>::value;
+#endif  // __cplusplus >= 201402L
+#if __cplusplus >= 202002L && defined(__cpp_concepts)
+template<typename Ty, typename CharT = char>
+concept to_string_convertible = is_to_string_convertible_v<Ty, CharT>;
+#endif  // cpp_concepts
 
 // ---- to_string
 
-template<typename StrTy, typename Ty, typename = std::enable_if_t<is_to_string_convertible<Ty, StrTy>::value>>
+template<typename StrTy, typename Ty,
+         typename = std::enable_if_t<is_to_string_convertible<Ty, typename StrTy::value_type>::value>>
 void to_string_append(StrTy& out, const Ty& val) {
     to_string_impl<Ty, typename StrTy::value_type>{}(out, val);
 }
 
-template<typename StrTy, typename Ty, typename = std::enable_if_t<is_to_string_convertible<Ty, StrTy, fmt_opts>::value>>
+template<typename StrTy, typename Ty,
+         typename = std::enable_if_t<is_to_string_convertible<Ty, typename StrTy::value_type, fmt_opts>::value>>
 void to_string_append(StrTy& out, const Ty& val, fmt_opts fmt) {
     to_string_impl<Ty, typename StrTy::value_type>{}(out, val, fmt);
 }
 
-template<typename StrTy, typename Ty,
-         typename = std::enable_if_t<is_to_string_convertible<Ty, StrTy, fmt_opts, locale_ref>::value>>
+template<
+    typename StrTy, typename Ty,
+    typename = std::enable_if_t<is_to_string_convertible<Ty, typename StrTy::value_type, fmt_opts, locale_ref>::value>>
 void to_string_append(StrTy& out, const std::locale& loc, const Ty& val, fmt_opts fmt) {
     to_string_impl<Ty, typename StrTy::value_type>{}(out, val, fmt, locale_ref(loc));
 }

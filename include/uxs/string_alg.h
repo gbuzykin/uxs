@@ -10,17 +10,18 @@ namespace uxs {
 
 namespace detail {
 
-template<typename CharT, typename Traits>
+template<typename CharTraits>
 struct char_finder {
-    CharT ch;
     using is_finder = int;
-    using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
-    explicit UXS_CONSTEXPR char_finder(CharT tgt) : ch(tgt) {}
+    using char_type = typename CharTraits::char_type;
+    using iterator = typename std::basic_string_view<char_type, CharTraits>::const_iterator;
+    char_type ch;
+    explicit UXS_CONSTEXPR char_finder(char_type tgt) : ch(tgt) {}
     UXS_CONSTEXPR std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         for (; begin != end; ++begin) {
-            if (Traits::eq(*begin, '\\')) {
+            if (CharTraits::eq(*begin, '\\')) {
                 if (++begin == end) { break; }
-            } else if (Traits::eq(*begin, ch)) {
+            } else if (CharTraits::eq(*begin, ch)) {
                 return std::make_pair(begin, begin + 1);
             }
         }
@@ -28,17 +29,18 @@ struct char_finder {
     }
 };
 
-template<typename CharT, typename Traits>
+template<typename CharTraits>
 struct reverse_char_finder {
-    CharT ch;
     using is_reverse_finder = int;
-    using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
-    explicit UXS_CONSTEXPR reverse_char_finder(CharT tgt) : ch(tgt) {}
+    using char_type = typename CharTraits::char_type;
+    using iterator = typename std::basic_string_view<char_type, CharTraits>::const_iterator;
+    char_type ch;
+    explicit UXS_CONSTEXPR reverse_char_finder(char_type tgt) : ch(tgt) {}
     UXS_CONSTEXPR std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         while (begin != end) {
             --end;
-            if (begin != end && Traits::eq(*(end - 1), '\\')) {
-            } else if (Traits::eq(*end, ch)) {
+            if (begin != end && CharTraits::eq(*(end - 1), '\\')) {
+            } else if (CharTraits::eq(*end, ch)) {
                 return std::make_pair(end, end + 1);
             }
         }
@@ -46,33 +48,37 @@ struct reverse_char_finder {
     }
 };
 
-template<typename CharT, typename Traits>
+template<typename CharTraits>
 struct string_finder {
-    std::basic_string_view<CharT, Traits> s;
     using is_finder = int;
-    using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
-    explicit UXS_CONSTEXPR string_finder(std::basic_string_view<CharT, Traits> tgt) : s(tgt) {}
+    using char_type = typename CharTraits::char_type;
+    using iterator = typename std::basic_string_view<char_type, CharTraits>::const_iterator;
+    std::basic_string_view<char_type, CharTraits> s;
+    explicit UXS_CONSTEXPR string_finder(std::basic_string_view<char_type, CharTraits> tgt) : s(tgt) {}
     UXS_CONSTEXPR std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         if (static_cast<std::size_t>(end - begin) < s.size()) { return std::make_pair(end, end); }
         if (!s.size()) { return std::make_pair(begin, begin); }
         for (iterator last = end - s.size() + 1; begin != last; ++begin) {
-            if (std::equal(s.begin(), s.end(), begin, Traits::eq)) { return std::make_pair(begin, begin + s.size()); }
+            if (std::equal(s.begin(), s.end(), begin, CharTraits::eq)) {
+                return std::make_pair(begin, begin + s.size());
+            }
         }
         return std::make_pair(end, end);
     }
 };
 
-template<typename CharT, typename Traits>
+template<typename CharTraits>
 struct reverse_string_finder {
-    std::basic_string_view<CharT, Traits> s;
     using is_reverse_finder = int;
-    using iterator = typename std::basic_string_view<CharT, Traits>::const_iterator;
-    explicit UXS_CONSTEXPR reverse_string_finder(std::basic_string_view<CharT, Traits> tgt) : s(tgt) {}
+    using char_type = typename CharTraits::char_type;
+    using iterator = typename std::basic_string_view<char_type, CharTraits>::const_iterator;
+    std::basic_string_view<char_type, CharTraits> s;
+    explicit UXS_CONSTEXPR reverse_string_finder(std::basic_string_view<char_type, CharTraits> tgt) : s(tgt) {}
     UXS_CONSTEXPR std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         if (static_cast<std::size_t>(end - begin) < s.size()) { return std::make_pair(begin, begin); }
         if (!s.size()) { return std::make_pair(end, end); }
         for (end -= s.size() - 1; begin != end; --end) {
-            if (std::equal(s.begin(), s.end(), end - 1, Traits::eq)) {
+            if (std::equal(s.begin(), s.end(), end - 1, CharTraits::eq)) {
                 return std::make_pair(end - 1, end - 1 + s.size());
             }
         }
@@ -84,24 +90,24 @@ struct reverse_string_finder {
 
 template<typename CharT, typename Traits = std::char_traits<CharT>,
          typename = std::enable_if_t<est::is_character<CharT>::value>>
-detail::char_finder<CharT, Traits> sfinder(CharT ch) {
-    return detail::char_finder<CharT, Traits>(ch);
+detail::char_finder<Traits> sfinder(CharT ch) {
+    return detail::char_finder<Traits>(ch);
 }
 
 template<typename CharT, typename Traits = std::char_traits<CharT>,
          typename = std::enable_if_t<est::is_character<CharT>::value>>
-detail::reverse_char_finder<CharT, Traits> rsfinder(CharT ch) {
-    return detail::reverse_char_finder<CharT, Traits>(ch);
+detail::reverse_char_finder<Traits> rsfinder(CharT ch) {
+    return detail::reverse_char_finder<Traits>(ch);
 }
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-detail::string_finder<est::array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>> sfinder(const StrLikeTy& s) {
-    return detail::string_finder<est::array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>>(to_string_view(s));
+detail::string_finder<string_traits_t<StrLikeTy>> sfinder(const StrLikeTy& s) {
+    return detail::string_finder<string_traits_t<StrLikeTy>>(to_string_view(s));
 }
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-detail::reverse_string_finder<est::array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>> rsfinder(const StrLikeTy& s) {
-    return detail::reverse_string_finder<est::array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>>(to_string_view(s));
+detail::reverse_string_finder<string_traits_t<StrLikeTy>> rsfinder(const StrLikeTy& s) {
+    return detail::reverse_string_finder<string_traits_t<StrLikeTy>>(to_string_view(s));
 }
 
 // --------------------------
@@ -233,8 +239,8 @@ UXS_CONSTEXPR auto string_section(const StrLikeTy& s, Finder finder,
 
 template<typename StrLikeTy, typename OutputIt, typename OutputFn = est::identity, typename OutputPred = est::true_fn,
          typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-UXS_CONSTEXPR OutputIt string_to_words_to(const StrLikeTy& s, est::array_element_t<StrLikeTy> sep, OutputIt out,
-                                          OutputFn fn = OutputFn{}, OutputPred pred = OutputPred{}) {
+UXS_CONSTEXPR OutputIt string_to_words_to(const StrLikeTy& s, typename string_traits_t<StrLikeTy>::char_type sep,
+                                          OutputIt out, OutputFn fn = OutputFn{}, OutputPred pred = OutputPred{}) {
     enum class state_t { start = 0, sep_found, skip_sep } state = state_t::start;
     const auto sv = to_string_view(s);
     for (auto p = sv.begin();; ++p) {
@@ -267,7 +273,7 @@ UXS_CONSTEXPR OutputIt string_to_words_to(const StrLikeTy& s, est::array_element
 
 template<typename StrLikeTy, typename OutputFn = est::identity, typename OutputPred = est::true_fn,
          typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-auto string_to_words(const StrLikeTy& s, est::array_element_t<StrLikeTy> sep, OutputFn fn = OutputFn{},
+auto string_to_words(const StrLikeTy& s, typename string_traits_t<StrLikeTy>::char_type sep, OutputFn fn = OutputFn{},
                      OutputPred pred = OutputPred{}) -> std::vector<std::decay_t<decltype(fn(to_string_view(s)))>> {
     std::vector<std::decay_t<decltype(fn(to_string_view(s)))>> result;
     string_to_words_to(s, sep, std::back_inserter(result), fn, pred);
@@ -316,7 +322,7 @@ auto pack_strings(const Range& r, est::type_identity_t<CharT> sep,
 
 template<typename StrLikeTy, typename OutputIt, typename OutputFn = est::identity, typename OutputPred = est::true_fn,
          typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-OutputIt unpack_strings_to(const StrLikeTy& s, est::array_element_t<StrLikeTy> sep, OutputIt out,
+OutputIt unpack_strings_to(const StrLikeTy& s, typename string_traits_t<StrLikeTy>::char_type sep, OutputIt out,
                            OutputFn fn = OutputFn{}, OutputPred pred = OutputPred{}) {
     const auto sv = to_string_view(s);
     for (auto p = sv.begin();; ++p) {
@@ -342,7 +348,7 @@ OutputIt unpack_strings_to(const StrLikeTy& s, est::array_element_t<StrLikeTy> s
 
 template<typename StrLikeTy, typename OutputFn = est::identity, typename OutputPred = est::true_fn,
          typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-auto unpack_strings(const StrLikeTy& s, est::array_element_t<StrLikeTy> sep, OutputFn fn = OutputFn{},
+auto unpack_strings(const StrLikeTy& s, typename string_traits_t<StrLikeTy>::char_type sep, OutputFn fn = OutputFn{},
                     OutputPred pred = OutputPred{}) -> std::vector<std::decay_t<decltype(fn(make_string(s)))>> {
     std::vector<std::decay_t<decltype(fn(make_string(s)))>> result;
     unpack_strings_to(s, sep, std::back_inserter(result), fn, pred);

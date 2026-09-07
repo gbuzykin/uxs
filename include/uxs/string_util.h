@@ -39,28 +39,37 @@ template<typename Ty, typename = void>
 struct is_string_like : std::false_type {};
 template<typename Ty>
 struct is_string_like<Ty, std::enable_if_t<est::is_character<est::array_element_t<Ty>>::value>>
-    : std::is_convertible<const Ty&,
-                          std::basic_string_view<est::array_element_t<Ty>, typename detail::string_traits<Ty>::type>> {
-};
+    : std::is_convertible<const Ty&, std::basic_string_view<typename detail::string_traits<Ty>::type::char_type,
+                                                            typename detail::string_traits<Ty>::type>> {};
+#if __cplusplus >= 201402L
+template<typename Ty>
+constexpr bool is_string_like_v = is_string_like<Ty>::value;
+#endif  // __cplusplus >= 201402L
+#if __cplusplus >= 202002L && defined(__cpp_concepts)
+template<typename Ty>
+concept string_like = is_string_like_v<Ty>;
+#endif  // cpp_concepts
 
 template<typename Ty, typename = void>
 struct string_traits {};
 template<typename Ty>
-struct string_traits<Ty, std::enable_if_t<est::is_character<est::array_element_t<Ty>>::value>> {
+struct string_traits<Ty, std::enable_if_t<is_string_like<Ty>::value>> {
     using type = typename detail::string_traits<Ty>::type;
 };
 template<typename Ty>
 using string_traits_t = typename string_traits<Ty>::type;
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-UXS_CONSTEXPR std::basic_string_view<est::array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>> to_string_view(
-    const StrLikeTy& s) {
-    return std::basic_string_view<est::array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>>(s);
+UXS_CONSTEXPR std::basic_string_view<typename string_traits_t<StrLikeTy>::char_type, string_traits_t<StrLikeTy>>
+to_string_view(const StrLikeTy& s) {
+    return std::basic_string_view<typename string_traits_t<StrLikeTy>::char_type, string_traits_t<StrLikeTy>>(s);
 }
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-std::basic_string<est::array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>> make_string(const StrLikeTy& s) {
-    return std::basic_string<est::array_element_t<StrLikeTy>, string_traits_t<StrLikeTy>>(to_string_view(s));
+std::basic_string<typename string_traits_t<StrLikeTy>::char_type, string_traits_t<StrLikeTy>> make_string(
+    const StrLikeTy& s) {
+    return std::basic_string<typename string_traits_t<StrLikeTy>::char_type, string_traits_t<StrLikeTy>>(
+        to_string_view(s));
 }
 
 namespace detail {

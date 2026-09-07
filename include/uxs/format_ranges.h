@@ -6,37 +6,44 @@
 
 namespace uxs {
 
-template<typename Tuple, typename CharT = char>
-struct is_tuple_formattable : std::false_type {};
-
-template<typename Ty1, typename Ty2, typename CharT>
-struct is_tuple_formattable<std::pair<Ty1, Ty2>, CharT>
-    : std::conjunction<is_formattable<Ty1, CharT>, is_formattable<Ty2, CharT>> {
-    using underlying_type = std::pair<formatter_t<Ty1, CharT>, formatter_t<Ty2, CharT>>;
-};
-
-template<typename... Ts, typename CharT>
-struct is_tuple_formattable<std::tuple<Ts...>, CharT> : std::conjunction<is_formattable<Ts, CharT>...> {
-    using underlying_type = std::tuple<formatter_t<Ts, CharT>...>;
-};
-
 namespace detail {
+
+template<typename Ty, typename CharT, typename, typename = void>
+struct tuple_formatter_impl {};
+template<typename Ty, typename CharT, std::size_t... Indices>
+struct tuple_formatter_impl<
+    Ty, CharT, std::index_sequence<Indices...>,
+    std::enable_if_t<format_kind<Ty>::value == range_format::disabled &&
+                     std::conjunction<is_formattable<typename std::tuple_element<Indices, Ty>::type, CharT>...>::value>> {
+    using type = std::tuple<formatter_t<typename std::tuple_element<Indices, Ty>::type, CharT>...>;
+};
+
+template<typename Ty, typename CharT, typename = void>
+struct tuple_formatter {};
+template<typename Ty, typename CharT>
+struct tuple_formatter<Ty, CharT, std::void_t<typename std::tuple_size<Ty>::type>>
+    : tuple_formatter_impl<Ty, CharT, std::make_index_sequence<std::tuple_size<Ty>::value>> {};
+
 template<typename Ty, typename = void>
 struct is_pair_like : std::false_type {};
 template<typename Ty>
 struct is_pair_like<Ty, std::enable_if_t<std::tuple_size<Ty>::value == 2>> : std::true_type {};
+
 template<typename Range, typename = void>
 struct is_range_of_pairs : std::false_type {};
 template<typename Range>
 struct is_range_of_pairs<Range, std::enable_if_t<is_pair_like<est::range_element_t<Range>>::value>> : std::true_type {};
+
 template<typename Range, typename = void>
 struct is_key_type_defined : std::false_type {};
 template<typename Range>
 struct is_key_type_defined<Range, std::void_t<typename Range::key_type>> : std::true_type {};
+
 template<typename Range, typename = void>
 struct is_mapped_type_defined : std::false_type {};
 template<typename Range>
 struct is_mapped_type_defined<Range, std::void_t<typename Range::mapped_type>> : std::true_type {};
+
 template<typename Range, typename CharT, typename = void>
 struct is_range_formattable : std::false_type {};
 template<typename Range, typename CharT>
@@ -44,6 +51,7 @@ struct is_range_formattable<Range, CharT,
                             std::enable_if_t<std::is_same<decltype(std::begin(std::declval<const Range&>())),
                                                           decltype(std::end(std::declval<const Range&>()))>::value &&
                                              is_formattable<est::range_element_t<Range>>::value>> : std::true_type {};
+
 }  // namespace detail
 
 template<typename Range, typename CharT>
@@ -64,12 +72,12 @@ template<typename CharT, typename Traits, typename Alloc>
 struct format_kind<std::basic_string<CharT, Traits, Alloc>, CharT>
     : std::integral_constant<range_format, range_format::string> {};
 
-template<typename Tuple, typename CharT>
-struct formatter<Tuple, CharT, std::enable_if_t<is_tuple_formattable<Tuple, CharT>::value>> {
+template<typename Ty, typename CharT>
+struct formatter<Ty, CharT, std::void_t<typename detail::tuple_formatter<Ty, CharT>::type>> {
  private:
     fmt_opts opts_;
     std::size_t width_arg_id_ = unspecified_size;
-    typename is_tuple_formattable<Tuple, CharT>::underlying_type underlying_;
+    typename detail::tuple_formatter<Ty, CharT>::type underlying_;
     std::basic_string_view<CharT> separator_;
     std::basic_string_view<CharT> opening_bracket_;
     std::basic_string_view<CharT> closing_bracket_;
@@ -91,7 +99,7 @@ struct formatter<Tuple, CharT, std::enable_if_t<is_tuple_formattable<Tuple, Char
     }
 
     template<typename ParseCtx>
-    UXS_CONSTEXPR typename ParseCtx::iterator parse_element(ParseCtx& ctx, typename std::tuple_size<Tuple>::type) {
+    UXS_CONSTEXPR typename ParseCtx::iterator parse_element(ParseCtx& ctx, typename std::tuple_size<Ty>::type) {
         return ctx.begin();
     }
 
@@ -103,17 +111,17 @@ struct formatter<Tuple, CharT, std::enable_if_t<is_tuple_formattable<Tuple, Char
     }
 
     template<typename FmtCtx>
-    void format_element(FmtCtx& /*ctx*/, const Tuple& /*val*/, typename std::tuple_size<Tuple>::type) const {}
+    void format_element(FmtCtx& /*ctx*/, const Ty& /*val*/, typename std::tuple_size<Ty>::type) const {}
 
     template<typename FmtCtx, std::size_t I>
-    void format_element(FmtCtx& ctx, const Tuple& val, std::integral_constant<std::size_t, I>) const {
+    void format_element(FmtCtx& ctx, const Ty& val, std::integral_constant<std::size_t, I>) const {
         if UXS_CONSTEXPR_IF (I != 0) { ctx.out() += separator_; }
         std::get<I>(underlying_).format(ctx, std::get<I>(val));
         format_element(ctx, val, std::integral_constant<std::size_t, I + 1>());
     }
 
     template<typename FmtCtx>
-    void format_impl(FmtCtx& ctx, const Tuple& val) const {
+    void format_impl(FmtCtx& ctx, const Ty& val) const {
         ctx.out() += opening_bracket_;
         format_element(ctx, val, std::integral_constant<std::size_t, 0>());
         ctx.out() += closing_bracket_;
@@ -138,7 +146,7 @@ struct formatter<Tuple, CharT, std::enable_if_t<is_tuple_formattable<Tuple, Char
             it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
             if (opts_.prec >= 0 || !!(opts_.flags & ~fmt_flags::adjust_field)) { ParseCtx::syntax_error(); }
             if (it != ctx.end() && (*it == 'n' || *it == 'm')) {
-                if (*it == 'm') { switch_to_map_style(detail::is_pair_like<Tuple>()); }
+                if (*it == 'm') { switch_to_map_style(detail::is_pair_like<Ty>()); }
                 set_brackets({}, {});
                 ++it;
             }
@@ -148,7 +156,7 @@ struct formatter<Tuple, CharT, std::enable_if_t<is_tuple_formattable<Tuple, Char
     }
 
     template<typename FmtCtx>
-    void format(FmtCtx& ctx, const Tuple& val) const {
+    void format(FmtCtx& ctx, const Ty& val) const {
         fmt_opts opts = opts_;
         if (width_arg_id_ != unspecified_size) {
             opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>();
@@ -166,7 +174,7 @@ struct formatter<Tuple, CharT, std::enable_if_t<is_tuple_formattable<Tuple, Char
 template<typename Ty, typename CharT = char>
 struct range_formatter {
  private:
-    static_assert(is_formattable<Ty, CharT>::value, "range_formatter<> template parameter must be is_formattable");
+    static_assert(is_formattable<Ty, CharT>::value, "range_formatter<> template parameter must be formattable");
 
     fmt_opts opts_;
     std::size_t width_arg_id_ = unspecified_size;
