@@ -215,7 +215,7 @@ struct formatter<db::basic_value<CharT, Alloc>, OutCharT> {
         switch (*it) {
             case 't': {
                 opts_.indent_char = '\t';
-                if (++it == ctx.end() || (*it != 'a' && *it != 'A')) { ParseCtx::syntax_error(); }
+                if (++it == ctx.end() || (*it != 'a' && *it != 'A')) { ParseCtx::report_syntax_error(); }
                 opts_.object_ws_char = '\n';
                 if (*it == 'A') { opts_.array_ws_char = '\n'; }
             } break;

@@ -109,13 +109,13 @@ struct formatter<bool, CharT> {
         std::size_t dummy_id = unspecified_size;
         it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
         auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, opts_) : ParseCtx::type_spec::none;
-        if (opts_.prec >= 0) { ParseCtx::unexpected_prec_error(); }
+        if (opts_.prec >= 0) { ParseCtx::report_unexpected_prec_error(); }
         if (type == ParseCtx::type_spec::none || type == ParseCtx::type_spec::string) {
-            if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::unexpected_sign_error(); }
-            if (!!(opts_.flags & fmt_flags::leading_zeroes)) { ParseCtx::unexpected_leading_zeroes_error(); }
-            if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::unexpected_alternate_error(); }
+            if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::report_unexpected_sign_error(); }
+            if (!!(opts_.flags & fmt_flags::leading_zeroes)) { ParseCtx::report_unexpected_leading_zeroes_error(); }
+            if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::report_unexpected_alternate_error(); }
         } else if (type != ParseCtx::type_spec::integer) {
-            ParseCtx::type_error();
+            ParseCtx::report_type_error();
         }
         return type == ParseCtx::type_spec::none ? it : it + 1;
     }
@@ -144,15 +144,15 @@ struct formatter<CharT, CharT> {
         std::size_t dummy_id = unspecified_size;
         it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
         auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, opts_) : ParseCtx::type_spec::none;
-        if (opts_.prec >= 0) { ParseCtx::unexpected_prec_error(); }
+        if (opts_.prec >= 0) { ParseCtx::report_unexpected_prec_error(); }
         if (type == ParseCtx::type_spec::none || type == ParseCtx::type_spec::character ||
             type == ParseCtx::type_spec::debug_string) {
-            if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::unexpected_sign_error(); }
-            if (!!(opts_.flags & fmt_flags::leading_zeroes)) { ParseCtx::unexpected_leading_zeroes_error(); }
-            if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::unexpected_alternate_error(); }
+            if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::report_unexpected_sign_error(); }
+            if (!!(opts_.flags & fmt_flags::leading_zeroes)) { ParseCtx::report_unexpected_leading_zeroes_error(); }
+            if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::report_unexpected_alternate_error(); }
             if (type == ParseCtx::type_spec::debug_string) { set_debug_format(); }
         } else if (type != ParseCtx::type_spec::integer) {
-            ParseCtx::type_error();
+            ParseCtx::report_type_error();
         }
         return type == ParseCtx::type_spec::none ? it : it + 1;
     }
@@ -181,13 +181,15 @@ struct formatter<CharT, CharT> {
             std::size_t dummy_id = unspecified_size; \
             it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id); \
             auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, opts_) : ParseCtx::type_spec::none; \
-            if (opts_.prec >= 0) { ParseCtx::unexpected_prec_error(); } \
+            if (opts_.prec >= 0) { ParseCtx::report_unexpected_prec_error(); } \
             if (type == ParseCtx::type_spec::character) { \
-                if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::unexpected_sign_error(); } \
-                if (!!(opts_.flags & fmt_flags::leading_zeroes)) { ParseCtx::unexpected_leading_zeroes_error(); } \
-                if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::unexpected_alternate_error(); } \
+                if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::report_unexpected_sign_error(); } \
+                if (!!(opts_.flags & fmt_flags::leading_zeroes)) { \
+                    ParseCtx::report_unexpected_leading_zeroes_error(); \
+                } \
+                if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::report_unexpected_alternate_error(); } \
             } else if (type != ParseCtx::type_spec::none && type != ParseCtx::type_spec::integer) { \
-                ParseCtx::type_error(); \
+                ParseCtx::report_type_error(); \
             } \
             return type == ParseCtx::type_spec::none ? it : it + 1; \
         } \
@@ -222,7 +224,7 @@ UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::uint64_t);
             it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, prec_arg_id_); \
             auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, opts_) : ParseCtx::type_spec::none; \
             if (type != ParseCtx::type_spec::none && type != ParseCtx::type_spec::floating_point) { \
-                ParseCtx::type_error(); \
+                ParseCtx::report_type_error(); \
             } \
             return type == ParseCtx::type_spec::none ? it : it + 1; \
         } \
@@ -257,11 +259,13 @@ struct formatter<const void*, CharT> {
         std::size_t dummy_id = unspecified_size;
         it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
         auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, opts_) : ParseCtx::type_spec::none;
-        if (opts_.prec >= 0) { ParseCtx::unexpected_prec_error(); }
-        if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::unexpected_sign_error(); }
-        if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::unexpected_alternate_error(); }
-        if (!!(opts_.flags & fmt_flags::localize)) { ParseCtx::unexpected_local_specific_error(); }
-        if (type != ParseCtx::type_spec::none && type != ParseCtx::type_spec::pointer) { ParseCtx::type_error(); }
+        if (opts_.prec >= 0) { ParseCtx::report_unexpected_prec_error(); }
+        if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::report_unexpected_sign_error(); }
+        if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::report_unexpected_alternate_error(); }
+        if (!!(opts_.flags & fmt_flags::localize)) { ParseCtx::report_unexpected_local_specific_error(); }
+        if (type != ParseCtx::type_spec::none && type != ParseCtx::type_spec::pointer) {
+            ParseCtx::report_type_error();
+        }
         return type == ParseCtx::type_spec::none ? it : it + 1;
     }
     template<typename FmtCtx>
@@ -291,14 +295,14 @@ struct formatter<const void*, CharT> {
             if (it == ctx.end() || *it != ':') { return it; } \
             it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, prec_arg_id_); \
             auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, opts_) : ParseCtx::type_spec::none; \
-            if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::unexpected_sign_error(); } \
-            if (!!(opts_.flags & fmt_flags::leading_zeroes)) { ParseCtx::unexpected_leading_zeroes_error(); } \
-            if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::unexpected_alternate_error(); } \
-            if (!!(opts_.flags & fmt_flags::localize)) { ParseCtx::unexpected_local_specific_error(); } \
+            if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::report_unexpected_sign_error(); } \
+            if (!!(opts_.flags & fmt_flags::leading_zeroes)) { ParseCtx::report_unexpected_leading_zeroes_error(); } \
+            if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::report_unexpected_alternate_error(); } \
+            if (!!(opts_.flags & fmt_flags::localize)) { ParseCtx::report_unexpected_local_specific_error(); } \
             if (type == ParseCtx::type_spec::debug_string) { \
                 set_debug_format(); \
             } else if (type != ParseCtx::type_spec::none && type != ParseCtx::type_spec::string) { \
-                ParseCtx::type_error(); \
+                ParseCtx::report_type_error(); \
             } \
             return type == ParseCtx::type_spec::none ? it : it + 1; \
         } \
@@ -684,13 +688,19 @@ struct parse_context_utils {
     }
 #endif  // defined(UXS_HAS_CONSTEVAL)
 
-    static void syntax_error() { throw format_error("invalid specifier syntax"); }
-    static void unexpected_prec_error() { throw format_error("unexpected precision specifier"); }
-    static void unexpected_sign_error() { throw format_error("unexpected sign specifier"); }
-    static void unexpected_alternate_error() { throw format_error("unexpected alternate specifier"); }
-    static void unexpected_leading_zeroes_error() { throw format_error("unexpected leading zeroes specifier"); }
-    static void unexpected_local_specific_error() { throw format_error("unexpected local-specific specifier"); }
-    static void type_error() { throw format_error("unacceptable type specifier"); }
+    [[noreturn]] static void report_syntax_error() { throw format_error("invalid specifier syntax"); }
+    [[noreturn]] static void report_unexpected_prec_error() { throw format_error("unexpected precision specifier"); }
+    [[noreturn]] static void report_unexpected_sign_error() { throw format_error("unexpected sign specifier"); }
+    [[noreturn]] static void report_unexpected_alternate_error() {
+        throw format_error("unexpected alternate specifier");
+    }
+    [[noreturn]] static void report_unexpected_leading_zeroes_error() {
+        throw format_error("unexpected leading zeroes specifier");
+    }
+    [[noreturn]] static void report_unexpected_local_specific_error() {
+        throw format_error("unexpected local-specific specifier");
+    }
+    [[noreturn]] static void report_type_error() { throw format_error("unacceptable type specifier"); }
 };
 
 template<typename ParseCtx, typename OnTextFn, typename OnArgFn>
@@ -710,10 +720,10 @@ UXS_CONSTEXPR void parse_format(ParseCtx& ctx, OnTextFn&& on_text_fn, OnArgFn&& 
             }
             ctx.advance_to(it);
             it = on_arg_fn(ctx, arg_id);
-            if (it == ctx.end() || *it != '}') { ParseCtx::syntax_error(); }
+            if (it == ctx.end() || *it != '}') { ParseCtx::report_syntax_error(); }
             it0 = it + 1;
         } else if (it == ctx.end() || *(it - 1) != *it) {
-            ParseCtx::syntax_error();
+            ParseCtx::report_syntax_error();
         }
     }
     on_text_fn(it0, ctx.end());

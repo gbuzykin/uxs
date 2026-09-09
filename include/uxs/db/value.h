@@ -57,12 +57,11 @@ class flexarray_t {
     enum : unsigned { tail_zero = est::is_character<Ty>::value ? 1 : 0 };
 
     std::size_t size() const noexcept { return p_ ? p_->size : 0; }
-    const_view_type cview() const noexcept { return p_ ? const_view_type(p_->data(), p_->size) : const_view_type(); }
+    const_view_type cview() const noexcept { return p_ ? const_view_type(p_->data(), p_->size) : get_empty_view(); }
 
     template<typename Ty_ = Ty, typename = std::enable_if_t<est::is_character<Ty_>::value>>
     const Ty_* c_str() const noexcept {
-        static const Ty zero = '\0';
-        return p_ ? p_->data() : &zero;
+        return p_ ? p_->data() : get_empty_view().data();
     }
 
     const Ty* cbegin() const noexcept {
@@ -165,9 +164,9 @@ class flexarray_t {
         put_tail_zero();
     }
 
-    void clear(alloc_type& al) noexcept;
-    void reserve(alloc_type& al, std::size_t sz);
-    void resize(alloc_type& al, std::size_t sz, const Ty& v);
+    UXS_EXPORT void clear(alloc_type& al) noexcept;
+    UXS_EXPORT void reserve(alloc_type& al, std::size_t sz);
+    UXS_EXPORT void resize(alloc_type& al, std::size_t sz, const Ty& v);
 
     template<typename FillFn>
     void append(alloc_type& al, std::size_t max_count, FillFn fn) {
@@ -199,7 +198,7 @@ class flexarray_t {
     }
 
     void ensure_unique(alloc_type& al) {
-        if (p_->ref_count > 1) { ensure_unique_impl(al); }
+        if (p_->ref_count > 1) { make_unique(al); }
     }
 
  private:
@@ -214,6 +213,19 @@ class flexarray_t {
     void put_tail_zero(Dummy&&...) noexcept {
         static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
         static_assert(tail_zero == 0, "must be no tail zero");
+    }
+
+    template<unsigned V_ = tail_zero, typename = std::enable_if_t<V_ != 0>>
+    static const_view_type get_empty_view() noexcept {
+        static constexpr Ty empty_string[1] = {'\0'};
+        return const_view_type(empty_string, 0);
+    }
+
+    template<typename... Dummy>
+    static const_view_type get_empty_view(Dummy&&...) noexcept {
+        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
+        static_assert(tail_zero == 0, "must be no tail zero");
+        return const_view_type();
     }
 
     template<typename RandIt>
@@ -280,7 +292,7 @@ class flexarray_t {
 
     UXS_EXPORT void grow(alloc_type& al, std::size_t extra);
     UXS_EXPORT void rotate_back(std::size_t pos) noexcept;
-    UXS_EXPORT void ensure_unique_impl(alloc_type& al);
+    UXS_EXPORT void make_unique(alloc_type& al);
     UXS_EXPORT void destruct(alloc_type& al) noexcept;
 
     void reset(alloc_type& al, data_t* p) noexcept {
@@ -398,12 +410,12 @@ template<typename CharT, typename Alloc>
 class object_t;
 
 template<typename CharT, typename Alloc>
-class object_value {
+class object_item {
  public:
     using char_type = CharT;
     using key_type = std::basic_string_view<char_type>;
     using value_type = basic_value<char_type, Alloc>;
-    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<object_value>;
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<object_item>;
     using alloc_traits = std::allocator_traits<alloc_type>;
 
     key_type key() const noexcept { return key_type(key_chars_, key_sz_); }
@@ -411,13 +423,13 @@ class object_value {
     const value_type& value() const noexcept { return *reinterpret_cast<const value_type*>(&x_); }
     value_type& value() noexcept { return *reinterpret_cast<value_type*>(&x_); }
 
-    friend bool operator==(const object_value& lhs, const object_value& rhs) noexcept {
+    friend bool operator==(const object_item& lhs, const object_item& rhs) noexcept {
         return lhs.key() == rhs.key() && lhs.value() == rhs.value();
     }
-    friend bool operator!=(const object_value& lhs, const object_value& rhs) noexcept { return !(lhs == rhs); }
+    friend bool operator!=(const object_item& lhs, const object_item& rhs) noexcept { return !(lhs == rhs); }
 
-    static object_value* from_links(list_links_t* links) noexcept {
-        return get_containing_record<object_value, offsetof(object_value, links_)>(links);
+    static object_item* from_links(list_links_t* links) noexcept {
+        return get_containing_record<object_item, offsetof(object_item, links_)>(links);
     }
 
  private:
@@ -431,8 +443,8 @@ class object_value {
     char_type key_chars_[16];
 
     template<typename... Args>
-    static object_value* create(alloc_type& al, key_type key, Args&&... args) {
-        object_value* node = alloc(al, key);
+    static object_item* create(alloc_type& al, key_type key, Args&&... args) {
+        object_item* node = alloc(al, key);
         try {
             alloc_traits::construct(al, &node->value(), std::forward<Args>(args)...);
             return node;
@@ -442,25 +454,25 @@ class object_value {
         }
     }
 
-    static void destroy(alloc_type& al, object_value* node) noexcept {
+    static void destroy(alloc_type& al, object_item* node) noexcept {
         alloc_traits::destroy(al, &node->value());
         dealloc(al, node);
     }
 
     static std::size_t max_name_alloc_size(const alloc_type& al) noexcept {
-        return (std::allocator_traits<alloc_type>::max_size(al) * sizeof(object_value) -
-                offsetof(object_value, key_chars_)) /
+        return (std::allocator_traits<alloc_type>::max_size(al) * sizeof(object_item) -
+                offsetof(object_item, key_chars_)) /
                sizeof(CharT);
     }
 
     static std::size_t get_alloc_sz(std::size_t key_sz) noexcept {
-        return (offsetof(object_value, key_chars_) + key_sz * sizeof(CharT) + sizeof(object_value) - 1) /
-               sizeof(object_value);
+        return (offsetof(object_item, key_chars_) + key_sz * sizeof(CharT) + sizeof(object_item) - 1) /
+               sizeof(object_item);
     }
 
-    UXS_NODISCARD UXS_EXPORT static object_value* alloc(alloc_type& al, key_type key);
+    UXS_NODISCARD UXS_EXPORT static object_item* alloc(alloc_type& al, key_type key);
 
-    static void dealloc(alloc_type& al, object_value* node) noexcept {
+    static void dealloc(alloc_type& al, object_item* node) noexcept {
         alloc_traits::deallocate(al, node, get_alloc_sz(node->key_sz_ + 1));
     }
 };
@@ -468,7 +480,7 @@ class object_value {
 template<typename CharT, typename Alloc>
 struct object_node_traits {
     using iterator_node_t = list_links_t;
-    using node_t = object_value<CharT, Alloc>;
+    using node_t = object_item<CharT, Alloc>;
     static list_links_t* get_next(list_links_t* node) { return node->next; }
     static list_links_t* get_prev(list_links_t* node) { return node->prev; }
 #if UXS_ITERATOR_DEBUG_LEVEL != 0
@@ -478,7 +490,7 @@ struct object_node_traits {
 #else   // UXS_ITERATOR_DEBUG_LEVEL != 0
     static void set_head(list_links_t* /*node*/, list_links_t* /*head*/) {}
 #endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
-    static object_value<CharT, Alloc>& get_value(list_links_t* node) { return *node_t::from_links(node); }
+    static object_item<CharT, Alloc>& get_value(list_links_t* node) { return *node_t::from_links(node); }
 };
 
 template<typename Iter>
@@ -526,7 +538,7 @@ class object_t {
  public:
     using key_type = std::basic_string_view<CharT>;
     using mapped_type = basic_value<CharT, Alloc>;
-    using value_type = object_value<CharT, Alloc>;
+    using value_type = object_item<CharT, Alloc>;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
     using pointer = value_type*;
@@ -626,7 +638,7 @@ class object_t {
     }
 
     void clear(alloc_type& al) { clear_impl(al); }
-    void reserve(alloc_type& al, std::size_t sz);
+    UXS_EXPORT void reserve(alloc_type& al, std::size_t sz);
     list_links_t* erase(alloc_type& al, list_links_t* node);
     std::size_t erase(alloc_type& al, key_type key);
 
@@ -637,7 +649,7 @@ class object_t {
     }
 
     void ensure_unique(alloc_type& al) {
-        if (p_->ref_count > 1) { ensure_unique_impl(al); }
+        if (p_->ref_count > 1) { make_unique(al); }
     }
 
  private:
@@ -654,7 +666,7 @@ class object_t {
     void add_to_hash(node_t* node) noexcept;
     UXS_EXPORT void insert_node(node_t* node, std::size_t hash_code) noexcept;
     UXS_EXPORT void rehash(alloc_type& al, std::size_t extra);
-    UXS_EXPORT void ensure_unique_impl(alloc_type& al);
+    UXS_EXPORT void make_unique(alloc_type& al);
     UXS_EXPORT void clear_impl(alloc_type& al, std::false_type = {});
     UXS_EXPORT void clear_impl(alloc_type& al, std::size_t bucket_count);
     UXS_EXPORT void destruct(alloc_type& al) noexcept;
@@ -779,20 +791,19 @@ class value_iterator
     bool is_object() const noexcept { return is_object_; }
 
     key_type key() const {
-        if (!is_object_) { throw database_error("cannot use key() for non-object iterators"); }
-        return object_value<CharT, Alloc>::from_links(static_cast<list_links_t*>(ptr_))->key();
+        if (!is_object_) { report_not_an_object_error(); }
+        return get_object_item().key();
     }
 
     const char_type* c_key() const {
-        if (!is_object_) { throw database_error("cannot use key() for non-object iterators"); }
-        return object_value<CharT, Alloc>::from_links(static_cast<list_links_t*>(ptr_))->c_key();
+        if (!is_object_) { report_not_an_object_error(); }
+        return get_object_item().c_key();
     }
 
     std::conditional_t<Const, const value_type&, value_type&> value() const noexcept {
         assert(ptr_);
         uxs_iterator_assert(is_object_ ? ptr_ != head() : begin_ <= ptr_ && ptr_ < end_);
-        return is_object_ ? object_value<CharT, Alloc>::from_links(static_cast<list_links_t*>(ptr_))->value() :
-                            *static_cast<value_type*>(ptr_);
+        return is_object_ ? get_object_item().value() : *static_cast<value_type*>(ptr_);
     }
 
  private:
@@ -803,6 +814,14 @@ class value_iterator
     const void* end_ = nullptr;
     list_links_t* head() const noexcept { return static_cast<list_links_t*>(ptr_)->head; }
 #endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
+
+    object_item<CharT, Alloc>& get_object_item() const noexcept {
+        return *object_item<CharT, Alloc>::from_links(static_cast<list_links_t*>(ptr_));
+    }
+
+    [[noreturn]] static void report_not_an_object_error() {
+        throw database_error("cannot use key() for non-object iterators");
+    }
 };
 
 template<typename Iter>
@@ -840,15 +859,15 @@ constexpr object_tag_t object_tag{0};
 namespace detail {
 
 template<typename CharT, typename Alloc, typename Ty, typename = void>
-struct is_object_value : std::false_type {};
+struct is_object_item : std::false_type {};
 template<typename CharT, typename Alloc, typename FirstTy, typename SecondTy>
-struct is_object_value<CharT, Alloc, std::pair<FirstTy, SecondTy>,
-                       std::enable_if_t<std::is_convertible<FirstTy, typename object_t<CharT, Alloc>::key_type>::value &&
-                                        std::is_convertible<SecondTy, basic_value<CharT, Alloc>>::value>>
+struct is_object_item<CharT, Alloc, std::pair<FirstTy, SecondTy>,
+                      std::enable_if_t<std::is_convertible<FirstTy, typename object_t<CharT, Alloc>::key_type>::value &&
+                                       std::is_convertible<SecondTy, basic_value<CharT, Alloc>>::value>>
     : std::true_type {};
 
 template<typename CharT, typename Alloc, typename InputIt>
-using is_object_iterator = is_object_value<CharT, Alloc, typename std::iterator_traits<InputIt>::value_type>;
+using is_object_iterator = is_object_item<CharT, Alloc, typename std::iterator_traits<InputIt>::value_type>;
 
 template<typename CharT, typename Alloc, typename InputIt>
 using select_construct_t =
@@ -861,21 +880,6 @@ Ty get_optional_value(est::optional<Ty>&& opt) {
 
 template<typename Ty>
 const Ty* get_optional_value(const Ty* opt) {
-    return opt;
-}
-
-template<typename Ty1, typename Ty2, typename = std::enable_if_t<!std::is_same<Ty1, Ty2>::value>>
-est::optional<Ty1> cast_optional(const est::optional<Ty2>& opt) {
-    return opt ? est::make_optional(static_cast<Ty1>(*opt)) : est::nullopt;
-}
-
-template<typename Ty>
-est::optional<Ty> cast_optional(est::optional<Ty>&& opt) {
-    return std::move(opt);
-}
-
-template<typename Ty>
-const Ty* cast_optional(const Ty* opt) {
     return opt;
 }
 
@@ -1114,15 +1118,15 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         std::swap(type_, other.type_);
     }
 
-    UXS_EXPORT void clear();
-    UXS_EXPORT void ensure_unique();
+    void clear();
+    void ensure_unique();
 
-    UXS_EXPORT void reserve(array_tag_t, size_type size);
-    UXS_EXPORT void reserve(string_tag_t, size_type size);
-    UXS_EXPORT void reserve(object_tag_t, size_type size);
+    void reserve(array_tag_t, size_type size);
+    void reserve(string_tag_t, size_type size);
+    void reserve(object_tag_t, size_type size);
 
-    UXS_EXPORT void resize(size_type size);
-    UXS_EXPORT void resize(size_type size, const basic_value& v);
+    void resize(size_type size);
+    void resize(size_type size, const basic_value& v);
 
     UXS_EXPORT basic_value& append_string(std::basic_string_view<char_type> s);
 
@@ -1227,13 +1231,13 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     std::basic_string<char_type> as_string() const;
 
     std::basic_string_view<char_type> as_string_view() const {
-        if (type_ == dtype::string) { return value_.str.cview(); }
-        throw database_error("bad value conversion");
+        if (type_ != dtype::string) { report_value_conversion_error(); }
+        return value_.str.cview();
     }
 
     const char_type* as_c_string() const {
-        if (type_ == dtype::string) { return value_.str.c_str(); }
-        throw database_error("bad value conversion");
+        if (type_ != dtype::string) { report_value_conversion_error(); }
+        return value_.str.c_str();
     }
 
     UXS_EXPORT est::optional<bool> get_bool() const;
@@ -1249,14 +1253,14 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     const char_type* get_c_string() const { return type_ == dtype::string ? value_.str.c_str() : nullptr; }
 
     bool empty() const noexcept { return size() == 0; }
-    UXS_EXPORT size_type size() const noexcept;
+    size_type size() const noexcept;
 
-    UXS_EXPORT iterator begin();
-    UXS_EXPORT const_iterator begin() const noexcept;
+    iterator begin();
+    const_iterator begin() const noexcept;
     const_iterator cbegin() const noexcept { return begin(); }
 
-    UXS_EXPORT iterator end();
-    UXS_EXPORT const_iterator end() const noexcept;
+    iterator end();
+    const_iterator end() const noexcept;
     const_iterator cend() const noexcept { return end(); }
 
     reverse_iterator rbegin() { return reverse_iterator(end()); }
@@ -1273,8 +1277,6 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     reference back() { return std::prev(end()); }
     const_reference back() const { return std::prev(end()); }
 
-    est::span<char_type> as_string_span();
-
     const_array_range as_array() const noexcept;
     array_range as_array();
 
@@ -1286,26 +1288,26 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     const basic_value& at(size_type i) const {
         const auto range = as_array();
-        if (i < range.size()) { return range[i]; }
-        throw database_error("index out of range");
+        if (i >= range.size()) { report_index_out_of_range_error(); }
+        return range[i];
     }
 
     basic_value& at(size_type i) {
         const auto range = as_array();
-        if (i < range.size()) { return range[i]; }
-        throw database_error("index out of range");
+        if (i >= range.size()) { report_index_out_of_range_error(); }
+        return range[i];
     }
 
     const basic_value& at(key_type key) const {
         const auto it = find(key);
-        if (it != end()) { return it.value(); }
-        throw database_error("invalid key");
+        if (it == end()) { report_invalid_key_error(); }
+        return it.value();
     }
 
     basic_value& at(key_type key) {
         const auto it = find(key);
-        if (it != std::as_const(*this).end()) { return it.value(); }
-        throw database_error("invalid key");
+        if (it == std::as_const(*this).end()) { report_invalid_key_error(); }
+        return it.value();
     }
 
     basic_value& operator[](key_type key) {
@@ -1329,8 +1331,8 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         }
     }
 
-    UXS_EXPORT const_iterator find(key_type key) const noexcept;
-    UXS_EXPORT iterator find(key_type key);
+    const_iterator find(key_type key) const noexcept;
+    iterator find(key_type key);
     bool contains(key_type key) const noexcept { return find(key) != end(); }
     size_type count(key_type key) const noexcept { return type_ == dtype::object ? value_.obj.count(key) : 0; }
 
@@ -1385,12 +1387,19 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         object_t obj;
     } value_;
 
-    UXS_EXPORT void init_from(const basic_value& other) noexcept;
-    UXS_EXPORT void destroy() noexcept;
-    UXS_EXPORT void init_as_string();
-    UXS_EXPORT void init_as_array();
-    UXS_EXPORT void init_as_object();
-    UXS_EXPORT void convert_to_array();
+    [[noreturn]] static void report_not_a_string_error() { throw database_error("not a string"); }
+    [[noreturn]] static void report_not_an_array_error() { throw database_error("not an array"); }
+    [[noreturn]] static void report_not_an_object_error() { throw database_error("not an object"); }
+    [[noreturn]] static void report_index_out_of_range_error() { throw database_error("index out of range"); }
+    [[noreturn]] static void report_invalid_key_error() { throw database_error("invalid key"); }
+    [[noreturn]] static void report_value_conversion_error() { throw database_error("bad value conversion"); }
+
+    void init_from(const basic_value& other) noexcept;
+    void destroy() noexcept;
+    void init_as_string();
+    void init_as_array();
+    void init_as_object();
+    void convert_to_array();
 
     void move_construct_impl(basic_value&& other, std::true_type) noexcept {
         type_ = other.type_, value_ = other.value_;
@@ -1444,7 +1453,7 @@ basic_value<CharT, Alloc>& basic_value<CharT, Alloc>::emplace_back(Args&&... arg
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::pop_back() {
-    if (type_ != dtype::array) { throw database_error("not an array"); }
+    if (type_ != dtype::array) { report_not_an_array_error(); }
     typename value_array_t::alloc_type arr_al(*this);
     value_.arr.pop_back(arr_al);
 }
@@ -1488,7 +1497,7 @@ template<typename InputIt, typename>
 void basic_value<CharT, Alloc>::insert(InputIt first, InputIt last) {
     typename object_t::alloc_type obj_al(*this);
     if (type_ != dtype::object) {
-        if (type_ != dtype::null) { throw database_error("not an object"); }
+        if (type_ != dtype::null) { report_not_an_object_error(); }
         value_.obj.construct(obj_al,
                              detail::initial_bucket_count(first, last, est::is_random_access_iterator<InputIt>()));
         type_ = dtype::object;
@@ -1499,11 +1508,144 @@ void basic_value<CharT, Alloc>::insert(InputIt first, InputIt last) {
 // --------------------------
 
 template<typename CharT, typename Alloc>
-est::span<typename basic_value<CharT, Alloc>::char_type> basic_value<CharT, Alloc>::as_string_span() {
-    if (type_ != dtype::string) { throw database_error("not a string"); }
-    typename char_array_t::alloc_type str_al(*this);
-    return value_.str.view(str_al);
+void basic_value<CharT, Alloc>::clear() {
+    switch (type_) {
+        case dtype::string: {
+            typename char_array_t::alloc_type str_al(*this);
+            value_.str.clear(str_al);
+        } break;
+        case dtype::array: {
+            typename value_array_t::alloc_type arr_al(*this);
+            value_.arr.clear(arr_al);
+        } break;
+        case dtype::object: {
+            typename object_t::alloc_type obj_al(*this);
+            value_.obj.clear(obj_al);
+        } break;
+        default: break;
+    }
 }
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::ensure_unique() {
+    switch (type_) {
+        case dtype::string: {
+            typename char_array_t::alloc_type str_al(*this);
+            value_.str.ensure_unique(str_al);
+        } break;
+        case dtype::array: {
+            typename value_array_t::alloc_type arr_al(*this);
+            value_.arr.ensure_unique(arr_al);
+        } break;
+        case dtype::object: {
+            typename object_t::alloc_type obj_al(*this);
+            value_.obj.ensure_unique(obj_al);
+        } break;
+        default: break;
+    }
+}
+
+// --------------------------
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::reserve(array_tag_t, size_type size) {
+    if (type_ != dtype::array) { init_as_array(); }
+    typename value_array_t::alloc_type arr_al(*this);
+    value_.arr.reserve(arr_al, size);
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::reserve(string_tag_t, size_type size) {
+    if (type_ != dtype::string) { init_as_string(); }
+    typename char_array_t::alloc_type str_al(*this);
+    value_.str.reserve(str_al, size);
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::reserve(object_tag_t, size_type size) {
+    if (type_ != dtype::object) { init_as_object(); }
+    typename object_t::alloc_type obj_al(*this);
+    value_.obj.reserve(obj_al, size);
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::resize(size_type size) {
+    if (type_ != dtype::array) { init_as_array(); }
+    typename value_array_t::alloc_type arr_al(*this);
+    value_.arr.resize(arr_al, size, basic_value());
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::resize(size_type size, const basic_value& v) {
+    if (type_ != dtype::array) { init_as_array(); }
+    typename value_array_t::alloc_type arr_al(*this);
+    value_.arr.resize(arr_al, size, v);
+}
+
+// --------------------------
+
+template<typename CharT, typename Alloc>
+auto basic_value<CharT, Alloc>::size() const noexcept -> size_type {
+    switch (type_) {
+        case dtype::null: return 0;
+        case dtype::array: return value_.arr.size();
+        case dtype::object: return value_.obj.size();
+        default: break;
+    }
+    return 1;
+}
+
+template<typename CharT, typename Alloc>
+auto basic_value<CharT, Alloc>::begin() -> iterator {
+    if (type_ == dtype::object) {
+        typename object_t::alloc_type obj_al(*this);
+        value_.obj.ensure_unique(obj_al);
+        return iterator(value_.obj.cbegin());
+    }
+    const auto range = as_array();
+    return iterator(range.data(), range.data(), range.data() + range.size());
+}
+
+template<typename CharT, typename Alloc>
+auto basic_value<CharT, Alloc>::begin() const noexcept -> const_iterator {
+    if (type_ == dtype::object) { return const_iterator(value_.obj.cbegin()); }
+    const auto range = as_array();
+    return const_iterator(const_cast<value_type*>(range.data()), range.data(), range.data() + range.size());
+}
+
+template<typename CharT, typename Alloc>
+auto basic_value<CharT, Alloc>::end() -> iterator {
+    if (type_ == dtype::object) {
+        typename object_t::alloc_type obj_al(*this);
+        value_.obj.ensure_unique(obj_al);
+        return iterator(value_.obj.cend());
+    }
+    const auto range = as_array();
+    return iterator(range.data() + range.size(), range.data(), range.data() + range.size());
+}
+
+template<typename CharT, typename Alloc>
+auto basic_value<CharT, Alloc>::end() const noexcept -> const_iterator {
+    if (type_ == dtype::object) { return const_iterator(value_.obj.cend()); }
+    const auto range = as_array();
+    return const_iterator(const_cast<value_type*>(range.data()) + range.size(), range.data(),
+                          range.data() + range.size());
+}
+
+template<typename CharT, typename Alloc>
+auto basic_value<CharT, Alloc>::find(key_type key) const noexcept -> const_iterator {
+    return type_ == dtype::object ? const_iterator(value_.obj.find(key)) : end();
+}
+
+template<typename CharT, typename Alloc>
+auto basic_value<CharT, Alloc>::find(key_type key) -> iterator {
+    if (type_ != dtype::object) { return end(); }
+    typename object_t::alloc_type obj_al(*this);
+    value_.obj.ensure_unique(obj_al);
+    return iterator(value_.obj.find(key));
+}
+
+// --------------------------
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::as_array() const noexcept -> const_array_range {
@@ -1520,15 +1662,82 @@ auto basic_value<CharT, Alloc>::as_array() -> array_range {
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::as_object() const -> const_object_range {
-    if (type_ != dtype::object) { throw database_error("not an object"); }
+    if (type_ != dtype::object) { report_not_an_object_error(); }
     return value_.obj.crange();
 }
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::as_object() -> object_range {
-    if (type_ != dtype::object) { throw database_error("not an object"); }
+    if (type_ != dtype::object) { report_not_an_object_error(); }
     typename object_t::alloc_type obj_al(*this);
     return value_.obj.range(obj_al);
+}
+
+// --------------------------
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::init_from(const basic_value& other) noexcept {
+    value_ = other.value_;
+    switch (other.type_) {
+        case dtype::string: value_.str.ref(); break;
+        case dtype::array: value_.arr.ref(); break;
+        case dtype::object: value_.obj.ref(); break;
+        default: break;
+    }
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::destroy() noexcept {
+    switch (type_) {
+        case dtype::string: {
+            typename char_array_t::alloc_type str_al(*this);
+            value_.str.unref(str_al);
+        } break;
+        case dtype::array: {
+            typename value_array_t::alloc_type arr_al(*this);
+            value_.arr.unref(arr_al);
+        } break;
+        case dtype::object: {
+            typename object_t::alloc_type obj_al(*this);
+            value_.obj.unref(obj_al);
+        } break;
+        default: break;
+    }
+    type_ = dtype::null;
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::init_as_string() {
+    if (type_ != dtype::null) { report_not_a_string_error(); }
+    value_.str.construct();
+    type_ = dtype::string;
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::init_as_array() {
+    if (type_ != dtype::null) { report_not_an_array_error(); }
+    value_.arr.construct();
+    type_ = dtype::array;
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::init_as_object() {
+    if (type_ != dtype::null) { report_not_an_object_error(); }
+    typename object_t::alloc_type obj_al(*this);
+    value_.obj.construct(obj_al);
+    type_ = dtype::object;
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::convert_to_array() {
+    value_array_t arr;
+    arr.construct();
+    if (type_ != dtype::null) {
+        typename value_array_t::alloc_type arr_al(*this);
+        arr.emplace_back(arr_al, std::move(*this));
+    }
+    value_.arr = arr;
+    type_ = dtype::array;
 }
 
 // --------------------------
@@ -1537,8 +1746,8 @@ auto basic_value<CharT, Alloc>::as_object() -> object_range {
     template<typename CharT, typename Alloc> \
     ty basic_value<CharT, Alloc>::as##func() const { \
         const auto result = get##func(); \
-        if (result) { return *result; } \
-        throw database_error("bad value conversion"); \
+        if (!result) { report_value_conversion_error(); } \
+        return *result; \
     } \
     static_assert(true, "")
 UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(bool, _bool);
@@ -1554,6 +1763,21 @@ namespace detail {
 
 template<typename, typename, typename>
 struct value_getters_specializer;
+
+template<typename Ty1, typename Ty2, typename = std::enable_if_t<!std::is_same<Ty1, Ty2>::value>>
+est::optional<Ty1> cast_optional(const est::optional<Ty2>& opt) {
+    return opt ? est::make_optional(static_cast<Ty1>(*opt)) : est::nullopt;
+}
+
+template<typename Ty>
+est::optional<Ty> cast_optional(est::optional<Ty>&& opt) {
+    return std::move(opt);
+}
+
+template<typename Ty>
+const Ty* cast_optional(const Ty* opt) {
+    return opt;
+}
 
 #define UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(ty, func) \
     template<typename CharT, typename Alloc> \
@@ -1658,25 +1882,25 @@ using wvalue = basic_value<wchar_t>;
 
 namespace std {
 template<std::size_t I, typename CharT, typename Alloc, typename = std::enable_if_t<I == 0>>
-auto get(const uxs::db::detail::object_value<CharT, Alloc>& v) -> decltype(v.key()) {
+auto get(const uxs::db::detail::object_item<CharT, Alloc>& v) -> decltype(v.key()) {
     return v.key();
 }
 template<std::size_t I, typename CharT, typename Alloc, typename = std::enable_if_t<I == 1>>
-auto get(const uxs::db::detail::object_value<CharT, Alloc>& v) -> decltype(v.value()) {
+auto get(const uxs::db::detail::object_item<CharT, Alloc>& v) -> decltype(v.value()) {
     return v.value();
 }
 template<std::size_t I, typename CharT, typename Alloc, typename = std::enable_if_t<I == 1>>
-auto get(uxs::db::detail::object_value<CharT, Alloc>& v) -> decltype(v.value()) {
+auto get(uxs::db::detail::object_item<CharT, Alloc>& v) -> decltype(v.value()) {
     return v.value();
 }
 
 template<typename CharT, typename Alloc>
-class tuple_size<uxs::db::detail::object_value<CharT, Alloc>> : public std::integral_constant<std::size_t, 2> {};
+class tuple_size<uxs::db::detail::object_item<CharT, Alloc>> : public std::integral_constant<std::size_t, 2> {};
 
 template<std::size_t I, typename CharT, typename Alloc>
-class tuple_element<I, uxs::db::detail::object_value<CharT, Alloc>> {
+class tuple_element<I, uxs::db::detail::object_item<CharT, Alloc>> {
  public:
-    using type = decltype(get<I>(std::declval<uxs::db::detail::object_value<CharT, Alloc>>()));
+    using type = decltype(get<I>(std::declval<uxs::db::detail::object_item<CharT, Alloc>>()));
 };
 
 template<std::size_t I, typename CharT, typename Alloc, bool Const, typename = std::enable_if_t<I == 0>>
