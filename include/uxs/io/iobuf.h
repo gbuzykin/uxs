@@ -42,7 +42,8 @@ class basic_iobuf : public basic_ibuf<CharT> {
         for (size_type n_avail = this->avail(); count > n_avail; n_avail = this->avail()) {
             std::copy_n(first, n_avail, curr());
             this->setpos(this->capacity());
-            first += n_avail, count -= n_avail;
+            first += n_avail;
+            count -= n_avail;
             if (!this->good() || overflow() < 0) {
                 this->setstate(iostate_bits::bad);
                 return *this;

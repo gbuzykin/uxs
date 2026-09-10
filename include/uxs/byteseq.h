@@ -84,17 +84,17 @@ class basic_byteseq : protected detail::byteseq_chunk<Alloc>::alloc_type {
     }
 
     template<typename FillFn>
-    basic_byteseq& assign(std::size_t max_size, FillFn fn) {
+    basic_byteseq& assign(std::size_t max_size, FillFn&& fn) {
         clear_and_reserve(max_size);
         if (head_) {
-            size_ = std::move(fn)(est::as_span(head_->data, max_size));
+            size_ = fn(est::as_span(head_->data, max_size));
             head_->end = head_->data + size_;
         }
         return *this;
     }
 
     template<typename ScanFn>
-    void scan(std::size_t count, ScanFn fn) const {
+    void scan(std::size_t count, ScanFn&& fn) const {
         if (!size_ || !count) { return; }
         const chunk_t* chunk = head_->next;
         do {
@@ -108,7 +108,7 @@ class basic_byteseq : protected detail::byteseq_chunk<Alloc>::alloc_type {
     UXS_EXPORT basic_byteseq& assign(est::span<const std::uint8_t> v);
     UXS_EXPORT void copy_to_flat(est::span<std::uint8_t> dst) const;
 
-    UXS_EXPORT void resize(std::size_t sz);
+    UXS_EXPORT void resize(std::size_t size);
     UXS_NODISCARD UXS_EXPORT basic_byteseq make_compressed(unsigned level = 0) const;
     UXS_NODISCARD UXS_EXPORT basic_byteseq make_uncompressed() const;
     UXS_EXPORT bool compress(unsigned level = 0);

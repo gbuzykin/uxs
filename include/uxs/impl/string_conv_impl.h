@@ -362,8 +362,8 @@ struct print_functor {
 };
 
 template<typename CharT, typename Ty, typename PrintFn>
-print_functor<CharT, Ty, PrintFn> make_print_functor(basic_membuffer<CharT>& out, Ty val, PrintFn&& print_fn) {
-    return print_functor<CharT, Ty, PrintFn>{out, val, std::forward<PrintFn>(print_fn)};
+print_functor<CharT, Ty, PrintFn> make_print_functor(basic_membuffer<CharT>& out, Ty val, PrintFn print_fn) {
+    return print_functor<CharT, Ty, PrintFn>{out, val, std::move(print_fn)};
 }
 
 // ---- binary

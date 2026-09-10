@@ -101,13 +101,13 @@ detail::reverse_char_finder<Traits> rsfinder(CharT ch) {
 }
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-detail::string_finder<string_traits_t<StrLikeTy>> sfinder(const StrLikeTy& s) {
-    return detail::string_finder<string_traits_t<StrLikeTy>>(to_string_view(s));
+detail::string_finder<string_char_traits_t<StrLikeTy>> sfinder(const StrLikeTy& s) {
+    return detail::string_finder<string_char_traits_t<StrLikeTy>>(to_string_view(s));
 }
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-detail::reverse_string_finder<string_traits_t<StrLikeTy>> rsfinder(const StrLikeTy& s) {
-    return detail::reverse_string_finder<string_traits_t<StrLikeTy>>(to_string_view(s));
+detail::reverse_string_finder<string_char_traits_t<StrLikeTy>> rsfinder(const StrLikeTy& s) {
+    return detail::reverse_string_finder<string_char_traits_t<StrLikeTy>>(to_string_view(s));
 }
 
 // --------------------------
@@ -239,7 +239,7 @@ UXS_CONSTEXPR auto string_section(const StrLikeTy& s, Finder finder,
 
 template<typename StrLikeTy, typename OutputIt, typename OutputFn = est::identity, typename OutputPred = est::true_fn,
          typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-UXS_CONSTEXPR OutputIt string_to_words_to(const StrLikeTy& s, typename string_traits_t<StrLikeTy>::char_type sep,
+UXS_CONSTEXPR OutputIt string_to_words_to(const StrLikeTy& s, typename string_char_traits_t<StrLikeTy>::char_type sep,
                                           OutputIt out, OutputFn fn = OutputFn{}, OutputPred pred = OutputPred{}) {
     enum class state_t { start = 0, sep_found, skip_sep } state = state_t::start;
     const auto sv = to_string_view(s);
@@ -273,8 +273,9 @@ UXS_CONSTEXPR OutputIt string_to_words_to(const StrLikeTy& s, typename string_tr
 
 template<typename StrLikeTy, typename OutputFn = est::identity, typename OutputPred = est::true_fn,
          typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-auto string_to_words(const StrLikeTy& s, typename string_traits_t<StrLikeTy>::char_type sep, OutputFn fn = OutputFn{},
-                     OutputPred pred = OutputPred{}) -> std::vector<std::decay_t<decltype(fn(to_string_view(s)))>> {
+auto string_to_words(const StrLikeTy& s, typename string_char_traits_t<StrLikeTy>::char_type sep,
+                     OutputFn fn = OutputFn{}, OutputPred pred = OutputPred{})
+    -> std::vector<std::decay_t<decltype(fn(to_string_view(s)))>> {
     std::vector<std::decay_t<decltype(fn(to_string_view(s)))>> result;
     string_to_words_to(s, sep, std::back_inserter(result), fn, pred);
     return result;
@@ -322,7 +323,7 @@ auto pack_strings(const Range& r, est::type_identity_t<CharT> sep,
 
 template<typename StrLikeTy, typename OutputIt, typename OutputFn = est::identity, typename OutputPred = est::true_fn,
          typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-OutputIt unpack_strings_to(const StrLikeTy& s, typename string_traits_t<StrLikeTy>::char_type sep, OutputIt out,
+OutputIt unpack_strings_to(const StrLikeTy& s, typename string_char_traits_t<StrLikeTy>::char_type sep, OutputIt out,
                            OutputFn fn = OutputFn{}, OutputPred pred = OutputPred{}) {
     const auto sv = to_string_view(s);
     for (auto p = sv.begin();; ++p) {
@@ -348,8 +349,9 @@ OutputIt unpack_strings_to(const StrLikeTy& s, typename string_traits_t<StrLikeT
 
 template<typename StrLikeTy, typename OutputFn = est::identity, typename OutputPred = est::true_fn,
          typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-auto unpack_strings(const StrLikeTy& s, typename string_traits_t<StrLikeTy>::char_type sep, OutputFn fn = OutputFn{},
-                    OutputPred pred = OutputPred{}) -> std::vector<std::decay_t<decltype(fn(make_string(s)))>> {
+auto unpack_strings(const StrLikeTy& s, typename string_char_traits_t<StrLikeTy>::char_type sep,
+                    OutputFn fn = OutputFn{}, OutputPred pred = OutputPred{})
+    -> std::vector<std::decay_t<decltype(fn(make_string(s)))>> {
     std::vector<std::decay_t<decltype(fn(make_string(s)))>> result;
     unpack_strings_to(s, sep, std::back_inserter(result), fn, pred);
     return result;

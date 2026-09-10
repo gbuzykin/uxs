@@ -316,21 +316,22 @@ class variant {
         assign_impl(static_cast<internal_ty>(val)); \
         return *this; \
     } \
-    bool is_equal_to(ty val) const { return is_equal_to_impl(static_cast<internal_ty>(val)); }
-    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(signed, std::int32_t)
-    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(unsigned, std::uint32_t)
+    bool is_equal_to(ty val) const { return is_equal_to_impl(static_cast<internal_ty>(val)); } \
+    static_assert(true, "")
+    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(signed, std::int32_t);
+    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(unsigned, std::uint32_t);
 #if ULONG_MAX > 0xffffffff
-    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(signed long, std::int64_t)
-    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(unsigned long, std::uint64_t)
+    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(signed long, std::int64_t);
+    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(unsigned long, std::uint64_t);
 #else   // ULONG_MAX > 0xffffffff
-    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(signed long, std::int32_t)
-    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(unsigned long, std::uint32_t)
+    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(signed long, std::int32_t);
+    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(unsigned long, std::uint32_t);
 #endif  // ULONG_MAX > 0xffffffff
-    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(signed long long, std::int64_t)
-    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(unsigned long long, std::uint64_t)
-    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(float, double)
-    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(double, double)
-    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(long double, double)
+    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(signed long long, std::int64_t);
+    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(unsigned long long, std::uint64_t);
+    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(float, double);
+    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(double, double);
+    UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE(long double, double);
 #undef UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE
 
  private:
@@ -352,6 +353,7 @@ class variant {
                                          !is_variant_compatible<StrLikeTy>::value>,
              typename... Dummy>
     bool is_equal_to_impl(const StrLikeTy& s, Dummy&&...) const {
+        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
         return is_equal_to_impl<std::string_view, std::string>(std::string_view(s));
     }
 
@@ -449,21 +451,22 @@ bool variant::is_equal_to_impl(const U& val) const {
     inline est::optional<ty> variant::get<ty>() const { \
         auto result = get_impl<internal_ty>(); \
         return result ? est::make_optional(static_cast<ty>(*result)) : est::nullopt; \
-    }
-UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(signed, std::int32_t)
-UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(unsigned, std::uint32_t)
+    } \
+    static_assert(true, "")
+UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(signed, std::int32_t);
+UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(unsigned, std::uint32_t);
 #if ULONG_MAX > 0xffffffff
-UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(signed long, std::int64_t)
-UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(unsigned long, std::uint64_t)
+UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(signed long, std::int64_t);
+UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(unsigned long, std::uint64_t);
 #else   // ULONG_MAX > 0xffffffff
-UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(signed long, std::int32_t)
-UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(unsigned long, std::uint32_t)
+UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(signed long, std::int32_t);
+UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(unsigned long, std::uint32_t);
 #endif  // ULONG_MAX > 0xffffffff
-UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(signed long long, std::int64_t)
-UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(unsigned long long, std::uint64_t)
-UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(float, double)
-UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(double, double)
-UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(long double, double)
+UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(signed long long, std::int64_t);
+UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(unsigned long long, std::uint64_t);
+UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(float, double);
+UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(double, double);
+UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS(long double, double);
 #undef UXS_VARIANT_IMPLEMENT_SCALAR_GETTERS
 
 template<typename Ty, typename>

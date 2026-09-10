@@ -82,22 +82,22 @@ int sysfile::ctrlesc_color(est::span<const std::uint8_t> v) {
     CONSOLE_SCREEN_BUFFER_INFO info;
     std::memset(&info, 0, sizeof(info));
     if (!::GetConsoleScreenBufferInfo(fd_, &info)) { return -1; }
-    static const std::array<WORD, 8> fg_color = {0,
-                                                 FOREGROUND_RED,
-                                                 FOREGROUND_GREEN,
-                                                 FOREGROUND_RED | FOREGROUND_GREEN,
-                                                 FOREGROUND_BLUE,
-                                                 FOREGROUND_BLUE | FOREGROUND_RED,
-                                                 FOREGROUND_BLUE | FOREGROUND_GREEN,
-                                                 FOREGROUND_BLUE | FOREGROUND_RED | FOREGROUND_GREEN};
-    static const std::array<WORD, 8> bg_color = {0,
-                                                 BACKGROUND_RED,
-                                                 BACKGROUND_GREEN,
-                                                 BACKGROUND_RED | BACKGROUND_GREEN,
-                                                 BACKGROUND_BLUE,
-                                                 BACKGROUND_BLUE | BACKGROUND_RED,
-                                                 BACKGROUND_BLUE | BACKGROUND_GREEN,
-                                                 BACKGROUND_BLUE | BACKGROUND_RED | BACKGROUND_GREEN};
+    static constexpr std::array<WORD, 8> fg_color = {0,
+                                                     FOREGROUND_RED,
+                                                     FOREGROUND_GREEN,
+                                                     FOREGROUND_RED | FOREGROUND_GREEN,
+                                                     FOREGROUND_BLUE,
+                                                     FOREGROUND_BLUE | FOREGROUND_RED,
+                                                     FOREGROUND_BLUE | FOREGROUND_GREEN,
+                                                     FOREGROUND_BLUE | FOREGROUND_RED | FOREGROUND_GREEN};
+    static constexpr std::array<WORD, 8> bg_color = {0,
+                                                     BACKGROUND_RED,
+                                                     BACKGROUND_GREEN,
+                                                     BACKGROUND_RED | BACKGROUND_GREEN,
+                                                     BACKGROUND_BLUE,
+                                                     BACKGROUND_BLUE | BACKGROUND_RED,
+                                                     BACKGROUND_BLUE | BACKGROUND_GREEN,
+                                                     BACKGROUND_BLUE | BACKGROUND_RED | BACKGROUND_GREEN};
     for (std::uint8_t c : v) {
         if (c == 0) {
             info.wAttributes = fg_color[7];

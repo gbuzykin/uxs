@@ -83,12 +83,14 @@ struct formatter<Ty, CharT, std::void_t<typename detail::tuple_formatter<Ty, Cha
     std::basic_string_view<CharT> closing_bracket_;
 
     template<typename Formatter, typename = std::void_t<decltype(std::declval<Formatter&>().set_debug_format())>>
-    UXS_CONSTEXPR static void call_set_debug_format(Formatter& f) {
+    static UXS_CONSTEXPR void call_set_debug_format(Formatter& f) {
         f.set_debug_format();
     }
 
     template<typename Formatter, typename... Dummy>
-    UXS_CONSTEXPR static void call_set_debug_format(Formatter&, Dummy&&...) {}
+    static UXS_CONSTEXPR void call_set_debug_format(Formatter&, Dummy&&...) {
+        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
+    }
 
     UXS_CONSTEXPR void switch_to_map_style(std::true_type) noexcept {
         set_separator(string_literal<CharT, ':', ' '>{});
@@ -144,7 +146,7 @@ struct formatter<Ty, CharT, std::void_t<typename detail::tuple_formatter<Ty, Cha
         if (it != ctx.end() && *it == ':') {
             std::size_t dummy_id = unspecified_size;
             it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
-            if (opts_.prec >= 0 || !!(opts_.flags & ~fmt_flags::adjust_field)) { ParseCtx::syntax_error(); }
+            if (opts_.prec >= 0 || !!(opts_.flags & ~fmt_flags::adjust_field)) { ParseCtx::report_syntax_error(); }
             if (it != ctx.end() && (*it == 'n' || *it == 'm')) {
                 if (*it == 'm') { switch_to_map_style(detail::is_pair_like<Ty>()); }
                 set_brackets({}, {});
@@ -186,12 +188,14 @@ struct range_formatter {
     std::basic_string_view<CharT> closing_bracket_;
 
     template<typename Formatter, typename = std::void_t<decltype(std::declval<Formatter&>().set_debug_format())>>
-    UXS_CONSTEXPR static void call_set_debug_format(Formatter& f) {
+    static UXS_CONSTEXPR void call_set_debug_format(Formatter& f) {
         f.set_debug_format();
     }
 
     template<typename Formatter, typename... Dummy>
-    UXS_CONSTEXPR static void call_set_debug_format(Formatter&, Dummy&&...) {}
+    static UXS_CONSTEXPR void call_set_debug_format(Formatter&, Dummy&&...) {
+        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
+    }
 
     UXS_CONSTEXPR void switch_to_map_style(std::true_type) noexcept {
         underlying_.set_separator(string_literal<CharT, ':', ' '>{});
@@ -226,7 +230,7 @@ struct range_formatter {
                 }
                 last = limit;
             }
-            while (first != last) { out += *first++; }
+            for (; first != last; ++first) { out += *first; }
             return width;
         }
         return append_escaped_text(out, std::begin(val), std::end(val), false,
@@ -267,7 +271,7 @@ struct range_formatter {
         if (it != ctx.end() && *it == ':') {
             std::size_t dummy_id = unspecified_size;
             it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
-            if (!!(opts_.flags & ~fmt_flags::adjust_field)) { ParseCtx::syntax_error(); }
+            if (!!(opts_.flags & ~fmt_flags::adjust_field)) { ParseCtx::report_syntax_error(); }
             if (it != ctx.end()) {
                 switch (*it) {
                     case 'n': {
@@ -287,7 +291,7 @@ struct range_formatter {
                     default: break;
                 }
             }
-            if (opts_.prec >= 0) { ParseCtx::unexpected_prec_error(); }
+            if (opts_.prec >= 0) { ParseCtx::report_unexpected_prec_error(); }
             if (it != ctx.end() && *it == 'm') {
                 switch_to_map_style(detail::is_pair_like<Ty>());
                 if (*(it - 1) != 'n') { set_brackets(string_literal<CharT, '{'>{}, string_literal<CharT, '}'>{}); }

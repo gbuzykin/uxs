@@ -109,21 +109,21 @@ from_chars_result<CharT> parse_float(const CharT* p, const CharT* end, Ty& val) 
         from_chars_result<CharT> operator()(const CharT* first, const CharT* last, ty& val) const noexcept { \
             return func(first, last, val); \
         } \
-    };
-UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(bool, sconv::parse_boolean)
-UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed char, sconv::parse_signed_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed short, sconv::parse_signed_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed, sconv::parse_signed_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed long, sconv::parse_signed_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed long long, sconv::parse_signed_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned char, sconv::parse_unsigned_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned short, sconv::parse_unsigned_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned, sconv::parse_unsigned_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned long, sconv::parse_unsigned_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned long long, sconv::parse_unsigned_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(float, sconv::parse_float)
-UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(double, sconv::parse_float)
-UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(long double, sconv::parse_float)
+    }
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(bool, sconv::parse_boolean);
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed char, sconv::parse_signed_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed short, sconv::parse_signed_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed, sconv::parse_signed_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed long, sconv::parse_signed_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(signed long long, sconv::parse_signed_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned char, sconv::parse_unsigned_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned short, sconv::parse_unsigned_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned, sconv::parse_unsigned_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned long, sconv::parse_unsigned_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(unsigned long long, sconv::parse_unsigned_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(float, sconv::parse_float);
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(double, sconv::parse_float);
+UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(long double, sconv::parse_float);
 #undef UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER
 
 // --------------------------
@@ -189,21 +189,21 @@ UXS_EXPORT void fmt_string(basic_membuffer<CharT>& out, std::basic_string_view<C
             func(buf, val, std::forward<Opts>(opts)...); \
             out.append(buf.data(), buf.size()); \
         } \
-    };
-UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(bool, sconv::fmt_boolean)
-UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed char, sconv::fmt_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed short, sconv::fmt_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed, sconv::fmt_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed long, sconv::fmt_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed long long, sconv::fmt_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned char, sconv::fmt_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned short, sconv::fmt_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned, sconv::fmt_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned long, sconv::fmt_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned long long, sconv::fmt_integer)
-UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(float, sconv::fmt_float)
-UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(double, sconv::fmt_float)
-UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(long double, sconv::fmt_float)
+    }
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(bool, sconv::fmt_boolean);
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed char, sconv::fmt_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed short, sconv::fmt_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed, sconv::fmt_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed long, sconv::fmt_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(signed long long, sconv::fmt_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned char, sconv::fmt_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned short, sconv::fmt_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned, sconv::fmt_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned long, sconv::fmt_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(unsigned long long, sconv::fmt_integer);
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(float, sconv::fmt_float);
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(double, sconv::fmt_float);
+UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(long double, sconv::fmt_float);
 #undef UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER
 
 // --------------------------

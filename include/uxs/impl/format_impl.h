@@ -17,7 +17,7 @@ struct arg_visitor {
 };
 
 template<typename FmtCtx>
-void vformat(FmtCtx ctx, typename FmtCtx::parse_context parse_ctx) {
+void format_impl(FmtCtx ctx, typename FmtCtx::parse_context parse_ctx) {
     using iterator = typename FmtCtx::parse_context::iterator;
     fmt::parse_format(
         parse_ctx, [&ctx](iterator first, iterator last) { ctx.out() += to_string_view(first, last); },

@@ -58,27 +58,27 @@ void basic_byteseq<Alloc>::copy_to_flat(est::span<std::uint8_t> v) const {
 }
 
 template<typename Alloc>
-void basic_byteseq<Alloc>::resize(std::size_t sz) {
-    if (sz > size_) {
+void basic_byteseq<Alloc>::resize(std::size_t size) {
+    if (size > size_) {
         if (!head_) { create_head_chunk(); }
-        while (sz - size_ > head_->avail()) {
+        while (size - size_ > head_->avail()) {
             std::memset(head_->end, 0, head_->avail());
             create_next_chunk();
         }
-        const std::size_t extra = sz - size_;
+        const std::size_t extra = size - size_;
         std::memset(head_->end, 0, extra);
         head_->end += extra;
     } else {
-        while (size_ - sz > head_->size()) {
+        while (size_ - size > head_->size()) {
             chunk_t* prev = head_->prev;
             size_ -= head_->size();
             dllist_remove(head_);
             chunk_t::dealloc(*this, head_);
             head_ = prev;
         }
-        head_->end -= size_ - sz;
+        head_->end -= size_ - size;
     }
-    size_ = sz;
+    size_ = size;
 }
 
 template<typename Alloc>

@@ -109,13 +109,13 @@ struct formatter<bool, CharT> {
         std::size_t dummy_id = unspecified_size;
         it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
         auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, opts_) : ParseCtx::type_spec::none;
-        if (opts_.prec >= 0) { ParseCtx::unexpected_prec_error(); }
+        if (opts_.prec >= 0) { ParseCtx::report_unexpected_prec_error(); }
         if (type == ParseCtx::type_spec::none || type == ParseCtx::type_spec::string) {
-            if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::unexpected_sign_error(); }
-            if (!!(opts_.flags & fmt_flags::leading_zeroes)) { ParseCtx::unexpected_leading_zeroes_error(); }
-            if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::unexpected_alternate_error(); }
+            if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::report_unexpected_sign_error(); }
+            if (!!(opts_.flags & fmt_flags::leading_zeroes)) { ParseCtx::report_unexpected_leading_zeroes_error(); }
+            if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::report_unexpected_alternate_error(); }
         } else if (type != ParseCtx::type_spec::integer) {
-            ParseCtx::type_error();
+            ParseCtx::report_type_error();
         }
         return type == ParseCtx::type_spec::none ? it : it + 1;
     }
@@ -144,15 +144,15 @@ struct formatter<CharT, CharT> {
         std::size_t dummy_id = unspecified_size;
         it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
         auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, opts_) : ParseCtx::type_spec::none;
-        if (opts_.prec >= 0) { ParseCtx::unexpected_prec_error(); }
+        if (opts_.prec >= 0) { ParseCtx::report_unexpected_prec_error(); }
         if (type == ParseCtx::type_spec::none || type == ParseCtx::type_spec::character ||
             type == ParseCtx::type_spec::debug_string) {
-            if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::unexpected_sign_error(); }
-            if (!!(opts_.flags & fmt_flags::leading_zeroes)) { ParseCtx::unexpected_leading_zeroes_error(); }
-            if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::unexpected_alternate_error(); }
+            if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::report_unexpected_sign_error(); }
+            if (!!(opts_.flags & fmt_flags::leading_zeroes)) { ParseCtx::report_unexpected_leading_zeroes_error(); }
+            if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::report_unexpected_alternate_error(); }
             if (type == ParseCtx::type_spec::debug_string) { set_debug_format(); }
         } else if (type != ParseCtx::type_spec::integer) {
-            ParseCtx::type_error();
+            ParseCtx::report_type_error();
         }
         return type == ParseCtx::type_spec::none ? it : it + 1;
     }
@@ -181,13 +181,15 @@ struct formatter<CharT, CharT> {
             std::size_t dummy_id = unspecified_size; \
             it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id); \
             auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, opts_) : ParseCtx::type_spec::none; \
-            if (opts_.prec >= 0) { ParseCtx::unexpected_prec_error(); } \
+            if (opts_.prec >= 0) { ParseCtx::report_unexpected_prec_error(); } \
             if (type == ParseCtx::type_spec::character) { \
-                if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::unexpected_sign_error(); } \
-                if (!!(opts_.flags & fmt_flags::leading_zeroes)) { ParseCtx::unexpected_leading_zeroes_error(); } \
-                if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::unexpected_alternate_error(); } \
+                if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::report_unexpected_sign_error(); } \
+                if (!!(opts_.flags & fmt_flags::leading_zeroes)) { \
+                    ParseCtx::report_unexpected_leading_zeroes_error(); \
+                } \
+                if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::report_unexpected_alternate_error(); } \
             } else if (type != ParseCtx::type_spec::none && type != ParseCtx::type_spec::integer) { \
-                ParseCtx::type_error(); \
+                ParseCtx::report_type_error(); \
             } \
             return type == ParseCtx::type_spec::none ? it : it + 1; \
         } \
@@ -199,11 +201,11 @@ struct formatter<CharT, CharT> {
             } \
             sconv::fmt_integer(ctx.out(), val, opts, ctx.locale()); \
         } \
-    };
-UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::int32_t)
-UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::int64_t)
-UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::uint32_t)
-UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::uint64_t)
+    }
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::int32_t);
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::int64_t);
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::uint32_t);
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::uint64_t);
 #undef UXS_FMT_IMPLEMENT_STANDARD_FORMATTER
 
 #define UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(ty) \
@@ -222,7 +224,7 @@ UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::uint64_t)
             it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, prec_arg_id_); \
             auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, opts_) : ParseCtx::type_spec::none; \
             if (type != ParseCtx::type_spec::none && type != ParseCtx::type_spec::floating_point) { \
-                ParseCtx::type_error(); \
+                ParseCtx::report_type_error(); \
             } \
             return type == ParseCtx::type_spec::none ? it : it + 1; \
         } \
@@ -237,10 +239,10 @@ UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::uint64_t)
             } \
             sconv::fmt_float(ctx.out(), val, opts, ctx.locale()); \
         } \
-    };
-UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(float)
-UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(double)
-UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(long double)
+    }
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(float);
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(double);
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(long double);
 #undef UXS_FMT_IMPLEMENT_STANDARD_FORMATTER
 
 template<typename CharT>
@@ -257,11 +259,13 @@ struct formatter<const void*, CharT> {
         std::size_t dummy_id = unspecified_size;
         it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
         auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, opts_) : ParseCtx::type_spec::none;
-        if (opts_.prec >= 0) { ParseCtx::unexpected_prec_error(); }
-        if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::unexpected_sign_error(); }
-        if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::unexpected_alternate_error(); }
-        if (!!(opts_.flags & fmt_flags::localize)) { ParseCtx::unexpected_local_specific_error(); }
-        if (type != ParseCtx::type_spec::none && type != ParseCtx::type_spec::pointer) { ParseCtx::type_error(); }
+        if (opts_.prec >= 0) { ParseCtx::report_unexpected_prec_error(); }
+        if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::report_unexpected_sign_error(); }
+        if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::report_unexpected_alternate_error(); }
+        if (!!(opts_.flags & fmt_flags::localize)) { ParseCtx::report_unexpected_locale_specific_error(); }
+        if (type != ParseCtx::type_spec::none && type != ParseCtx::type_spec::pointer) {
+            ParseCtx::report_type_error();
+        }
         return type == ParseCtx::type_spec::none ? it : it + 1;
     }
     template<typename FmtCtx>
@@ -291,14 +295,14 @@ struct formatter<const void*, CharT> {
             if (it == ctx.end() || *it != ':') { return it; } \
             it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, prec_arg_id_); \
             auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, opts_) : ParseCtx::type_spec::none; \
-            if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::unexpected_sign_error(); } \
-            if (!!(opts_.flags & fmt_flags::leading_zeroes)) { ParseCtx::unexpected_leading_zeroes_error(); } \
-            if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::unexpected_alternate_error(); } \
-            if (!!(opts_.flags & fmt_flags::localize)) { ParseCtx::unexpected_local_specific_error(); } \
+            if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::report_unexpected_sign_error(); } \
+            if (!!(opts_.flags & fmt_flags::leading_zeroes)) { ParseCtx::report_unexpected_leading_zeroes_error(); } \
+            if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::report_unexpected_alternate_error(); } \
+            if (!!(opts_.flags & fmt_flags::localize)) { ParseCtx::report_unexpected_locale_specific_error(); } \
             if (type == ParseCtx::type_spec::debug_string) { \
                 set_debug_format(); \
             } else if (type != ParseCtx::type_spec::none && type != ParseCtx::type_spec::string) { \
-                ParseCtx::type_error(); \
+                ParseCtx::report_type_error(); \
             } \
             return type == ParseCtx::type_spec::none ? it : it + 1; \
         } \
@@ -313,9 +317,9 @@ struct formatter<const void*, CharT> {
             } \
             sconv::fmt_string<CharT>(ctx.out(), val, opts, ctx.locale()); \
         } \
-    };
-UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(const CharT*)
-UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::basic_string_view<CharT>)
+    }
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(const CharT*);
+UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::basic_string_view<CharT>);
 #undef UXS_FMT_IMPLEMENT_STANDARD_FORMATTER
 
 // --------------------------
@@ -342,19 +346,19 @@ template<typename Ty, typename CharT>
 struct type_index {};
 #define UXS_FMT_DECLARE_ARG_TYPE_INDEX(ty, index) \
     template<typename CharT> \
-    struct type_index<ty, CharT> : std::integral_constant<index_t, index> {};
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(bool, index_t::boolean)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(CharT, index_t::character)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::int32_t, index_t::integer)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::int64_t, index_t::long_integer)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::uint32_t, index_t::unsigned_integer)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::uint64_t, index_t::unsigned_long_integer)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(float, index_t::single_precision)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(double, index_t::double_precision)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(long double, index_t::long_double_precision)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(const void*, index_t::pointer)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(const CharT*, index_t::z_string)
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::basic_string_view<CharT>, index_t::string)
+    struct type_index<ty, CharT> : std::integral_constant<index_t, index> {}
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(bool, index_t::boolean);
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(CharT, index_t::character);
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::int32_t, index_t::integer);
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::int64_t, index_t::long_integer);
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::uint32_t, index_t::unsigned_integer);
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::uint64_t, index_t::unsigned_long_integer);
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(float, index_t::single_precision);
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(double, index_t::double_precision);
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(long double, index_t::long_double_precision);
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(const void*, index_t::pointer);
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(const CharT*, index_t::z_string);
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::basic_string_view<CharT>, index_t::string);
 #undef UXS_FMT_DECLARE_ARG_TYPE_INDEX
 
 // --------------------------
@@ -453,17 +457,17 @@ class arg_store {
     alignas(storage_alignment) std::uint8_t data_[storage_size];
 
     template<typename Ty, typename = std::enable_if_t<is_formattable<Ty, char_type>::value>>
-    UXS_CONSTEXPR static void store_value(const Ty& val, void* data) noexcept {
+    static UXS_CONSTEXPR void store_value(const Ty& val, void* data) noexcept {
         ::new (data) typename arg_store_type<FmtCtx, Ty>::type(val);
     }
 
     template<typename Traits>
-    UXS_CONSTEXPR static void store_value(std::basic_string_view<char_type, Traits> s, void* data) noexcept {
+    static UXS_CONSTEXPR void store_value(std::basic_string_view<char_type, Traits> s, void* data) noexcept {
         ::new (data) std::basic_string_view<char_type>(s.data(), s.size());
     }
 
     template<typename Traits, typename Alloc>
-    UXS_CONSTEXPR static void store_value(const std::basic_string<char_type, Traits, Alloc>& s, void* data) noexcept {
+    static UXS_CONSTEXPR void store_value(const std::basic_string<char_type, Traits, Alloc>& s, void* data) noexcept {
         ::new (data) std::basic_string_view<char_type>(s.data(), s.size());
     }
 
@@ -582,7 +586,7 @@ struct parse_context_utils {
         state = next_state; \
         break; \
     } \
-    return it;
+    return it
                 // adjustment
                 case '<': UXS_FMT_SPECIFIER_CASE(state_t::sign, (opts.flags |= fmt_flags::left, ++it));
                 case '^': UXS_FMT_SPECIFIER_CASE(state_t::sign, (opts.flags |= fmt_flags::internal, ++it));
@@ -684,13 +688,19 @@ struct parse_context_utils {
     }
 #endif  // defined(UXS_HAS_CONSTEVAL)
 
-    static void syntax_error() { throw format_error("invalid specifier syntax"); }
-    static void unexpected_prec_error() { throw format_error("unexpected precision specifier"); }
-    static void unexpected_sign_error() { throw format_error("unexpected sign specifier"); }
-    static void unexpected_alternate_error() { throw format_error("unexpected alternate specifier"); }
-    static void unexpected_leading_zeroes_error() { throw format_error("unexpected leading zeroes specifier"); }
-    static void unexpected_local_specific_error() { throw format_error("unexpected local-specific specifier"); }
-    static void type_error() { throw format_error("unacceptable type specifier"); }
+    [[noreturn]] static void report_syntax_error() { throw format_error("invalid specifier syntax"); }
+    [[noreturn]] static void report_unexpected_prec_error() { throw format_error("unexpected precision specifier"); }
+    [[noreturn]] static void report_unexpected_sign_error() { throw format_error("unexpected sign specifier"); }
+    [[noreturn]] static void report_unexpected_alternate_error() {
+        throw format_error("unexpected alternate specifier");
+    }
+    [[noreturn]] static void report_unexpected_leading_zeroes_error() {
+        throw format_error("unexpected leading zeroes specifier");
+    }
+    [[noreturn]] static void report_unexpected_locale_specific_error() {
+        throw format_error("unexpected locale-specific specifier");
+    }
+    [[noreturn]] static void report_type_error() { throw format_error("unacceptable type specifier"); }
 };
 
 template<typename ParseCtx, typename OnTextFn, typename OnArgFn>
@@ -710,17 +720,17 @@ UXS_CONSTEXPR void parse_format(ParseCtx& ctx, OnTextFn&& on_text_fn, OnArgFn&& 
             }
             ctx.advance_to(it);
             it = on_arg_fn(ctx, arg_id);
-            if (it == ctx.end() || *it != '}') { ParseCtx::syntax_error(); }
+            if (it == ctx.end() || *it != '}') { ParseCtx::report_syntax_error(); }
             it0 = it + 1;
         } else if (it == ctx.end() || *(it - 1) != *it) {
-            ParseCtx::syntax_error();
+            ParseCtx::report_syntax_error();
         }
     }
     on_text_fn(it0, ctx.end());
 }
 
 template<typename FmtCtx>
-UXS_EXPORT void vformat(FmtCtx, typename FmtCtx::parse_context);
+UXS_EXPORT void format_impl(FmtCtx, typename FmtCtx::parse_context);
 
 }  // namespace fmt
 
@@ -757,20 +767,20 @@ class basic_format_arg {
 #define UXS_FMT_FORMAT_ARG_VALUE(ty) \
     case format_arg_type_index<FmtCtx, ty>::value: { \
         return fn(*static_cast<ty const*>(data_)); \
-    } break;
-            UXS_FMT_FORMAT_ARG_VALUE(bool)
-            UXS_FMT_FORMAT_ARG_VALUE(char_type)
-            UXS_FMT_FORMAT_ARG_VALUE(std::int32_t)
-            UXS_FMT_FORMAT_ARG_VALUE(std::int64_t)
-            UXS_FMT_FORMAT_ARG_VALUE(std::uint32_t)
-            UXS_FMT_FORMAT_ARG_VALUE(std::uint64_t)
-            UXS_FMT_FORMAT_ARG_VALUE(float)
-            UXS_FMT_FORMAT_ARG_VALUE(double)
-            UXS_FMT_FORMAT_ARG_VALUE(long double)
-            UXS_FMT_FORMAT_ARG_VALUE(const void*)
-            UXS_FMT_FORMAT_ARG_VALUE(const char_type*)
-            UXS_FMT_FORMAT_ARG_VALUE(std::basic_string_view<char_type>)
-            UXS_FMT_FORMAT_ARG_VALUE(typename basic_format_arg<FmtCtx>::handle)
+    } break
+            UXS_FMT_FORMAT_ARG_VALUE(bool);
+            UXS_FMT_FORMAT_ARG_VALUE(char_type);
+            UXS_FMT_FORMAT_ARG_VALUE(std::int32_t);
+            UXS_FMT_FORMAT_ARG_VALUE(std::int64_t);
+            UXS_FMT_FORMAT_ARG_VALUE(std::uint32_t);
+            UXS_FMT_FORMAT_ARG_VALUE(std::uint64_t);
+            UXS_FMT_FORMAT_ARG_VALUE(float);
+            UXS_FMT_FORMAT_ARG_VALUE(double);
+            UXS_FMT_FORMAT_ARG_VALUE(long double);
+            UXS_FMT_FORMAT_ARG_VALUE(const void*);
+            UXS_FMT_FORMAT_ARG_VALUE(const char_type*);
+            UXS_FMT_FORMAT_ARG_VALUE(std::basic_string_view<char_type>);
+            UXS_FMT_FORMAT_ARG_VALUE(typename basic_format_arg<FmtCtx>::handle);
 #undef UXS_FMT_FORMAT_ARG_VALUE
         }
         UXS_UNREACHABLE_CODE;
@@ -788,18 +798,18 @@ class basic_format_arg {
         if (val < 0) { throw format_error("negative argument specified"); } \
         if (static_cast<std::make_unsigned<ty>::type>(val) > limit) { throw format_error("too large integer"); } \
         return static_cast<unsigned>(val); \
-    } break;
-            UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE(std::int32_t)
-            UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE(std::int64_t)
+    } break
+            UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE(std::int32_t);
+            UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE(std::int64_t);
 #undef UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE
 #define UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(ty) \
     case format_arg_type_index<FmtCtx, ty>::value: { \
         ty val = *static_cast<const ty*>(data_); \
         if (val > limit) { throw format_error("too large integer"); } \
         return static_cast<unsigned>(val); \
-    } break;
-            UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(std::uint32_t)
-            UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(std::uint64_t)
+    } break
+            UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(std::uint32_t);
+            UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(std::uint64_t);
 #undef UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE
             default: throw format_error("argument is not an integer");
         }
@@ -1014,18 +1024,19 @@ using wformat_string = basic_format_string<wchar_t, est::type_identity_t<Args>..
 
 namespace detail {
 template<typename CharT>
-void vformat_append(basic_membuffer<CharT>& out, locale_ref loc, std::basic_string_view<CharT> fmt,
-                    basic_format_args<basic_format_context<CharT>> args) {
-    fmt::vformat(basic_format_context<CharT>(out, loc, args), basic_format_parse_context<CharT>(fmt.begin(), fmt.end()));
+void vformat_append_impl(basic_membuffer<CharT>& out, locale_ref loc, std::basic_string_view<CharT> fmt,
+                         basic_format_args<basic_format_context<CharT>> args) {
+    fmt::format_impl(basic_format_context<CharT>(out, loc, args),
+                     basic_format_parse_context<CharT>(fmt.begin(), fmt.end()));
 }
 template<typename StrTy,
          typename = std::enable_if_t<!std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
-void vformat_append(StrTy& out, locale_ref loc, std::basic_string_view<typename StrTy::value_type> fmt,
-                    basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
+void vformat_append_impl(StrTy& out, locale_ref loc, std::basic_string_view<typename StrTy::value_type> fmt,
+                         basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
     using char_type = typename StrTy::value_type;
     basic_inline_dynbuffer<char_type> buf;
-    fmt::vformat(basic_format_context<char_type>(buf, loc, args),
-                 basic_format_parse_context<char_type>(fmt.begin(), fmt.end()));
+    fmt::format_impl(basic_format_context<char_type>(buf, loc, args),
+                     basic_format_parse_context<char_type>(fmt.begin(), fmt.end()));
     out.append(buf.data(), buf.size());
 }
 }  // namespace detail
@@ -1033,13 +1044,13 @@ void vformat_append(StrTy& out, locale_ref loc, std::basic_string_view<typename 
 template<typename StrTy>
 void vformat_append(StrTy& out, std::basic_string_view<typename StrTy::value_type> fmt,
                     basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
-    detail::vformat_append(out, locale_ref(), fmt, args);
+    detail::vformat_append_impl(out, locale_ref(), fmt, args);
 }
 
 template<typename StrTy>
 void vformat_append(StrTy& out, const std::locale& loc, std::basic_string_view<typename StrTy::value_type> fmt,
                     basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
-    detail::vformat_append(out, locale_ref(loc), fmt, args);
+    detail::vformat_append_impl(out, locale_ref(loc), fmt, args);
 }
 
 // ---- format_append
