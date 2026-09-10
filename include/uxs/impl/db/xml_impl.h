@@ -205,7 +205,7 @@ struct value_visitor {
     }
 
     bool operator()(double f) const {
-        sconv::fmt_float(out, f, fmt_flags::mandatory_frac | fmt_flags::throw_on_inf_nan);
+        sconv::fmt_float(out, f, fmt_flags::mandatory_frac | fmt_flags::throw_on_inf_or_nan);
         return false;
     }
 
@@ -242,8 +242,8 @@ value_visitor<const basic_value<CharT, Alloc>, StrTy, StackTy> make_value_visito
 }
 
 template<typename OutCharT, typename CharT, typename Alloc>
-void write(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v, std::basic_string_view<CharT> element,
-           xml_fmt_opts opts, unsigned indent) {
+void write_impl(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v,
+                std::basic_string_view<CharT> element, xml_fmt_opts opts, unsigned indent) {
     inline_dynarray<detail::writer_stack_item_t<CharT, Alloc>, 32> stack;
 
     const auto visitor = detail::make_value_visitor<CharT, Alloc>(out, stack);

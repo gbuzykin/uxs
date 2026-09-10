@@ -362,8 +362,8 @@ struct print_functor {
 };
 
 template<typename CharT, typename Ty, typename PrintFn>
-print_functor<CharT, Ty, PrintFn> make_print_functor(basic_membuffer<CharT>& out, Ty val, PrintFn&& print_fn) {
-    return print_functor<CharT, Ty, PrintFn>{out, val, std::forward<PrintFn>(print_fn)};
+print_functor<CharT, Ty, PrintFn> make_print_functor(basic_membuffer<CharT>& out, Ty val, PrintFn print_fn) {
+    return print_functor<CharT, Ty, PrintFn>{out, val, std::move(print_fn)};
 }
 
 // ---- binary
@@ -1049,7 +1049,9 @@ void fmt_float_common(basic_membuffer<CharT>& out, std::uint64_t u64, unsigned b
     const bool uppercase = !!(flags & fmt_flags::uppercase);
     const fp_m64_t fp2{u64 & ((1ULL << bpm) - 1), static_cast<int>((u64 >> bpm) & exp_max)};
     if (fp2.exp == exp_max) {
-        if (!!(flags & fmt_flags::throw_on_inf_nan)) { throw std::out_of_range("floating point number is inf of nan"); }
+        if (!!(flags & fmt_flags::throw_on_inf_or_nan)) {
+            throw std::out_of_range("floating point number is inf of nan");
+        }
 
         // Print infinity or NaN
         const auto sval = fp2.m == 0 ? default_numpunct<CharT>().infname(uppercase) :
@@ -1094,7 +1096,7 @@ void fmt_float_common(basic_membuffer<CharT>& out, std::uint64_t u64, unsigned b
     const bool uppercase = !!(fmt.flags & fmt_flags::uppercase);
     const fp_m64_t fp2{u64 & ((1ULL << bpm) - 1), static_cast<int>((u64 >> bpm) & exp_max)};
     if (fp2.exp == exp_max) {
-        if (!!(fmt.flags & fmt_flags::throw_on_inf_nan)) {
+        if (!!(fmt.flags & fmt_flags::throw_on_inf_or_nan)) {
             throw std::out_of_range("floating point number is inf of nan");
         }
 

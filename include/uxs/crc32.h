@@ -7,12 +7,14 @@ namespace uxs {
 class crc32_calc {
  public:
     template<typename InputIt>
-    UXS_CONSTEXPR std::uint32_t operator()(InputIt it, InputIt end, std::uint32_t crc32 = 0xffffffff) const {
-        while (it != end) { crc32 = (crc32 >> 8) ^ table()[(crc32 & 0xff) ^ static_cast<std::uint8_t>(*it++)]; }
+    UXS_CONSTEXPR std::uint32_t operator()(InputIt first, InputIt last, std::uint32_t crc32 = 0xffffffff) const {
+        for (; first != last; ++first) {
+            crc32 = (crc32 >> 8) ^ table()[(crc32 & 0xff) ^ static_cast<std::uint8_t>(*first)];
+        }
         return crc32;
     }
     UXS_CONSTEXPR std::uint32_t operator()(const char* cstr, std::uint32_t crc32 = 0xffffffff) const noexcept {
-        while (*cstr) { crc32 = (crc32 >> 8) ^ table()[(crc32 & 0xff) ^ static_cast<std::uint8_t>(*cstr++)]; }
+        for (; *cstr; ++cstr) { crc32 = (crc32 >> 8) ^ table()[(crc32 & 0xff) ^ static_cast<std::uint8_t>(*cstr)]; }
         return crc32;
     }
 
@@ -49,7 +51,7 @@ class crc32_calc {
         0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 #if __cplusplus < 201703L
     const std::uint32_t* table() const noexcept {
-        static const std::uint32_t v[] = {UXS_CRC32_TABLE_DATA};
+        static constexpr std::uint32_t v[] = {UXS_CRC32_TABLE_DATA};
         return v;
     }
 #else   // __cplusplus < 201703L

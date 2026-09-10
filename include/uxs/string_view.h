@@ -9,7 +9,6 @@
 #    include "iterator.h"
 
 #    include <algorithm>
-#    include <cassert>
 #    include <functional>
 #    include <stdexcept>
 #    include <string>
@@ -17,8 +16,8 @@
 namespace std {
 template<typename CharT, typename Traits = std::char_traits<CharT>>
 class basic_string_view {
-    static_assert(is_same<CharT, typename Traits::char_type>::value, "bad char_traits for basic_string_view");
-    static_assert(!is_array<CharT>::value && is_trivial<CharT>::value && is_standard_layout<CharT>::value,
+    static_assert(std::is_same<CharT, typename Traits::char_type>::value, "bad char_traits for basic_string_view");
+    static_assert(!std::is_array<CharT>::value && std::is_trivial<CharT>::value && std::is_standard_layout<CharT>::value,
                   "the character type of basic_string_view must be a non-array trivial standard-layout type");
 
  public:
@@ -43,13 +42,14 @@ class basic_string_view {
         for (; *s; ++s, ++size_) {}
     }
     template<typename Alloc>
-    basic_string_view(const basic_string<CharT, Traits, Alloc>& s) noexcept : basic_string_view(s.data(), s.size()) {}
+    basic_string_view(const std::basic_string<CharT, Traits, Alloc>& s) noexcept
+        : basic_string_view(s.data(), s.size()) {}
 
     size_type size() const noexcept { return size_; }
     size_type length() const noexcept { return size_; }
     bool empty() const noexcept { return size_ == 0; }
 
-    explicit operator basic_string<CharT, Traits>() const { return basic_string<CharT, Traits>(begin_, size_); }
+    explicit operator std::basic_string<CharT, Traits>() const { return basic_string<CharT, Traits>(begin_, size_); }
 
     const_iterator begin() const noexcept { return const_iterator(begin_, begin_, begin_ + size_); }
     const_iterator cbegin() const noexcept { return begin(); }
@@ -95,9 +95,9 @@ class basic_string_view {
     size_type rfind(CharT ch, size_type pos = npos) const;
     size_type rfind(basic_string_view s, size_type pos = npos) const;
 
-    template<typename Traits2, typename Alloc>
-    friend basic_string<CharT, Traits2, Alloc>& operator+=(basic_string<CharT, Traits2, Alloc>& lhs,
-                                                           basic_string_view rhs) {
+    template<typename TraitsOther, typename Alloc>
+    friend std::basic_string<CharT, TraitsOther, Alloc>& operator+=(std::basic_string<CharT, TraitsOther, Alloc>& lhs,
+                                                                    basic_string_view rhs) {
         lhs.append(rhs.data(), rhs.size());
         return lhs;
     }

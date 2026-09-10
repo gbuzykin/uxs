@@ -148,8 +148,8 @@ value_class parser::classify_value(const std::string_view& sval) {
     }
 }
 
-template UXS_EXPORT basic_value<char> parser::parse(std::string_view, const std::allocator<char>&);
-template UXS_EXPORT basic_value<wchar_t> parser::parse(std::string_view, const std::allocator<wchar_t>&);
+template UXS_EXPORT value parser::parse(std::string_view, const std::allocator<char>&);
+template UXS_EXPORT wvalue parser::parse(std::string_view, const std::allocator<wchar_t>&);
 
 namespace detail {
 
@@ -397,10 +397,10 @@ lex_token_t lexer::lex(std::string_view& lval) {
     return lex_token_t::eof;
 }
 
-template UXS_EXPORT void write(membuffer& out, const basic_value<char>&, std::string_view, xml_fmt_opts, unsigned);
-template UXS_EXPORT void write(membuffer& out, const basic_value<wchar_t>&, std::wstring_view, xml_fmt_opts, unsigned);
-template UXS_EXPORT void write(wmembuffer& out, const basic_value<char>&, std::string_view, xml_fmt_opts, unsigned);
-template UXS_EXPORT void write(wmembuffer& out, const basic_value<wchar_t>&, std::wstring_view, xml_fmt_opts, unsigned);
+template UXS_EXPORT void write_impl(membuffer& out, const value&, std::string_view, xml_fmt_opts, unsigned);
+template UXS_EXPORT void write_impl(membuffer& out, const wvalue&, std::wstring_view, xml_fmt_opts, unsigned);
+template UXS_EXPORT void write_impl(wmembuffer& out, const value&, std::string_view, xml_fmt_opts, unsigned);
+template UXS_EXPORT void write_impl(wmembuffer& out, const wvalue&, std::wstring_view, xml_fmt_opts, unsigned);
 }  // namespace detail
 }  // namespace xml
 }  // namespace db

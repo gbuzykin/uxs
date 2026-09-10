@@ -97,11 +97,11 @@ class zip_iterator
 
     template<typename InputIt>
     static UXS_CONSTEXPR InputIt abs_min_element(InputIt first, InputIt last) {
-        auto it = first;
+        auto result = first;
         while (++first != last) {
-            if (std::abs(*first) < std::abs(*it)) { it = first; }
+            if (std::abs(*first) < std::abs(*result)) { result = first; }
         }
-        return it;
+        return result;
     }
 
     template<std::size_t... Indices>

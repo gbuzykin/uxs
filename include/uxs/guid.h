@@ -154,7 +154,7 @@ struct formatter<guid, CharT> {
         if (it == ctx.end() || *it != ':') { return it; }
         std::size_t dummy_id = unspecified_size;
         it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
-        if (opts_.prec >= 0 || !!(opts_.flags & ~fmt_flags::adjust_field)) { ParseCtx::syntax_error(); }
+        if (opts_.prec >= 0 || !!(opts_.flags & ~fmt_flags::adjust_field)) { ParseCtx::report_syntax_error(); }
         if (it == ctx.end() || (*it != 'X' && *it != 'x')) { return it; }
         if (*it == 'X') { opts_.flags |= fmt_flags::uppercase; }
         return it + 1;

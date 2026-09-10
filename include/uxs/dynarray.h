@@ -181,6 +181,7 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
 
     template<typename Ty_ = Ty, typename... Dummy>
     static void destruct_items(Ty_* first, Ty_* last, Dummy&&...) noexcept {
+        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
         static_assert(!std::is_trivially_destructible<Ty>::value, "Ty must not be trivially destructible");
         for (; first != last; ++first) { first->~value_type(); };
     }
@@ -194,6 +195,7 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
 
     template<typename Ty_ = Ty, typename... Dummy>
     static Ty* move_items(alloc_type& al, size_type sz, Ty_* first, Ty_* last, Dummy&&...) {
+        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
         static_assert(!std::is_nothrow_move_constructible<Ty>::value, "Ty must not be nothrow move constructible");
         Ty* data = alloc_traits::allocate(al, sz);
         Ty* dst = data;
