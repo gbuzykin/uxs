@@ -83,12 +83,14 @@ struct formatter<Ty, CharT, std::void_t<typename detail::tuple_formatter<Ty, Cha
     std::basic_string_view<CharT> closing_bracket_;
 
     template<typename Formatter, typename = std::void_t<decltype(std::declval<Formatter&>().set_debug_format())>>
-    UXS_CONSTEXPR static void call_set_debug_format(Formatter& f) {
+    static UXS_CONSTEXPR void call_set_debug_format(Formatter& f) {
         f.set_debug_format();
     }
 
     template<typename Formatter, typename... Dummy>
-    UXS_CONSTEXPR static void call_set_debug_format(Formatter&, Dummy&&...) {}
+    static UXS_CONSTEXPR void call_set_debug_format(Formatter&, Dummy&&...) {
+        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
+    }
 
     UXS_CONSTEXPR void switch_to_map_style(std::true_type) noexcept {
         set_separator(string_literal<CharT, ':', ' '>{});
@@ -186,12 +188,14 @@ struct range_formatter {
     std::basic_string_view<CharT> closing_bracket_;
 
     template<typename Formatter, typename = std::void_t<decltype(std::declval<Formatter&>().set_debug_format())>>
-    UXS_CONSTEXPR static void call_set_debug_format(Formatter& f) {
+    static UXS_CONSTEXPR void call_set_debug_format(Formatter& f) {
         f.set_debug_format();
     }
 
     template<typename Formatter, typename... Dummy>
-    UXS_CONSTEXPR static void call_set_debug_format(Formatter&, Dummy&&...) {}
+    static UXS_CONSTEXPR void call_set_debug_format(Formatter&, Dummy&&...) {
+        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
+    }
 
     UXS_CONSTEXPR void switch_to_map_style(std::true_type) noexcept {
         underlying_.set_separator(string_literal<CharT, ':', ' '>{});

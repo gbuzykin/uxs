@@ -35,7 +35,7 @@ struct char_tbl_t {
         0x00, 0x00, 0x00
 #if __cplusplus < 201703L
     const std::uint8_t* flags() const noexcept {
-        static const std::uint8_t tbl[] = {UXS_CHAR_FLAGS_TABLE_DATA};
+        static constexpr std::uint8_t tbl[] = {UXS_CHAR_FLAGS_TABLE_DATA};
         return tbl;
     }
 #else   // __cplusplus < 201703L
@@ -61,7 +61,7 @@ struct char_tbl_t {
         0xff, 0xff, 0xff
 #if __cplusplus < 201703L
     const std::uint8_t* dig_v() const noexcept {
-        static const std::uint8_t tbl[] = {UXS_CHAR_DIG_V_TABLE_DATA};
+        static constexpr std::uint8_t tbl[] = {UXS_CHAR_DIG_V_TABLE_DATA};
         return tbl;
     }
 #else   // __cplusplus < 201703L
@@ -77,7 +77,7 @@ struct char_tbl_t {
     "8081828384858687888990919293949596979899"
 #if __cplusplus < 201703L
     const char* digs100(std::size_t n) const noexcept {
-        alignas(2) static const char tbl[] = UXS_CHAR_DIGS100_TABLE_DATA;
+        alignas(2) static constexpr char tbl[] = UXS_CHAR_DIGS100_TABLE_DATA;
         return &tbl[2 * n];
     }
 #else   // __cplusplus < 201703L

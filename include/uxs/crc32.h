@@ -49,7 +49,7 @@ class crc32_calc {
         0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 #if __cplusplus < 201703L
     const std::uint32_t* table() const noexcept {
-        static const std::uint32_t v[] = {UXS_CRC32_TABLE_DATA};
+        static constexpr std::uint32_t v[] = {UXS_CRC32_TABLE_DATA};
         return v;
     }
 #else   // __cplusplus < 201703L

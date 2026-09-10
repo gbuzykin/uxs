@@ -234,7 +234,7 @@ value_visitor<const basic_value<CharT, Alloc>, StrTy, StackTy> make_value_visito
 }
 
 template<typename OutCharT, typename CharT, typename Alloc>
-void write(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v) {
+void write_impl(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v) {
     inline_dynarray<detail::writer_stack_item_t<CharT, Alloc>, 32> stack;
 
     const auto visitor = detail::make_value_visitor<CharT, Alloc>(out, stack);
@@ -274,8 +274,8 @@ loop:
 }
 
 template<typename OutCharT, typename CharT, typename Alloc>
-void write_formatted(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v, json_fmt_opts opts,
-                     unsigned indent) {
+void write_formatted_impl(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v, json_fmt_opts opts,
+                          unsigned indent) {
     inline_dynarray<detail::writer_stack_item_t<CharT, Alloc>, 32> stack;
 
     const auto visitor = detail::make_value_visitor<CharT, Alloc>(out, stack);

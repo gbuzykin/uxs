@@ -136,7 +136,7 @@ inline value operator""_json(const char* s, std::size_t len) {
     iflatbuf in(est::as_span(s, len));
     return parse(in);
 }
-inline basic_value<wchar_t> operator""_wjson(const char* s, std::size_t len) {
+inline wvalue operator""_wjson(const char* s, std::size_t len) {
     iflatbuf in(est::as_span(s, len));
     return parse<wchar_t>(in);
 }
@@ -145,23 +145,23 @@ inline basic_value<wchar_t> operator""_wjson(const char* s, std::size_t len) {
 
 namespace detail {
 template<typename OutCharT, typename CharT, typename Alloc>
-UXS_EXPORT void write(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v);
+UXS_EXPORT void write_impl(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v);
 template<typename OutCharT, typename CharT, typename Alloc>
-UXS_EXPORT void write_formatted(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v, json_fmt_opts opts,
-                                unsigned indent);
+UXS_EXPORT void write_formatted_impl(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v,
+                                     json_fmt_opts opts, unsigned indent);
 }  // namespace detail
 
 template<typename OutCharT, typename CharT, typename Alloc>
 void write(basic_iobuf<OutCharT>& out, const basic_value<CharT, Alloc>& v) {
     basic_iomembuffer<OutCharT> buf(out);
-    detail::write(buf, v);
+    detail::write_impl(buf, v);
 }
 
 template<typename OutCharT, typename CharT, typename Alloc>
 void write_formatted(basic_iobuf<OutCharT>& out, const basic_value<CharT, Alloc>& v, json_fmt_opts opts = {},
                      unsigned indent = 0) {
     basic_iomembuffer<OutCharT> buf(out);
-    detail::write_formatted(buf, v, opts, indent);
+    detail::write_formatted_impl(buf, v, opts, indent);
 }
 
 }  // namespace json
@@ -182,13 +182,13 @@ struct from_string_impl<db::basic_value<CharT, Alloc>, char> {
 template<typename OutCharT, typename CharT, typename Alloc>
 struct to_string_impl<db::basic_value<CharT, Alloc>, OutCharT> {
     void operator()(basic_membuffer<OutCharT>& out, const db::basic_value<CharT, Alloc>& val) const {
-        db::json::detail::write(out, val);
+        db::json::detail::write_impl(out, val);
     }
     template<typename StrTy, typename = std::enable_if_t<
                                  !std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
     void operator()(StrTy& out, const db::basic_value<CharT, Alloc>& val) const {
         basic_inline_dynbuffer<typename StrTy::value_type> buf;
-        db::json::detail::write(buf, val);
+        db::json::detail::write_impl(buf, val);
         out.append(buf.data(), buf.size());
     }
 };
@@ -233,8 +233,8 @@ struct formatter<db::basic_value<CharT, Alloc>, OutCharT> {
         if (indent_size_arg_id_ != unspecified_size) {
             indent_size = ctx.arg(indent_size_arg_id_).template get_unsigned<decltype(indent_size)>();
         }
-        return use_condensed_ ? db::json::detail::write(ctx.out(), val) :
-                                db::json::detail::write_formatted(ctx.out(), val, opts_, 0);
+        return use_condensed_ ? db::json::detail::write_impl(ctx.out(), val) :
+                                db::json::detail::write_formatted_impl(ctx.out(), val, opts_, 0);
     }
 };
 

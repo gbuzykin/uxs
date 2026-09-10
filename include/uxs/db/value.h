@@ -212,6 +212,7 @@ class flexarray_t {
 
     template<typename... Dummy>
     void put_tail_zero(Dummy&&...) noexcept {
+        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
         static_assert(tail_zero == 0, "must be no tail zero");
     }
 
@@ -250,6 +251,7 @@ class flexarray_t {
 
     template<typename Ty_ = Ty, typename... Dummy>
     static void destruct_items(alloc_type& al, Ty_* first, Ty_* last, Dummy&&...) noexcept {
+        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
         static_assert(!std::is_trivially_destructible<Ty>::value, "Ty must not be trivially destructible");
         for (; first != last; ++first) { alloc_traits::destroy(al, first); }
     }
@@ -1072,22 +1074,23 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         if (type_ != dtype::null) { destroy(); } \
         type_ = id, value_.field = static_cast<decltype(value_.field)>(v); \
         return *this; \
-    }
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(bool, dtype::boolean, b)
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(signed, dtype::integer, i)
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(unsigned, dtype::unsigned_integer, u)
+    } \
+    static_assert(true, "")
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(bool, dtype::boolean, b);
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(signed, dtype::integer, i);
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(unsigned, dtype::unsigned_integer, u);
 #if ULONG_MAX > 0xffffffff
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(signed long, dtype::long_integer, i64)
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(unsigned long, dtype::unsigned_long_integer, u64)
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(signed long, dtype::long_integer, i64);
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(unsigned long, dtype::unsigned_long_integer, u64);
 #else   // ULONG_MAX > 0xffffffff
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(signed long, dtype::integer, i)
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(unsigned long, dtype::unsigned_integer, u)
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(signed long, dtype::integer, i);
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(unsigned long, dtype::unsigned_integer, u);
 #endif  // ULONG_MAX > 0xffffffff
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(signed long long, dtype::long_integer, i64)
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(unsigned long long, dtype::unsigned_long_integer, u64)
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(float, dtype::double_precision, dbl)
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(double, dtype::double_precision, dbl)
-    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(long double, dtype::double_precision, dbl)
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(signed long long, dtype::long_integer, i64);
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(unsigned long long, dtype::unsigned_long_integer, u64);
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(float, dtype::double_precision, dbl);
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(double, dtype::double_precision, dbl);
+    UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(long double, dtype::double_precision, dbl);
 #undef UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT
 
     UXS_EXPORT basic_value& operator=(std::basic_string_view<char_type> s);
@@ -1536,14 +1539,15 @@ auto basic_value<CharT, Alloc>::as_object() -> object_range {
         const auto result = get##func(); \
         if (result) { return *result; } \
         throw database_error("bad value conversion"); \
-    }
-UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(bool, _bool)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::int32_t, _int)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::uint32_t, _uint)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::int64_t, _int64)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::uint64_t, _uint64)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(double, _double)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::basic_string<CharT>, _string)
+    } \
+    static_assert(true, "")
+UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(bool, _bool);
+UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::int32_t, _int);
+UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::uint32_t, _uint);
+UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::int64_t, _int64);
+UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::uint64_t, _uint64);
+UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(double, _double);
+UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::basic_string<CharT>, _string);
 #undef UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC
 
 namespace detail {
@@ -1559,25 +1563,25 @@ struct value_getters_specializer;
             -> decltype(detail::cast_optional<ty>(std::move(v.get##func()))) { \
             return detail::cast_optional<ty>(std::move(v.get##func())); \
         } \
-    };
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(bool, _bool)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(signed, _int)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(unsigned, _uint)
+    }
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(bool, _bool);
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(signed, _int);
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(unsigned, _uint);
 #if ULONG_MAX > 0xffffffff
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(signed long, _int64)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(unsigned long, _uint64)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(signed long, _int64);
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(unsigned long, _uint64);
 #else   // ULONG_MAX > 0xffffffff
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(signed long, _int)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(unsigned long, _uint)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(signed long, _int);
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(unsigned long, _uint);
 #endif  // ULONG_MAX > 0xffffffff
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(signed long long, _int64)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(unsigned long long, _uint64)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(float, _double)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(double, _double)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(long double, _double)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::basic_string<CharT>, _string)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::basic_string_view<CharT>, _string_view)
-UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(const CharT*, _c_string)
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(signed long long, _int64);
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(unsigned long long, _uint64);
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(float, _double);
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(double, _double);
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(long double, _double);
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::basic_string<CharT>, _string);
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(std::basic_string_view<CharT>, _string_view);
+UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(const CharT*, _c_string);
 #undef UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS
 
 }  // namespace detail
@@ -1647,6 +1651,7 @@ basic_value<CharT, Alloc> make_object(
 }
 
 using value = basic_value<char>;
+using wvalue = basic_value<wchar_t>;
 
 }  // namespace db
 }  // namespace uxs

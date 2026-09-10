@@ -150,7 +150,7 @@ std::pair<rbtree_node_t*, int> rbtree_find_insert_unique_pos(rbtree_node_t* head
 
 namespace detail {
 template<typename Traits, typename Key, typename Comp>
-rbtree_node_t* rbtree_lower_bound(rbtree_node_t* node, rbtree_node_t* head, const Key& k, const Comp& comp) {
+rbtree_node_t* rbtree_lower_bound_impl(rbtree_node_t* node, rbtree_node_t* head, const Key& k, const Comp& comp) {
     while (node) {
         if (!comp(Traits::get_key(Traits::get_value(node)), k)) {
             head = node, node = node->left;
@@ -161,7 +161,7 @@ rbtree_node_t* rbtree_lower_bound(rbtree_node_t* node, rbtree_node_t* head, cons
     return head;
 }
 template<typename Traits, typename Key, typename Comp>
-rbtree_node_t* rbtree_upper_bound(rbtree_node_t* node, rbtree_node_t* head, const Key& k, const Comp& comp) {
+rbtree_node_t* rbtree_upper_bound_impl(rbtree_node_t* node, rbtree_node_t* head, const Key& k, const Comp& comp) {
     while (node) {
         if (comp(k, Traits::get_key(Traits::get_value(node)))) {
             head = node, node = node->left;
@@ -175,12 +175,12 @@ rbtree_node_t* rbtree_upper_bound(rbtree_node_t* node, rbtree_node_t* head, cons
 
 template<typename Traits, typename Key, typename Comp>
 rbtree_node_t* rbtree_lower_bound(rbtree_node_t* head, const Key& k, const Comp& comp) {
-    return detail::rbtree_lower_bound<Traits>(head->left, head, k, comp);
+    return detail::rbtree_lower_bound_impl<Traits>(head->left, head, k, comp);
 }
 
 template<typename Traits, typename Key, typename Comp>
 rbtree_node_t* rbtree_upper_bound(rbtree_node_t* head, const Key& k, const Comp& comp) {
-    return detail::rbtree_upper_bound<Traits>(head->left, head, k, comp);
+    return detail::rbtree_upper_bound_impl<Traits>(head->left, head, k, comp);
 }
 
 template<typename Traits, typename Key, typename Comp>
@@ -192,8 +192,8 @@ std::pair<rbtree_node_t*, rbtree_node_t*> rbtree_equal_range(rbtree_node_t* head
         } else if (comp(Traits::get_key(Traits::get_value(node)), k)) {
             node = node->right;
         } else {
-            return std::make_pair(detail::rbtree_lower_bound<Traits>(node->left, node, k, comp),
-                                  detail::rbtree_upper_bound<Traits>(node->right, head, k, comp));
+            return std::make_pair(detail::rbtree_lower_bound_impl<Traits>(node->left, node, k, comp),
+                                  detail::rbtree_upper_bound_impl<Traits>(node->right, head, k, comp));
         }
     }
     return std::make_pair(head, head);

@@ -64,6 +64,7 @@ static void move_values(Alloc& /*al*/, const Ty* first, const Ty* last, Ty* dst)
 
 template<typename Alloc, typename Ty, typename... Dummy>
 static void move_values(Alloc& al, const Ty* first, const Ty* last, Ty* dst, Dummy&&...) noexcept {
+    static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
     static_assert(!std::is_trivially_move_constructible<Ty>::value, "Ty must not be trivially move constructible");
     static_assert(
         !std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value,
@@ -79,6 +80,7 @@ static void destruct_moved_values(Alloc& /*al*/, Ty* /*first*/, Ty* /*last*/) no
 
 template<typename Alloc, typename Ty, typename... Dummy>
 static void destruct_moved_values(Alloc& al, Ty* first, Ty* last, Dummy&&...) noexcept {
+    static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
     static_assert(!std::is_trivially_destructible<Ty>::value, "Ty must not be trivially destructible");
     static_assert(
         !std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value,
