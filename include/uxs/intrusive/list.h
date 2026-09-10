@@ -81,7 +81,9 @@ struct list_node_traits {
         return 0;
     }
     template<typename... Dummy>
-    static void reset_pointer(hook_t* /*h*/, owning_pointer_t /*p*/, Dummy&&...) {}
+    static void reset_pointer(hook_t* /*h*/, owning_pointer_t /*p*/, Dummy&&...) {
+        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
+    }
 
     template<typename HookTraits_ = HookTraits>
     static auto dispose(owning_pointer_t p) -> decltype(HookTraits_{}.dispose(std::move(p)), int{}) {
@@ -89,7 +91,9 @@ struct list_node_traits {
         return 0;
     }
     template<typename... Dummy>
-    static void dispose(Dummy&&...) {}
+    static void dispose(owning_pointer_t /*p*/, Dummy&&...) {
+        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
+    }
 
     using has_reset_pointer = std::is_same<decltype(reset_pointer(nullptr, std::declval<owning_pointer_t>())), int>;
     using has_dispose = std::is_same<decltype(dispose(std::declval<owning_pointer_t>())), int>;
@@ -109,6 +113,7 @@ struct list_node_traits {
     }
     template<typename... Dummy>
     static void dispose_all(list_links_t* head, Dummy&&...) {
+        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
         (void)head;
 #if UXS_ITERATOR_DEBUG_LEVEL != 0
         auto* item = head->next;
@@ -275,6 +280,7 @@ class list : public list_enumerator<Ty, HookTraits> {
     }
     template<typename ParentTy, typename... Dummy>
     static hook_t* get_hook(ParentTy* obj, Dummy&&...) {
+        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
         return obj;
     }
 };
