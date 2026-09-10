@@ -86,7 +86,8 @@ class basic_ibuf : public iostate {
                 return count0 - count;
             }
         }
-        std::copy_n(curr(), count, first), pos_ += count;
+        std::copy_n(curr(), count, first);
+        pos_ += count;
         return count0;
     }
 
