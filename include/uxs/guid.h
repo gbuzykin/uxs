@@ -68,8 +68,8 @@ struct guid {
 namespace detail {
 template<typename CharT>
 UXS_CONSTEXPR sconv_errc from_hex(const CharT* p, std::uint8_t& b) {
-    const unsigned dig1 = dig_v(p[0]);
-    const unsigned dig2 = dig_v(p[1]);
+    const unsigned dig1 = dig_v{}(p[0]);
+    const unsigned dig2 = dig_v{}(p[1]);
     if (dig1 >= 16 || dig2 >= 16) { return sconv_errc::invalid; }
     b = static_cast<std::uint8_t>((dig1 << 4) | dig2);
     return sconv_errc::ok;

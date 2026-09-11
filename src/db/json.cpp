@@ -22,15 +22,15 @@ token_t lexer::lex(std::string_view& lval) {
     unsigned surrogate = 0;
 
     while (in.peek() != ibuf::traits_type::eof()) {
-        using tbl = uxs::detail::char_tbl_t;
+        using char_tbl_t = uxs::detail::char_tbl_t;
         std::int8_t state = 0;
 
         if (stack[0] == lex_detail::sc_initial) {
             const char* curr = in.curr();
-            if (tbl{}.flags()[static_cast<std::uint8_t>(*curr)] & tbl::is_json_ws) {  // skip whitespaces
+            if (char_tbl_t::has_bits(*curr, char_tbl_t::bits::json_ws)) {  // skip whitespaces
                 if (*curr == '\n') { ++ln; }
                 curr = std::find_if(curr + 1, in.last(), [this](std::uint8_t ch) {
-                    if (ch != '\n') { return !(tbl{}.flags()[ch] & tbl::is_json_ws); }
+                    if (ch != '\n') { return !char_tbl_t::has_bits(ch, char_tbl_t::bits::json_ws); }
                     ++ln;
                     return false;
                 });
@@ -49,8 +49,9 @@ token_t lexer::lex(std::string_view& lval) {
             }
         } else {  // read string
             const char* curr0 = in.curr();
-            const char* curr = std::find_if(
-                curr0, in.last(), [](std::uint8_t ch) { return !!(tbl{}.flags()[ch] & tbl::is_string_special); });
+            const char* curr = std::find_if(curr0, in.last(), [](std::uint8_t ch) {
+                return char_tbl_t::has_bits(ch, char_tbl_t::bits::json_string_special);
+            });
 
             in.setpos(curr - in.first());
             if (!in.avail()) {
@@ -138,8 +139,8 @@ token_t lexer::lex(std::string_view& lval) {
             case lex_detail::pat_escape_r: str += '\r'; break;
             case lex_detail::pat_escape_t: str += '\t'; break;
             case lex_detail::pat_escape_unicode: {
-                unsigned unicode = (dig_v(lexeme[2]) << 12) | (dig_v(lexeme[3]) << 8) | (dig_v(lexeme[4]) << 4) |
-                                   dig_v(lexeme[5]);
+                unsigned unicode = (dig_v{}(lexeme[2]) << 12) | (dig_v{}(lexeme[3]) << 8) | (dig_v{}(lexeme[4]) << 4) |
+                                   dig_v{}(lexeme[5]);
                 if (surrogate != 0) {
                     if ((unicode & 0xfc00) == 0xdc00) {
                         unicode = 0x10000 + (((surrogate & 0x3ff) << 10) | (unicode & 0x3ff));

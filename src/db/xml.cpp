@@ -1,5 +1,5 @@
+#include "uxs/chars.h"
 #include "uxs/impl/db/xml_impl.h"
-#include "uxs/string_alg.h"
 
 namespace lex_detail {
 #include "xml_lex_defs.h"
@@ -11,6 +11,14 @@ namespace lex_detail {
 namespace uxs {
 namespace db {
 namespace xml {
+
+namespace detail {
+inline bool is_equal_strings_nocase(std::string_view lhs, std::string_view rhs) {
+    if (lhs.size() != rhs.size()) { return false; }
+    return std::equal(lhs.begin(), lhs.end(), rhs.begin(),
+                      [](char ch1, char ch2) { return to_lower{}(ch1) == to_lower{}(ch2); });
+}
+}  // namespace detail
 
 parser::parser(ibuf& in) : lexer_(in), name_cache_(16), token_{token_t::none, {}} {}
 
@@ -73,7 +81,7 @@ std::pair<token_t, std::string_view> parser::next_impl() {
                     } break;
 
                     case detail::lex_token_t::pi_open: {  // <?xml n1=v1 n2=v2...?>
-                        if (compare_strings_nocase(lval, string_literal<char, 'x', 'm', 'l'>{}()) != 0) {
+                        if (!detail::is_equal_strings_nocase(lval, string_literal<char, 'x', 'm', 'l'>{}())) {
                             throw database_error(to_string(lexer_.ln) + ": invalid document declaration");
                         }
                         name_cache_it->assign(lval.data(), lval.size());
@@ -116,8 +124,8 @@ std::pair<token_t, std::string_view> parser::next_impl() {
             default: {
                 const char* curr0 = lexer_.in.curr();
                 const char* curr = std::find_if(curr0, lexer_.in.last(), [this](std::uint8_t ch) {
-                    using tbl = uxs::detail::char_tbl_t;
-                    if (ch != '\n') { return !!(tbl{}.flags()[ch] & tbl::is_xml_special); }
+                    using char_tbl_t = uxs::detail::char_tbl_t;
+                    if (ch != '\n') { return char_tbl_t::has_bits(ch, char_tbl_t::bits::xml_special); }
                     ++lexer_.ln;
                     return false;
                 });
@@ -156,6 +164,7 @@ namespace detail {
 lexer::lexer(ibuf& in) : in(in) { stack.push_back(lex_detail::sc_initial); }
 
 lex_token_t lexer::lex(std::string_view& lval) {
+    using char_tbl_t = uxs::detail::char_tbl_t;
     char current_string_quot = '\0';
     bool need_to_normalize_string = false;
 
@@ -165,11 +174,8 @@ lex_token_t lexer::lex(std::string_view& lval) {
         char* p_end = p + sz;
         while (p != p_end) {
             if (*p == '\n') {
-                using tbl = uxs::detail::char_tbl_t;
-                while (p_to != p0 && (tbl{}.flags()[static_cast<std::uint8_t>(*(p_to - 1))] & tbl::is_json_ws)) {
-                    --p_to;
-                }
-                while (++p != p_end && (tbl{}.flags()[static_cast<std::uint8_t>(*p)] & tbl::is_json_ws)) {}
+                while (p_to != p0 && char_tbl_t::has_bits(*(p_to - 1), char_tbl_t::bits::json_ws)) { --p_to; }
+                while (++p != p_end && char_tbl_t::has_bits(*p, char_tbl_t::bits::json_ws)) {}
                 *p_to++ = ' ';
             } else {
                 *p_to++ = *p++;
@@ -179,15 +185,14 @@ lex_token_t lexer::lex(std::string_view& lval) {
     };
 
     while (in.peek() != ibuf::traits_type::eof()) {
-        using tbl = uxs::detail::char_tbl_t;
         std::int8_t state = 0;
 
         if (!current_string_quot) {
             const char* curr = in.curr();
-            if (tbl{}.flags()[static_cast<std::uint8_t>(*curr)] & tbl::is_json_ws) {  // skip whitespaces
+            if (char_tbl_t::has_bits(*curr, char_tbl_t::bits::json_ws)) {  // skip whitespaces
                 if (*curr == '\n') { ++ln; }
                 curr = std::find_if(curr + 1, in.last(), [this](std::uint8_t ch) {
-                    if (ch != '\n') { return !(tbl{}.flags()[ch] & tbl::is_json_ws); }
+                    if (ch != '\n') { return !char_tbl_t::has_bits(ch, char_tbl_t::bits::json_ws); }
                     ++ln;
                     return false;
                 });
@@ -209,7 +214,7 @@ lex_token_t lexer::lex(std::string_view& lval) {
             const char other_quot = (current_string_quot == '\"' ? '\'' : '\"');
             const char* curr0 = in.curr();
             const char* curr = std::find_if(curr0, in.last(), [other_quot](std::uint8_t ch) {
-                return !!(tbl{}.flags()[ch] & tbl::is_xml_string_special) && ch != other_quot;
+                return char_tbl_t::has_bits(ch, char_tbl_t::bits::xml_string_special) && ch != other_quot;
             });
 
             in.setpos(curr - in.first());
@@ -342,7 +347,7 @@ lex_token_t lexer::lex(std::string_view& lval) {
             } break;
             case lex_detail::pat_dcode: {
                 unsigned unicode = 0;
-                for (const char ch : std::string_view(lexeme + 2, llen - 3)) { unicode = 10 * unicode + dig_v(ch); }
+                for (const char ch : std::string_view(lexeme + 2, llen - 3)) { unicode = 10 * unicode + dig_v{}(ch); }
                 if (!current_string_quot) {
                     const std::size_t count = to_utf8(unicode, str.data()).count;
                     lval = std::string_view(str.data(), count);
@@ -352,7 +357,7 @@ lex_token_t lexer::lex(std::string_view& lval) {
             } break;
             case lex_detail::pat_hcode: {
                 unsigned unicode = 0;
-                for (const char ch : std::string_view(lexeme + 3, llen - 4)) { unicode = (unicode << 4) + dig_v(ch); }
+                for (const char ch : std::string_view(lexeme + 3, llen - 4)) { unicode = (unicode << 4) + dig_v{}(ch); }
                 if (!current_string_quot) {
                     const std::size_t count = to_utf8(unicode, str.data()).count;
                     lval = std::string_view(str.data(), count);
