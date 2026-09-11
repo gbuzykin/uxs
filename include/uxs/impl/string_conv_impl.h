@@ -93,7 +93,7 @@ const CharT* starts_with(const CharT* p, const CharT* end, std::basic_string_vie
     if (static_cast<std::size_t>(end - p) < s.size()) { return p; }
     const CharT* p0 = p;
     for (auto it = s.begin(); it != s.end(); ++it, ++p) {
-        if (to_lower(*p) != *it) { return p0; }
+        if (to_lower{}(*p) != *it) { return p0; }
     }
     return p;
 }
@@ -107,10 +107,10 @@ parse_result<bool, CharT> parse_boolean(const CharT* p, const CharT* end) noexce
     if ((p = starts_with(p, end, default_numpunct<CharT>().truename(false))) != p0) {
         val = true;
     } else if ((p = starts_with(p, end, default_numpunct<CharT>().falsename(false))) != p0) {
-    } else if ((dig = dig_v(*p)) < 10) {
+    } else if ((dig = dig_v{}(*p)) < 10) {
         do {
             if (dig) { val = true; }
-        } while (++p != end && (dig = dig_v(*p)) < 10);
+        } while (++p != end && (dig = dig_v{}(*p)) < 10);
     } else {
         return {false, p0, sconv_errc::invalid};
     }
@@ -132,13 +132,13 @@ parse_result<Ty, CharT> parse_signed_integer_common(const CharT* p, const CharT*
     }
 
     unsigned dig = 0;
-    if (p == end || (dig = dig_v(*p)) >= 10) { return {0, p0, sconv_errc::invalid}; }
+    if (p == end || (dig = dig_v{}(*p)) >= 10) { return {0, p0, sconv_errc::invalid}; }
     unsigned_ty result = dig;
-    while (++p != end && (dig = dig_v(*p)) < 10) {
+    while (++p != end && (dig = dig_v{}(*p)) < 10) {
         unsigned_ty result0 = result;
         result = 10U * result + dig;
-        if (result < result0) {                              // too big integer
-            while (++p != end && (dig = dig_v(*p)) < 10) {}  // find end of pattern
+        if (result < result0) {                                // too big integer
+            while (++p != end && (dig = dig_v{}(*p)) < 10) {}  // find end of pattern
             return {0, p, sconv_errc::out_of_range};
         }
     }
@@ -159,13 +159,13 @@ parse_result<Ty, CharT> parse_unsigned_integer_common(const CharT* p, const Char
     if (p == end) { return {0, p, sconv_errc::empty}; }
 
     unsigned dig = 0;
-    if (p == end || (dig = dig_v(*p)) >= 10) { return {0, p, sconv_errc::invalid}; }
+    if (p == end || (dig = dig_v{}(*p)) >= 10) { return {0, p, sconv_errc::invalid}; }
     Ty result = dig;
-    while (++p != end && (dig = dig_v(*p)) < 10) {
+    while (++p != end && (dig = dig_v{}(*p)) < 10) {
         Ty result0 = result;
         result = 10U * result + dig;
-        if (result < result0) {                              // too big integer
-            while (++p != end && (dig = dig_v(*p)) < 10) {}  // find end of pattern
+        if (result < result0) {                                // too big integer
+            while (++p != end && (dig = dig_v{}(*p)) < 10) {}  // find end of pattern
             return {0, p, sconv_errc::out_of_range};
         }
     }
@@ -192,10 +192,10 @@ const CharT* accum_mantissa(const CharT* p, const CharT* end, fp10_t& fp10) noex
     std::uint64_t* m10 = &fp10.bits[max_fp10_mantissa_size - fp10.bits_used];
     if (fp10.bits_used == 1) {
         std::uint64_t m = *m10;
-        for (unsigned dig = 0; p != end && (dig = dig_v(*p)) < 10 && m < short_lim; ++p) { m = 10U * m + dig; }
+        for (unsigned dig = 0; p != end && (dig = dig_v{}(*p)) < 10 && m < short_lim; ++p) { m = 10U * m + dig; }
         *m10 = m;
     }
-    for (unsigned dig = 0; p != end && (dig = dig_v(*p)) < 10; ++p) {
+    for (unsigned dig = 0; p != end && (dig = dig_v{}(*p)) < 10; ++p) {
         if (fp10.bits_used < max_fp10_mantissa_size) {
             const std::uint64_t higher = bignum_mul32(m10, fp10.bits_used, 10U, dig);
             if (higher) { *--m10 = higher, ++fp10.bits_used; }
@@ -213,12 +213,12 @@ from_chars_result<CharT> from_chars_to_fp10(const CharT* p, const CharT* end, fp
     const CharT* p0 = p;
     const CharT dec_point = default_numpunct<CharT>().decimal_point();
     if (p == end) { return {p, sconv_errc::invalid}; }
-    if ((dig = dig_v(*p)) < 10) {  // integral part
+    if ((dig = dig_v{}(*p)) < 10) {  // integral part
         fp10.bits[max_fp10_mantissa_size - 1] = dig;
         p = accum_mantissa(p + 1, end, fp10);
         if (p == end) { return {p, sconv_errc::ok}; }
         if (*p != dec_point) { goto parse_exponent; }
-    } else if (*p == dec_point && p + 1 != end && (dig = dig_v(*(p + 1))) < 10) {
+    } else if (*p == dec_point && p + 1 != end && (dig = dig_v{}(*(p + 1))) < 10) {
         fp10.bits[max_fp10_mantissa_size - 1] = dig, fp10.exp = -1, ++p;  // tenth
     } else {
         return {p, sconv_errc::invalid};
@@ -558,10 +558,10 @@ UXS_FORCE_INLINE Ty divmod(Ty& v) {
 
 template<typename CharT>
 UXS_FORCE_INLINE unsigned gen_digits(CharT* p, std::uint32_t v, unsigned pos) noexcept {
-    using tbl = uxs::detail::char_tbl_t;
-    while (v >= 100U) { copy2(&p[pos -= 2], tbl{}.digs100(static_cast<std::size_t>(divmod<100U>(v)))); }
+    using char_tbl_t = uxs::detail::char_tbl_t;
+    while (v >= 100U) { copy2(&p[pos -= 2], char_tbl_t::digs100(static_cast<std::size_t>(divmod<100U>(v)))); }
     if (v >= 10U) {
-        copy2(&p[pos -= 2], tbl{}.digs100(static_cast<std::size_t>(v)));
+        copy2(&p[pos -= 2], char_tbl_t::digs100(static_cast<std::size_t>(v)));
     } else {
         p[--pos] = '0' + static_cast<unsigned>(v);
     }
@@ -570,11 +570,11 @@ UXS_FORCE_INLINE unsigned gen_digits(CharT* p, std::uint32_t v, unsigned pos) no
 
 template<typename CharT>
 UXS_FORCE_INLINE unsigned gen_digits_8(CharT* p, std::uint32_t v, unsigned pos) noexcept {
-    using tbl = uxs::detail::char_tbl_t;
-    copy2(&p[pos -= 2], tbl{}.digs100(static_cast<std::size_t>(divmod<100U>(v))));
-    copy2(&p[pos -= 2], tbl{}.digs100(static_cast<std::size_t>(divmod<100U>(v))));
-    copy2(&p[pos -= 2], tbl{}.digs100(static_cast<std::size_t>(divmod<100U>(v))));
-    copy2(&p[pos -= 2], tbl{}.digs100(static_cast<std::size_t>(v)));
+    using char_tbl_t = uxs::detail::char_tbl_t;
+    copy2(&p[pos -= 2], char_tbl_t::digs100(static_cast<std::size_t>(divmod<100U>(v))));
+    copy2(&p[pos -= 2], char_tbl_t::digs100(static_cast<std::size_t>(divmod<100U>(v))));
+    copy2(&p[pos -= 2], char_tbl_t::digs100(static_cast<std::size_t>(divmod<100U>(v))));
+    copy2(&p[pos -= 2], char_tbl_t::digs100(static_cast<std::size_t>(v)));
     return pos;
 }
 
@@ -588,18 +588,18 @@ UXS_FORCE_INLINE unsigned gen_digits(CharT* p, std::uint64_t v, unsigned pos) no
 
 template<typename CharT>
 UXS_FORCE_INLINE std::uint32_t gen_digits_n(CharT* p, std::uint32_t v, unsigned n, unsigned pos) noexcept {
-    using tbl = uxs::detail::char_tbl_t;
-    while (n >= 2) { copy2(&p[pos -= 2], tbl{}.digs100(static_cast<std::size_t>(divmod<100U>(v)))), n -= 2; }
+    using char_tbl_t = uxs::detail::char_tbl_t;
+    while (n >= 2) { copy2(&p[pos -= 2], char_tbl_t::digs100(static_cast<std::size_t>(divmod<100U>(v)))), n -= 2; }
     if (n) { p[--pos] = '0' + static_cast<unsigned>(divmod<10U>(v)); }
     return v;
 }
 
 template<typename CharT>
 UXS_FORCE_INLINE std::uint64_t gen_digits_n(CharT* p, std::uint64_t v, unsigned n, unsigned pos) noexcept {
-    using tbl = uxs::detail::char_tbl_t;
+    using char_tbl_t = uxs::detail::char_tbl_t;
     if (v > std::numeric_limits<std::uint32_t>::max()) {
         while (n >= 8) { pos = gen_digits_8(p, static_cast<std::uint32_t>(divmod<100000000U>(v)), pos), n -= 8; }
-        while (n >= 2) { copy2(&p[pos -= 2], tbl{}.digs100(static_cast<std::size_t>(divmod<100U>(v)))), n -= 2; }
+        while (n >= 2) { copy2(&p[pos -= 2], char_tbl_t::digs100(static_cast<std::size_t>(divmod<100U>(v)))), n -= 2; }
         if (n) { p[--pos] = '0' + static_cast<unsigned>(divmod<10U>(v)); }
         return v;
     }
@@ -917,15 +917,15 @@ class fp_dec_fmt_t {
 template<typename CharT>
 void fp_dec_fmt_t::generate_scientific(CharT* p, unsigned pos, bool uppercase, CharT dec_point) const noexcept {
     // generate exponent
-    using tbl = uxs::detail::char_tbl_t;
+    using char_tbl_t = uxs::detail::char_tbl_t;
     int exp10 = exp_;
     char exp_sign = '+';
     if (exp10 < 0) { exp_sign = '-', exp10 = -exp10; }
     if (exp10 < 100) {
-        copy2(&p[pos -= 2], tbl{}.digs100(exp10));
+        copy2(&p[pos -= 2], char_tbl_t::digs100(exp10));
     } else {
         const int t = (656 * exp10) >> 16;
-        copy2(&p[pos -= 2], tbl{}.digs100(exp10 - 100 * t));
+        copy2(&p[pos -= 2], char_tbl_t::digs100(exp10 - 100 * t));
         p[--pos] = '0' + t;
     }
     p[--pos] = exp_sign;

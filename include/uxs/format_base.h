@@ -504,7 +504,7 @@ class arg_store<FmtCtx> {
 struct parse_context_utils {
     template<typename InputIt, typename Ty>
     static UXS_CONSTEXPR InputIt parse_number(InputIt first, InputIt last, Ty& num) {
-        for (unsigned dig = 0; first != last && (dig = dig_v(*first)) < 10; ++first) {
+        for (unsigned dig = 0; first != last && (dig = dig_v{}(*first)) < 10; ++first) {
             Ty num0 = num;
             num = 10 * num + dig;
             if (num < num0) { throw format_error("integer overflow"); }
@@ -519,7 +519,7 @@ struct parse_context_utils {
         if (it == ctx.end()) { return {it, false}; }
         if (*it == '}') {
             arg_id = ctx.next_arg_id();
-        } else if ((num = dig_v(*it)) < 10) {
+        } else if ((num = dig_v{}(*it)) < 10) {
             it = parse_number(it + 1, ctx.end(), num);
             if (it == ctx.end() || *it != '}') { return {it, false}; }
             ctx.check_arg_id(num);
@@ -536,7 +536,7 @@ struct parse_context_utils {
         ParseCtx& ctx, typename ParseCtx::iterator it, Ty& param, std::size_t& arg_id) {
         unsigned dig = 0;
         if (it == ctx.end()) { return {it, false}; }
-        if ((dig = dig_v(*it)) < 10) {
+        if ((dig = dig_v{}(*it)) < 10) {
             param = static_cast<Ty>(dig);
             it = parse_number(it + 1, ctx.end(), param);
         } else if (*it == '{') {
@@ -712,7 +712,7 @@ UXS_CONSTEXPR void parse_format(ParseCtx& ctx, OnTextFn&& on_text_fn, OnArgFn&& 
         it0 = ++it;
         if (it != ctx.end() && *(it - 1) == '{' && *it != '{') {
             std::size_t arg_id = 0;
-            if ((arg_id = dig_v(*it)) < 10) {
+            if ((arg_id = dig_v{}(*it)) < 10) {
                 it = ParseCtx::parse_number(it + 1, ctx.end(), arg_id);
                 ctx.check_arg_id(arg_id);
             } else {
