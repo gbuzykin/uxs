@@ -77,7 +77,7 @@ struct fmt_opts {
     fmt_flags flags = fmt_flags::none;
     int prec = -1;
     unsigned width = 0;
-    int fill = ' ';
+    std::uint8_t fill = ' ';
 };
 
 class UXS_EXPORT_ALL_STUFF_FOR_GNUC format_error : public std::runtime_error {

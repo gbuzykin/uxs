@@ -3,7 +3,6 @@
 #include "chars.h"
 #include "string_util.h"
 
-#include <algorithm>
 #include <vector>
 
 namespace uxs {
@@ -168,7 +167,7 @@ template<typename CharT = char, typename Range, typename SepTy, typename JoinFn 
 std::basic_string<CharT> join_strings(const Range& r, const SepTy& sep,
                                       est::type_identity_t<std::basic_string<CharT>> prefix = {},
                                       JoinFn fn = JoinFn{}) {
-    join_strings_append(prefix, r, sep, fn);
+    join_strings_append(prefix, r, sep, std::move(fn));
     return prefix;
 }
 
@@ -197,7 +196,7 @@ template<typename StrLikeTy, typename Finder, typename OutputFn = est::identity,
 auto split_string(const StrLikeTy& s, Finder finder, OutputFn fn = OutputFn{}, Pred pred = Pred{})
     -> std::vector<std::decay_t<decltype(fn(to_string_view(s)))>> {
     std::vector<std::decay_t<decltype(fn(to_string_view(s)))>> result;
-    split_string_to(s, finder, std::back_inserter(result), fn, pred);
+    split_string_to(s, finder, std::back_inserter(result), std::move(fn), std::move(pred));
     return result;
 }
 
@@ -255,27 +254,27 @@ UXS_CONSTEXPR OutputIt string_to_words_to(const StrLikeTy& s, typename string_ch
                                           OutputIt out, OutputFn fn = OutputFn{}, Pred pred = Pred{},
                                           IsSpaceFn is_space_fn = IsSpaceFn{}) {
     using char_traits_t = string_char_traits_t<StrLikeTy>;
-    enum class state_t { start = 0, sep_found, skip_sep } state = state_t::start;
+    enum class state_t { start = 0, sep_found, skip_next_sep } state = state_t::start;
     const auto sv = to_string_view(s);
     for (auto p = sv.begin();; ++p) {
         while (p != sv.end() && is_space_fn(*p)) { ++p; }  // skip spaces
         const auto p0 = p;
-        if (p == sv.end()) {
-            if (state != state_t::sep_found) { return out; }
-        } else {
-            state_t prev_state = state;
+        if (p != sv.end()) {
+            const state_t prev_state = state;
             do {  // find separator or blank
                 if (char_traits_t::eq(*p, '\\')) {
                     if (++p == sv.end()) { break; }
                 } else if (is_space_fn(*p)) {
-                    state = state_t::skip_sep;
+                    state = state_t::skip_next_sep;
                     break;
                 } else if (char_traits_t::eq(*p, sep)) {
                     state = state_t::sep_found;
                     break;
                 }
             } while (++p != sv.end());
-            if (p == p0 && prev_state == state_t::skip_sep) { continue; }
+            if (p == p0 && prev_state == state_t::skip_next_sep) { continue; }
+        } else if (state != state_t::sep_found) {
+            return out;
         }
         if (pred(p0, p)) {
             *out = fn(sv.substr(p0 - sv.begin(), p - p0));
@@ -291,94 +290,8 @@ auto string_to_words(const StrLikeTy& s, typename string_char_traits_t<StrLikeTy
                      OutputFn fn = OutputFn{}, Pred pred = Pred{})
     -> std::vector<std::decay_t<decltype(fn(to_string_view(s)))>> {
     std::vector<std::decay_t<decltype(fn(to_string_view(s)))>> result;
-    string_to_words_to(s, sep, std::back_inserter(result), fn, pred);
+    string_to_words_to(s, sep, std::back_inserter(result), std::move(fn), std::move(pred));
     return result;
 }
-
-// --------------------------
-
-template<typename StrTy, typename Range, typename InputFn = est::identity>
-auto pack_strings_append(StrTy& out, const Range& r, typename StrTy::value_type sep, InputFn fn = InputFn{})
-    -> std::enable_if_t<is_string_like<std::decay_t<decltype(fn(*std::begin(r)))>>::value> {
-    auto first = std::begin(r);
-    const auto last = std::end(r);
-    if (first == last) { return; }
-    while (true) {
-        const auto el = fn(*first);
-        const auto sv = to_string_view(el);
-        using char_traits_t = string_char_traits_t<decltype(sv)>;
-        auto p0 = sv.begin();
-        auto p = p0;
-        for (; p != sv.end(); ++p) {
-            if (char_traits_t::eq(*p, '\\') || char_traits_t::eq(*p, sep)) {
-                out += sv.substr(p0 - sv.begin(), p - p0);
-                out += '\\';
-                p0 = p;
-            }
-        }
-        out += sv.substr(p0 - sv.begin(), p - p0);
-        ++first;
-        if (first == last) {
-            if (sv.empty()) { out += sep; }
-            return;
-        }
-        out += sep;
-    }
-}
-
-template<typename CharT = char, typename Range, typename InputFn = est::identity>
-auto pack_strings(const Range& r, est::type_identity_t<CharT> sep,
-                  est::type_identity_t<std::basic_string<CharT>> prefix = {}, InputFn fn = InputFn{})
-    -> std::enable_if_t<is_string_like<std::decay_t<decltype(fn(*std::begin(r)))>>::value, std::basic_string<CharT>> {
-    pack_strings_append(prefix, r, sep, fn);
-    return prefix;
-}
-
-// --------------------------
-
-template<typename StrLikeTy, typename OutputIt, typename OutputFn = est::identity, typename Pred = est::true_fn,
-         typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-OutputIt unpack_strings_to(const StrLikeTy& s, typename string_char_traits_t<StrLikeTy>::char_type sep, OutputIt out,
-                           OutputFn fn = OutputFn{}, Pred pred = Pred{}) {
-    using char_traits_t = string_char_traits_t<StrLikeTy>;
-    const auto sv = to_string_view(s);
-    for (auto p = sv.begin();; ++p) {
-        decltype(make_string(s)) val;
-        auto p0 = p;  // append chars till separator
-        for (; p != sv.end(); ++p) {
-            if (char_traits_t::eq(*p, '\\')) {
-                val += sv.substr(p0 - sv.begin(), p - p0);
-                p0 = p + 1;
-                if (++p == sv.end()) { break; }
-            } else if (char_traits_t::eq(*p, sep)) {
-                break;
-            }
-        }
-        val += sv.substr(p0 - sv.begin(), p - p0);
-        if ((p != sv.end() || !val.empty()) && pred(val.begin(), val.end())) {
-            *out = fn(std::move(val));
-            ++out;
-        }
-        if (p == sv.end()) { return out; }
-    }
-}
-
-template<typename StrLikeTy, typename OutputFn = est::identity, typename Pred = est::true_fn,
-         typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-auto unpack_strings(const StrLikeTy& s, typename string_char_traits_t<StrLikeTy>::char_type sep,
-                    OutputFn fn = OutputFn{}, Pred pred = Pred{})
-    -> std::vector<std::decay_t<decltype(fn(make_string(s)))>> {
-    std::vector<std::decay_t<decltype(fn(make_string(s)))>> result;
-    unpack_strings_to(s, sep, std::back_inserter(result), fn, pred);
-    return result;
-}
-
-// --------------------------
-
-UXS_EXPORT std::string encode_string_escapes(std::string_view s, std::string_view symb, std::string_view code);
-UXS_EXPORT std::string decode_string_escapes(std::string_view s, std::string_view symb, std::string_view code);
-
-UXS_EXPORT std::wstring encode_string_escapes(std::wstring_view s, std::wstring_view symb, std::wstring_view code);
-UXS_EXPORT std::wstring decode_string_escapes(std::wstring_view s, std::wstring_view symb, std::wstring_view code);
 
 }  // namespace uxs

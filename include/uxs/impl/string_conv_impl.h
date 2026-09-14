@@ -733,13 +733,13 @@ void fmt_character(basic_membuffer<CharT>& out, CharT val, fmt_opts fmt, locale_
                 return fmt.width > 1 ? append_adjusted(out, fn, 1, fmt) : fn(out);
             }
             if (fmt.width == 0) {
-                append_escaped_text(out, &val, &val + 1, true);
+                append_escaped_text(out, &val, &val + 1, '\'');
                 return;
             }
             std::array<CharT, 16> buf;
             basic_membuffer<CharT> membuf(buf.data());
-            const std::size_t width = append_escaped_text(membuf, &val, &val + 1, true);
-            const auto fn = [&membuf](basic_membuffer<CharT>& out) { out.append(membuf.data(), membuf.endp()); };
+            const std::size_t width = append_escaped_text(membuf, &val, &val + 1, '\'');
+            const auto fn = [&membuf](basic_membuffer<CharT>& out) { out.append(membuf.data(), membuf.size()); };
             return fmt.width > width ? append_adjusted(out, fn, static_cast<unsigned>(width), fmt) : fn(out);
         } break;
     }
@@ -769,13 +769,13 @@ void fmt_string(basic_membuffer<CharT>& out, std::basic_string_view<CharT> val, 
         return fmt.width > width ? append_adjusted(out, fn, static_cast<unsigned>(width), fmt) : fn(out);
     }
     if (fmt.width == 0) {
-        append_escaped_text(out, val.begin(), val.end(), false,
+        append_escaped_text(out, val.begin(), val.end(), '\"',
                             fmt.prec >= 0 ? fmt.prec : std::numeric_limits<std::size_t>::max());
         return;
     }
     basic_inline_dynbuffer<CharT> buf;
     const std::size_t width = append_escaped_text<basic_membuffer<CharT>>(
-        buf, val.begin(), val.end(), false, fmt.prec >= 0 ? fmt.prec : std::numeric_limits<std::size_t>::max());
+        buf, val.begin(), val.end(), '\"', fmt.prec >= 0 ? fmt.prec : std::numeric_limits<std::size_t>::max());
     const auto fn = [&buf](basic_membuffer<CharT>& out) { out.append(buf.data(), buf.size()); };
     return fmt.width > width ? append_adjusted(out, fn, static_cast<unsigned>(width), fmt) : fn(out);
 }

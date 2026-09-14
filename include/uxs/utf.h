@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 
 namespace uxs {
 
@@ -104,7 +105,7 @@ UXS_CONSTEXPR to_utf_result<OutputIt> to_utf8(std::uint32_t code, OutputIt out) 
         *out = ch[--count];
         ++out;
     } while (count > 0);
-    return {out, n_written};
+    return {std::move(out), n_written};
 }
 
 template<typename InputIt>
@@ -141,7 +142,7 @@ UXS_CONSTEXPR to_utf_result<OutputIt> to_utf16(std::uint32_t code, OutputIt out)
         *out = ch[--count];
         ++out;
     } while (count > 0);
-    return {out, n_written};
+    return {std::move(out), n_written};
 }
 
 template<typename InputIt>
@@ -156,7 +157,7 @@ template<typename OutputIt>
 UXS_CONSTEXPR to_utf_result<OutputIt> to_utf32(std::uint32_t code, OutputIt out) {
     *out = is_utf_wellformed(code) ? code : 0xfffd;
     ++out;
-    return {out, 1};
+    return {std::move(out), 1};
 }
 
 template<typename CharT>
@@ -171,7 +172,7 @@ struct utf_codec<char> {
     }
     template<typename OutputIt>
     UXS_CONSTEXPR to_utf_result<OutputIt> encode(std::uint32_t code, OutputIt out) const {
-        return to_utf8(code, out);
+        return to_utf8(code, std::move(out));
     }
     constexpr unsigned count(std::uint32_t code) const { return count_utf8(code); }
 };
@@ -185,7 +186,7 @@ struct utf_codec<char16_t> {
     }
     template<typename OutputIt>
     UXS_CONSTEXPR to_utf_result<OutputIt> encode(std::uint32_t code, OutputIt out) const {
-        return to_utf16(code, out);
+        return to_utf16(code, std::move(out));
     }
     constexpr unsigned count(std::uint32_t code) const { return count_utf16(code); }
 };
@@ -199,7 +200,7 @@ struct utf_codec<char32_t> {
     }
     template<typename OutputIt>
     UXS_CONSTEXPR to_utf_result<OutputIt> encode(std::uint32_t code, OutputIt out) const {
-        return to_utf32(code, out);
+        return to_utf32(code, std::move(out));
     }
     constexpr unsigned count(std::uint32_t /*code*/) const { return 1; }
 };

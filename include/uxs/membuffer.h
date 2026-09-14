@@ -140,7 +140,7 @@ class basic_membuffer {
     template<typename CharT_ = value_type>
     std::enable_if_t<est::is_character<CharT_>::value, basic_membuffer&> operator+=(
         std::basic_string_view<value_type> s) {
-        return append(s.data(), s.size());
+        return append(s.begin(), s.end());
     }
     template<typename CharT_ = value_type>
     std::enable_if_t<est::is_character<CharT_>::value, basic_membuffer&> operator+=(const_pointer s) {

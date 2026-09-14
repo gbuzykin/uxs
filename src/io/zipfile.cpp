@@ -1,5 +1,6 @@
 #include "uxs/io/zipfile.h"
 
+#include "uxs/membuffer.h"
 #include "uxs/string_util.h"
 
 #if UXS_USE_LIBZIP != 0
@@ -100,7 +101,10 @@ int zipfile::write(const void* /*data*/, std::size_t /*sz*/, std::size_t& /*n_wr
 #endif  // UXS_USE_LIBZIP != 0
 
 bool zipfile::open(ziparch& arch, const wchar_t* fname, iomode mode) {
-    return open(arch, from_wide_to_utf8(fname).c_str(), mode);
+    inline_dynbuffer fname_buf;
+    utf_string_adapter<char>{}.append(fname_buf, fname);
+    fname_buf += '\0';
+    return open(arch, fname_buf.data(), mode);
 }
 
 void zipfile::set_compression(zipfile_compression compr, unsigned level) {
