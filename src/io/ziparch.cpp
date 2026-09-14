@@ -1,5 +1,6 @@
 #include "uxs/io/ziparch.h"
 
+#include "uxs/membuffer.h"
 #include "uxs/string_util.h"
 
 #include <cstdio>
@@ -137,11 +138,24 @@ bool ziparch::stat_file(std::uint64_t /*index*/, zipfile_info& /*info*/) const {
 
 #endif  // UXS_USE_LIBZIP != 0
 
-bool ziparch::open(const wchar_t* name, iomode mode) { return open(from_wide_to_utf8(name).c_str(), mode); }
+bool ziparch::open(const wchar_t* name, iomode mode) {
+    inline_dynbuffer name_buf;
+    utf_string_adapter<char>{}.append(name_buf, name);
+    name_buf += '\0';
+    return open(name_buf.data(), mode);
+}
+
 std::int64_t ziparch::add_file(const wchar_t* fname, const void* data, std::size_t sz, zipfile_compression compr,
                                unsigned level) {
-    return add_file(from_wide_to_utf8(fname).c_str(), data, sz, compr, level);
+    inline_dynbuffer fname_buf;
+    utf_string_adapter<char>{}.append(fname_buf, fname);
+    fname_buf += '\0';
+    return add_file(fname_buf.data(), data, sz, compr, level);
 }
+
 bool ziparch::stat_file(const wchar_t* fname, zipfile_info& info) const {
-    return stat_file(from_wide_to_utf8(fname).c_str(), info);
+    inline_dynbuffer fname_buf;
+    utf_string_adapter<char>{}.append(fname_buf, fname);
+    fname_buf += '\0';
+    return stat_file(fname_buf.data(), info);
 }
