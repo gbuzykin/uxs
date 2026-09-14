@@ -160,4 +160,73 @@ std::string from_wide_to_utf8(const StrLikeTy& s) {
     return utf8_string_adapter{}(s);
 }
 
+template<typename StrTy, typename InputIt>
+std::size_t append_escaped_text(StrTy& out, InputIt first, InputIt last, bool single_quoted,
+                                std::size_t max_width = std::numeric_limits<std::size_t>::max()) {
+    using char_type = typename StrTy::value_type;
+    if (max_width == 0) { return 0; }
+    out += single_quoted ? '\'' : '\"';
+    std::size_t width = 1;
+    auto first0 = first;
+    while (first != last) {
+        char esc = '\0';
+        std::uint32_t code = 0;
+        const auto result = utf_decoder<char_type>{}(first, last, code);
+        switch (code) {
+            case '\t': esc = 't'; break;
+            case '\n': esc = 'n'; break;
+            case '\r': esc = 'r'; break;
+            case '\\': esc = '\\'; break;
+            case '\"': {
+                if (single_quoted) {
+                    if (width == max_width) { goto finish; }
+                    ++width, first = result.iter;
+                    continue;
+                }
+                esc = '\"';
+            } break;
+            case '\'': {
+                if (!single_quoted) {
+                    if (width == max_width) { goto finish; }
+                    ++width, first = result.iter;
+                    continue;
+                }
+                esc = '\'';
+            } break;
+            default: {
+                if (result && is_utf_printable(code)) {
+                    const unsigned w = get_utf_printable_width(code);
+                    if (max_width - width < w) { goto finish; }
+                    width += w, first = result.iter;
+                    continue;
+                }
+            } break;
+        }
+        out.append(first0, first);
+        if (esc) {
+            if (max_width - width < 2) { goto finish; }
+            width += 2;
+            out += '\\';
+            out += esc;
+        } else {
+            std::array<char_type, 8> digs;
+            char_type* p = digs.data();
+            do { *p++ = "0123456789abcdef"[code & 0xf]; } while ((code >>= 4));
+            const unsigned w = 4 + static_cast<unsigned>(p - digs.data());
+            if (max_width - width < w) { goto finish; }
+            width += w;
+            out += result ? string_literal<char_type, '\\', 'u', '{'>{}() :
+                            string_literal<char_type, '\\', 'x', '{'>{}();
+            do { out += *--p; } while (p != digs.data());
+            out += '}';
+        }
+        first = first0 = result.iter;
+    }
+finish:
+    out.append(first0, first);
+    if (width == max_width) { return width; }
+    out += single_quoted ? '\'' : '\"';
+    return width + 1;
+}
+
 }  // namespace uxs

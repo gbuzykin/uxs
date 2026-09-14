@@ -4,7 +4,7 @@
 
 namespace uxs {
 
-bool is_utf_code_printable(std::uint32_t code) noexcept {
+bool is_utf_printable(std::uint32_t code) noexcept {
     static UXS_CONSTEXPR_DATA std::uint32_t v[] = {
         0x12,       0x1d9,      0x377,      0x37d,      0x37f,      0x380,      0x381,      0x382,      0x383,
         0x384,      0x385,      0x386,      0x387,      0x388,      0x389,      0x38a,      0x38b,      0x38c,
@@ -118,7 +118,7 @@ bool is_utf_code_printable(std::uint32_t code) noexcept {
     return lower == first || code > (*(lower - 1) & 0xffff) + (*(lower - 1) >> 16);
 }
 
-unsigned get_utf_code_width(std::uint32_t code) noexcept {
+unsigned get_utf_printable_width(std::uint32_t code) noexcept {
     static UXS_CONSTEXPR_DATA std::uint32_t v[] = {
         0x12,      0x4e,     0x77,       0x7d,       0x7f,      0x7f,       0x7f,       0x7f,       0x7f,
         0x7f,      0x7f,     0x7f,       0x7f,       0x7f,      0x7f,       0x7f,       0x7f,       0x7f,

@@ -27,7 +27,9 @@ struct to_utf_result {
     unsigned count;
 };
 
-UXS_CONSTEXPR bool is_acceptable_utf32(std::uint32_t ch) { return ch < 0x110000 && (ch & 0x1ff800) != 0xd800; }
+UXS_CONSTEXPR bool is_utf_wellformed(std::uint32_t code) noexcept {
+    return code < 0x110000 && (code & 0x1ff800) != 0xd800;
+}
 
 template<typename InputIt>
 UXS_CONSTEXPR from_utf_result<InputIt> from_utf8(InputIt first, InputIt last, std::uint32_t& code) {
@@ -51,7 +53,7 @@ UXS_CONSTEXPR from_utf_result<InputIt> from_utf8(InputIt first, InputIt last, st
         if (first == last || (*first & 0xc0) != 0x80) { return {first0, utf_errc::invalid}; }
         result = (result << 6) | (*first++ & 0x3f);
     } while (--count > 0);
-    if (!is_acceptable_utf32(result)) { return {first0, utf_errc::invalid}; }
+    if (!is_utf_wellformed(result)) { return {first0, utf_errc::invalid}; }
     code = result;
     return {first, utf_errc::wellformed};
 }
@@ -65,7 +67,7 @@ UXS_CONSTEXPR to_utf_result<OutputIt> to_utf8(std::uint32_t code, OutputIt out,
         ++out;
         return {out, 1};
     }
-    if (!is_acceptable_utf32(code)) { code = 0xfffd; }
+    if (!is_utf_wellformed(code)) { code = 0xfffd; }
     const std::uint8_t mask[] = {0, 0x1f, 0xf, 0x7};
     const std::uint8_t hdr[] = {0, 0xc0, 0xe0, 0xf0};
     std::uint8_t ch[4] = {};
@@ -120,14 +122,14 @@ template<typename InputIt>
 UXS_CONSTEXPR from_utf_result<InputIt> from_utf32(InputIt first, InputIt last, std::uint32_t& code) {
     if (first == last) { return {first, utf_errc::empty}; }
     code = static_cast<std::uint32_t>(*first++);
-    return {first, is_acceptable_utf32(code) ? utf_errc::wellformed : utf_errc::invalid};
+    return {first, is_utf_wellformed(code) ? utf_errc::wellformed : utf_errc::invalid};
 }
 
 template<typename OutputIt>
 UXS_CONSTEXPR to_utf_result<OutputIt> to_utf32(std::uint32_t code, OutputIt out,
                                                std::size_t avail = std::numeric_limits<std::size_t>::max()) {
     if (avail == 0) { return {out, 0}; }
-    *out = is_acceptable_utf32(code) ? code : 0xfffd;
+    *out = is_utf_wellformed(code) ? code : 0xfffd;
     ++out;
     return {out, 1};
 }
@@ -194,7 +196,18 @@ struct utf_encoder<wchar_t> {
     }
 };
 
-UXS_EXPORT bool is_utf_code_printable(std::uint32_t code) noexcept;
-UXS_EXPORT unsigned get_utf_code_width(std::uint32_t code) noexcept;
+UXS_EXPORT bool is_utf_printable(std::uint32_t code) noexcept;
+UXS_EXPORT unsigned get_utf_printable_width(std::uint32_t code) noexcept;
+
+template<typename CharT, typename InputIt>
+std::size_t estimate_utf_printable_width(InputIt first, InputIt last) {
+    std::size_t width = 0;
+    while (first != last) {
+        std::uint32_t code = 0;
+        first = utf_decoder<CharT>{}(first, last, code).iter;
+        width += get_utf_printable_width(code);
+    }
+    return width;
+}
 
 }  // namespace uxs

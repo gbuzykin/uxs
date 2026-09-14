@@ -167,7 +167,7 @@ struct formatter<Ty, CharT, std::void_t<typename detail::tuple_formatter<Ty, Cha
         basic_inline_dynbuffer<CharT> buf;
         basic_format_context<CharT> buf_ctx(buf, ctx);
         format_impl(buf_ctx, val);
-        const std::size_t len = estimate_string_width<CharT>(buf.begin(), buf.end());
+        const std::size_t len = estimate_utf_printable_width<CharT>(buf.begin(), buf.end());
         const auto fn = [&buf](basic_membuffer<CharT>& out) { out.append(buf.data(), buf.size()); };
         return opts.width > len ? append_adjusted(ctx.out(), fn, static_cast<unsigned>(len), opts) : fn(ctx.out());
     }
@@ -181,7 +181,7 @@ struct range_formatter {
     fmt_opts opts_;
     std::size_t width_arg_id_ = unspecified_size;
     std::size_t prec_arg_id_ = unspecified_size;
-    formatter<Ty, CharT> underlying_;
+    formatter_t<Ty, CharT> underlying_;
     bool format_as_string_ = false;
     std::basic_string_view<CharT> separator_;
     std::basic_string_view<CharT> opening_bracket_;
@@ -224,7 +224,7 @@ struct range_formatter {
                 while (limit != last) {
                     std::uint32_t code = 0;
                     const auto next = utf_decoder<CharT>{}(limit, last, code).iter;
-                    const unsigned w = get_utf_code_width(code);
+                    const unsigned w = get_utf_printable_width(code);
                     if (max_width - width < w) { break; }
                     width += w, limit = next;
                 }
@@ -256,8 +256,8 @@ struct range_formatter {
     UXS_CONSTEXPR range_formatter() noexcept
         : separator_(string_literal<CharT, ',', ' '>{}), opening_bracket_(string_literal<CharT, '['>{}),
           closing_bracket_(string_literal<CharT, ']'>{}) {}
-    UXS_CONSTEXPR formatter<Ty, CharT>& underlying() { return underlying_; }
-    UXS_CONSTEXPR const formatter<Ty, CharT>& underlying() const { return underlying_; }
+    UXS_CONSTEXPR formatter_t<Ty, CharT>& underlying() { return underlying_; }
+    UXS_CONSTEXPR const formatter_t<Ty, CharT>& underlying() const { return underlying_; }
     UXS_CONSTEXPR void set_separator(std::basic_string_view<CharT> sep) noexcept { separator_ = sep; }
     UXS_CONSTEXPR void set_brackets(std::basic_string_view<CharT> opening,
                                     std::basic_string_view<CharT> closing) noexcept {
@@ -305,7 +305,7 @@ struct range_formatter {
 
     template<typename FmtCtx, typename Range>
     void format(FmtCtx& ctx, const Range& val) const {
-        static_assert(std::is_same<fmt::reduce_type_t<est::range_element_t<Range>, CharT>, Ty>::value,
+        static_assert(std::is_same<est::range_element_t<Range>, Ty>::value,
                       "inconsistent template parameter and range types");
         fmt_opts opts = opts_;
         if (width_arg_id_ != unspecified_size) {
@@ -326,19 +326,16 @@ struct range_formatter {
             len = format_as_string(buf, val, opts, std::is_same<Ty, CharT>());
         } else {
             format_impl(buf_ctx, val);
-            len = estimate_string_width<CharT>(buf.begin(), buf.end());
+            len = estimate_utf_printable_width<CharT>(buf.begin(), buf.end());
         }
         const auto fn = [&buf](basic_membuffer<CharT>& out) { out.append(buf.data(), buf.size()); };
         return opts.width > len ? append_adjusted(ctx.out(), fn, static_cast<unsigned>(len), opts) : fn(ctx.out());
     }
 };
 
-template<typename Ty, typename CharT>
-using range_formatter_t = range_formatter<fmt::reduce_type_t<Ty, CharT>, CharT>;
-
 template<typename Range, typename CharT>
 struct formatter<Range, CharT, std::enable_if_t<format_kind<Range, CharT>::value == range_format::map>>
-    : range_formatter_t<est::range_element_t<Range>, CharT> {
+    : range_formatter<est::range_element_t<Range>, CharT> {
     UXS_CONSTEXPR formatter() noexcept {
         this->set_brackets(string_literal<CharT, '{'>{}, string_literal<CharT, '}'>{});
         this->underlying().set_separator(string_literal<CharT, ':', ' '>{});
@@ -348,7 +345,7 @@ struct formatter<Range, CharT, std::enable_if_t<format_kind<Range, CharT>::value
 
 template<typename Range, typename CharT>
 struct formatter<Range, CharT, std::enable_if_t<format_kind<Range, CharT>::value == range_format::set>>
-    : range_formatter_t<est::range_element_t<Range>, CharT> {
+    : range_formatter<est::range_element_t<Range>, CharT> {
     UXS_CONSTEXPR formatter() noexcept {
         this->set_brackets(string_literal<CharT, '{'>{}, string_literal<CharT, '}'>{});
     }
@@ -356,6 +353,6 @@ struct formatter<Range, CharT, std::enable_if_t<format_kind<Range, CharT>::value
 
 template<typename Range, typename CharT>
 struct formatter<Range, CharT, std::enable_if_t<format_kind<Range, CharT>::value == range_format::sequence>>
-    : range_formatter_t<est::range_element_t<Range>, CharT> {};
+    : range_formatter<est::range_element_t<Range>, CharT> {};
 
 }  // namespace uxs

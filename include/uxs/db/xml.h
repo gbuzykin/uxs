@@ -64,6 +64,7 @@ struct lexer {
     basic_inline_dynbuffer<char, 32> stash;
     basic_inline_dynbuffer<std::int8_t, 32> stack;
     UXS_EXPORT explicit lexer(ibuf& in);
+    [[noreturn]] UXS_EXPORT void report_error(const char* message);
     UXS_EXPORT lex_token_t lex(std::string_view& lval);
 };
 }  // namespace detail
