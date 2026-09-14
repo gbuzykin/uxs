@@ -55,7 +55,12 @@ bool sysfile::open(const char* fname, iomode mode) {
     return fd_ >= 0;
 }
 
-bool sysfile::open(const wchar_t* fname, iomode mode) { return open(from_wide_to_utf8(fname).c_str(), mode); }
+bool sysfile::open(const wchar_t* fname, iomode mode) {
+    inline_dynbuffer fname_buf;
+    utf_string_adapter<char>{}.append(fname_buf, fname);
+    fname_buf += '\0';
+    return open(fname_buf.data(), mode);
+}
 
 void sysfile::close() noexcept { ::close(detach()); }
 
@@ -101,4 +106,10 @@ int sysfile::truncate() {
 int sysfile::flush() { return 0; }
 
 bool sysfile::remove(const char* fname) { return ::unlink(fname) == 0; }
-bool sysfile::remove(const wchar_t* fname) { return remove(from_wide_to_utf8(fname).c_str()); }
+
+bool sysfile::remove(const wchar_t* fname) {
+    inline_dynbuffer fname_buf;
+    utf_string_adapter<char>{}.append(fname_buf, fname);
+    fname_buf += '\0';
+    return remove(fname_buf.data());
+}

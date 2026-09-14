@@ -118,7 +118,7 @@ bool uxs::is_utf_printable(std::uint32_t code) noexcept {
     return lower == first || code > (*(lower - 1) & 0xffff) + (*(lower - 1) >> 16);
 }
 
-unsigned uxs::get_utf_printable_width(std::uint32_t code) noexcept {
+unsigned uxs::get_utf_printable_width_others(std::uint32_t code) noexcept {
     static UXS_CONSTEXPR_DATA std::uint32_t v[] = {
         0x12,       0x50,      0x7a,      0x81,       0x83,      0x83,       0x83,       0x83,     0x83,
         0x83,       0x83,      0x83,      0x83,       0x83,      0x83,       0x83,       0x83,     0x83,

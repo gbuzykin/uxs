@@ -11,7 +11,7 @@ struct arg_visitor {
     typename FmtCtx::parse_context& parse_ctx;
     arg_visitor(FmtCtx& ctx, typename FmtCtx::parse_context& parse_ctx) noexcept : ctx(ctx), parse_ctx(parse_ctx) {}
     template<typename Ty>
-    typename FmtCtx::parse_context::iterator operator()(Ty v) const {
+    typename FmtCtx::parse_context::iterator operator()(const Ty& v) const {
         return ctx.format_arg(parse_ctx, v);
     }
 };

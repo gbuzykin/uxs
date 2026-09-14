@@ -64,12 +64,8 @@ struct format_kind : std::integral_constant<range_format, detail::is_range_forma
                                                                    range_format::sequence) :
                                                               range_format::disabled> {};
 
-template<typename CharT, typename Traits>
-struct format_kind<std::basic_string_view<CharT, Traits>, CharT>
-    : std::integral_constant<range_format, range_format::string> {};
-
-template<typename CharT, typename Traits, typename Alloc>
-struct format_kind<std::basic_string<CharT, Traits, Alloc>, CharT>
+template<typename StrCharT, typename CharT>
+struct format_kind<std::basic_string_view<StrCharT>, CharT>
     : std::integral_constant<range_format, range_format::string> {};
 
 template<typename Ty, typename CharT>
@@ -177,9 +173,9 @@ struct formatter<Ty, CharT, std::void_t<typename detail::tuple_formatter<Ty, Cha
         basic_inline_dynbuffer<CharT> buf;
         basic_format_context<CharT> buf_ctx(buf, ctx);
         format_impl(buf_ctx, val);
-        const std::size_t len = estimate_string_width<CharT>(buf.begin(), buf.end());
-        const auto fn = [&buf](basic_membuffer<CharT>& out) { out.append(buf.data(), buf.size()); };
-        return opts.width > len ? append_adjusted(ctx.out(), fn, static_cast<unsigned>(len), opts) : fn(ctx.out());
+        const std::size_t width = eval_string_printable_width<CharT>(buf.begin(), buf.end());
+        const auto fn = [&buf](typename FmtCtx::output_type& out) { out.append(buf.data(), buf.size()); };
+        return opts.width > width ? append_adjusted(ctx.out(), fn, static_cast<unsigned>(width), opts) : fn(ctx.out());
     }
 };
 
@@ -220,44 +216,21 @@ struct range_formatter {
 
     template<typename Ty_ = Ty>
     UXS_CONSTEXPR void switch_to_string_style(std::true_type /* range of chars */) noexcept {
-        format_as_string_ = true;
+        set_format_as_string();
     }
 
     template<typename Ty_ = Ty>
     UXS_CONSTEXPR void switch_to_string_style(std::false_type /* range of chars */) {
-        throw format_error("`s` specifier requires a range of native characters");
+        throw format_error("`s` specifier requires a range of characters");
     }
 
     template<typename StrTy, typename Range>
-    static std::size_t format_as_string(StrTy& out, const Range& val, fmt_opts opts,
-                                        std::true_type /* range of chars */) {
-        if (!(opts.flags & fmt_flags::debug_format)) {
-            std::size_t width = 0;
-            auto first = std::begin(val);
-            auto last = std::end(val);
-            if (opts.prec >= 0 || opts.width > 0) {
-                const std::size_t max_width = opts.prec >= 0 ? opts.prec : std::numeric_limits<std::size_t>::max();
-                auto limit = first;
-                while (limit != last) {
-                    std::uint32_t code = 0;
-                    const auto next = utf_codec<CharT>{}.decode(limit, last, code).iter;
-                    const unsigned w = get_utf_printable_width(code);
-                    if (max_width - width < w) { break; }
-                    width += w, limit = next;
-                }
-                last = limit;
-            }
-            for (; first != last; ++first) { out += *first; }
-            return width;
-        }
-        return append_escaped_text(out, std::begin(val), std::end(val), false,
-                                   opts.prec >= 0 ? opts.prec : std::numeric_limits<std::size_t>::max());
+    static void format_as_string(StrTy& out, const Range& val, fmt_opts opts, std::true_type /* range of chars */) {
+        append_formatted_string(out, val, opts);
     }
 
     template<typename StrTy, typename Range>
-    static std::size_t format_as_string(StrTy&, const Range&, fmt_opts, std::false_type /* range of chars */) {
-        return 0;
-    }
+    static void format_as_string(StrTy&, const Range&, fmt_opts, std::false_type /* range of chars */) {}
 
     template<typename FmtCtx, typename Range>
     void format_impl(FmtCtx& ctx, const Range& val) const {
@@ -275,6 +248,7 @@ struct range_formatter {
           closing_bracket_(string_literal<CharT, ']'>{}) {}
     UXS_CONSTEXPR formatter_t<Ty, CharT>& underlying() { return underlying_; }
     UXS_CONSTEXPR const formatter_t<Ty, CharT>& underlying() const { return underlying_; }
+    UXS_CONSTEXPR void set_format_as_string() noexcept { format_as_string_ = true; }
     UXS_CONSTEXPR void set_separator(std::basic_string_view<CharT> sep) noexcept { separator_ = sep; }
     UXS_CONSTEXPR void set_brackets(std::basic_string_view<CharT> opening,
                                     std::basic_string_view<CharT> closing) noexcept {
@@ -296,13 +270,13 @@ struct range_formatter {
                         ++it;
                     } break;
                     case 's': {
-                        switch_to_string_style(std::is_same<Ty, CharT>());
+                        switch_to_string_style(est::is_character<Ty>());
                         return it + 1;
                     } break;
                     case '?': {
                         if (it + 1 == ctx.end() || *(it + 1) != 's') { return it; }
                         opts_.flags |= fmt_flags::debug_format;
-                        switch_to_string_style(std::is_same<Ty, CharT>());
+                        switch_to_string_style(est::is_character<Ty>());
                         return it + 2;
                     } break;
                     default: break;
@@ -331,23 +305,23 @@ struct range_formatter {
         if (prec_arg_id_ != est::unspecified_size) {
             opts.prec = ctx.arg(prec_arg_id_).template get_unsigned<decltype(opts.prec)>();
         }
-        if (opts.width == 0) {
-            return format_as_string_ ?
-                       static_cast<void>(format_as_string(ctx.out(), val, opts, std::is_same<Ty, CharT>())) :
-                       format_impl(ctx, val);
-        }
+        if (format_as_string_) { return format_as_string(ctx.out(), val, opts, est::is_character<Ty>()); }
+        if (opts.width == 0) { return format_impl(ctx, val); }
         basic_inline_dynbuffer<CharT> buf;
         basic_format_context<CharT> buf_ctx(buf, ctx);
-        std::size_t len = 0;
-        if (format_as_string_) {
-            len = format_as_string(buf, val, opts, std::is_same<Ty, CharT>());
-        } else {
-            format_impl(buf_ctx, val);
-            len = estimate_string_width<CharT>(buf.begin(), buf.end());
-        }
-        const auto fn = [&buf](basic_membuffer<CharT>& out) { out.append(buf.data(), buf.size()); };
-        return opts.width > len ? append_adjusted(ctx.out(), fn, static_cast<unsigned>(len), opts) : fn(ctx.out());
+        format_impl(buf_ctx, val);
+        const std::size_t width = eval_string_printable_width<CharT>(buf.begin(), buf.end());
+        const auto fn = [&buf](typename FmtCtx::output_type& out) { out.append(buf.data(), buf.size()); };
+        return opts.width > width ? append_adjusted(ctx.out(), fn, static_cast<unsigned>(width), opts) : fn(ctx.out());
     }
+};
+
+template<typename Range, typename CharT>
+struct formatter<Range, CharT,
+                 std::enable_if_t<format_kind<Range, CharT>::value == range_format::string &&
+                                  !std::is_same<est::range_element_t<Range>, CharT>::value>>
+    : range_formatter<est::range_element_t<Range>, CharT> {
+    UXS_CONSTEXPR formatter() noexcept { this->set_format_as_string(); }
 };
 
 template<typename Range, typename CharT>

@@ -24,27 +24,23 @@ struct reduce_type<Ty, CharT,
                                     !est::is_boolean<Ty>::value && !est::is_character<Ty>::value>> {
     using type = std::conditional_t<(sizeof(Ty) <= sizeof(std::int32_t)), std::int32_t, std::int64_t>;
 };
-template<>
-struct reduce_type<char, wchar_t> {
-    using type = wchar_t;
-};
-template<typename CharT, typename Traits>
-struct reduce_type<std::basic_string_view<CharT, Traits>, CharT> {
-    using type = std::basic_string_view<CharT>;
-};
-template<typename CharT, typename Traits, typename Alloc>
-struct reduce_type<std::basic_string<CharT, Traits, Alloc>, CharT> {
-    using type = std::basic_string_view<CharT>;
+template<typename Ty, typename CharT>
+struct reduce_type<Ty, CharT, std::enable_if_t<est::is_character<Ty>::value>> {
+    using type = char32_t;
 };
 template<typename Ty, typename CharT>
-struct reduce_type<Ty*, CharT,
-                   std::enable_if_t<!est::is_character<Ty>::value || std::is_same<std::remove_cv_t<Ty>, CharT>::value>> {
-    using type =
-        std::conditional_t<std::is_same<std::remove_cv_t<Ty>, CharT>::value, std::basic_string_view<CharT>, const void*>;
+struct reduce_type<Ty, CharT, std::enable_if_t<is_string_like<Ty>::value>> {
+    using type = std::basic_string_view<typename string_char_traits_t<Ty>::char_type>;
 };
 template<typename Ty, typename CharT>
-struct reduce_type<Ty, CharT, std::enable_if_t<std::is_array<Ty>::value>> {
-    using type = typename reduce_type<typename std::remove_extent<Ty>::type*, CharT>::type;
+struct reduce_type<Ty*, CharT, std::enable_if_t<!est::is_character<Ty>::value>> {
+    using type = const void*;
+};
+template<typename Ty, typename CharT>
+struct reduce_type<
+    Ty, CharT,
+    std::enable_if_t<std::is_array<Ty>::value && !est::is_character<typename std::remove_extent<Ty>::type>::value>> {
+    using type = const void*;
 };
 template<typename CharT>
 struct reduce_type<std::nullptr_t, CharT> {
@@ -58,9 +54,6 @@ using reduce_type_t = typename reduce_type<std::remove_cv_t<Ty>, CharT>::type;
 
 template<typename CharT>
 class basic_format_context;
-
-using format_context = basic_format_context<char>;
-using wformat_context = basic_format_context<wchar_t>;
 
 namespace detail {
 template<typename Ty, typename FmtCtx>
@@ -114,7 +107,7 @@ struct type_index {};
     template<typename CharT> \
     struct type_index<ty, CharT> : std::integral_constant<index_t, index> {}
 UXS_FMT_DECLARE_ARG_TYPE_INDEX(bool, index_t::boolean);
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(CharT, index_t::character);
+UXS_FMT_DECLARE_ARG_TYPE_INDEX(char32_t, index_t::character);
 UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::int32_t, index_t::integer);
 UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::int64_t, index_t::long_integer);
 UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::uint32_t, index_t::unsigned_integer);
@@ -132,22 +125,54 @@ template<typename FmtCtx>
 class custom_arg_handle {
  public:
     using parse_context = typename FmtCtx::parse_context;
-    using format_func_type = typename parse_context::iterator (*)(FmtCtx&, parse_context&, const void*);
+    using format_func_type = typename parse_context::iterator (*)(FmtCtx&, parse_context&, const custom_arg_handle&);
 
-    template<typename Ty>
-    explicit UXS_CONSTEXPR custom_arg_handle(const Ty& val) noexcept : val_(&val), print_fn_(func<Ty>) {}
+    explicit UXS_CONSTEXPR custom_arg_handle(format_func_type print_fn) noexcept : print_fn_(print_fn) {}
 
     typename parse_context::iterator format(FmtCtx& ctx, parse_context& parse_ctx) const {
-        return print_fn_(ctx, parse_ctx, val_);
+        return print_fn_(ctx, parse_ctx, *this);
     }
 
  private:
-    const void* val_;            // value pointer
-    format_func_type print_fn_;  // printing function pointer
+    format_func_type print_fn_;
+};
 
-    template<typename Ty>
-    static typename parse_context::iterator func(FmtCtx& ctx, parse_context& parse_ctx, const void* val) {
-        return ctx.format_arg(parse_ctx, *static_cast<const Ty*>(val));
+template<typename FmtCtx, typename Ty>
+class custom_arg_handle_impl : public custom_arg_handle<FmtCtx> {
+ public:
+    using parse_context = typename FmtCtx::parse_context;
+
+    explicit UXS_CONSTEXPR custom_arg_handle_impl(const Ty& val) noexcept
+        : custom_arg_handle<FmtCtx>(func), val_(&val) {}
+
+ private:
+    const Ty* val_;
+
+    typename parse_context::iterator func2(FmtCtx& ctx, parse_context& parse_ctx) const {
+        return ctx.format_arg(parse_ctx, *val_);
+    }
+
+    static typename parse_context::iterator func(FmtCtx& ctx, parse_context& parse_ctx,
+                                                 const custom_arg_handle<FmtCtx>& h) {
+        return static_cast<const custom_arg_handle_impl&>(h).func2(ctx, parse_ctx);
+        // return ctx.format_arg(parse_ctx, *static_cast<const custom_arg_handle_impl&>(h).val_);
+    }
+};
+
+template<typename FmtCtx, typename CharT>
+class custom_arg_handle_impl<FmtCtx, std::basic_string_view<CharT>> : public custom_arg_handle<FmtCtx> {
+ public:
+    using parse_context = typename FmtCtx::parse_context;
+
+    UXS_CONSTEXPR custom_arg_handle_impl(const CharT* data, std::size_t size) noexcept
+        : custom_arg_handle<FmtCtx>(func), val_(data, size) {}
+
+ private:
+    std::basic_string_view<CharT> val_;
+
+    static typename parse_context::iterator func(FmtCtx& ctx, parse_context& parse_ctx,
+                                                 const custom_arg_handle<FmtCtx>& h) {
+        return ctx.format_arg(parse_ctx, static_cast<const custom_arg_handle_impl&>(h).val_);
     }
 };
 
@@ -161,7 +186,8 @@ struct arg_type_index<Ty, CharT, std::void_t<typename type_index<reduce_type_t<T
 
 template<typename FmtCtx, typename Ty>
 using arg_store_type = std::conditional<(arg_type_index<Ty, typename FmtCtx::char_type>::value) < index_t::custom,
-                                        reduce_type_t<Ty, typename FmtCtx::char_type>, custom_arg_handle<FmtCtx>>;
+                                        reduce_type_t<Ty, typename FmtCtx::char_type>,
+                                        custom_arg_handle_impl<FmtCtx, reduce_type_t<Ty, typename FmtCtx::char_type>>>;
 
 template<typename FmtCtx, typename Ty>
 using arg_size = est::size_of<typename arg_store_type<FmtCtx, Ty>::type>;
@@ -215,19 +241,21 @@ class arg_store {
 
     alignas(storage_alignment) std::uint8_t data_[storage_size];
 
-    template<typename Ty, typename = std::enable_if_t<is_formattable<Ty, char_type>::value>>
-    static UXS_CONSTEXPR void store_value(const Ty& val, void* data) noexcept {
+    template<typename CharT, typename = std::enable_if_t<est::is_character<CharT>::value>>
+    static UXS_CONSTEXPR void store_value(CharT ch, void* data) noexcept {
+        ::new (data) char32_t(static_cast<typename std::make_unsigned<CharT>::type>(ch));
+    }
+
+    template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
+    static UXS_CONSTEXPR void store_value(const StrLikeTy& s, void* data) noexcept {
+        const auto sv = to_string_view(s);
+        ::new (data) typename arg_store_type<FmtCtx, StrLikeTy>::type(sv.data(), sv.size());
+    }
+
+    template<typename Ty, typename = std::enable_if_t<is_formattable<Ty, char_type>::value>, typename... Dummy>
+    static UXS_CONSTEXPR void store_value(const Ty& val, void* data, Dummy&&...) noexcept {
+        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
         ::new (data) typename arg_store_type<FmtCtx, Ty>::type(val);
-    }
-
-    template<typename Traits>
-    static UXS_CONSTEXPR void store_value(std::basic_string_view<char_type, Traits> s, void* data) noexcept {
-        ::new (data) std::basic_string_view<char_type>(s.data(), s.size());
-    }
-
-    template<typename Traits, typename Alloc>
-    static UXS_CONSTEXPR void store_value(const std::basic_string<char_type, Traits, Alloc>& s, void* data) noexcept {
-        ::new (data) std::basic_string_view<char_type>(s.data(), s.size());
     }
 
     UXS_CONSTEXPR void store_values(std::size_t /*i*/, std::size_t /*offset*/) noexcept {}
@@ -517,7 +545,6 @@ template<typename FmtCtx>
 class basic_format_arg {
  public:
     using char_type = typename FmtCtx::char_type;
-    using handle = fmt::custom_arg_handle<FmtCtx>;
 
     basic_format_arg(fmt::index_t index, const void* data) noexcept : index_(index), data_(data) {}
 
@@ -544,7 +571,7 @@ class basic_format_arg {
         return fn(*static_cast<ty const*>(data_)); \
     } break
             UXS_FMT_FORMAT_ARG_VALUE(bool);
-            UXS_FMT_FORMAT_ARG_VALUE(char_type);
+            UXS_FMT_FORMAT_ARG_VALUE(char32_t);
             UXS_FMT_FORMAT_ARG_VALUE(std::int32_t);
             UXS_FMT_FORMAT_ARG_VALUE(std::int64_t);
             UXS_FMT_FORMAT_ARG_VALUE(std::uint32_t);
@@ -554,7 +581,7 @@ class basic_format_arg {
             UXS_FMT_FORMAT_ARG_VALUE(long double);
             UXS_FMT_FORMAT_ARG_VALUE(const void*);
             UXS_FMT_FORMAT_ARG_VALUE(std::basic_string_view<char_type>);
-            UXS_FMT_FORMAT_ARG_VALUE(typename basic_format_arg<FmtCtx>::handle);
+            UXS_FMT_FORMAT_ARG_VALUE(fmt::custom_arg_handle<FmtCtx>);
 #undef UXS_FMT_FORMAT_ARG_VALUE
         }
         UXS_UNREACHABLE_CODE;
@@ -604,6 +631,11 @@ class basic_format_args {
         const unsigned meta = static_cast<const unsigned*>(data_)[id];
         return basic_format_arg<FmtCtx>(static_cast<fmt::index_t>(meta & 0xff),
                                         static_cast<const std::uint8_t*>(data_) + (meta >> 8));
+    }
+
+    template<typename... Args>
+    static UXS_CONSTEXPR fmt::arg_store<FmtCtx, Args...> make(const Args&... args) noexcept {
+        return fmt::arg_store<FmtCtx, Args...>(args...);
     }
 
  private:
@@ -700,6 +732,7 @@ class basic_format_context {
     using parse_context = basic_format_parse_context<char_type>;
     using format_args_type = basic_format_args<basic_format_context>;
     using format_arg_type = basic_format_arg<basic_format_context>;
+    using custom_arg_handle = fmt::custom_arg_handle<basic_format_context>;
 
     basic_format_context(output_type& out, locale_ref loc, format_args_type args) noexcept
         : out_(out), loc_(loc), args_(args) {}
@@ -717,14 +750,14 @@ class basic_format_context {
     format_arg_type arg(std::size_t id) const { return args_.get(id); }
 
     template<typename Ty>
-    typename parse_context::iterator format_arg(parse_context& parse_ctx, Ty val) {
+    typename parse_context::iterator format_arg(parse_context& parse_ctx, const Ty& val) {
         formatter_t<Ty, char_type> f;
         const auto it = f.parse(parse_ctx);
         f.format(*this, val);
         return it;
     }
 
-    typename parse_context::iterator format_arg(parse_context& parse_ctx, typename format_arg_type::handle h) {
+    typename parse_context::iterator format_arg(parse_context& parse_ctx, const custom_arg_handle& h) {
         return h.format(*this, parse_ctx);
     }
 
@@ -733,21 +766,6 @@ class basic_format_context {
     locale_ref loc_;
     format_args_type args_;
 };
-
-using format_parse_context = basic_format_parse_context<char>;
-using wformat_parse_context = basic_format_parse_context<wchar_t>;
-using format_args = basic_format_args<format_context>;
-using wformat_args = basic_format_args<wformat_context>;
-
-template<typename FmtCtx = format_context, typename... Args>
-UXS_CONSTEXPR fmt::arg_store<FmtCtx, Args...> make_format_args(const Args&... args) noexcept {
-    return fmt::arg_store<FmtCtx, Args...>{args...};
-}
-
-template<typename... Args>
-UXS_CONSTEXPR fmt::arg_store<wformat_context, Args...> make_wformat_args(const Args&... args) noexcept {
-    return fmt::arg_store<wformat_context, Args...>{args...};
-}
 
 template<typename CharT>
 struct basic_runtime_format {
@@ -760,9 +778,6 @@ struct basic_runtime_format {
 #endif  // __cplusplus >= 201703L
     basic_runtime_format& operator=(const basic_runtime_format&) = delete;
 };
-
-using runtime_format = basic_runtime_format<char>;
-using wruntime_format = basic_runtime_format<wchar_t>;
 
 template<typename CharT, typename... Args>
 class basic_format_string {
@@ -787,9 +802,49 @@ class basic_format_string {
     std::basic_string_view<char_type> fmt_;
 };
 
-template<typename... Args>
-using format_string = basic_format_string<char, est::type_identity_t<Args>...>;
-template<typename... Args>
-using wformat_string = basic_format_string<wchar_t, est::type_identity_t<Args>...>;
+namespace detail {
+template<typename CharT>
+void vformat_append_impl(typename basic_format_context<CharT>::output_type& out, locale_ref loc,
+                         std::basic_string_view<CharT> fmt, basic_format_args<basic_format_context<CharT>> args) {
+    fmt::format_impl(basic_format_context<CharT>(out, loc, args),
+                     basic_format_parse_context<CharT>(fmt.begin(), fmt.end()));
+}
+template<typename StrTy, typename = std::enable_if_t<!std::is_convertible<
+                             StrTy&, typename basic_format_context<typename StrTy::value_type>::output_type&>::value>>
+void vformat_append_impl(StrTy& out, locale_ref loc, std::basic_string_view<typename StrTy::value_type> fmt,
+                         basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
+    using char_type = typename StrTy::value_type;
+    basic_inline_dynbuffer<char_type> buf;
+    fmt::format_impl(basic_format_context<char_type>(buf, loc, args),
+                     basic_format_parse_context<char_type>(fmt.begin(), fmt.end()));
+    out.append(buf.data(), buf.size());
+}
+}  // namespace detail
+
+template<typename StrTy>
+void vformat_append(StrTy& out, std::basic_string_view<typename StrTy::value_type> fmt,
+                    basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
+    detail::vformat_append_impl(out, locale_ref(), fmt, args);
+}
+
+template<typename StrTy>
+void vformat_append(StrTy& out, const std::locale& loc, std::basic_string_view<typename StrTy::value_type> fmt,
+                    basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
+    detail::vformat_append_impl(out, locale_ref(loc), fmt, args);
+}
+
+template<typename StrTy, typename... Args>
+void format_append(StrTy& out, basic_format_string<typename StrTy::value_type, est::type_identity_t<Args>...> fmt,
+                   const Args&... args) {
+    vformat_append(out, fmt.get(), basic_format_args<basic_format_context<typename StrTy::value_type>>::make(args...));
+}
+
+template<typename StrTy, typename... Args>
+void format_append(StrTy& out, const std::locale& loc,
+                   basic_format_string<typename StrTy::value_type, est::type_identity_t<Args>...> fmt,
+                   const Args&... args) {
+    vformat_append(out, loc, fmt.get(),
+                   basic_format_args<basic_format_context<typename StrTy::value_type>>::make(args...));
+}
 
 }  // namespace uxs
