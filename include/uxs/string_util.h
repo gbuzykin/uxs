@@ -107,53 +107,57 @@ UXS_CONSTEXPR std::basic_string_view<est::iterator_value_t<Iter>> to_string_view
 #endif  // __cplusplus >= 202002L
 }
 
-UXS_EXPORT std::wstring from_utf8_to_wide(std::string_view s);
-UXS_EXPORT std::string from_wide_to_utf8(std::wstring_view s);
-
 template<typename CharT>
-struct utf_string_adapter;
-template<>
-struct utf_string_adapter<char> {
-    std::string_view operator()(std::string_view s) const { return s; }
-    const std::string& operator()(const std::string& s) const { return s; }
-    std::string_view operator()(const char* s) const { return s; }
-    std::string operator()(std::wstring_view s) const { return from_wide_to_utf8(s); }
-    template<typename StrTy>
-    void append(StrTy& out, std::string_view s) const {
-        out.append(s.data(), s.size());
+struct utf_string_adapter {
+    template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>,
+             typename = std::enable_if_t<
+                 std::is_same<typename string_char_traits_t<std::remove_cvref_t<StrLikeTy>>::char_type, CharT>::value>>
+    auto operator()(StrLikeTy&& s) const -> decltype(std::forward<StrLikeTy>(s)) {
+        return std::forward<StrLikeTy>(s);
     }
+
+    template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>,
+             typename = std::enable_if_t<!std::is_same<typename string_char_traits_t<StrLikeTy>::char_type, CharT>::value>>
+    std::basic_string<CharT> operator()(const StrLikeTy& s) const {
+        std::basic_string<CharT> result;
+        const auto sv = to_string_view(s);
+        result.reserve(sv.size());
+        append(result, sv.data(), sv.data() + sv.size());
+        return result;
+    }
+
+    template<typename StrTy, typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
+    void append(StrTy& out, const StrLikeTy& s) const {
+        const auto sv = to_string_view(s);
+        append(out, sv.data(), sv.data() + sv.size());
+    }
+
     template<typename StrTy>
-    void append(StrTy& out, std::wstring_view s) const {
-        auto p = s.begin();
-        while (p != s.end()) {
+    void append(StrTy& out, const CharT* first, const CharT* last) const {
+        out.append(first, static_cast<std::size_t>(last - first));
+    }
+
+    template<typename StrTy, typename OtherCharT>
+    void append(StrTy& out, const OtherCharT* first, const OtherCharT* last) const {
+        while (first != last) {
             std::uint32_t code = 0;
-            p = from_wchars(p, s.end(), code).iter;
-            to_utf8(code, std::back_inserter(out));
+            first = utf_decoder<OtherCharT>{}(first, last, code).iter;
+            utf_encoder<CharT>{}(code, std::back_inserter(out));
         }
-    }
-};
-template<>
-struct utf_string_adapter<wchar_t> {
-    std::wstring_view operator()(std::wstring_view s) const { return s; }
-    const std::wstring& operator()(const std::wstring& s) const { return s; }
-    std::wstring_view operator()(const wchar_t* s) const { return s; }
-    std::wstring operator()(std::string_view s) const { return from_utf8_to_wide(s); }
-    template<typename StrTy>
-    void append(StrTy& out, std::string_view s) const {
-        auto p = s.begin();
-        while (p != s.end()) {
-            std::uint32_t code = 0;
-            p = from_utf8(p, s.end(), code).iter;
-            to_wchars(code, std::back_inserter(out));
-        }
-    }
-    template<typename StrTy>
-    void append(StrTy& out, std::wstring_view s) const {
-        out.append(s.data(), s.size());
     }
 };
 
 using utf8_string_adapter = utf_string_adapter<char>;
 using wide_string_adapter = utf_string_adapter<wchar_t>;
+
+template<typename StrLikeTy, typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::string_view>::value>>
+std::wstring from_utf8_to_wide(const StrLikeTy& s) {
+    return wide_string_adapter{}(s);
+}
+
+template<typename StrLikeTy, typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::wstring_view>::value>>
+std::string from_wide_to_utf8(const StrLikeTy& s) {
+    return utf8_string_adapter{}(s);
+}
 
 }  // namespace uxs

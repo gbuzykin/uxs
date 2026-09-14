@@ -160,7 +160,7 @@ struct utf_decoder;
 template<>
 struct utf_decoder<char> {
     template<typename InputIt>
-    UXS_CONSTEXPR from_utf_result<InputIt> decode(InputIt first, InputIt last, std::uint32_t& code) const {
+    UXS_CONSTEXPR from_utf_result<InputIt> operator()(InputIt first, InputIt last, std::uint32_t& code) const {
         return from_utf8(first, last, code);
     }
 };
@@ -168,7 +168,7 @@ struct utf_decoder<char> {
 template<>
 struct utf_decoder<wchar_t> {
     template<typename InputIt>
-    UXS_CONSTEXPR from_utf_result<InputIt> decode(InputIt first, InputIt last, std::uint32_t& code) const {
+    UXS_CONSTEXPR from_utf_result<InputIt> operator()(InputIt first, InputIt last, std::uint32_t& code) const {
         return from_wchars(first, last, code);
     }
 };
@@ -179,8 +179,8 @@ struct utf_encoder;
 template<>
 struct utf_encoder<char> {
     template<typename OutputIt>
-    UXS_CONSTEXPR to_utf_result<OutputIt> encode(std::uint32_t code, OutputIt out,
-                                                 std::size_t avail = std::numeric_limits<std::size_t>::max()) const {
+    UXS_CONSTEXPR to_utf_result<OutputIt> operator()(std::uint32_t code, OutputIt out,
+                                                     std::size_t avail = std::numeric_limits<std::size_t>::max()) const {
         return to_utf8(code, out, avail);
     }
 };
@@ -188,8 +188,8 @@ struct utf_encoder<char> {
 template<>
 struct utf_encoder<wchar_t> {
     template<typename OutputIt>
-    UXS_CONSTEXPR to_utf_result<OutputIt> encode(std::uint32_t code, OutputIt out,
-                                                 std::size_t avail = std::numeric_limits<std::size_t>::max()) const {
+    UXS_CONSTEXPR to_utf_result<OutputIt> operator()(std::uint32_t code, OutputIt out,
+                                                     std::size_t avail = std::numeric_limits<std::size_t>::max()) const {
         return to_wchars(code, out, avail);
     }
 };

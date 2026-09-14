@@ -739,7 +739,7 @@ void fmt_character(basic_membuffer<CharT>& out, CharT val, fmt_opts fmt, locale_
             std::array<CharT, 16> buf;
             basic_membuffer<CharT> membuf(buf.data());
             const std::size_t width = append_escaped_text(membuf, &val, &val + 1, true);
-            const auto fn = [&membuf](basic_membuffer<CharT>& out) { out.append(membuf.data(), membuf.endp()); };
+            const auto fn = [&membuf](basic_membuffer<CharT>& out) { out.append(membuf.data(), membuf.size()); };
             return fmt.width > width ? append_adjusted(out, fn, static_cast<unsigned>(width), fmt) : fn(out);
         } break;
     }
@@ -758,7 +758,7 @@ void fmt_string(basic_membuffer<CharT>& out, std::basic_string_view<CharT> val, 
             auto limit = first;
             while (limit != last) {
                 std::uint32_t code = 0;
-                const auto next = utf_decoder<CharT>{}.decode(limit, last, code).iter;
+                const auto next = utf_decoder<CharT>{}(limit, last, code).iter;
                 const unsigned w = get_utf_code_width(code);
                 if (max_width - width < w) { break; }
                 width += w, limit = next;

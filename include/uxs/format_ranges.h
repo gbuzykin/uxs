@@ -223,7 +223,7 @@ struct range_formatter {
                 auto limit = first;
                 while (limit != last) {
                     std::uint32_t code = 0;
-                    const auto next = utf_decoder<CharT>{}.decode(limit, last, code).iter;
+                    const auto next = utf_decoder<CharT>{}(limit, last, code).iter;
                     const unsigned w = get_utf_code_width(code);
                     if (max_width - width < w) { break; }
                     width += w, limit = next;
