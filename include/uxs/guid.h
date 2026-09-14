@@ -101,7 +101,7 @@ void guid::to_per_byte_string_append(StrTy& out) const {
     std::array<typename StrTy::value_type, 32> buf;
     auto* p = buf.data();
     for (const std::uint8_t b : data8) { detail::to_hex(b, p, "0123456789ABCDEF"), p += 2; }
-    out.append(buf.data(), p);
+    out.append(buf.data(), buf.size());
 }
 
 template<typename CharT>

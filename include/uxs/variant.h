@@ -2,10 +2,9 @@
 
 #include "cow_ptr.h"
 #include "optional.h"
+#include "serialize.h"         // NOLINT
 #include "string_conv_base.h"  // NOLINT
 #include "type_traits.h"
-
-#include "io/serialize.h"  // NOLINT
 
 #define UXS_DECLARE_VARIANT_TYPE(ty, id) \
     template<> \
@@ -240,10 +239,9 @@ class variant {
         variant_type_impl<std::decay_t<U>>::construct(&data_, std::forward<U>(val));
     }
 
-    template<typename StrLikeTy,
-             typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::string_view>::value &&
-                                         !is_variant_compatible<StrLikeTy>::value>>
-    variant(const StrLikeTy& s) : variant(std::string(s)) {}
+    template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy, char>::value &&
+                                                             !is_variant_compatible<StrLikeTy>::value>>
+    variant(const StrLikeTy& s) : variant(make_normal_string(s)) {}
 
     UXS_EXPORT variant& operator=(const variant& v);
     UXS_EXPORT variant& operator=(variant&& v) noexcept;
@@ -338,23 +336,22 @@ class variant {
     template<typename U, typename = std::enable_if_t<is_variant_compatible<std::decay_t<U>>::value>>
     void assign_impl(U&& val);
 
-    template<typename StrLikeTy,
-             typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::string_view>::value &&
-                                         !is_variant_compatible<StrLikeTy>::value>>
+    template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy, char>::value &&
+                                                             !is_variant_compatible<StrLikeTy>::value>>
     void assign_impl(const StrLikeTy& s) {
-        assign_impl(std::string(s));
+        assign_impl(make_normal_string(s));
     }
 
     template<typename U, typename Ty = std::decay_t<U>, typename = std::enable_if_t<is_variant_compatible<Ty>::value>>
     bool is_equal_to_impl(const U& val) const;
 
-    template<typename StrLikeTy,
-             typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::string_view>::value &&
-                                         !is_variant_compatible<StrLikeTy>::value>,
-             typename... Dummy>
+    template<
+        typename StrLikeTy,
+        typename = std::enable_if_t<is_string_like<StrLikeTy, char>::value && !is_variant_compatible<StrLikeTy>::value>,
+        typename... Dummy>
     bool is_equal_to_impl(const StrLikeTy& s, Dummy&&...) const {
         static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
-        return is_equal_to_impl<std::string_view, std::string>(std::string_view(s));
+        return is_equal_to_impl<std::string_view, std::string>(to_normal_string_view(s));
     }
 
     template<typename Ty, typename = std::enable_if_t<is_variant_compatible<Ty>::value>>
