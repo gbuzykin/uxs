@@ -72,7 +72,7 @@ basic_value<CharT, Alloc> parse(ibuf& in, const Alloc& al) {
                 return {from_string<double>(lval), al};
             } break;
             case token_t::floating_point_number: return {from_string<double>(lval), al};
-            case token_t::string: return {utf_string_adapter<CharT>{}(lval), al};
+            case token_t::string: return utf_string_adapter<CharT>{}(lval);
             default: UXS_UNREACHABLE_CODE;
         }
     };
@@ -138,12 +138,12 @@ struct writer_stack_item_t {
     };
 };
 
-template<typename CharT>
-basic_membuffer<CharT>& write_text(basic_membuffer<CharT>& out, std::basic_string_view<CharT> text) {
+template<typename OutCharT, typename CharT>
+void write_text(basic_membuffer<OutCharT>& out, std::basic_string_view<CharT> text) {
     auto it0 = text.begin();
     out += '\"';
     for (auto it = it0; it != text.end(); ++it) {
-        char esc = '\0';
+        OutCharT esc = '\0';
         switch (*it) {
             case '\"': esc = '\"'; break;
             case '\\': esc = '\\'; break;
@@ -153,9 +153,9 @@ basic_membuffer<CharT>& write_text(basic_membuffer<CharT>& out, std::basic_strin
             case '\r': esc = 'r'; break;
             case '\t': esc = 't'; break;
             default: {
-                if (static_cast<unsigned char>(*it) < 32) {
-                    out += to_string_view(it0, it);
-                    out += string_literal<CharT, '\\', 'u', '0', '0'>{}();
+                if (static_cast<typename std::make_unsigned<CharT>::type>(*it) < 32) {
+                    utf_string_adapter<OutCharT>{}.append(out, to_string_view(it0, it));
+                    out += string_literal<OutCharT, '\\', 'u', '0', '0'>{}();
                     out += '0' + (*it >> 4);
                     out += "0123456789ABCDEF"[*it & 15];
                     it0 = it + 1;
@@ -163,14 +163,13 @@ basic_membuffer<CharT>& write_text(basic_membuffer<CharT>& out, std::basic_strin
                 continue;
             } break;
         }
-        out += to_string_view(it0, it);
+        utf_string_adapter<OutCharT>{}.append(out, to_string_view(it0, it));
         out += '\\';
         out += esc;
         it0 = it + 1;
     }
-    out += to_string_view(it0, text.end());
+    utf_string_adapter<OutCharT>{}.append(out, to_string_view(it0, text.end()));
     out += '\"';
-    return out;
 }
 
 template<typename ValueTy, typename StrTy, typename StackTy>
@@ -205,7 +204,7 @@ struct value_visitor {
     }
 
     bool operator()(decltype(std::declval<ValueTy>().as_string_view()) s) const {
-        detail::write_text<char_type>(out, utf_string_adapter<char_type>{}(s));
+        detail::write_text<char_type>(out, s);
         return false;
     }
 
@@ -248,7 +247,7 @@ loop:
     if (top.is_object()) {
         while (!top.empty()) {
             out += is_first_element ? '{' : ',';
-            detail::write_text<OutCharT>(out, utf_string_adapter<OutCharT>{}(top.key()));
+            detail::write_text<OutCharT>(out, top.key());
             out += ':';
             if (top.get_and_advance().visit(visitor)) {
                 is_first_element = true;
@@ -301,7 +300,7 @@ loop:
             if (ws_char == '\n') { out.append(indent, opts.indent_char); }
         }
         if (top.is_object()) {
-            detail::write_text<OutCharT>(out, utf_string_adapter<OutCharT>{}(top.key()));
+            detail::write_text<OutCharT>(out, top.key());
             out += string_literal<OutCharT, ':', ' '>{}();
         }
         if (top.get_and_advance().visit(visitor)) {

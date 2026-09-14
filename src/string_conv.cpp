@@ -1033,7 +1033,7 @@ template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint64_t, bool);
 template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint64_t, bool, fmt_opts, locale_ref);
 template UXS_EXPORT void fmt_float_common(membuffer&, std::uint64_t, unsigned, int, fmt_flags);
 template UXS_EXPORT void fmt_float_common(membuffer&, std::uint64_t, unsigned, int, fmt_opts, locale_ref);
-template UXS_EXPORT void fmt_character(membuffer&, char, fmt_opts, locale_ref);
+template UXS_EXPORT void fmt_character(membuffer&, char32_t, fmt_opts, locale_ref);
 template UXS_EXPORT void fmt_string(membuffer&, std::string_view, fmt_opts, locale_ref);
 
 template UXS_EXPORT void fmt_boolean(wmembuffer&, bool, fmt_opts, locale_ref);
@@ -1043,7 +1043,7 @@ template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint64_t, bool);
 template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint64_t, bool, fmt_opts, locale_ref);
 template UXS_EXPORT void fmt_float_common(wmembuffer&, std::uint64_t, unsigned, int, fmt_flags);
 template UXS_EXPORT void fmt_float_common(wmembuffer&, std::uint64_t, unsigned, int, fmt_opts, locale_ref);
-template UXS_EXPORT void fmt_character(wmembuffer&, wchar_t, fmt_opts, locale_ref);
+template UXS_EXPORT void fmt_character(wmembuffer&, char32_t, fmt_opts, locale_ref);
 template UXS_EXPORT void fmt_string(wmembuffer&, std::wstring_view, fmt_opts, locale_ref);
 }  // namespace sconv
 }  // namespace uxs

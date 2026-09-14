@@ -79,10 +79,10 @@ struct chrono_specs {
     fmt_opts opts;
 };
 
-template<typename CharT, typename Duration, bool PrintZoneByDefault = false>
+template<typename Duration, bool PrintZoneByDefault = false>
 struct local_time_format_t {
     std::chrono::sys_time<Duration> time;
-    std::basic_string_view<CharT> tz_abbrev;
+    std::string tz_abbrev;
     std::chrono::seconds tz_offset{0};
 };
 
@@ -709,6 +709,21 @@ void format_time_zone(FmtCtx& ctx, std::chrono::seconds offset, const chrono_spe
     fmt_chrono::append_2digs(ctx, static_cast<int>(hms.minutes().count()));
 }
 
+template<typename FmtCtx>
+void format_tz_abbrev_dispatch(FmtCtx& ctx, std::string_view abbrev, std::true_type /* same char type */) {
+    ctx.out() += abbrev;
+}
+
+template<typename FmtCtx>
+void format_tz_abbrev_dispatch(FmtCtx& ctx, std::string_view abbrev, std::false_type /* same char type */) {
+    for (const std::uint8_t ch : abbrev) { ctx.out() += static_cast<typename FmtCtx::output_type::value_type>(ch); }
+}
+
+template<typename FmtCtx>
+void format_tz_abbrev(FmtCtx& ctx, std::string_view abbrev) {
+    format_tz_abbrev_dispatch(ctx, abbrev, std::is_same<typename FmtCtx::output_type::value_type, char>());
+}
+
 // --------------------------
 
 template<typename Ty, typename = void>
@@ -857,7 +872,7 @@ struct chrono_formatter {
         basic_format_context<CharT> buf_ctx(buf, ctx);
         format_impl(buf_ctx, val, specs);
         const unsigned len = static_cast<unsigned>(buf.size());
-        const auto fn = [&buf](basic_membuffer<CharT>& out) { out.append(buf.data(), buf.size()); };
+        const auto fn = [&buf](typename FmtCtx::output_type& out) { out.append(buf.data(), buf.size()); };
         return specs.opts.width > len ? append_adjusted(ctx.out(), fn, len, specs.opts) : fn(ctx.out());
     }
 };
@@ -1357,11 +1372,11 @@ struct formatter<std::chrono::hh_mm_ss<Duration>, CharT>
 };
 
 template<typename CharT, typename Duration, bool PrintZoneByDefault>
-struct formatter<fmt_chrono::local_time_format_t<CharT, Duration, PrintZoneByDefault>, CharT>
-    : fmt_chrono::chrono_formatter<formatter<fmt_chrono::local_time_format_t<CharT, Duration, PrintZoneByDefault>, CharT>,
-                                   fmt_chrono::local_time_format_t<CharT, Duration, PrintZoneByDefault>, CharT> {
+struct formatter<fmt_chrono::local_time_format_t<Duration, PrintZoneByDefault>, CharT>
+    : fmt_chrono::chrono_formatter<formatter<fmt_chrono::local_time_format_t<Duration, PrintZoneByDefault>, CharT>,
+                                   fmt_chrono::local_time_format_t<Duration, PrintZoneByDefault>, CharT> {
  private:
-    using value_type = fmt_chrono::local_time_format_t<CharT, Duration, PrintZoneByDefault>;
+    using value_type = fmt_chrono::local_time_format_t<Duration, PrintZoneByDefault>;
     friend struct fmt_chrono::chrono_formatter<formatter, value_type, CharT>;
 
     static constexpr bool check_spec(fmt_chrono::chrono_specifier spec) {
@@ -1373,7 +1388,7 @@ struct formatter<fmt_chrono::local_time_format_t<CharT, Duration, PrintZoneByDef
         if (specs.spec == fmt_chrono::chrono_specifier::time_zone) {
             fmt_chrono::format_time_zone(ctx, t.tz_offset, specs);
         } else if (specs.spec == fmt_chrono::chrono_specifier::time_zone_abbreviation) {
-            ctx.out() += t.tz_abbrev;
+            fmt_chrono::format_tz_abbrev(ctx, t.tz_abbrev);
         } else {
             fmt_chrono::format_date_time(ctx, t.time, specs);
         }
@@ -1384,18 +1399,17 @@ struct formatter<fmt_chrono::local_time_format_t<CharT, Duration, PrintZoneByDef
         fmt_chrono::format_yyyy_mm_dd_hh_mm_ss(ctx, t.time, opts);
         if constexpr (PrintZoneByDefault) {
             ctx.out() += ' ';
-            ctx.out() += t.tz_abbrev;
+            fmt_chrono::format_tz_abbrev(ctx, t.tz_abbrev);
         }
     }
 };
 
 template<typename CharT, typename Duration>
-struct formatter<std::chrono::sys_time<Duration>, CharT>
-    : formatter<fmt_chrono::local_time_format_t<CharT, Duration>, CharT> {
+struct formatter<std::chrono::sys_time<Duration>, CharT> : formatter<fmt_chrono::local_time_format_t<Duration>, CharT> {
     template<typename FmtCtx>
     void format(FmtCtx& ctx, std::chrono::sys_time<Duration> t) const {
-        using formatter_type = formatter<fmt_chrono::local_time_format_t<CharT, Duration>, CharT>;
-        formatter_type::format(ctx, {t, string_literal<CharT, 'U', 'T', 'C'>{}()});
+        using formatter_type = formatter<fmt_chrono::local_time_format_t<Duration>, CharT>;
+        formatter_type::format(ctx, {t, std::string("UTC")});
     }
 };
 
@@ -1426,34 +1440,31 @@ struct formatter<std::chrono::local_time<Duration>, CharT>
 
 #if _MSC_VER >= 1930 || __GLIBCXX__ >= 20240904
 template<typename CharT, typename Duration>
-struct formatter<std::chrono::utc_time<Duration>, CharT>
-    : formatter<fmt_chrono::local_time_format_t<CharT, Duration>, CharT> {
+struct formatter<std::chrono::utc_time<Duration>, CharT> : formatter<fmt_chrono::local_time_format_t<Duration>, CharT> {
     template<typename FmtCtx>
     void format(FmtCtx& ctx, std::chrono::utc_time<Duration> t) const {
-        using formatter_type = formatter<fmt_chrono::local_time_format_t<CharT, Duration>, CharT>;
-        formatter_type::format(ctx, {std::chrono::utc_clock::to_sys(t), string_literal<CharT, 'U', 'T', 'C'>{}()});
+        using formatter_type = formatter<fmt_chrono::local_time_format_t<Duration>, CharT>;
+        formatter_type::format(ctx, {std::chrono::utc_clock::to_sys(t), std::string("UTC")});
     }
 };
 
 template<typename CharT, typename Duration>
-struct formatter<std::chrono::tai_time<Duration>, CharT>
-    : formatter<fmt_chrono::local_time_format_t<CharT, Duration>, CharT> {
+struct formatter<std::chrono::tai_time<Duration>, CharT> : formatter<fmt_chrono::local_time_format_t<Duration>, CharT> {
     template<typename FmtCtx>
     void format(FmtCtx& ctx, std::chrono::tai_time<Duration> t) const {
-        using formatter_type = formatter<fmt_chrono::local_time_format_t<CharT, Duration>, CharT>;
-        formatter_type::format(ctx, {std::chrono::sys_time<Duration>{t.time_since_epoch()} - std::chrono::days(4383),
-                                     string_literal<CharT, 'T', 'A', 'I'>{}()});
+        using formatter_type = formatter<fmt_chrono::local_time_format_t<Duration>, CharT>;
+        formatter_type::format(
+            ctx, {std::chrono::sys_time<Duration>{t.time_since_epoch()} - std::chrono::days(4383), std::string("TAI")});
     }
 };
 
 template<typename CharT, typename Duration>
-struct formatter<std::chrono::gps_time<Duration>, CharT>
-    : formatter<fmt_chrono::local_time_format_t<CharT, Duration>, CharT> {
+struct formatter<std::chrono::gps_time<Duration>, CharT> : formatter<fmt_chrono::local_time_format_t<Duration>, CharT> {
     template<typename FmtCtx>
     void format(FmtCtx& ctx, std::chrono::gps_time<Duration> t) const {
-        using formatter_type = formatter<fmt_chrono::local_time_format_t<CharT, Duration>, CharT>;
-        formatter_type::format(ctx, {std::chrono::sys_time<Duration>{t.time_since_epoch()} + std::chrono::days(3657),
-                                     string_literal<CharT, 'G', 'P', 'S'>{}()});
+        using formatter_type = formatter<fmt_chrono::local_time_format_t<Duration>, CharT>;
+        formatter_type::format(
+            ctx, {std::chrono::sys_time<Duration>{t.time_since_epoch()} + std::chrono::days(3657), std::string("GPS")});
     }
 };
 #endif
@@ -1497,7 +1508,7 @@ struct formatter<std::chrono::sys_info, CharT>
         if (specs.spec == fmt_chrono::chrono_specifier::time_zone) {
             fmt_chrono::format_time_zone(ctx, si.offset, specs);
         } else {
-            ctx.out() += utf_string_adapter<CharT>{}(si.abbrev);
+            fmt_chrono::format_tz_abbrev(ctx, si.abbrev);
         }
     }
 
@@ -1512,7 +1523,7 @@ struct formatter<std::chrono::sys_info, CharT>
         ctx.out() += string_literal<CharT, ',', ' ', 's', 'a', 'v', 'e', ':', ' '>{}();
         fmt_chrono::write_duration_default(ctx, si.save, opts);
         ctx.out() += string_literal<CharT, ',', ' ', 'a', 'b', 'b', 'r', 'e', 'v', ':', ' '>{}();
-        ctx.out() += utf_string_adapter<CharT>{}(si.abbrev);
+        fmt_chrono::format_tz_abbrev(ctx, si.abbrev);
     }
 };
 
@@ -1536,7 +1547,7 @@ struct formatter<std::chrono::local_info, CharT>
         if (specs.spec == fmt_chrono::chrono_specifier::time_zone) {
             fmt_chrono::format_time_zone(ctx, li.first.offset, specs);
         } else {
-            ctx.out() += utf_string_adapter<CharT>{}(li.first.abbrev);
+            fmt_chrono::format_tz_abbrev(ctx, li.first.abbrev);
         }
     }
 
@@ -1570,14 +1581,14 @@ struct formatter<std::chrono::local_info, CharT>
 
 template<typename CharT, typename Duration, typename TimeZonePtr>
 struct formatter<std::chrono::zoned_time<Duration, TimeZonePtr>, CharT>
-    : formatter<fmt_chrono::local_time_format_t<CharT, std::common_type_t<Duration, std::chrono::seconds>, true>, CharT> {
+    : formatter<fmt_chrono::local_time_format_t<std::common_type_t<Duration, std::chrono::seconds>, true>, CharT> {
     template<typename FmtCtx>
     void format(FmtCtx& ctx, std::chrono::zoned_time<Duration, TimeZonePtr> t) const {
         using common_duration_type = std::common_type_t<Duration, std::chrono::seconds>;
-        using formatter_type = formatter<fmt_chrono::local_time_format_t<CharT, common_duration_type, true>, CharT>;
-        const auto zone_info = t.get_info();
+        using formatter_type = formatter<fmt_chrono::local_time_format_t<common_duration_type, true>, CharT>;
+        auto zone_info = t.get_info();
         formatter_type::format(ctx, {std::chrono::sys_time<Duration>{t.get_local_time().time_since_epoch()},
-                                     utf_string_adapter<CharT>{}(zone_info.abbrev), zone_info.offset});
+                                     std::move(zone_info.abbrev), zone_info.offset});
     }
 };
 #endif

@@ -1,5 +1,6 @@
 #include "uxs/io/sysfile.h"
 
+#include "uxs/membuffer.h"
 #include "uxs/string_util.h"
 
 #include <windows.h>
@@ -60,7 +61,12 @@ bool sysfile::open(const wchar_t* fname, iomode mode) {
     return false;
 }
 
-bool sysfile::open(const char* fname, iomode mode) { return open(from_utf8_to_wide(fname).c_str(), mode); }
+bool sysfile::open(const char* fname, iomode mode) {
+    inline_wdynbuffer fname_buf;
+    utf_string_adapter<wchar_t>{}.append(fname_buf, fname);
+    fname_buf += L'\0';
+    return open(fname_buf.data(), mode);
+}
 
 void sysfile::close() noexcept { ::CloseHandle(detach()); }
 
@@ -135,4 +141,10 @@ int sysfile::truncate() { return ::SetEndOfFile(fd_) ? 0 : -1; }
 int sysfile::flush() { return 0; }
 
 bool sysfile::remove(const wchar_t* fname) { return !!::DeleteFileW(fname); }
-bool sysfile::remove(const char* fname) { return remove(from_utf8_to_wide(fname).c_str()); }
+
+bool sysfile::remove(const char* fname) {
+    inline_wdynbuffer fname_buf;
+    utf_string_adapter<wchar_t>{}.append(fname_buf, fname);
+    fname_buf += L'\0';
+    return remove(fname_buf.data());
+}

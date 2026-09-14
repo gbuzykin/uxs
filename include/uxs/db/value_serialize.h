@@ -6,8 +6,8 @@
 
 #include "value.h"
 
-#include "uxs/io/serialize.h"
 #include "uxs/membuffer.h"
+#include "uxs/serialize.h"
 
 namespace uxs {
 

@@ -20,6 +20,9 @@ using uint128 = __uint128_t;
 namespace uxs {
 namespace sconv {
 
+[[noreturn]] inline void report_bad_character_code_error() { throw format_error("bad character code"); }
+[[noreturn]] inline void report_inf_of_nan_error() { throw format_error("floating point number is inf of nan"); }
+
 template<typename CharT>
 struct default_numpunct {
     UXS_CONSTEXPR CharT decimal_point() const { return '.'; }
@@ -671,12 +674,13 @@ void fmt_integer_common(basic_membuffer<CharT>& out, Ty val, bool is_signed, fmt
         case fmt_flags::oct: return fmt_oct(out, val, is_signed, fmt, loc);
         case fmt_flags::hex: return fmt_hex(out, val, is_signed, fmt, loc);
         case fmt_flags::character: {
-            const Ty char_mask = static_cast<Ty>((1ULL << (8 * sizeof(CharT))) - 1);
-            if ((val & char_mask) != val && (~val & char_mask) != val) {
-                throw format_error("integral cannot be represented as a character");
-            }
-            const auto fn = [val](basic_membuffer<CharT>& out) { out += static_cast<CharT>(val); };
-            return fmt.width > 1 ? append_adjusted(out, fn, 1, fmt) : fn(out);
+            const std::uint32_t code = static_cast<std::uint32_t>(val);
+            if (!is_utf_wellformed(code)) { report_bad_character_code_error(); }
+            const auto fn = [code](basic_membuffer<CharT>& out) {
+                utf_codec<CharT>{}.encode(code, std::back_inserter(out));
+            };
+            const unsigned width = get_utf_printable_width(code);
+            return fmt.width > width ? append_adjusted(out, fn, width, fmt) : fn(out);
         } break;
         default: return fmt_dec(out, val, is_signed, fmt, loc);
     }
@@ -712,8 +716,8 @@ void fmt_boolean(basic_membuffer<CharT>& out, bool val, fmt_opts fmt, locale_ref
 // ---- character
 
 template<typename CharT>
-void fmt_character(basic_membuffer<CharT>& out, CharT val, fmt_opts fmt, locale_ref loc) {
-    const std::uint32_t code = static_cast<typename std::make_unsigned<CharT>::type>(val);
+void fmt_character(basic_membuffer<CharT>& out, char32_t val, fmt_opts fmt, locale_ref loc) {
+    const std::uint32_t code = static_cast<std::uint32_t>(val);
     switch (fmt.flags & fmt_flags::base_field) {
         case fmt_flags::dec: return fmt_dec(out, code, false, fmt, loc);
         case fmt_flags::bin: return fmt_bin(out, code, false, fmt, loc);
@@ -721,17 +725,17 @@ void fmt_character(basic_membuffer<CharT>& out, CharT val, fmt_opts fmt, locale_
         case fmt_flags::hex: return fmt_hex(out, code, false, fmt, loc);
         default: {
             if (!(fmt.flags & fmt_flags::debug_format)) {
-                const auto fn = [val](basic_membuffer<CharT>& out) { out += val; };
-                return fmt.width > 1 ? append_adjusted(out, fn, 1, fmt) : fn(out);
+                const auto fn = [code](basic_membuffer<CharT>& out) {
+                    utf_codec<CharT>{}.encode(code, std::back_inserter(out));
+                };
+                const unsigned width = get_utf_printable_width(code);
+                return fmt.width > width ? append_adjusted(out, fn, width, fmt) : fn(out);
             }
-            if (fmt.width == 0) {
-                append_escaped_text(out, &val, &val + 1, true);
-                return;
-            }
+            if (fmt.width == 0) { return (void)append_escaped_string(out, &val, &val + 1, '\''); }
             std::array<CharT, 16> buf;
             basic_membuffer<CharT> membuf(buf.data());
-            const std::size_t width = append_escaped_text(membuf, &val, &val + 1, true);
-            const auto fn = [&membuf](basic_membuffer<CharT>& out) { out.append(membuf.data(), membuf.endp()); };
+            const std::size_t width = append_escaped_string(membuf, &val, &val + 1, '\'');
+            const auto fn = [&membuf](basic_membuffer<CharT>& out) { out.append(membuf.data(), membuf.size()); };
             return fmt.width > width ? append_adjusted(out, fn, static_cast<unsigned>(width), fmt) : fn(out);
         } break;
     }
@@ -741,35 +745,7 @@ void fmt_character(basic_membuffer<CharT>& out, CharT val, fmt_opts fmt, locale_
 
 template<typename CharT>
 void fmt_string(basic_membuffer<CharT>& out, std::basic_string_view<CharT> val, fmt_opts fmt, locale_ref) {
-    if (!(fmt.flags & fmt_flags::debug_format)) {
-        std::size_t width = 0;
-        auto first = val.begin();
-        auto last = val.end();
-        if (fmt.prec >= 0 || fmt.width > 0) {
-            const std::size_t max_width = fmt.prec >= 0 ? fmt.prec : std::numeric_limits<std::size_t>::max();
-            auto limit = first;
-            while (limit != last) {
-                std::uint32_t code = 0;
-                const auto next = utf_codec<CharT>{}.decode(limit, last, code).iter;
-                const unsigned w = get_utf_printable_width(code);
-                if (max_width - width < w) { break; }
-                width += w, limit = next;
-            }
-            last = limit;
-        }
-        const auto fn = [first, last](basic_membuffer<CharT>& out) { out += to_string_view(first, last); };
-        return fmt.width > width ? append_adjusted(out, fn, static_cast<unsigned>(width), fmt) : fn(out);
-    }
-    if (fmt.width == 0) {
-        append_escaped_text(out, val.begin(), val.end(), false,
-                            fmt.prec >= 0 ? fmt.prec : std::numeric_limits<std::size_t>::max());
-        return;
-    }
-    basic_inline_dynbuffer<CharT> buf;
-    const std::size_t width = append_escaped_text<basic_membuffer<CharT>>(
-        buf, val.begin(), val.end(), false, fmt.prec >= 0 ? fmt.prec : std::numeric_limits<std::size_t>::max());
-    const auto fn = [&buf](basic_membuffer<CharT>& out) { out.append(buf.data(), buf.size()); };
-    return fmt.width > width ? append_adjusted(out, fn, static_cast<unsigned>(width), fmt) : fn(out);
+    append_formatted_string(out, val, fmt);
 }
 
 // ---- float hex
@@ -1041,9 +1017,7 @@ void fmt_float_common(basic_membuffer<CharT>& out, std::uint64_t u64, unsigned b
     const bool uppercase = !!(flags & fmt_flags::uppercase);
     const fp_m64_t fp2{u64 & ((1ULL << bpm) - 1), static_cast<int>((u64 >> bpm) & exp_max)};
     if (fp2.exp == exp_max) {
-        if (!!(flags & fmt_flags::throw_on_inf_or_nan)) {
-            throw std::out_of_range("floating point number is inf of nan");
-        }
+        if (!!(flags & fmt_flags::throw_on_inf_or_nan)) { report_inf_of_nan_error(); }
 
         // Print infinity or NaN
         const auto sval = fp2.m == 0 ? default_numpunct<CharT>().infname(uppercase) :
@@ -1088,9 +1062,7 @@ void fmt_float_common(basic_membuffer<CharT>& out, std::uint64_t u64, unsigned b
     const bool uppercase = !!(fmt.flags & fmt_flags::uppercase);
     const fp_m64_t fp2{u64 & ((1ULL << bpm) - 1), static_cast<int>((u64 >> bpm) & exp_max)};
     if (fp2.exp == exp_max) {
-        if (!!(fmt.flags & fmt_flags::throw_on_inf_or_nan)) {
-            throw std::out_of_range("floating point number is inf of nan");
-        }
+        if (!!(fmt.flags & fmt_flags::throw_on_inf_or_nan)) { report_inf_of_nan_error(); }
 
         // Print infinity or NaN
         const auto sval = fp2.m == 0 ? default_numpunct<CharT>().infname(uppercase) :

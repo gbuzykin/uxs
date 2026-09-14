@@ -128,6 +128,35 @@ UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(long double, sconv::parse_flo
 
 // --------------------------
 
+template<typename StrTy, typename Range>
+void append_formatted_string(StrTy& out, const Range& s, fmt_opts fmt) {
+    using char_type = typename StrTy::value_type;
+    const std::size_t max_width = fmt.prec >= 0 ? fmt.prec : std::numeric_limits<std::size_t>::max();
+    if (!(fmt.flags & fmt_flags::debug_format)) {
+        std::size_t width = 0;
+        auto first = std::begin(s);
+        auto last = std::end(s);
+        if (fmt.prec >= 0 || fmt.width > 0) {
+            auto limit = first;
+            while (limit != last) {
+                std::uint32_t code = 0;
+                const auto next = utf_codec<est::range_element_t<Range>>{}.decode(limit, last, code).iter;
+                const unsigned w = get_utf_printable_width(code);
+                if (max_width - width < w) { break; }
+                width += w, limit = next;
+            }
+            last = limit;
+        }
+        const auto fn = [first, last](StrTy& out) { utf_string_adapter<char_type>{}.append(out, first, last); };
+        return fmt.width > width ? append_adjusted(out, fn, static_cast<unsigned>(width), fmt) : fn(out);
+    }
+    if (fmt.width == 0) { return (void)append_escaped_string(out, std::begin(s), std::end(s), '\"', max_width); }
+    basic_inline_dynbuffer<char_type> buf;
+    const std::size_t width = append_escaped_string(buf, std::begin(s), std::end(s), '\"', max_width);
+    const auto fn = [&buf](StrTy& out) { out.append(buf.data(), buf.size()); };
+    return fmt.width > width ? append_adjusted(out, fn, static_cast<unsigned>(width), fmt) : fn(out);
+}
+
 namespace sconv {
 
 template<typename CharT>
@@ -165,7 +194,7 @@ void fmt_float(StrTy& out, Ty val, Opts&&... opts) {
 }
 
 template<typename CharT>
-UXS_EXPORT void fmt_character(basic_membuffer<CharT>& out, CharT val, fmt_opts fmt = {}, locale_ref loc = {});
+UXS_EXPORT void fmt_character(basic_membuffer<CharT>& out, char32_t val, fmt_opts fmt = {}, locale_ref loc = {});
 
 template<typename CharT>
 UXS_EXPORT void fmt_string(basic_membuffer<CharT>& out, std::basic_string_view<CharT> val, fmt_opts fmt = {},
@@ -205,87 +234,5 @@ UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(float, sconv::fmt_float);
 UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(double, sconv::fmt_float);
 UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(long double, sconv::fmt_float);
 #undef UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER
-
-// --------------------------
-
-template<typename StrTy, typename InputIt>
-std::size_t append_escaped_text(StrTy& out, InputIt first, InputIt last, bool single_quoted,
-                                std::size_t max_width = std::numeric_limits<std::size_t>::max()) {
-    using char_type = typename StrTy::value_type;
-    if (max_width == 0) { return 0; }
-    out += single_quoted ? '\'' : '\"';
-    std::size_t width = 1;
-    auto first0 = first;
-    while (first != last) {
-        char esc = '\0';
-        std::uint32_t code = 0;
-        const auto result = utf_codec<char_type>{}.decode(first, last, code);
-        switch (code) {
-            case '\t': esc = 't'; break;
-            case '\n': esc = 'n'; break;
-            case '\r': esc = 'r'; break;
-            case '\\': esc = '\\'; break;
-            case '\"': {
-                if (single_quoted) {
-                    if (width == max_width) { goto finish; }
-                    ++width, first = result.iter;
-                    continue;
-                }
-                esc = '\"';
-            } break;
-            case '\'': {
-                if (!single_quoted) {
-                    if (width == max_width) { goto finish; }
-                    ++width, first = result.iter;
-                    continue;
-                }
-                esc = '\'';
-            } break;
-            default: {
-                if (result && is_utf_printable(code)) {
-                    const unsigned w = get_utf_printable_width(code);
-                    if (max_width - width < w) { goto finish; }
-                    width += w, first = result.iter;
-                    continue;
-                }
-            } break;
-        }
-        out.append(first0, first);
-        if (esc) {
-            if (max_width - width < 2) { goto finish; }
-            width += 2;
-            out += '\\';
-            out += esc;
-        } else {
-            std::array<char_type, 8> digs;
-            char_type* p = digs.data();
-            do { *p++ = "0123456789abcdef"[code & 0xf]; } while ((code >>= 4));
-            const unsigned w = 4 + static_cast<unsigned>(p - digs.data());
-            if (max_width - width < w) { goto finish; }
-            width += w;
-            out += result ? string_literal<char_type, '\\', 'u', '{'>{}() :
-                            string_literal<char_type, '\\', 'x', '{'>{}();
-            do { out += *--p; } while (p != digs.data());
-            out += '}';
-        }
-        first = first0 = result.iter;
-    }
-finish:
-    out.append(first0, first);
-    if (width == max_width) { return width; }
-    out += single_quoted ? '\'' : '\"';
-    return width + 1;
-}
-
-template<typename CharT, typename InputIt>
-std::size_t estimate_string_width(InputIt first, InputIt last) {
-    std::size_t width = 0;
-    while (first != last) {
-        std::uint32_t code = 0;
-        first = utf_codec<CharT>{}.decode(first, last, code).iter;
-        width += get_utf_printable_width(code);
-    }
-    return width;
-}
 
 }  // namespace uxs
