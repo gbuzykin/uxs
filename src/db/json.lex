@@ -15,7 +15,6 @@ escape_n        <string> \\n
 escape_r        <string> \\r
 escape_t        <string> \\t
 escape_unicode  <string> \\u{hdig}{4}
-escape_invalid  <string> \\
 
 null           "null"
 true           "true"

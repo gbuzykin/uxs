@@ -1,5 +1,6 @@
 #pragma once
 
+#include "uxs/chars.h"
 #include "uxs/db/json.h"
 #include "uxs/dynarray.h"
 #include "uxs/string_conv.h"
@@ -8,13 +9,24 @@ namespace uxs {
 namespace db {
 namespace json {
 
+namespace lex_detail {
+#include "json_lex_defs.h"
+extern std::uint8_t symb2meta[];
+extern std::int8_t Dtran[];
+extern int accept[];
+}  // namespace lex_detail
+
 namespace detail {
-inline std::uint32_t parse_uint32(const char* p, const char* end) noexcept {
+
+template<typename CharT>
+std::uint32_t parse_uint32(const CharT* p, const CharT* end) noexcept {
     std::uint32_t result = static_cast<unsigned>(*p - '0');
     while (++p != end) { result = 10U * result + static_cast<unsigned>(*p - '0'); }
     return result;
 }
-inline std::pair<std::uint64_t, bool> parse_uint64(const char* p, const char* end) noexcept {
+
+template<typename CharT>
+std::pair<std::uint64_t, bool> parse_uint64(const CharT* p, const CharT* end) noexcept {
     std::uint64_t result = static_cast<unsigned>(*p - '0');
     while (++p != end) {
         std::uint64_t result0 = result;
@@ -23,22 +35,227 @@ inline std::pair<std::uint64_t, bool> parse_uint64(const char* p, const char* en
     }
     return {result, true};
 }
+
+template<typename CharT>
+std::int8_t get_next_state_dispatch(int state, CharT ch, std::true_type /* one byte */) noexcept {
+    return lex_detail::Dtran[lex_detail::dtran_width * state + lex_detail::symb2meta[static_cast<std::uint8_t>(ch)]];
+}
+
+template<typename CharT>
+std::int8_t get_next_state_dispatch(int state, CharT ch, std::false_type /* one byte */) noexcept {
+    if (ch & ~0xff) { return -1; }
+    return lex_detail::Dtran[lex_detail::dtran_width * state + lex_detail::symb2meta[static_cast<std::uint8_t>(ch)]];
+}
+
+template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
+std::int8_t get_next_state(int state, CharT ch) noexcept {
+    return get_next_state_dispatch(state, ch, std::bool_constant<sizeof(CharT) == 1>());
+}
+
+template<typename CharT>
+token_t lexer<CharT>::lex(string_view_type& lval) {
+    std::uint32_t lower_surrogate = 0;
+    std::size_t surrogate_pair_pos = 0;
+    unsigned last_utf_code_length = 0;
+    bool is_parsing_string = false;
+
+    while (in.peek() != ibuf::traits_type::eof()) {
+        using char_tbl_t = uxs::detail::char_tbl_t;
+        std::int8_t state = lex_detail::sc_initial;
+
+        if (!is_parsing_string) {
+            const CharT* curr = in.curr();
+            if (char_tbl_t::has_bits(*curr, char_tbl_t::bits::json_ws)) {  // skip whitespaces
+                if (*curr == '\n') { ++ln; }
+                curr = std::find_if(curr + 1, in.last(), [this](CharT ch) {
+                    if (ch != '\n') { return !char_tbl_t::has_bits(ch, char_tbl_t::bits::json_ws); }
+                    ++ln;
+                    return false;
+                });
+                in.setpos(curr - in.first());
+                if (!in.avail()) { continue; }
+            }
+
+            // process the first character
+            state = get_next_state(lex_detail::sc_initial, *curr);
+            if (state < 0) {  // process a single character
+                in.advance(1);
+                if (*curr != '\"') { return token_t(*curr); }
+                is_parsing_string = true;
+                continue;
+            }
+        } else {  // parse string
+            const CharT* curr0 = in.curr();
+            const CharT* curr = std::find_if(
+                curr0, in.last(), [](CharT ch) { return char_tbl_t::has_bits(ch, char_tbl_t::bits::json_special); });
+
+            in.setpos(curr - in.first());
+            if (!in.avail()) {
+                stash.append(curr0, curr);
+                continue;
+            }
+
+            if (*curr == '\"') {
+                if (stash.empty()) {
+                    lval = to_string_view(curr0, curr);
+                } else {
+                    stash.append(curr0, curr);
+                    lval = to_string_view(stash.data(), stash.size());
+                    stash.clear();  // it resets the stash, but retains the contents
+                }
+                in.advance(1);
+                return token_t::string;
+            }
+
+            if (*curr != '\\') { break; }
+
+            stash.append(curr0, curr);
+
+            // process '\\' character
+            state = get_next_state(lex_detail::sc_string, '\\');
+        }
+
+        int pat = 0;
+
+        // accept the first character
+        std::size_t llen = 1;
+        std::size_t stash_sz0 = stash.size();
+        const CharT* first0 = in.curr() + 1;
+
+        while (true) {
+            const CharT* first = first0;
+            while (first != in.last()) {
+                const std::int8_t next_state = get_next_state(state, *first);
+                if (next_state < 0) { break; }
+                state = next_state, ++first;
+            }
+
+            llen += static_cast<std::size_t>(first - first0);
+
+            if (first != in.last() || !in) {
+                pat = lex_detail::accept[state];
+                if (pat <= 0) { report_error(ln, "invalid token or escape sequence"); }
+                break;
+            }
+
+            // append lexeme in stash
+            stash.append(in.curr(), in.last());
+            in.setpos(in.capacity());
+            // read more characters from input
+            in.peek();
+            first0 = in.curr();
+        }
+
+        const CharT* lexeme = in.curr();
+        if (stash.size() == stash_sz0) {  // no stashed lexeme parts
+            in.advance(llen);
+        } else {
+            if (llen >= stash.size() - stash_sz0) {  // concatenate full lexeme in stash
+                const std::size_t len_rest = stash_sz0 + llen - stash.size();
+                stash.append(in.curr(), len_rest);
+                in.advance(len_rest);
+            }
+            lexeme = stash.endp() - llen;
+            stash.setsize(stash_sz0);  // it restores stash position, but retains the contents
+        }
+
+        switch (pat) {
+            // ------ escape sequences
+            case lex_detail::pat_escape_quot: stash += '\"'; break;
+            case lex_detail::pat_escape_rev_sol: stash += '\\'; break;
+            case lex_detail::pat_escape_sol: stash += '/'; break;
+            case lex_detail::pat_escape_b: stash += '\b'; break;
+            case lex_detail::pat_escape_f: stash += '\f'; break;
+            case lex_detail::pat_escape_n: stash += '\n'; break;
+            case lex_detail::pat_escape_r: stash += '\r'; break;
+            case lex_detail::pat_escape_t: stash += '\t'; break;
+            case lex_detail::pat_escape_unicode: {
+                std::uint32_t unicode = (dig_v{}(lexeme[2]) << 12) | (dig_v{}(lexeme[3]) << 8) |
+                                        (dig_v{}(lexeme[4]) << 4) | dig_v{}(lexeme[5]);
+                if (lower_surrogate != 0) {
+                    if (is_utf_upper_surrogate(unicode) && stash.size() == surrogate_pair_pos + last_utf_code_length) {
+                        unicode = combine_utf_surrogate_code(lower_surrogate, unicode);
+                        stash.setsize(surrogate_pair_pos);
+                    }
+                    lower_surrogate = 0;
+                } else if (is_utf_lower_surrogate(unicode)) {
+                    lower_surrogate = unicode;
+                    surrogate_pair_pos = stash.size();
+                }
+                stash.reserve(stash.size() + utf_codec<CharT>::max_code_length);
+                last_utf_code_length = utf_codec<CharT>{}.encode(unicode, stash.endp()).count;
+                stash.advance(last_utf_code_length);
+            } break;
+
+            // ------ values
+            case lex_detail::pat_null: return token_t::null_value;
+            case lex_detail::pat_true: return token_t::true_value;
+            case lex_detail::pat_false: return token_t::false_value;
+            case lex_detail::pat_decimal: {
+                lval = to_string_view(lexeme, llen);
+                return token_t::integer_number;
+            } break;
+            case lex_detail::pat_neg_decimal: {
+                lval = to_string_view(lexeme, llen);
+                return token_t::negative_integer_number;
+            } break;
+            case lex_detail::pat_real: {
+                lval = to_string_view(lexeme, llen);
+                return token_t::floating_point_number;
+            } break;
+
+            // ------ C++ comment
+            case lex_detail::pat_comment: {  // skip till end of line or end of file
+                bool backslash = false;
+                while (true) {
+                    const int ch = in.get();
+                    if (ch == ibuf::traits_type::eof() || ch == 0) { return token_t::eof; }
+                    if (ch == '\n') {
+                        ++ln;
+                        if (!backslash) { break; }
+                    }
+                    backslash = (ch == '\\');
+                }
+            } break;
+
+            // ------ C comment
+            case lex_detail::pat_c_comment: {  // skip till `*/`
+                bool star = false;
+                while (true) {
+                    const int ch = in.get();
+                    if (ch == ibuf::traits_type::eof() || ch == 0) { report_error(ln, "unterminated C-style comment"); }
+                    if (ch == '\n') { ++ln; }
+                    if (star && ch == '/') { break; }
+                    star = (ch == '*');
+                }
+            } break;
+
+            default: UXS_UNREACHABLE_CODE;
+        }
+    }
+
+    if (is_parsing_string) { report_error(ln, "unterminated string or unexpected string character"); }
+
+    return token_t::eof;
+}
+
 }  // namespace detail
 
-template<typename CharT, typename Alloc>
-basic_value<CharT, Alloc> parse(ibuf& in, const Alloc& al) {
-    static const auto token_to_value = [](token_t tt, std::string_view lval,
+template<typename CharT, typename Alloc, typename InCharT>
+basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
+    using string_view_type = std::basic_string_view<InCharT>;
+    static const auto token_to_value = [](token_t tt, string_view_type sval,
                                           const Alloc& al) -> basic_value<CharT, Alloc> {
         switch (tt) {
             case token_t::null_value: return {nullptr, al};
             case token_t::true_value: return {true, al};
             case token_t::false_value: return {false, al};
             case token_t::integer_number: {
-                if (lval.size() <= 9) {
-                    const std::uint32_t val = detail::parse_uint32(lval.data(), lval.data() + lval.size());
+                if (sval.size() <= 9) {
+                    const std::uint32_t val = detail::parse_uint32(sval.data(), sval.data() + sval.size());
                     return {static_cast<std::int32_t>(val), al};
                 }
-                const auto result = detail::parse_uint64(lval.data(), lval.data() + lval.size());
+                const auto result = detail::parse_uint64(sval.data(), sval.data() + sval.size());
                 if (result.second) {
                     if (result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max())) {
                         return {static_cast<std::int32_t>(result.first), al};
@@ -52,14 +269,14 @@ basic_value<CharT, Alloc> parse(ibuf& in, const Alloc& al) {
                     return {result.first, al};
                 }
                 // too big integer - treat as double
-                return {from_string<double>(lval), al};
+                return {from_string<double>(sval), al};
             } break;
             case token_t::negative_integer_number: {
-                if (lval.size() <= 10) {
-                    const std::uint32_t val = detail::parse_uint32(lval.data() + 1, lval.data() + lval.size());
+                if (sval.size() <= 10) {
+                    const std::uint32_t val = detail::parse_uint32(sval.data() + 1, sval.data() + sval.size());
                     return {static_cast<std::int32_t>(~val + 1), al};
                 }
-                const auto result = detail::parse_uint64(lval.data() + 1, lval.data() + lval.size());
+                const auto result = detail::parse_uint64(sval.data() + 1, sval.data() + sval.size());
                 if (result.second) {
                     if (result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max()) + 1) {
                         return {static_cast<std::int32_t>(~result.first + 1), al};
@@ -69,24 +286,24 @@ basic_value<CharT, Alloc> parse(ibuf& in, const Alloc& al) {
                     }
                 }
                 // too big integer - treat as double
-                return {from_string<double>(lval), al};
+                return {from_string<double>(sval), al};
             } break;
-            case token_t::floating_point_number: return {from_string<double>(lval), al};
-            case token_t::string: return utf_string_adapter<CharT>{}(lval);
+            case token_t::floating_point_number: return {from_string<double>(sval), al};
+            case token_t::string: return utf_string_adapter<CharT>{}(sval);
             default: UXS_UNREACHABLE_CODE;
         }
     };
 
-    inline_dynarray<basic_value<CharT, Alloc>*, 32> stack;
+    inline_dynarray<basic_value<CharT, Alloc>*, 64> stack;
 
     basic_value<CharT, Alloc> val(al);
     auto* item = &val;
 
     parse(
         in,
-        [&stack, &item](token_t tt, std::string_view lval) {
+        [&stack, &item](token_t tt, string_view_type sval) {
             if (tt >= token_t::null_value) {
-                *item = token_to_value(tt, lval, item->get_allocator());
+                *item = token_to_value(tt, sval, item->get_allocator());
             } else {
                 *item = tt == token_t::array ? make_array<CharT>(item->get_allocator()) :
                                                make_object<CharT>(item->get_allocator());
@@ -95,8 +312,8 @@ basic_value<CharT, Alloc> parse(ibuf& in, const Alloc& al) {
             return parse_step::into;
         },
         [&stack, &item]() { item = &stack.back()->emplace_back(item->get_allocator()); },
-        [&stack, &item](std::string_view lval) {
-            item = &stack.back()->emplace(utf_string_adapter<CharT>{}(lval), item->get_allocator()).value();
+        [&stack, &item](string_view_type key) {
+            item = &stack.back()->emplace(utf_string_adapter<CharT>{}(key), item->get_allocator()).value();
         },
         [&stack] { stack.pop_back(); });
 
@@ -107,24 +324,24 @@ basic_value<CharT, Alloc> parse(ibuf& in, const Alloc& al) {
 
 namespace detail {
 
-template<typename CharT, typename Alloc>
+template<typename ValueTy>
 struct writer_stack_item_t {
  public:
-    using value_t = basic_value<CharT, Alloc>;
-    using object_iterator = typename value_t::const_object_iterator;
+    using array_iterator = typename ValueTy::const_array_range::iterator;
+    using object_iterator = typename ValueTy::const_object_range::iterator;
 
-    writer_stack_item_t(const value_t* first, const value_t* last) noexcept : is_object_(false), arr_{first, last} {}
+    writer_stack_item_t(array_iterator first, array_iterator last) noexcept : is_object_(false), arr_{first, last} {}
     writer_stack_item_t(object_iterator first, object_iterator last) noexcept : is_object_(true), obj_{first, last} {}
 
     bool is_object() const noexcept { return is_object_; }
     bool empty() const noexcept { return is_object_ ? obj_.first == obj_.last : arr_.first == arr_.last; }
-    typename value_t::key_type key() const noexcept { return obj_.first->key(); }
-    const value_t& get_and_advance() noexcept { return is_object_ ? (obj_.first++)->value() : *arr_.first++; }
+    typename ValueTy::key_type key() const noexcept { return obj_.first->key(); }
+    const ValueTy& get_and_advance() noexcept { return is_object_ ? (obj_.first++)->value() : *arr_.first++; }
 
  private:
     struct array_range_t {
-        const value_t* first;
-        const value_t* last;
+        array_iterator first;
+        array_iterator last;
     };
     struct object_range_t {
         object_iterator first;
@@ -140,32 +357,29 @@ struct writer_stack_item_t {
 
 template<typename OutCharT, typename CharT>
 void write_text(basic_membuffer<OutCharT>& out, std::basic_string_view<CharT> text) {
+    std::basic_string_view<OutCharT> special;
+    std::array<OutCharT, 6> special_buf{'\\', 'u', '0', '0', '0', '0'};
     auto it0 = text.begin();
     out += '\"';
     for (auto it = it0; it != text.end(); ++it) {
-        OutCharT esc = '\0';
+        using char_tbl_t = uxs::detail::char_tbl_t;
+        if (!char_tbl_t::has_bits(*it, char_tbl_t::bits::json_special)) { continue; }
         switch (*it) {
-            case '\"': esc = '\"'; break;
-            case '\\': esc = '\\'; break;
-            case '\b': esc = 'b'; break;
-            case '\f': esc = 'f'; break;
-            case '\n': esc = 'n'; break;
-            case '\r': esc = 'r'; break;
-            case '\t': esc = 't'; break;
+            case '\"': special = string_literal<OutCharT, '\\', '\"'>{}(); break;
+            case '\\': special = string_literal<OutCharT, '\\', '\\'>{}(); break;
+            case '\b': special = string_literal<OutCharT, '\\', 'b'>{}(); break;
+            case '\f': special = string_literal<OutCharT, '\\', 'f'>{}(); break;
+            case '\n': special = string_literal<OutCharT, '\\', 'n'>{}(); break;
+            case '\r': special = string_literal<OutCharT, '\\', 'r'>{}(); break;
+            case '\t': special = string_literal<OutCharT, '\\', 't'>{}(); break;
             default: {
-                if (static_cast<typename std::make_unsigned<CharT>::type>(*it) < 32) {
-                    utf_string_adapter<OutCharT>{}.append(out, to_string_view(it0, it));
-                    out += string_literal<OutCharT, '\\', 'u', '0', '0'>{}();
-                    out += '0' + (*it >> 4);
-                    out += "0123456789ABCDEF"[*it & 15];
-                    it0 = it + 1;
-                }
-                continue;
+                special_buf[4] = '0' + (*it >> 4);
+                special_buf[5] = "0123456789ABCDEF"[*it & 15];
+                special = to_string_view(special_buf.data(), special_buf.size());
             } break;
         }
         utf_string_adapter<OutCharT>{}.append(out, to_string_view(it0, it));
-        out += '\\';
-        out += esc;
+        out += special;
         it0 = it + 1;
     }
     utf_string_adapter<OutCharT>{}.append(out, to_string_view(it0, text.end()));
@@ -213,7 +427,7 @@ struct value_visitor {
             out += string_literal<char_type, '[', ']'>{}();
             return false;
         }
-        stack.emplace_back(r.data(), r.data() + r.size());
+        stack.emplace_back(r.begin(), r.end());
         return true;
     }
 
@@ -234,7 +448,7 @@ value_visitor<const basic_value<CharT, Alloc>, StrTy, StackTy> make_value_visito
 
 template<typename OutCharT, typename CharT, typename Alloc>
 void write_impl(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v) {
-    inline_dynarray<detail::writer_stack_item_t<CharT, Alloc>, 32> stack;
+    inline_dynarray<detail::writer_stack_item_t<basic_value<CharT, Alloc>>, 64> stack;
 
     const auto visitor = detail::make_value_visitor<CharT, Alloc>(out, stack);
     if (!v.visit(visitor)) { return; }
@@ -275,7 +489,7 @@ loop:
 template<typename OutCharT, typename CharT, typename Alloc>
 void write_formatted_impl(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v, json_fmt_opts opts,
                           unsigned indent) {
-    inline_dynarray<detail::writer_stack_item_t<CharT, Alloc>, 32> stack;
+    inline_dynarray<detail::writer_stack_item_t<basic_value<CharT, Alloc>>, 64> stack;
 
     const auto visitor = detail::make_value_visitor<CharT, Alloc>(out, stack);
     if (!v.visit(visitor)) { return; }
@@ -284,7 +498,7 @@ void write_formatted_impl(basic_membuffer<OutCharT>& out, const basic_value<Char
 
 loop:
     auto& top = stack.back();
-    const char ws_char = top.is_object() ? opts.object_ws_char : opts.array_ws_char;
+    const OutCharT ws_char = top.is_object() ? opts.object_ws_char : opts.array_ws_char;
 
     while (!top.empty()) {
         if (is_first_element) {
