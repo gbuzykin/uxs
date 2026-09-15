@@ -26,39 +26,38 @@ enum class token_t : int {
 enum class parse_step { into = 0, over, stop };
 
 struct json_fmt_opts {
-    char object_ws_char = ' ';
-    char array_ws_char = ' ';
-    char indent_char = ' ';
+    std::uint8_t object_ws_char = ' ';
+    std::uint8_t array_ws_char = ' ';
+    std::uint8_t indent_char = ' ';
     unsigned indent_size = 2;
 };
 
 namespace detail {
+template<typename CharT>
 struct lexer {
-    ibuf& in;
+    basic_ibuf<CharT>& in;
     unsigned ln = 1;
-    inline_dynbuffer str;
-    basic_inline_dynbuffer<char, 32> stash;
-    basic_inline_dynbuffer<std::int8_t, 32> stack;
-    UXS_EXPORT explicit lexer(ibuf& in);
-    UXS_EXPORT token_t lex(std::string_view& lval);
+    basic_inline_dynbuffer<CharT> stash;
+    explicit lexer(basic_ibuf<CharT>& in) : in(in) {}
+    UXS_EXPORT token_t lex(std::basic_string_view<CharT>& lval);
 };
 
 [[noreturn]] UXS_EXPORT void report_error(unsigned ln, const char* message);
 }  // namespace detail
 
-template<typename ValueFn, typename ArrItemFn, typename ObjItemFn, typename PopFn>
-void parse(ibuf& in, ValueFn&& value_fn, ArrItemFn&& arr_item_fn, ObjItemFn&& obj_item_fn, PopFn&& pop_fn) {
-    detail::lexer lexer(in);
-    basic_inline_dynbuffer<char, 32> stack;
+template<typename CharT, typename ValueFn, typename ArrItemFn, typename ObjItemFn, typename PopFn>
+void parse(basic_ibuf<CharT>& in, ValueFn&& value_fn, ArrItemFn&& arr_item_fn, ObjItemFn&& obj_item_fn, PopFn&& pop_fn) {
+    detail::lexer<CharT> lexer(in);
+    inline_dynbuffer stack;
 
-    const auto fn_value_checked = [&lexer, &value_fn](token_t tt, std::string_view lval) -> parse_step {
-        if (tt >= token_t::null_value || tt == token_t('[') || tt == token_t('{')) { return value_fn(tt, lval); }
+    const auto value_checked_fn = [&lexer, &value_fn](token_t tt, std::basic_string_view<CharT> val) -> parse_step {
+        if (tt >= token_t::null_value || tt == token_t('[') || tt == token_t('{')) { return value_fn(tt, val); }
         detail::report_error(lexer.ln, "invalid value or unexpected character");
     };
 
-    std::string_view lval;
+    std::basic_string_view<CharT> lval;
     auto tt = lexer.lex(lval);
-    if (fn_value_checked(tt, lval) != parse_step::into) { return; }
+    if (value_checked_fn(tt, lval) != parse_step::into) { return; }
     if (tt >= token_t::null_value) { return; }
 
     bool comma = false;
@@ -70,7 +69,7 @@ loop:
         if (comma || tt != token_t(']')) {
             while (true) {
                 arr_item_fn();
-                const auto ret = fn_value_checked(tt, lval);
+                const auto ret = value_checked_fn(tt, lval);
                 if (ret == parse_step::into) {
                     if (tt < token_t::null_value) {
                         stack += '[', current = tt;
@@ -91,7 +90,7 @@ loop:
             obj_item_fn(lval);
             if (lexer.lex(lval) != token_t(':')) { detail::report_error(lexer.ln, "expected `:`"); }
             tt = lexer.lex(lval);
-            const auto ret = fn_value_checked(tt, lval);
+            const auto ret = value_checked_fn(tt, lval);
             if (ret == parse_step::into) {
                 if (tt < token_t::null_value) {
                     stack += '{', current = tt;
@@ -111,8 +110,8 @@ loop:
         current = token_t(stack.back());
         stack.pop_back();
         pop_fn();
-        const char close_char = current == token_t('[') ? ']' : '}';
-        if ((tt = lexer.lex(lval)) != token_t(close_char)) {
+        const auto close_tt = current == token_t('[') ? token_t(']') : token_t('}');
+        if ((tt = lexer.lex(lval)) != close_tt) {
             if (tt != token_t(',')) { detail::report_error(lexer.ln, "expected `,`, `]`, or `}`"); }
             comma = true;
             goto loop;
@@ -120,13 +119,13 @@ loop:
     }
 }
 
-template<typename CharT = char, typename Alloc = std::allocator<CharT>>
-UXS_EXPORT basic_value<CharT, Alloc> parse(ibuf& in, const Alloc& al = Alloc());
+template<typename CharT = char, typename Alloc = std::allocator<CharT>, typename InCharT>
+UXS_EXPORT basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al = Alloc());
 
 template<typename CharT = char, typename Alloc = std::allocator<CharT>, typename StrLikeTy,
          typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
 basic_value<CharT, Alloc> parse(const StrLikeTy& s, const Alloc& al = Alloc()) {
-    iflatbuf in(to_string_view(s));
+    basic_iflatbuf<typename string_char_traits_t<StrLikeTy>::char_type> in(to_string_view(s));
     return parse<CharT, Alloc>(in, al);
 }
 
@@ -134,10 +133,18 @@ basic_value<CharT, Alloc> parse(const StrLikeTy& s, const Alloc& al = Alloc()) {
 namespace literals {
 inline value operator""_json(const char* s, std::size_t len) {
     iflatbuf in(est::as_span(s, len));
-    return parse(in);
+    return parse<char>(in);
 }
 inline wvalue operator""_wjson(const char* s, std::size_t len) {
     iflatbuf in(est::as_span(s, len));
+    return parse<wchar_t>(in);
+}
+inline value operator""_json(const wchar_t* s, std::size_t len) {
+    wiflatbuf in(est::as_span(s, len));
+    return parse<char>(in);
+}
+inline wvalue operator""_wjson(const wchar_t* s, std::size_t len) {
+    wiflatbuf in(est::as_span(s, len));
     return parse<wchar_t>(in);
 }
 }  // namespace literals
@@ -167,9 +174,10 @@ void write_formatted(basic_iobuf<OutCharT>& out, const basic_value<CharT, Alloc>
 }  // namespace json
 }  // namespace db
 
-template<typename CharT, typename Alloc>
-struct from_string_impl<db::basic_value<CharT, Alloc>, char> {
-    from_chars_result<char> operator()(const char* first, const char* last, db::basic_value<CharT, Alloc>& val) const {
+template<typename CharT, typename Alloc, typename InCharT>
+struct from_string_impl<db::basic_value<CharT, Alloc>, InCharT> {
+    from_chars_result<InCharT> operator()(const InCharT* first, const InCharT* last,
+                                          db::basic_value<CharT, Alloc>& val) const {
         if (first == last) { return {first, sconv_errc::empty}; }
         iflatbuf in(est::as_span(first, static_cast<std::size_t>(last - first)));
         try {
@@ -179,7 +187,7 @@ struct from_string_impl<db::basic_value<CharT, Alloc>, char> {
     }
 };
 
-template<typename OutCharT, typename CharT, typename Alloc>
+template<typename CharT, typename Alloc, typename OutCharT>
 struct to_string_impl<db::basic_value<CharT, Alloc>, OutCharT> {
     void operator()(basic_membuffer<OutCharT>& out, const db::basic_value<CharT, Alloc>& val) const {
         db::json::detail::write_impl(out, val);
@@ -193,7 +201,11 @@ struct to_string_impl<db::basic_value<CharT, Alloc>, OutCharT> {
     }
 };
 
-template<typename OutCharT, typename CharT, typename Alloc>
+template<typename CharT, typename Alloc, typename OutCharT>
+struct format_kind<db::basic_value<CharT, Alloc>, OutCharT>
+    : std::integral_constant<range_format, range_format::disabled> {};
+
+template<typename CharT, typename Alloc, typename OutCharT>
 struct formatter<db::basic_value<CharT, Alloc>, OutCharT> {
  private:
     db::json::json_fmt_opts opts_;

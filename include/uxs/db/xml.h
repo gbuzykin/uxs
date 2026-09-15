@@ -3,10 +3,6 @@
 #include "value.h"
 
 #include "uxs/io/iomembuffer.h"
-#include "uxs/string_conv_base.h"
-
-#include <forward_list>
-#include <map>
 
 namespace uxs {
 namespace db {
@@ -35,7 +31,7 @@ enum class value_class : int {
 };
 
 struct xml_fmt_opts {
-    char indent_char = ' ';
+    std::uint8_t indent_char = ' ';
     unsigned indent_size = 2;
 };
 
@@ -56,128 +52,119 @@ enum class lex_token_t : int {
     pi_close,
 };
 
+template<typename CharT>
 struct lexer {
-    ibuf& in;
+    basic_ibuf<CharT>& in;
     unsigned ln = 1;
-    inline_dynbuffer str;
-    basic_inline_dynbuffer<char, 32> stash;
-    basic_inline_dynbuffer<std::int8_t, 32> stack;
-    UXS_EXPORT explicit lexer(ibuf& in);
-    UXS_EXPORT lex_token_t lex(std::string_view& lval);
+    basic_inline_dynbuffer<CharT> stash;
+    explicit lexer(basic_ibuf<CharT>& in) : in(in) {}
+    lex_token_t lex(std::basic_string_view<CharT>& lval);
 };
 
 [[noreturn]] UXS_EXPORT void report_error(unsigned ln, const char* message);
 }  // namespace detail
 
-class attributes_t : public std::map<std::string_view, std::string> {
+template<typename InCharT>
+class parser;
+
+template<typename CharT>
+class parser_iterator : public est::iterator_facade<parser_iterator<CharT>, parser<CharT>, std::input_iterator_tag,
+                                                    parser<CharT>&, parser<CharT>*> {
  public:
-    using underlying_t = std::map<std::string_view, std::string>;
+    using value_type = parser<CharT>;
+    using reference = parser<CharT>&;
 
-    attributes_t() = default;
-#if __cplusplus < 201703L
-    ~attributes_t() = default;
-    attributes_t(const attributes_t&) = default;
-    attributes_t& operator=(const attributes_t&) = default;
-    attributes_t(attributes_t&& other) noexcept : underlying_t(std::move(other)) {}
-    attributes_t& operator=(attributes_t&& other) noexcept {
-        underlying_t::operator=(std::move(other));
-        return *this;
-    }
-#endif  // __cplusplus < 201703L
-
-    bool contains(std::string_view key) const { return find(key) != end(); }
-
-    std::string_view value_or(std::string_view key, std::string_view default_value) const {
-        auto it = find(key);
-        return it != end() ? it->second : default_value;
+    parser_iterator() noexcept = default;
+    explicit parser_iterator(parser<CharT>& parser) noexcept : parser_(&parser) {
+        if (parser_->next() == token_t::eof) { parser_ = nullptr; }
     }
 
-    std::string_view value(std::string_view key) const { return value_or(key, std::string_view()); }
-
-    template<typename Ty, typename U, typename = std::enable_if_t<is_from_string_convertible<Ty>::value>>
-    Ty value_or(std::string_view key, U&& default_value) const {
-        auto it = find(key);
-        return it != end() ? from_string<Ty>(it->second) : Ty(std::forward<U>(default_value));
+    void increment() {
+        assert(parser_);
+        if (parser_->next() == token_t::eof) { parser_ = nullptr; }
     }
 
-    template<typename Ty, typename = std::enable_if_t<is_from_string_convertible<Ty>::value>>
-    Ty value(std::string_view key) const {
-        return value_or<Ty>(key, Ty());
-    }
-};
-
-class parser {
- public:
-    using value_type = std::pair<token_t, std::string_view>;
-
-    UXS_EXPORT explicit parser(ibuf& input);
-    UXS_EXPORT static value_class classify_value(const std::string_view& sval);
-
-    token_t next() {
-        token_ = next_impl();
-        return token_.first;
+    reference dereference() const noexcept {
+        assert(parser_);
+        return *parser_;
     }
 
-    token_t token_type() const { return token_.first; }
-    const value_type& token() const { return token_; }
-    std::string_view name() const { return token_.second; }
-    std::string_view text() const { return token_.second; }
-    bool eof() const { return token_.first == token_t::eof; }
-    bool is_plain_text() const { return token_.first == token_t::plain_text; }
-    bool is_start_element() const { return token_.first == token_t::start_element; }
-    bool is_end_element() const { return token_.first == token_t::end_element; }
-    const attributes_t& attributes() const { return attrs_; }
-    attributes_t& attributes() { return attrs_; }
-
-    template<typename CharT = char, typename Alloc = std::allocator<CharT>>
-    UXS_EXPORT basic_value<CharT, Alloc> parse(std::string_view root_element, const Alloc& al = Alloc());
-
-    class iterator : public est::iterator_facade<iterator, value_type, std::input_iterator_tag, const value_type&,
-                                                 const value_type*> {
-     public:
-        using value_type = value_type;
-        using reference = const value_type&;
-
-        iterator() = default;
-        explicit iterator(parser& parser) : parser_(&parser) {
-            if (parser_->next() == token_t::eof) { parser_ = nullptr; }
-        }
-
-        void increment() {
-            assert(parser_);
-            if (parser_->next() == token_t::eof) { parser_ = nullptr; }
-        }
-
-        const attributes_t& attributes() const {
-            assert(parser_);
-            return parser_->attributes();
-        }
-
-        attributes_t& attributes() {
-            assert(parser_);
-            return parser_->attributes();
-        }
-
-        reference dereference() const {
-            assert(parser_);
-            return parser_->token();
-        }
-
-        bool is_equal_to(const iterator& it) const { return parser_ == it.parser_; }
-
-     private:
-        parser* parser_ = nullptr;
-    };
+    bool is_equal_to(const parser_iterator& it) const noexcept { return parser_ == it.parser_; }
 
  private:
-    detail::lexer lexer_;
-    bool is_end_element_pending_ = false;
-    std::forward_list<std::string> name_cache_;
-    std::pair<token_t, std::string_view> token_;
-    attributes_t attrs_;
-
-    UXS_EXPORT std::pair<token_t, std::string_view> next_impl();
+    parser<CharT>* parser_ = nullptr;
 };
+
+template<typename InCharT>
+class parser {
+    static_assert(std::is_same<std::remove_cv_t<InCharT>, InCharT>::value,
+                  "uxs::db::xml::parser<> must have a non-const, non-volatile character type");
+    static_assert(est::is_character<InCharT>::value, "uxs::db::xml::parser<> defined for character types");
+
+ public:
+    using char_type = InCharT;
+    using string_view_type = std::basic_string_view<char_type>;
+    using iterator = parser_iterator<InCharT>;
+
+    explicit parser(basic_ibuf<InCharT>& input) : lexer_(input) { str_cache_.resize(16); }
+    parser(const parser&) = delete;
+    parser& operator=(const parser&) = delete;
+
+    iterator begin() noexcept { return iterator(*this); }
+    iterator end() noexcept { return iterator(); }
+
+    token_t next() {
+        std::tie(token_type_, lexeme_) = next_impl();
+        return token_type_;
+    }
+
+    token_t token_type() const noexcept { return token_type_; }
+    string_view_type name() const noexcept { return lexeme_; }
+    string_view_type text() const noexcept { return lexeme_; }
+    bool eof() const noexcept { return token_type_ == token_t::eof; }
+    bool is_plain_text() const noexcept { return token_type_ == token_t::plain_text; }
+    bool is_start_element() const noexcept { return token_type_ == token_t::start_element; }
+    bool is_end_element() const noexcept { return token_type_ == token_t::end_element; }
+    const basic_value<char_type>& attributes() const& noexcept { return attrs_; }
+    basic_value<char_type>& attributes() & noexcept { return attrs_; }
+    basic_value<char_type>&& attributes() && noexcept { return std::move(attrs_); }
+
+    UXS_EXPORT static value_class classify_value(const string_view_type& val) noexcept;
+
+    template<typename CharT = char, typename Alloc = std::allocator<CharT>>
+    UXS_EXPORT basic_value<CharT, Alloc> parse(string_view_type root_element, const Alloc& al = Alloc());
+
+ private:
+    detail::lexer<InCharT> lexer_;
+    bool is_end_element_pending_ = false;
+    basic_value<char_type> str_cache_;
+    token_t token_type_ = token_t::none;
+    string_view_type lexeme_;
+    basic_value<char_type> attrs_;
+
+    UXS_EXPORT std::pair<token_t, string_view_type> next_impl();
+};
+
+template<std::size_t I, typename CharT, typename = std::enable_if_t<I == 0>>
+auto get(const parser<CharT>& v) noexcept -> decltype(v.token_type()) {
+    return v.token_type();
+}
+template<std::size_t I, typename CharT, typename = std::enable_if_t<I == 1>>
+auto get(const parser<CharT>& v) noexcept -> decltype(v.text()) {
+    return v.text();
+}
+template<std::size_t I, typename CharT, typename = std::enable_if_t<I == 2>>
+auto get(const parser<CharT>& v) noexcept -> decltype(v.attributes()) {
+    return v.attributes();
+}
+template<std::size_t I, typename CharT, typename = std::enable_if_t<I == 2>>
+auto get(parser<CharT>& v) noexcept -> decltype(v.attributes()) {
+    return v.attributes();
+}
+template<std::size_t I, typename CharT, typename = std::enable_if_t<I == 2>>
+auto get(parser<CharT>&& v) noexcept -> decltype(std::move(v).attributes()) {
+    return std::move(v).attributes();
+}
 
 namespace detail {
 template<typename OutCharT, typename CharT, typename Alloc>
@@ -195,3 +182,13 @@ void write(basic_iobuf<OutCharT>& out, const basic_value<CharT, Alloc>& v,
 }  // namespace xml
 }  // namespace db
 }  // namespace uxs
+
+namespace std {
+template<typename CharT>
+class tuple_size<uxs::db::xml::parser<CharT>> : public std::integral_constant<std::size_t, 3> {};
+template<std::size_t I, typename CharT>
+class tuple_element<I, uxs::db::xml::parser<CharT>> {
+ public:
+    using type = std::remove_cvref_t<decltype(uxs::db::xml::get<I>(std::declval<uxs::db::xml::parser<CharT>&>()))>;
+};
+}  // namespace std
