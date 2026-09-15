@@ -13,10 +13,9 @@ namespace db {
 namespace xml {
 
 namespace detail {
-inline bool is_equal_strings_nocase(std::string_view lhs, std::string_view rhs) {
-    if (lhs.size() != rhs.size()) { return false; }
-    return std::equal(lhs.begin(), lhs.end(), rhs.begin(),
-                      [](char ch1, char ch2) { return to_lower{}(ch1) == to_lower{}(ch2); });
+inline bool is_equal_to_string_nocase(std::string_view s, std::string_view ref) {
+    if (s.size() != ref.size()) { return false; }
+    return std::equal(s.begin(), s.end(), ref.begin(), [](char l, char r) { return to_lower{}(l) == r; });
 }
 }  // namespace detail
 
@@ -77,7 +76,7 @@ std::pair<token_t, std::string_view> parser::next_impl() {
                     } break;
 
                     case detail::lex_token_t::pi_open: {  // <?xml n1=v1 n2=v2...?>
-                        if (!detail::is_equal_strings_nocase(lval, string_literal<char, 'x', 'm', 'l'>{}())) {
+                        if (!detail::is_equal_to_string_nocase(lval, string_literal<char, 'x', 'm', 'l'>{}())) {
                             lexer_.report_error("invalid document declaration");
                         }
                         name_cache_it->assign(lval.data(), lval.size());
@@ -95,10 +94,9 @@ std::pair<token_t, std::string_view> parser::next_impl() {
                     } break;
 
                     case detail::lex_token_t::comment: {  // comment <!--....-->: skip till `-->`
-                        int ch = 0;
                         std::size_t dash_count = 0;
                         while (true) {
-                            ch = lexer_.in.get();
+                            const int ch = lexer_.in.get();
                             if (ch == ibuf::traits_type::eof() || ch == 0) { return {token_t::eof, {}}; }
                             if (ch == '\n') { ++lexer_.ln; }
                             if (dash_count >= 2 && ch == '>') { break; }
@@ -135,7 +133,7 @@ std::pair<token_t, std::string_view> parser::next_impl() {
 }
 
 value_class parser::classify_value(const std::string_view& sval) {
-    int state = lex_detail::sc_value;
+    std::int8_t state = lex_detail::sc_value;
     for (const std::uint8_t ch : sval) {
         state = lex_detail::Dtran[lex_detail::dtran_width * state + lex_detail::symb2meta[ch]];
     }
@@ -157,13 +155,15 @@ template UXS_EXPORT wvalue parser::parse(std::string_view, const std::allocator<
 
 namespace detail {
 
-lexer::lexer(ibuf& in) : in(in) { stack.push_back(lex_detail::sc_initial); }
-
 void lexer::report_error(const char* message) { throw database_error(format("{}: {}", ln, message)); }
 
 lex_token_t lexer::lex(std::string_view& lval) {
     char current_string_quot = '\0';
     bool need_to_normalize_string = false;
+
+    const auto get_next_state = [](int state, std::uint8_t ch) {
+        return lex_detail::Dtran[lex_detail::dtran_width * state + lex_detail::symb2meta[ch]];
+    };
 
     const auto normalize_string = [](char* p, std::size_t sz) {
         char* p0 = p;
@@ -205,16 +205,14 @@ lex_token_t lexer::lex(std::string_view& lval) {
             }
 
             // process the first character
-            state = lex_detail::Dtran[lex_detail::dtran_width * static_cast<int>(lex_detail::sc_initial) +
-                                      lex_detail::symb2meta[static_cast<std::uint8_t>(*curr)]];
+            state = get_next_state(lex_detail::sc_initial, *curr);
             if (state < 0) {  // just process a single character if it can't be recognized with analyzer
                 in.advance(1);
                 if (*curr != '\"' && *curr != '\'') { return lex_token_t(static_cast<std::uint8_t>(*curr)); }
                 current_string_quot = *curr;
-                need_to_normalize_string = false;
                 continue;
             }
-        } else {  // read string
+        } else {  // parse string
             const char other_quot = (current_string_quot == '\"' ? '\'' : '\"');
             const char* curr0 = in.curr();
             const char* curr = std::find_if(curr0, in.last(), [other_quot](std::uint8_t ch) {
@@ -223,84 +221,80 @@ lex_token_t lexer::lex(std::string_view& lval) {
 
             in.setpos(curr - in.first());
             if (!in.avail()) {
-                str.append(curr0, curr);
+                stash.append(curr0, curr);
                 continue;
             }
 
             if (*curr == current_string_quot) {
-                if (str.empty()) {
+                if (stash.empty()) {
                     lval = to_string_view(curr0, curr);
                 } else {
-                    str.append(curr0, curr);
-                    if (need_to_normalize_string) { str.setsize(normalize_string(str.data(), str.size())); }
-                    lval = std::string_view(str.data(), str.size());
-                    str.clear();  // it resets end pointer, but retains the contents
+                    stash.append(curr0, curr);
+                    if (need_to_normalize_string) { stash.setsize(normalize_string(stash.data(), stash.size())); }
+                    lval = std::string_view(stash.data(), stash.size());
+                    stash.clear();  // it resets the stash, but retains the contents
                 }
                 in.advance(1);
-                current_string_quot = '\0';
                 return lex_token_t::string;
             }
 
-            str.append(curr0, curr);
+            stash.append(curr0, curr);
 
             if (*curr != '&') {
-                if (*curr != '\n') { report_error("unterminated string or unexpected string character"); }
-                str.push_back('\n');
+                if (*curr != '\n') { break; }
+                stash.push_back('\n');
                 in.advance(1);
                 need_to_normalize_string = true;
                 continue;
             }
 
             // process '&' character
-            state = lex_detail::Dtran[lex_detail::dtran_width * static_cast<int>(lex_detail::sc_initial) +
-                                      lex_detail::symb2meta[static_cast<int>('&')]];
+            state = get_next_state(lex_detail::sc_initial, '&');
         }
 
         int pat = 0;
 
         // accept the first character
         std::size_t llen = 1;
-        const char* first = in.curr() + 1;
-        stack.push_back(state);
+        std::size_t stash_sz0 = stash.size();
+        const char* first0 = in.curr() + 1;
+        (void)lex_detail::lex;  // unused
 
         while (true) {
-            const char* last = in.last();
-            if (stack.avail() < static_cast<std::size_t>(last - first)) { last = first + stack.avail(); }
-            auto* sptr = stack.endp();
-            pat = lex_detail::lex(first, last, &sptr, &llen, last != in.last() || in ? lex_detail::flag_has_more : 0);
-            stack.setsize(sptr - stack.data());
-            if (pat >= lex_detail::predef_pat_default) { break; }
-            if (last != in.last()) {
-                // enlarge state stack and continue analysis
-                stack.reserve(stack.size() + llen);
-                first = last;
-                continue;
+            const char* first = first0;
+            while (first != in.last()) {
+                const std::int8_t next_state = get_next_state(state, *first);
+                if (next_state < 0) { break; }
+                state = next_state, ++first;
             }
-            if (!in) { return lex_token_t::eof; }  // end of sequence, first == last
-            // append read buffer to stash
+
+            llen += static_cast<std::size_t>(first - first0);
+
+            if (first != in.last() || !in) {
+                pat = lex_detail::accept[state];
+                if (pat <= 0) { report_error("invalid token or escape sequence"); }
+                break;
+            }
+
+            // append lexeme in stash
             stash.append(in.curr(), in.last());
             in.setpos(in.capacity());
             // read more characters from input
             in.peek();
-            first = in.curr();
+            first0 = in.curr();
         }
 
         const char* lexeme = in.curr();
-        if (stash.empty()) {  // the stash is empty
+        if (stash.size() == stash_sz0) {  // no stashed lexeme parts
             in.advance(llen);
         } else {
-            if (llen >= stash.size()) {
-                // all characters in stash buffer are used concatenate full lexeme in stash
-                const std::size_t len_rest = llen - stash.size();
+            if (llen >= stash.size() - stash_sz0) {  // concatenate full lexeme in stash
+                const std::size_t len_rest = stash_sz0 + llen - stash.size();
                 stash.append(in.curr(), len_rest);
                 in.advance(len_rest);
-            } else {
-                // at least one character in stash is yet unused
-                // put unused chars back to `ibuf`
-                for (std::size_t n = 0; n < stash.size() - llen; ++n) { in.unget(); }
             }
-            lexeme = stash.data();
-            stash.clear();  // it resets end pointer, but retains the contents
+            lexeme = stash.endp() - llen;
+            stash.setsize(stash_sz0);  // it restores stash position, but retains the contents
         }
 
         switch (pat) {
@@ -310,35 +304,35 @@ lex_token_t lexer::lex(std::string_view& lval) {
                     lval = string_literal<char, '&'>{}();
                     return lex_token_t::predef_entity;
                 }
-                str += '&';
+                stash += '&';
             } break;
             case lex_detail::pat_lt: {
                 if (!current_string_quot) {
                     lval = string_literal<char, '<'>{}();
                     return lex_token_t::predef_entity;
                 }
-                str += '<';
+                stash += '<';
             } break;
             case lex_detail::pat_gt: {
                 if (!current_string_quot) {
                     lval = string_literal<char, '>'>{}();
                     return lex_token_t::predef_entity;
                 }
-                str += '>';
+                stash += '>';
             } break;
             case lex_detail::pat_apos: {
                 if (!current_string_quot) {
                     lval = string_literal<char, '\''>{}();
                     return lex_token_t::predef_entity;
                 }
-                str += '\'';
+                stash += '\'';
             } break;
             case lex_detail::pat_quot: {
                 if (!current_string_quot) {
                     lval = string_literal<char, '\"'>{}();
                     return lex_token_t::predef_entity;
                 }
-                str += '\"';
+                stash += '\"';
             } break;
             case lex_detail::pat_entity: {
                 if (!current_string_quot) {
@@ -348,26 +342,27 @@ lex_token_t lexer::lex(std::string_view& lval) {
                 report_error("unknown entity name");
             } break;
             case lex_detail::pat_dcode: {
-                unsigned unicode = 0;
+                std::uint32_t unicode = 0;
                 for (const char ch : std::string_view(lexeme + 2, llen - 3)) { unicode = 10 * unicode + dig_v{}(ch); }
                 if (!current_string_quot) {
-                    const std::size_t count = to_utf8(unicode, str.data()).count;
-                    lval = std::string_view(str.data(), count);
+                    const std::size_t count = to_utf8(unicode, stash.data()).count;
+                    lval = std::string_view(stash.data(), count);
                     return lex_token_t::entity;
                 }
-                to_utf8(unicode, std::back_inserter(str));
+                stash.reserve(4);
+                stash.advance(to_utf8(unicode, stash.endp()).count);
             } break;
             case lex_detail::pat_hcode: {
-                unsigned unicode = 0;
+                std::uint32_t unicode = 0;
                 for (const char ch : std::string_view(lexeme + 3, llen - 4)) { unicode = (unicode << 4) + dig_v{}(ch); }
                 if (!current_string_quot) {
-                    const std::size_t count = to_utf8(unicode, str.data()).count;
-                    lval = std::string_view(str.data(), count);
+                    const std::size_t count = to_utf8(unicode, stash.data()).count;
+                    lval = std::string_view(stash.data(), count);
                     return lex_token_t::entity;
                 }
-                to_utf8(unicode, std::back_inserter(str));
+                stash.reserve(4);
+                stash.advance(to_utf8(unicode, stash.endp()).count);
             } break;
-            case lex_detail::pat_ent_invalid: report_error("single `&` character or invalid entity format");
 
             // ------ tags
             case lex_detail::pat_name: {
@@ -392,12 +387,11 @@ lex_token_t lexer::lex(std::string_view& lval) {
             // ------ comment
             case lex_detail::pat_comment: return lex_token_t::comment;
 
-            // ------ other single character
-            case lex_detail::predef_pat_default: return lex_token_t(static_cast<std::uint8_t>(lexeme[0]));
-
             default: UXS_UNREACHABLE_CODE;
         }
     }
+
+    if (current_string_quot) { report_error("unterminated string or unexpected string character"); }
 
     return lex_token_t::eof;
 }

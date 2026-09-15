@@ -108,7 +108,7 @@ token_t lexer::lex(std::string_view& lval) {
 
             if (first != in.last() || !in) {
                 pat = lex_detail::accept[state];
-                if (pat <= 0) { report_error("invalid token or string escape sequence"); }
+                if (pat <= 0) { report_error("invalid token or escape sequence"); }
                 break;
             }
 

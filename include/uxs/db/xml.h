@@ -60,10 +60,8 @@ enum class lex_token_t : int {
 struct lexer {
     ibuf& in;
     unsigned ln = 1;
-    inline_dynbuffer str;
-    basic_inline_dynbuffer<char, 32> stash;
-    basic_inline_dynbuffer<std::int8_t, 32> stack;
-    UXS_EXPORT explicit lexer(ibuf& in);
+    inline_dynbuffer stash;
+    explicit lexer(ibuf& in) : in(in) {}
     [[noreturn]] UXS_EXPORT void report_error(const char* message);
     UXS_EXPORT lex_token_t lex(std::string_view& lval);
 };

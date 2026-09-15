@@ -26,7 +26,6 @@ quot         &quot;
 entity       &{name};
 dcode        &#{dig}+;
 hcode        &#(x|X){hdig}+;
-ent_invalid  &
 
 name                {name}
 start_element_open  <{name}

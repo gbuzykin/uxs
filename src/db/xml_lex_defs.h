@@ -25,7 +25,6 @@ enum {
     pat_entity,
     pat_dcode,
     pat_hcode,
-    pat_ent_invalid,
     pat_name,
     pat_start_element_open,
     pat_end_element_open,
