@@ -18,7 +18,6 @@ enum {
     pat_escape_r,
     pat_escape_t,
     pat_escape_unicode,
-    pat_escape_invalid,
     pat_null,
     pat_true,
     pat_false,
