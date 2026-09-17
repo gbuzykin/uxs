@@ -81,7 +81,7 @@ basic_value<CharT, Alloc> parser::parse(std::string_view root_element, const All
 
     auto tt = token_type();
     while (!eof() && !(tt == token_t::start_element && name() == root_element)) { tt = next(); }
-    if (eof()) { throw database_error("no such element"); }
+    if (eof()) { detail::report_error(lexer_.ln, "no such element"); }
 
     inline_dynbuffer txt;
     inline_dynarray<std::pair<basic_value<CharT, Alloc>*, std::string>, 32> stack;
@@ -94,9 +94,9 @@ basic_value<CharT, Alloc> parser::parse(std::string_view root_element, const All
     while (true) {
         auto& top = stack.back();
         switch (tt) {
-            case token_t::eof: throw database_error(to_string(lexer_.ln) + ": unexpected end of file");
-            case token_t::preamble: throw database_error(to_string(lexer_.ln) + ": unexpected document preamble");
-            case token_t::entity: throw database_error(to_string(lexer_.ln) + ": unknown entity name");
+            case token_t::eof: detail::report_error(lexer_.ln, "unexpected end of file");
+            case token_t::preamble: detail::report_error(lexer_.ln, "unexpected document preamble");
+            case token_t::entity: detail::report_error(lexer_.ln, "unknown entity name");
             case token_t::plain_text: {
                 if (!top.first->is_object()) { txt += text(); }
             } break;
@@ -111,9 +111,7 @@ basic_value<CharT, Alloc> parser::parse(std::string_view root_element, const All
                 }
             } break;
             case token_t::end_element: {
-                if (top.second != name()) {
-                    throw database_error(to_string(lexer_.ln) + ": unterminated element " + top.second);
-                }
+                if (top.second != name()) { detail::report_error(lexer_.ln, "unexpected end element"); }
                 if (!top.first->is_object() && !txt.empty()) {
                     *(top.first) = text_to_value(std::string_view(txt.data(), txt.size()), al);
                 }
