@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <limits>
 
 namespace uxs {

@@ -2,9 +2,7 @@
 
 #include "uxs/config.h"  // NOLINT
 
-#include <climits>  // NOLINT
-#include <cstddef>  // NOLINT
-#include <cstdint>  // NOLINT
+#include <climits>
 
 #if !defined(UXS_HAS_INCLUDE)
 #    if defined(__has_include) || _MSC_VER >= 1900
