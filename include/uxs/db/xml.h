@@ -66,6 +66,8 @@ struct lexer {
     UXS_EXPORT explicit lexer(ibuf& in);
     UXS_EXPORT lex_token_t lex(std::string_view& lval);
 };
+
+[[noreturn]] UXS_EXPORT void report_error(unsigned ln, const char* message);
 }  // namespace detail
 
 class attributes_t : public std::map<std::string_view, std::string> {
