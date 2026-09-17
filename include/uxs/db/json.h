@@ -42,6 +42,8 @@ struct lexer {
     UXS_EXPORT explicit lexer(ibuf& in);
     UXS_EXPORT token_t lex(std::string_view& lval);
 };
+
+[[noreturn]] UXS_EXPORT void report_error(unsigned ln, const char* message);
 }  // namespace detail
 
 template<typename ValueFn, typename ArrItemFn, typename ObjItemFn, typename PopFn>
@@ -51,7 +53,7 @@ void parse(ibuf& in, ValueFn&& value_fn, ArrItemFn&& arr_item_fn, ObjItemFn&& ob
 
     const auto fn_value_checked = [&lexer, &value_fn](token_t tt, std::string_view lval) -> parse_step {
         if (tt >= token_t::null_value || tt == token_t('[') || tt == token_t('{')) { return value_fn(tt, lval); }
-        throw database_error(to_string(lexer.ln) + ": invalid value or unexpected character");
+        detail::report_error(lexer.ln, "invalid value or unexpected character");
     };
 
     std::string_view lval;
@@ -79,15 +81,15 @@ loop:
                     return;
                 }
                 if ((tt = lexer.lex(lval)) == token_t(']')) { break; }
-                if (tt != token_t(',')) { throw database_error(to_string(lexer.ln) + ": expected `,` or `]`"); }
+                if (tt != token_t(',')) { detail::report_error(lexer.ln, "expected `,` or `]`"); }
                 tt = lexer.lex(lval);
             }
         }
     } else if (comma || tt != token_t('}')) {
         while (true) {
-            if (tt != token_t::string) { throw database_error(to_string(lexer.ln) + ": expected valid string"); }
+            if (tt != token_t::string) { detail::report_error(lexer.ln, "expected valid string"); }
             obj_item_fn(lval);
-            if (lexer.lex(lval) != token_t(':')) { throw database_error(to_string(lexer.ln) + ": expected `:`"); }
+            if (lexer.lex(lval) != token_t(':')) { detail::report_error(lexer.ln, "expected `:`"); }
             tt = lexer.lex(lval);
             const auto ret = fn_value_checked(tt, lval);
             if (ret == parse_step::into) {
@@ -100,7 +102,7 @@ loop:
                 return;
             }
             if ((tt = lexer.lex(lval)) == token_t('}')) { break; }
-            if (tt != token_t(',')) { throw database_error(to_string(lexer.ln) + ": expected `,` or `}`"); }
+            if (tt != token_t(',')) { detail::report_error(lexer.ln, "expected `,` or `}`"); }
             tt = lexer.lex(lval);
         }
     }
@@ -111,9 +113,7 @@ loop:
         pop_fn();
         const char close_char = current == token_t('[') ? ']' : '}';
         if ((tt = lexer.lex(lval)) != token_t(close_char)) {
-            if (tt != token_t(',')) {
-                throw database_error(to_string(lexer.ln) + ": expected `,` or `" + close_char + "`");
-            }
+            if (tt != token_t(',')) { detail::report_error(lexer.ln, "expected `,`, `]`, or `}`"); }
             comma = true;
             goto loop;
         }

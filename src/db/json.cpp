@@ -1,4 +1,4 @@
-#include "uxs/chars.h"
+#include "uxs/format.h"
 #include "uxs/impl/db/json_impl.h"
 
 namespace lex_detail {
@@ -15,6 +15,8 @@ template UXS_EXPORT value parse(ibuf&, const std::allocator<char>&);
 template UXS_EXPORT wvalue parse(ibuf&, const std::allocator<wchar_t>&);
 
 namespace detail {
+
+void report_error(unsigned ln, const char* message) { throw database_error(format("{}: {}", ln, message)); }
 
 lexer::lexer(ibuf& in) : in(in) { stack.push_back(lex_detail::sc_initial); }
 
@@ -72,7 +74,7 @@ token_t lexer::lex(std::string_view& lval) {
                 return token_t::string;
             }
 
-            if (*curr != '\\') { throw database_error(to_string(ln) + ": unterminated string"); }
+            if (*curr != '\\') { report_error(ln, "unterminated string"); }
 
             str.append(curr0, curr);
 
@@ -154,9 +156,7 @@ token_t lexer::lex(std::string_view& lval) {
                 }
                 to_utf8(unicode, std::back_inserter(str));
             } break;
-            case lex_detail::pat_escape_invalid: {
-                throw database_error(to_string(ln) + ": invalid escape sequence");
-            } break;
+            case lex_detail::pat_escape_invalid: report_error(ln, "invalid escape sequence");
 
             // ------ values
             case lex_detail::pat_null: return token_t::null_value;
@@ -192,9 +192,7 @@ token_t lexer::lex(std::string_view& lval) {
                 bool star = false;
                 while (true) {
                     ch = in.get();
-                    if (ch == ibuf::traits_type::eof() || ch == 0) {
-                        throw database_error(to_string(ln) + ": unterminated C-style comment");
-                    }
+                    if (ch == ibuf::traits_type::eof() || ch == 0) { report_error(ln, "unterminated C-style comment"); }
                     if (ch == '\n') { ++ln; }
                     if (star && ch == '/') { break; }
                     star = (ch == '*');

@@ -1,4 +1,4 @@
-#include "uxs/chars.h"
+#include "uxs/format.h"
 #include "uxs/impl/db/xml_impl.h"
 
 namespace lex_detail {
@@ -45,10 +45,10 @@ std::pair<token_t, std::string_view> parser::next_impl() {
                         name_cache_it = name_cache_.emplace_after(name_cache_prev_it, lval);
                     }
                     if (lexer_.lex(lval) != detail::lex_token_t::eq) {
-                        throw database_error(to_string(lexer_.ln) + ": expected `=`");
+                        detail::report_error(lexer_.ln, "expected `=`");
                     }
                     if (lexer_.lex(lval) != detail::lex_token_t::string) {
-                        throw database_error(to_string(lexer_.ln) + ": expected valid attribute value");
+                        detail::report_error(lexer_.ln, "expected valid attribute value");
                     }
                     name_cache_prev_it = name_cache_it;
                     attrs_.emplace(*name_cache_it++, lval);
@@ -68,21 +68,21 @@ std::pair<token_t, std::string_view> parser::next_impl() {
                                 is_end_element_pending_ = true;
                                 return {token_t::start_element, name_cache_.front()};
                             } else {
-                                throw database_error(to_string(lexer_.ln) + ": expected name, `>` or `/>`");
+                                detail::report_error(lexer_.ln, "expected name, `>` or `/>`");
                             }
                         }
                     } break;
 
                     case detail::lex_token_t::end_element_open: {  // </name>
                         if (lexer_.lex(lval) != detail::lex_token_t::close) {
-                            throw database_error(to_string(lexer_.ln) + ": expected `>`");
+                            detail::report_error(lexer_.ln, "expected `>`");
                         }
                         return {token_t::end_element, lval};
                     } break;
 
                     case detail::lex_token_t::pi_open: {  // <?xml n1=v1 n2=v2...?>
                         if (!detail::is_equal_strings_nocase(lval, string_literal<char, 'x', 'm', 'l'>{}())) {
-                            throw database_error(to_string(lexer_.ln) + ": invalid document declaration");
+                            detail::report_error(lexer_.ln, "invalid document declaration");
                         }
                         name_cache_it->assign(lval.data(), lval.size());
                         ++name_cache_it;
@@ -93,7 +93,7 @@ std::pair<token_t, std::string_view> parser::next_impl() {
                             } else if (tt == detail::lex_token_t::pi_close) {
                                 return {token_t::preamble, name_cache_.front()};
                             } else {
-                                throw database_error(to_string(lexer_.ln) + ": expected name or `?>`");
+                                detail::report_error(lexer_.ln, "expected name or `?>`");
                             }
                         }
                     } break;
@@ -160,6 +160,8 @@ template UXS_EXPORT value parser::parse(std::string_view, const std::allocator<c
 template UXS_EXPORT wvalue parser::parse(std::string_view, const std::allocator<wchar_t>&);
 
 namespace detail {
+
+void report_error(unsigned ln, const char* message) { throw database_error(format("{}: {}", ln, message)); }
 
 lexer::lexer(ibuf& in) : in(in) { stack.push_back(lex_detail::sc_initial); }
 
@@ -240,9 +242,7 @@ lex_token_t lexer::lex(std::string_view& lval) {
             str.append(curr0, curr);
 
             if (*curr != '&') {
-                if (*curr != '\n') {
-                    throw database_error(to_string(ln) + ": unterminated string or unexpected string character");
-                }
+                if (*curr != '\n') { report_error(ln, "unterminated string or unexpected string character"); }
                 str.push_back('\n');
                 in.advance(1);
                 need_to_normalize_string = true;
@@ -343,7 +343,7 @@ lex_token_t lexer::lex(std::string_view& lval) {
                     lval = std::string_view(lexeme + 1, llen - 2);
                     return lex_token_t::entity;
                 }
-                throw database_error(to_string(ln) + ": unknown entity name");
+                report_error(ln, "unknown entity name");
             } break;
             case lex_detail::pat_dcode: {
                 unsigned unicode = 0;
@@ -365,9 +365,7 @@ lex_token_t lexer::lex(std::string_view& lval) {
                 }
                 to_utf8(unicode, std::back_inserter(str));
             } break;
-            case lex_detail::pat_ent_invalid: {
-                throw database_error(to_string(ln) + ": single `&` character or invalid entity format");
-            } break;
+            case lex_detail::pat_ent_invalid: report_error(ln, "single `&` character or invalid entity format");
 
             // ------ tags
             case lex_detail::pat_name: {
