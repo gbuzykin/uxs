@@ -11,6 +11,7 @@
 #include <atomic>
 #include <cstring>
 #include <functional>
+#include <initializer_list>
 #include <tuple>
 
 namespace uxs {

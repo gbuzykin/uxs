@@ -275,8 +275,13 @@ chars_to_n_result<CharT> to_chars_n(CharT* p, std::size_t n, const std::locale& 
 
 // --------------------------
 
+enum class range_format { disabled = 0, sequence, set, map, string };
+
 template<typename Ty, typename CharT = char, typename = void>
 struct formatter;
+
+template<typename Range, typename CharT = char>
+struct format_kind;
 
 template<typename StrTy, typename PrintFn>
 void append_adjusted(StrTy& out, PrintFn&& fn, unsigned len, fmt_opts fmt, bool prefer_right = false) {

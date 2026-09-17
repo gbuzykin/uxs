@@ -1,6 +1,6 @@
 #pragma once
 
-#include "uxs/format_base.h"
+#include "uxs/format.h"  // NOLINT
 
 namespace uxs {
 namespace fmt {
