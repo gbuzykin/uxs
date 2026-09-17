@@ -6,10 +6,7 @@
 
 namespace uxs {
 
-enum class zipfile_compression {
-    deflate = 0,
-    store,
-};
+enum class zipfile_compression { deflate = 0, store };
 
 struct zip_sourced_t {
     explicit constexpr zip_sourced_t(int) {}
