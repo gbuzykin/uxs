@@ -111,6 +111,9 @@ using remove_cvref_t = typename remove_cvref<Ty>::type;
 
 namespace est {
 
+constexpr unsigned bit(unsigned n) { return 1U << n; }
+constexpr unsigned genmask(unsigned h, unsigned l) { return (1U << h) + (1U << h) - (1U << l); }
+
 struct in_place_t {
     explicit constexpr in_place_t() = default;
 };
