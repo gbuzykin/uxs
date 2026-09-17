@@ -10,7 +10,7 @@ struct rbtree_node_t {
     rbtree_node_t* left;
     rbtree_node_t* parent;
     rbtree_node_t* right;
-    enum class color_t : char { black = 0, red = 1 } color;
+    enum class color_t : char { black = 0, red } color;
 };
 
 inline bool rbtree_is_empty(const rbtree_node_t* head) noexcept { return head->left == nullptr; }
