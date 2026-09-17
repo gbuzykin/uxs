@@ -13,7 +13,11 @@
 namespace uxs {
 
 namespace detail {
-enum class devbuf_impl_flags { none = 0, z_in_finish = 1, pending_cr = 2 };
+enum class devbuf_impl_flags {
+    none = 0,
+    z_in_finish = est::bit(0),
+    pending_cr = est::bit(1),
+};
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(devbuf_impl_flags);
 }  // namespace detail
 

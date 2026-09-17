@@ -9,28 +9,33 @@ namespace uxs {
 
 enum class iomode : std::uint16_t {
     none = 0,
-    in = 1,
-    out = 2,
-    truncate = 4,
-    append = 8,
-    create = 0x10,
-    exclusive = 0x20,
-    cr_lf = 0x40,
+    in = est::bit(0),
+    out = est::bit(1),
+    truncate = est::bit(2),
+    append = est::bit(3),
+    create = est::bit(4),
+    exclusive = est::bit(5),
+    cr_lf = est::bit(6),
 #if defined(WIN32)
     text = cr_lf,
 #else   // defined(WIN32)
     text = 0,
 #endif  // defined(WIN32)
-    z_compr = 0x80,
-    z_compr_level = 0x100,
-    z_compr_level_mask = 0xf00,
-    ctrl_esc = 0x1000,
-    skip_ctrl_esc = 0x3000,
-    invert_endian = 0x8000,
+    z_compr = est::bit(7),
+    z_compr_level = est::bit(8),
+    z_compr_level_mask = est::genmask(11, 8),
+    ctrl_esc = est::bit(12),
+    skip_ctrl_esc = est::bit(13) | est::bit(12),
+    invert_endian = est::bit(15),
 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iomode);
 
-enum class iostate_bits : std::uint8_t { good = 0, bad = 1, fail = 2, eof = 4 };
+enum class iostate_bits : std::uint8_t {
+    good = 0,
+    bad = est::bit(0),
+    fail = est::bit(1),
+    eof = est::bit(2),
+};
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iostate_bits);
 
 enum class seekdir : std::uint8_t { beg = 0, end, curr };
