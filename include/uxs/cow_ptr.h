@@ -4,6 +4,7 @@
 
 #include <atomic>
 #include <cassert>
+#include <cstddef>
 #include <memory>
 #include <utility>
 

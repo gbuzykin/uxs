@@ -2,7 +2,8 @@
 
 #include "common.h"
 
-#include <initializer_list>  // NOLINT
+#include <cstddef>
+#include <cstdint>
 #include <type_traits>
 #include <utility>
 

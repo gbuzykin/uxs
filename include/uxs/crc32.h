@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include <cstdint>
+
 namespace uxs {
 
 class crc32_calc {

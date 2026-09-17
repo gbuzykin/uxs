@@ -2,6 +2,7 @@
 
 #include "uxs/common.h"
 
+#include <cstdint>
 #include <type_traits>
 
 namespace uxs {

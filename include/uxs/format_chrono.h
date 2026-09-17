@@ -1,6 +1,7 @@
 #pragma once
 
 #include "format_base.h"
+#include "string_conv.h"
 
 #if __cplusplus < 202002L || !UXS_HAS_INCLUDE(<chrono>)
 #    error Header file `format_chrono.h` requires C++20 and <chrono> header
