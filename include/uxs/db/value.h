@@ -721,7 +721,7 @@ class value_iterator
     using key_type = std::basic_string_view<CharT>;
     using value_type = basic_value<CharT, Alloc>;
 
-    template<typename, typename, bool>
+    template<typename CharT_, typename Alloc_, bool Const_>
     friend class value_iterator;
     friend class basic_value<CharT, Alloc>;
 
@@ -767,8 +767,8 @@ class value_iterator
                             static_cast<void*>(static_cast<value_type*>(ptr_) - 1);
     }
 
-    template<bool Const2>
-    bool is_equal_to(const value_iterator<CharT, Alloc, Const2>& it) const noexcept {
+    template<bool ConstOther>
+    bool is_equal_to(const value_iterator<CharT, Alloc, ConstOther>& it) const noexcept {
         assert(is_object_ == it.is_object_);
         assert(!is_object_ || (!ptr_ && !it.ptr_) || (ptr_ && it.ptr_));
         uxs_iterator_assert(is_object_ ? !ptr_ || head() == it.head() : begin_ == it.begin_ && end_ == it.end_);
@@ -865,9 +865,9 @@ const Ty* get_optional_value(const Ty* opt) {
     return opt;
 }
 
-template<typename Ty1, typename Ty2, typename = std::enable_if_t<!std::is_same<Ty1, Ty2>::value>>
-est::optional<Ty1> cast_optional(const est::optional<Ty2>& opt) {
-    return opt ? est::make_optional(static_cast<Ty1>(*opt)) : est::nullopt;
+template<typename Ty, typename TyOther, typename = std::enable_if_t<!std::is_same<Ty, TyOther>::value>>
+est::optional<Ty> cast_optional(const est::optional<TyOther>& opt) {
+    return opt ? est::make_optional(static_cast<Ty>(*opt)) : est::nullopt;
 }
 
 template<typename Ty>
@@ -1553,7 +1553,7 @@ UXS_DB_VALUE_IMPLEMENT_SCALAR_AS_FUNC(std::basic_string<CharT>, _string);
 
 namespace detail {
 
-template<typename, typename, typename>
+template<typename CharT, typename Alloc, typename Ty>
 struct value_getters_specializer;
 
 #define UXS_DB_VALUE_IMPLEMENT_SCALAR_GETTERS(ty, func) \

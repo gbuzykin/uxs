@@ -26,10 +26,10 @@ class span {
     using difference_type = std::ptrdiff_t;
 
     UXS_CONSTEXPR span() noexcept = default;
-    template<typename Ty2, typename = std::enable_if_t<std::is_convertible<Ty2*, Ty*>::value>>
-    UXS_CONSTEXPR span(Ty2* v, size_type count) noexcept : begin_(v), size_(count) {}
-    template<typename Ty2, std::size_t N, typename = std::enable_if_t<std::is_convertible<Ty2*, Ty*>::value>>
-    explicit UXS_CONSTEXPR span(Ty2 (&v)[N]) noexcept : begin_(v), size_(N) {}
+    template<typename TyOther, typename = std::enable_if_t<std::is_convertible<TyOther*, Ty*>::value>>
+    UXS_CONSTEXPR span(TyOther* v, size_type count) noexcept : begin_(v), size_(count) {}
+    template<typename TyOther, std::size_t N, typename = std::enable_if_t<std::is_convertible<TyOther*, Ty*>::value>>
+    explicit UXS_CONSTEXPR span(TyOther (&v)[N]) noexcept : begin_(v), size_(N) {}
 #if __cplusplus < 201703L
     template<typename Range, typename = std::enable_if_t<is_contiguous_range<std::remove_reference_t<Range>, Ty>::value>>
     UXS_CONSTEXPR span(Range&& r) noexcept : begin_(r.data()), size_(r.size()) {}

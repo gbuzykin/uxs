@@ -373,7 +373,7 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
     using difference_type = typename super::difference_type;
     using underlying_ptr = UnderlyingPtrTy;
 
-    template<typename, typename, bool>
+    template<typename Traits_, typename UnderlyingPtrTy_, bool Const_>
     friend class array_iterator;
 
     array_iterator() noexcept = default;
@@ -442,22 +442,22 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
         return *ptr_;
     }
 
-    template<bool Const2>
-    bool is_equal_to(const array_iterator<Traits, UnderlyingPtrTy, Const2>& it) const noexcept {
+    template<bool ConstOther>
+    bool is_equal_to(const array_iterator<Traits, UnderlyingPtrTy, ConstOther>& it) const noexcept {
         assert((!ptr_ && !it.ptr_) || (ptr_ && it.ptr_));
         uxs_iterator_assert(begin_ == it.begin_ && end_ == it.end_);
         return ptr_ == it.ptr_;
     }
 
-    template<bool Const2>
-    bool is_less_than(const array_iterator<Traits, UnderlyingPtrTy, Const2>& it) const noexcept {
+    template<bool ConstOther>
+    bool is_less_than(const array_iterator<Traits, UnderlyingPtrTy, ConstOther>& it) const noexcept {
         assert((!ptr_ && !it.ptr_) || (ptr_ && it.ptr_));
         uxs_iterator_assert(begin_ == it.begin_ && end_ == it.end_);
         return ptr_ < it.ptr_;
     }
 
-    template<bool Const2>
-    difference_type distance_to(const array_iterator<Traits, UnderlyingPtrTy, Const2>& it) const noexcept {
+    template<bool ConstOther>
+    difference_type distance_to(const array_iterator<Traits, UnderlyingPtrTy, ConstOther>& it) const noexcept {
         assert((!ptr_ && !it.ptr_) || (ptr_ && it.ptr_));
         uxs_iterator_assert(begin_ == it.begin_ && end_ == it.end_);
         return it.ptr_ - ptr_;
@@ -486,7 +486,7 @@ class list_iterator : public container_iterator_facade<Traits, list_iterator<Tra
     using reference = typename super::reference;
     using node_type = typename NodeTraits::iterator_node_t;
 
-    template<typename, typename, bool>
+    template<typename Traits_, typename NodeTraits_, bool Const_>
     friend class list_iterator;
 
     list_iterator() noexcept = default;
@@ -516,8 +516,8 @@ class list_iterator : public container_iterator_facade<Traits, list_iterator<Tra
         node_ = NodeTraits::get_prev(node_);
     }
 
-    template<bool Const2>
-    bool is_equal_to(const list_iterator<Traits, NodeTraits, Const2>& it) const noexcept {
+    template<bool ConstOther>
+    bool is_equal_to(const list_iterator<Traits, NodeTraits, ConstOther>& it) const noexcept {
         assert((!node_ && !it.node_) || (node_ && it.node_));
         uxs_iterator_assert(!node_ || NodeTraits::get_head(node_) == NodeTraits::get_head(it.node_));
         return node_ == it.node_;

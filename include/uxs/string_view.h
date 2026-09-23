@@ -95,9 +95,9 @@ class basic_string_view {
     size_type rfind(CharT ch, size_type pos = npos) const;
     size_type rfind(basic_string_view s, size_type pos = npos) const;
 
-    template<typename Traits2, typename Alloc>
-    friend basic_string<CharT, Traits2, Alloc>& operator+=(basic_string<CharT, Traits2, Alloc>& lhs,
-                                                           basic_string_view rhs) {
+    template<typename TraitsOther, typename Alloc>
+    friend basic_string<CharT, TraitsOther, Alloc>& operator+=(basic_string<CharT, TraitsOther, Alloc>& lhs,
+                                                               basic_string_view rhs) {
         lhs.append(rhs.data(), rhs.size());
         return lhs;
     }

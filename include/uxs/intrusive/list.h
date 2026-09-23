@@ -138,9 +138,6 @@ struct list_node_traits {
 
 }  // namespace detail
 
-template<typename, typename, typename>
-class list;
-
 template<typename Ty, typename HookTraits>
 class list_enumerator {
  private:
@@ -205,7 +202,7 @@ class list_enumerator {
     }
 
  private:
-    template<typename, typename, typename>
+    template<typename Ty_, typename HookTraits_, typename HookGetter_>
     friend class list;
 
     size_type size_ = 0;
