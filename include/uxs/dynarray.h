@@ -37,10 +37,7 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
     dynarray(size_type count, const value_type& val, const Alloc& alloc = Alloc()) : alloc_type(alloc) {
         init(count, val);
     }
-    ~dynarray() {
-        destruct_items(data_, data_ + size_);
-        if (capacity_ & 1) { alloc_traits::deallocate(*this, data_, capacity_); }
-    }
+    ~dynarray() { tidy(); }
 
     dynarray(const dynarray&) = delete;
     dynarray& operator=(const dynarray&) = delete;
@@ -103,7 +100,7 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
     }
 
     void reserve(size_type size) {
-        if (size > capacity_) { grow(size - size_); }
+        if (size > capacity_) { append_relocated(*this, eval_new_capacity(size - size_)); }
     }
 
     void resize(size_type size) { resize_impl(size); }
@@ -111,8 +108,18 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
 
     template<typename... Args>
     reference emplace_back(Args&&... args) {
-        if (size_ == capacity_) { grow(1); }
-        return *::new (&data_[size_++]) value_type(std::forward<Args>(args)...);
+        if (size_ != capacity_) {
+            ::new (data_ + size_) value_type(std::forward<Args>(args)...);
+        } else {
+            append_relocated(
+                *this, eval_new_capacity(1),
+                [](Ty* first, Args&&... args) {
+                    ::new (first) value_type(std::forward<Args>(args)...);
+                    return first + 1;
+                },
+                std::forward<Args>(args)...);
+        }
+        return data_[size_++];
     }
 
     void push_back(const value_type& val) { emplace_back(val); }
@@ -127,7 +134,7 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
             for (std::size_t i = size_ - 1; i > n; --i) { data_[i] = std::move(data_[i - 1]); }
             data_[n] = std::move(t);
         }
-        return iterator(&data_[n], data_, data_ + size_);
+        return iterator(data_ + n, data_, data_ + size_);
     }
 
     iterator insert(const_iterator pos, const value_type& val) { return emplace(pos, val); }
@@ -145,7 +152,7 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
             for (std::size_t i = n; i < size_ - 1; ++i) { data_[i] = std::move(data_[i + 1]); }
         }
         data_[--size_].~value_type();
-        return iterator(&data_[n], data_, data_ + size_);
+        return iterator(data_ + n, data_, data_ + size_);
     }
 
  protected:
@@ -168,45 +175,62 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
         init(count, val);
     }
 
-    void grow(size_type extra);
+    size_type eval_new_capacity(size_type extra) const;
 
     template<typename... Args>
     void init(size_type count, Args&&... args);
 
     template<typename... Args>
-    void resize_impl(size_type sz, Args&&... args);
+    void resize_impl(size_type size, Args&&... args);
 
-    template<typename Ty_ = Ty, typename = std::enable_if_t<std::is_trivially_destructible<Ty_>::value>>
-    static void destruct_items(Ty_* /*first*/, Ty_* /*last*/) noexcept {}
+    static void destruct_items(Ty* first, Ty* last) noexcept {
+        destruct_items_dispatch(first, last, std::is_trivially_destructible<Ty>());
+    }
 
-    template<typename Ty_ = Ty, typename... Dummy>
-    static void destruct_items(Ty_* first, Ty_* last, Dummy&&...) noexcept {
-        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
-        static_assert(!std::is_trivially_destructible<Ty>::value, "Ty must not be trivially destructible");
+    template<typename Ty_>
+    static void destruct_items_dispatch(Ty_* /*first*/, Ty_* /*last*/,
+                                        std::true_type /* trivially destructible */) noexcept {}
+
+    template<typename Ty_>
+    static void destruct_items_dispatch(Ty_* first, Ty_* last, std::false_type /* trivially destructible */) noexcept {
         for (; first != last; ++first) { first->~value_type(); };
     }
 
-    template<typename Ty_ = Ty, typename = std::enable_if_t<std::is_nothrow_move_constructible<Ty_>::value>>
-    static Ty* move_items(alloc_type& al, size_type sz, Ty_* first, Ty_* last) {
-        Ty* data = alloc_traits::allocate(al, sz);
-        for (Ty* dst = data; first != last; ++first, ++dst) { ::new (dst) value_type(std::move(*first)); };
-        return data;
+    template<typename... Args>
+    void append_relocated(alloc_type& al, size_type capacity, Args&&... args) {
+        Ty* new_data = append_relocated_dispatch(al, capacity, std::is_trivially_copyable<Ty>(),
+                                                 std::is_nothrow_move_constructible<Ty>(), std::forward<Args>(args)...);
+        tidy();
+        data_ = new_data;
+        capacity_ = capacity;
     }
 
-    template<typename Ty_ = Ty, typename... Dummy>
-    static Ty* move_items(alloc_type& al, size_type sz, Ty_* first, Ty_* last, Dummy&&...) {
-        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
-        static_assert(!std::is_nothrow_move_constructible<Ty>::value, "Ty must not be nothrow move constructible");
-        Ty* data = alloc_traits::allocate(al, sz);
-        Ty* dst = data;
-        try {
-            for (; first != last; ++first, ++dst) { ::new (dst) value_type(*first); };
-            return data;
-        } catch (...) {
-            destruct_items(data, dst);
-            alloc_traits::deallocate(al, data, sz);
-            throw;
-        }
+    template<typename Ty_ = Ty>
+    Ty* append_relocated_dispatch(alloc_type& al, size_type capacity, std::true_type /* trivially copyable */,
+                                  std::true_type /* nothrow move constructible */);
+
+    template<typename Ty_ = Ty>
+    Ty* append_relocated_dispatch(alloc_type& al, size_type capacity, std::false_type /* trivially copyable */,
+                                  std::true_type /* nothrow move constructible */);
+
+    template<typename AppendFn, typename... Args>
+    Ty* append_relocated_dispatch(alloc_type& al, size_type capacity, std::true_type /* trivially copyable */,
+                                  std::true_type /* nothrow move constructible */, AppendFn&& append_fn,
+                                  Args&&... args);
+
+    template<typename AppendFn, typename... Args>
+    Ty* append_relocated_dispatch(alloc_type& al, size_type capacity, std::false_type /* trivially copyable */,
+                                  std::true_type /* nothrow move constructible */, AppendFn&& append_fn,
+                                  Args&&... args);
+
+    template<typename AppendFn = est::identity, typename... Args>
+    Ty* append_relocated_dispatch(alloc_type& al, size_type capacity, std::false_type /* trivially copyable */,
+                                  std::false_type /* nothrow move constructible */, AppendFn&& append_fn = AppendFn{},
+                                  Args&&... args);
+
+    void tidy() noexcept {
+        destruct_items(data_, data_ + size_);
+        if (capacity_ & 1) { alloc_traits::deallocate(*this, data_, capacity_); }
     }
 
  private:
@@ -216,19 +240,15 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
 };
 
 template<typename Ty, typename Alloc>
-void dynarray<Ty, Alloc>::grow(size_type extra) {
-    const size_type sz = size_;
-    size_type delta_sz = std::max(++extra, sz >> 1);
-    const size_type max_avail = std::allocator_traits<alloc_type>::max_size(*this) - sz;
+auto dynarray<Ty, Alloc>::eval_new_capacity(size_type extra) const -> size_type {
+    const size_type size = size_;
+    size_type delta_sz = std::max(++extra, size >> 1);
+    const size_type max_avail = std::allocator_traits<alloc_type>::max_size(*this) - size;
     if (delta_sz > max_avail) {
         if (extra > max_avail) { throw std::length_error("too much to reserve"); }
         delta_sz = std::max(extra, max_avail >> 1);
     }
-    const size_type capacity = ((sz + delta_sz - 1) & ~size_type(1)) + 1;  // Make new dynamic odd capacity
-    Ty* data = move_items(*this, capacity, data_, data_ + size_);
-    destruct_items(data_, data_ + size_);
-    if (capacity_ & 1) { alloc_traits::deallocate(*this, data_, capacity_); }
-    data_ = data, capacity_ = capacity;
+    return ((size + delta_sz - 1) & ~size_type(1)) + 1;  // Make new dynamic odd capacity
 }
 
 template<typename Ty, typename Alloc>
@@ -240,9 +260,7 @@ void dynarray<Ty, Alloc>::init(size_type count, Args&&... args) {
     }
     Ty* dst = data_;
     try {
-        for (Ty* dst_last = data_ + count; dst != dst_last; ++dst) {
-            ::new (dst) value_type(std::forward<Args>(args)...);
-        }
+        for (; dst != data_ + count; ++dst) { ::new (dst) value_type(std::forward<Args>(args)...); }
         size_ = count;
     } catch (...) {
         destruct_items(data_, dst);
@@ -253,22 +271,110 @@ void dynarray<Ty, Alloc>::init(size_type count, Args&&... args) {
 
 template<typename Ty, typename Alloc>
 template<typename... Args>
-void dynarray<Ty, Alloc>::resize_impl(size_type sz, Args&&... args) {
-    if (sz > size_) {
-        if (sz > capacity_) { grow(sz - size_); }
+void dynarray<Ty, Alloc>::resize_impl(size_type size, Args&&... args) {
+    if (size <= size_) {
+        destruct_items(data_ + size, data_ + size_);
+    } else if (size <= capacity_) {
         Ty* dst = data_ + size_;
         try {
-            for (Ty* dst_last = data_ + sz; dst != dst_last; ++dst) {
-                ::new (dst) value_type(std::forward<Args>(args)...);
-            }
+            for (; dst != data_ + size; ++dst) { ::new (dst) value_type(std::forward<Args>(args)...); }
         } catch (...) {
             destruct_items(data_ + size_, dst);
             throw;
         }
     } else {
-        destruct_items(data_ + sz, data_ + size_);
+        append_relocated(
+            *this, eval_new_capacity(size - size_),
+            [](Ty* first, std::size_t count, Args&&... args) {
+                for (Ty* last = first + count; first != last; ++first) {
+                    ::new (first) value_type(std::forward<Args>(args)...);
+                }
+                return first;
+            },
+            size - size_, std::forward<Args>(args)...);
     }
-    size_ = sz;
+    size_ = size;
+}
+
+template<typename Ty, typename Alloc>
+template<typename>
+Ty* dynarray<Ty, Alloc>::append_relocated_dispatch(alloc_type& al, size_type capacity,
+                                                   std::true_type /* trivially copyable */,
+                                                   std::true_type /* nothrow move constructible */) {
+    Ty* new_data = alloc_traits::allocate(al, capacity);
+    std::memcpy(new_data, data_, size_ * sizeof(Ty));
+    return new_data;
+}
+
+template<typename Ty, typename Alloc>
+template<typename>
+Ty* dynarray<Ty, Alloc>::append_relocated_dispatch(alloc_type& al, size_type capacity,
+                                                   std::false_type /* trivially copyable */,
+                                                   std::true_type /* nothrow move constructible */) {
+    Ty* new_data = alloc_traits::allocate(al, capacity);
+    Ty* dst = new_data;
+    for (Ty* src = data_; src != data_ + size_; ++dst, ++src) { ::new (dst) value_type(std::move(*src)); };
+    return new_data;
+}
+
+template<typename Ty, typename Alloc>
+template<typename AppendFn, typename... Args>
+Ty* dynarray<Ty, Alloc>::append_relocated_dispatch(alloc_type& al, size_type capacity,
+                                                   std::true_type /* trivially copyable */,
+                                                   std::true_type /* nothrow move constructible */,
+                                                   AppendFn&& append_fn, Args&&... args) {
+    Ty* new_data = alloc_traits::allocate(al, capacity);
+    Ty* dst_last = new_data + size_;
+    try {
+        dst_last = append_fn(dst_last, std::forward<Args>(args)...);
+        std::memcpy(new_data, data_, size_ * sizeof(Ty));
+        return new_data;
+    } catch (...) {
+        destruct_items(new_data + size_, dst_last);
+        alloc_traits::deallocate(al, new_data, capacity);
+        throw;
+    }
+}
+
+template<typename Ty, typename Alloc>
+template<typename AppendFn, typename... Args>
+Ty* dynarray<Ty, Alloc>::append_relocated_dispatch(alloc_type& al, size_type capacity,
+                                                   std::false_type /* trivially copyable */,
+                                                   std::true_type /* nothrow move constructible */,
+                                                   AppendFn&& append_fn, Args&&... args) {
+    Ty* new_data = alloc_traits::allocate(al, capacity);
+    Ty* dst_last = new_data + size_;
+    try {
+        dst_last = append_fn(dst_last, std::forward<Args>(args)...);
+        Ty* dst = new_data;
+        for (Ty* src = data_; src != data_ + size_; ++dst, ++src) { ::new (dst) value_type(std::move(*src)); };
+        return new_data;
+    } catch (...) {
+        destruct_items(new_data + size_, dst_last);
+        alloc_traits::deallocate(al, new_data, capacity);
+        throw;
+    }
+}
+
+template<typename Ty, typename Alloc>
+template<typename AppendFn, typename... Args>
+Ty* dynarray<Ty, Alloc>::append_relocated_dispatch(alloc_type& al, size_type capacity,
+                                                   std::false_type /* trivially copyable */,
+                                                   std::false_type /* nothrow move constructible */,
+                                                   AppendFn&& append_fn, Args&&... args) {
+    Ty* new_data = alloc_traits::allocate(al, capacity);
+    Ty* dst = new_data;
+    Ty* dst_last = new_data + size_;
+    try {
+        dst_last = append_fn(dst_last, std::forward<Args>(args)...);
+        for (const Ty* src = data_; src != data_ + size_; ++dst, ++src) { ::new (dst) value_type(*src); };
+        return new_data;
+    } catch (...) {
+        destruct_items(new_data, dst);
+        destruct_items(new_data + size_, dst_last);
+        alloc_traits::deallocate(al, new_data, capacity);
+        throw;
+    }
 }
 
 template<typename Ty, std::size_t InlineBufSize = 0, typename Alloc = std::allocator<Ty>>
