@@ -6,8 +6,8 @@ namespace uxs {
 
 template<typename CharT>
 class basic_ibuf_iterator
-    : public est::iterator_facade<basic_ibuf_iterator<CharT>, CharT, std::input_iterator_tag, CharT, CharT,
-                                  typename basic_ibuf<CharT>::traits_type::off_type> {
+    : public est::input_iterator_facade<basic_ibuf_iterator<CharT>, CharT, std::input_iterator_tag, CharT, CharT,
+                                        typename basic_ibuf<CharT>::traits_type::off_type> {
  public:
     using char_type = CharT;
     using ibuf_type = basic_ibuf<CharT>;

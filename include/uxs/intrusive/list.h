@@ -98,9 +98,12 @@ struct list_node_traits {
     using has_reset_pointer = std::is_same<decltype(reset_pointer(nullptr, std::declval<owning_pointer_t>())), int>;
     using has_dispose = std::is_same<decltype(dispose(std::declval<owning_pointer_t>())), int>;
 
-    template<typename Traits = list_node_traits,
-             typename = std::enable_if_t<Traits::has_reset_pointer::value || Traits::has_dispose::value>>
     static void dispose_all(list_links_t* head) {
+        dispose_all_dispatch<Ty>(head, std::bool_constant<has_reset_pointer::value || has_dispose::value>());
+    }
+
+    template<typename Ty_>
+    static void dispose_all_dispatch(list_links_t* head, std::true_type /* has reset or dispose */) {
         auto* item = head->next;
         while (item != head) {
             auto* next = item->next;
@@ -111,9 +114,8 @@ struct list_node_traits {
             item = next;
         }
     }
-    template<typename... Dummy>
-    static void dispose_all(list_links_t* head, Dummy&&...) {
-        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
+    template<typename Ty_>
+    static void dispose_all_dispatch(list_links_t* head, std::false_type /* has reset or dispose */) {
         (void)head;
 #if UXS_ITERATOR_DEBUG_LEVEL != 0
         auto* item = head->next;
@@ -144,6 +146,15 @@ class list_enumerator {
  private:
     using node_traits = detail::list_node_traits<Ty, HookTraits>;
 
+    struct iterator_traits : node_traits {
+        using value_type = Ty;
+        using difference_type = std::ptrdiff_t;
+        using reference = value_type&;
+        using const_reference = const value_type&;
+        using pointer = value_type*;
+        using const_pointer = const value_type*;
+    };
+
  public:
     using value_type = Ty;
     using size_type = std::size_t;
@@ -152,8 +163,8 @@ class list_enumerator {
     using const_reference = const value_type&;
     using pointer = value_type*;
     using const_pointer = const value_type*;
-    using iterator = est::list_iterator<list_enumerator, node_traits, false>;
-    using const_iterator = est::list_iterator<list_enumerator, node_traits, true>;
+    using iterator = est::list_iterator<iterator_traits, false>;
+    using const_iterator = est::list_iterator<iterator_traits, true>;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 

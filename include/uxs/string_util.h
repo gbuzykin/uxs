@@ -83,12 +83,12 @@ template<typename Iter, typename = void>
 struct is_contiguous_string_iterator : std::false_type {};
 template<typename Iter>
 struct is_contiguous_string_iterator<
-    Iter, std::enable_if_t<
-              est::is_character<est::iterator_value_t<Iter>>::value &&
-              (std::is_pointer<Iter>::value ||
-               std::is_same<Iter, typename std::basic_string_view<est::iterator_value_t<Iter>>::iterator>::value ||
-               std::is_same<Iter, typename std::basic_string<est::iterator_value_t<Iter>>::iterator>::value ||
-               std::is_same<Iter, typename std::basic_string<est::iterator_value_t<Iter>>::const_iterator>::value)>>
+    Iter,
+    std::enable_if_t<est::is_character<est::iterator_value_t<Iter>>::value &&
+                     (std::is_pointer<Iter>::value ||
+                      est::is_one_of<Iter, typename std::basic_string_view<est::iterator_value_t<Iter>>::iterator,
+                                     typename std::basic_string<est::iterator_value_t<Iter>>::iterator,
+                                     typename std::basic_string<est::iterator_value_t<Iter>>::const_iterator>::value)>>
     : std::true_type {};
 }  // namespace detail
 

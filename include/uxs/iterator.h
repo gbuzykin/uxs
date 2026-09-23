@@ -13,12 +13,6 @@
 #    define uxs_iterator_assert(cond) ((void)0)
 #endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
 
-#if __cplusplus < 201703L
-constexpr std::size_t unspecified_size = ~std::size_t(0);
-#else   // __cplusplus < 201703L
-constexpr std::size_t unspecified_size = std::numeric_limits<std::size_t>::max();
-#endif  // __cplusplus < 201703L
-
 #if __cplusplus < 201402L && !defined(__cpp_lib_make_reverse_iterator)
 namespace std {
 template<typename Iter>
@@ -29,6 +23,12 @@ std::reverse_iterator<Iter> make_reverse_iterator(Iter it) {
 #endif  // make reverse iterator
 
 namespace est {
+
+#if __cplusplus < 201703L
+constexpr std::size_t unspecified_size = ~std::size_t(0);
+#else   // __cplusplus < 201703L
+constexpr std::size_t unspecified_size = std::numeric_limits<std::size_t>::max();
+#endif  // __cplusplus < 201703L
 
 //-----------------------------------------------------------------------------
 // Iterator traits
@@ -113,10 +113,8 @@ struct is_contiguous_range<
     : std::true_type {};
 #endif  // __cplusplus < 201703L
 
-template<typename Iter, typename = void>
-class iterator_range;
 template<typename Iter>
-class iterator_range<Iter, std::enable_if_t<is_input_iterator<Iter>::value>> {
+class iterator_range {
  public:
     using iterator = Iter;
     UXS_CONSTEXPR iterator_range(Iter from, Iter to) : from_(from), to_(to) {}
@@ -160,14 +158,14 @@ UXS_CONSTEXPR auto make_reverse_range(Range&& r) -> iterator_range<std::reverse_
 
 template<typename Iter, typename = std::enable_if_t<is_random_access_iterator<Iter>::value>>
 UXS_CONSTEXPR iterator_range<Iter> make_subrange(const std::pair<Iter, Iter>& p, std::size_t offset,
-                                                 std::size_t count = unspecified_size) {
+                                                 std::size_t count = est::unspecified_size) {
     std::size_t sz = p.second - p.first;
     if (offset > sz) { offset = sz; }
     return {p.first + offset, p.first + (count < sz - offset ? offset + count : sz)};
 }
 
 template<typename Range>
-UXS_CONSTEXPR auto make_subrange(Range&& r, std::size_t offset, std::size_t count = unspecified_size)
+UXS_CONSTEXPR auto make_subrange(Range&& r, std::size_t offset, std::size_t count = est::unspecified_size)
     -> std::enable_if_t<is_random_access_iterator<decltype(std::end(r))>::value, iterator_range<decltype(std::end(r))>> {
     const std::size_t sz = std::end(r) - std::begin(r);
     if (offset > sz) { offset = sz; }
@@ -184,10 +182,10 @@ UXS_CONSTEXPR bool operator!=(const iterator_range<IterL>& lhs, const iterator_r
 }
 
 //-----------------------------------------------------------------------------
-// Iterator facade
+// Input iterator facade
 
 template<typename Iter, typename ValTy, typename Tag, typename RefTy, typename PtrTy, typename DiffTy = std::ptrdiff_t>
-class iterator_facade {
+class input_iterator_facade {
  public:
     using iterator_category = Tag;
     using value_type = ValTy;
@@ -269,8 +267,8 @@ class iterator_facade {
 template<typename IterL, typename ValTy, typename Tag, typename RefTyL, typename PtrTyL, typename DiffTy,
          typename IterR, typename RefTyR, typename PtrTyR>
 UXS_CONSTEXPR auto operator==(
-    const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
-    const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
+    const input_iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
+    const input_iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
         rhs) noexcept(noexcept(std::declval<const IterL&>().is_equal_to(std::declval<const IterR&>())))
     -> decltype(static_cast<const IterL&>(lhs).is_equal_to(static_cast<const IterR&>(rhs))) {
     return static_cast<const IterL&>(lhs).is_equal_to(static_cast<const IterR&>(rhs));
@@ -279,8 +277,8 @@ UXS_CONSTEXPR auto operator==(
 template<typename IterL, typename ValTy, typename Tag, typename RefTyL, typename PtrTyL, typename DiffTy,
          typename IterR, typename RefTyR, typename PtrTyR>
 UXS_CONSTEXPR auto operator!=(
-    const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
-    const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
+    const input_iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
+    const input_iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
         rhs) noexcept(noexcept(!std::declval<const IterL&>().is_equal_to(std::declval<const IterR&>())))
     -> decltype(!static_cast<const IterL&>(lhs).is_equal_to(static_cast<const IterR&>(rhs))) {
     return !static_cast<const IterL&>(lhs).is_equal_to(static_cast<const IterR&>(rhs));
@@ -289,8 +287,8 @@ UXS_CONSTEXPR auto operator!=(
 template<typename IterL, typename ValTy, typename Tag, typename RefTyL, typename PtrTyL, typename DiffTy,
          typename IterR, typename RefTyR, typename PtrTyR>
 UXS_CONSTEXPR auto operator<(
-    const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
-    const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
+    const input_iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
+    const input_iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
         rhs) noexcept(noexcept(std::declval<const IterL&>().is_less_than(std::declval<const IterR&>())))
     -> decltype(static_cast<const IterL&>(lhs).is_less_than(static_cast<const IterR&>(rhs))) {
     return static_cast<const IterL&>(lhs).is_less_than(static_cast<const IterR&>(rhs));
@@ -299,8 +297,8 @@ UXS_CONSTEXPR auto operator<(
 template<typename IterL, typename ValTy, typename Tag, typename RefTyL, typename PtrTyL, typename DiffTy,
          typename IterR, typename RefTyR, typename PtrTyR>
 UXS_CONSTEXPR auto operator<=(
-    const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
-    const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
+    const input_iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
+    const input_iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
         rhs) noexcept(noexcept(!std::declval<const IterR&>().is_less_than(std::declval<const IterL&>())))
     -> decltype(!static_cast<const IterR&>(rhs).is_less_than(static_cast<const IterL&>(lhs))) {
     return !static_cast<const IterR&>(rhs).is_less_than(static_cast<const IterL&>(lhs));
@@ -309,8 +307,8 @@ UXS_CONSTEXPR auto operator<=(
 template<typename IterL, typename ValTy, typename Tag, typename RefTyL, typename PtrTyL, typename DiffTy,
          typename IterR, typename RefTyR, typename PtrTyR>
 UXS_CONSTEXPR auto operator>(
-    const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
-    const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
+    const input_iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
+    const input_iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
         rhs) noexcept(noexcept(std::declval<const IterR&>().is_less_than(std::declval<const IterL&>())))
     -> decltype(static_cast<const IterR&>(rhs).is_less_than(static_cast<const IterL&>(lhs))) {
     return static_cast<const IterR&>(rhs).is_less_than(static_cast<const IterL&>(lhs));
@@ -319,8 +317,8 @@ UXS_CONSTEXPR auto operator>(
 template<typename IterL, typename ValTy, typename Tag, typename RefTyL, typename PtrTyL, typename DiffTy,
          typename IterR, typename RefTyR, typename PtrTyR>
 UXS_CONSTEXPR auto operator>=(
-    const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
-    const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
+    const input_iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
+    const input_iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
         rhs) noexcept(noexcept(!std::declval<const IterL&>().is_less_than(std::declval<const IterR&>())))
     -> decltype(!static_cast<const IterL&>(lhs).is_less_than(static_cast<const IterR&>(rhs))) {
     return !static_cast<const IterL&>(lhs).is_less_than(static_cast<const IterR&>(rhs));
@@ -329,16 +327,16 @@ UXS_CONSTEXPR auto operator>=(
 template<typename IterL, typename ValTy, typename Tag, typename RefTyL, typename PtrTyL, typename DiffTy,
          typename IterR, typename RefTyR, typename PtrTyR>
 UXS_CONSTEXPR auto operator-(
-    const iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
-    const iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
+    const input_iterator_facade<IterL, ValTy, Tag, RefTyL, PtrTyL, DiffTy>& lhs,
+    const input_iterator_facade<IterR, ValTy, Tag, RefTyR, PtrTyR, DiffTy>&
         rhs) noexcept(noexcept(std::declval<const IterR&>().distance_to(std::declval<const IterL&>())))
     -> decltype(static_cast<const IterR&>(rhs).distance_to(static_cast<const IterL&>(lhs))) {
     return static_cast<const IterR&>(rhs).distance_to(static_cast<const IterL&>(lhs));
 }
 
 template<typename Iter, typename ValTy, typename Tag, typename RefTy, typename PtrTy, typename DiffTy>
-UXS_CONSTEXPR auto operator+(typename iterator_facade<Iter, ValTy, Tag, RefTy, PtrTy, DiffTy>::difference_type j,
-                             const iterator_facade<Iter, ValTy, Tag, RefTy, PtrTy, DiffTy>&
+UXS_CONSTEXPR auto operator+(typename input_iterator_facade<Iter, ValTy, Tag, RefTy, PtrTy, DiffTy>::difference_type j,
+                             const input_iterator_facade<Iter, ValTy, Tag, RefTy, PtrTy, DiffTy>&
                                  it) noexcept(noexcept(std::declval<Iter&>().advance(j)))
     -> type_identity_t<Iter, decltype(std::declval<Iter&>().advance(j))> {
     auto result = static_cast<const Iter&>(it);
@@ -348,10 +346,33 @@ UXS_CONSTEXPR auto operator+(typename iterator_facade<Iter, ValTy, Tag, RefTy, P
 
 template<typename Traits, typename Iter, typename Tag, bool Const>
 using container_iterator_facade =
-    iterator_facade<Iter, typename Traits::value_type, Tag,
-                    std::conditional_t<Const, typename Traits::const_reference, typename Traits::reference>,
-                    std::conditional_t<Const, typename Traits::const_pointer, typename Traits::pointer>,
-                    typename Traits::difference_type>;
+    input_iterator_facade<Iter, typename Traits::value_type, Tag,
+                          std::conditional_t<Const, typename Traits::const_reference, typename Traits::reference>,
+                          std::conditional_t<Const, typename Traits::const_pointer, typename Traits::pointer>,
+                          typename Traits::difference_type>;
+
+//-----------------------------------------------------------------------------
+// Output iterator facade
+
+template<typename Func>
+class output_iterator_facade {
+ public:
+    using iterator_category = std::output_iterator_tag;
+    using value_type = void;
+    using difference_type = void;
+    using reference = void;
+    using pointer = void;
+
+    template<typename Ty>
+    UXS_CONSTEXPR output_iterator_facade& operator=(Ty&& v) {
+        static_cast<Func&>(*this)(std::forward<Ty>(v));
+        return *this;
+    }
+
+    UXS_CONSTEXPR output_iterator_facade& operator*() { return *this; }
+    UXS_CONSTEXPR output_iterator_facade& operator++() { return *this; }
+    UXS_CONSTEXPR output_iterator_facade operator++(int) { return *this; }
+};
 
 //-----------------------------------------------------------------------------
 // Array iterator
@@ -364,58 +385,40 @@ using array_iterator_tag = std::random_access_iterator_tag;
 #endif  // concepts
 }  // namespace detail
 
-template<typename Traits, typename UnderlyingPtrTy, bool Const>
-class array_iterator : public container_iterator_facade<Traits, array_iterator<Traits, UnderlyingPtrTy, Const>,
-                                                        detail::array_iterator_tag, Const> {
+template<typename Traits, bool Const>
+class array_iterator
+    : public container_iterator_facade<Traits, array_iterator<Traits, Const>, detail::array_iterator_tag, Const> {
  private:
     using super = container_iterator_facade<Traits, array_iterator, detail::array_iterator_tag, Const>;
 
  public:
     using reference = typename super::reference;
     using difference_type = typename super::difference_type;
-    using underlying_ptr = UnderlyingPtrTy;
-
-    template<typename, typename, bool>
-    friend class array_iterator;
+    using underlying_ptr_t = typename Traits::underlying_ptr_t;
 
     array_iterator() noexcept = default;
 
-    // Explicit non-trivial copy operations are required by standard
 #if UXS_ITERATOR_DEBUG_LEVEL != 0
-    explicit array_iterator(underlying_ptr ptr, underlying_ptr begin, underlying_ptr end) noexcept
+    explicit array_iterator(underlying_ptr_t ptr, underlying_ptr_t begin, underlying_ptr_t end) noexcept
         : ptr_(ptr), begin_(begin), end_(end) {}
-    array_iterator(const array_iterator& it) noexcept : ptr_(it.ptr_), begin_(it.begin_), end_(it.end_) {}
-    array_iterator& operator=(const array_iterator& it) noexcept {
-        ptr_ = it.ptr_, begin_ = it.begin_, end_ = it.end_;
+    template<bool Const_ = Const>
+    array_iterator(const std::enable_if_t<Const_, array_iterator<Traits, false>>& other) noexcept
+        : ptr_(other.ptr_), begin_(other.begin_), end_(other.end_) {}
+    template<bool Const_ = Const>
+    array_iterator& operator=(const std::enable_if_t<Const_, array_iterator<Traits, false>>& other) noexcept {
+        ptr_ = other.ptr_, begin_ = other.begin_, end_ = other.end_;
         return *this;
     }
-    template<bool Const_ = Const>
-    array_iterator(const std::enable_if_t<Const_, array_iterator<Traits, UnderlyingPtrTy, false>>& it) noexcept
-        : ptr_(it.ptr_), begin_(it.begin_), end_(it.end_) {}
-    template<bool Const_ = Const>
-    array_iterator& operator=(
-        const std::enable_if_t<Const_, array_iterator<Traits, UnderlyingPtrTy, false>>& it) noexcept {
-        ptr_ = it.ptr_, begin_ = it.begin_, end_ = it.end_;
-        return *this;
-    }
-    underlying_ptr debug_begin() const noexcept { return begin_; }
-    underlying_ptr debug_end() const noexcept { return end_; }
+    underlying_ptr_t debug_begin() const noexcept { return begin_; }
+    underlying_ptr_t debug_end() const noexcept { return end_; }
 #else   // UXS_ITERATOR_DEBUG_LEVEL != 0
-    explicit array_iterator(underlying_ptr ptr, underlying_ptr begin, underlying_ptr end) noexcept : ptr_(ptr) {
-        (void)begin, (void)end;
-    }
-    array_iterator(const array_iterator& it) noexcept : ptr_(it.ptr_) {}
-    array_iterator& operator=(const array_iterator& it) noexcept {
-        ptr_ = it.ptr_;
-        return *this;
-    }
+    explicit array_iterator(underlying_ptr_t ptr, underlying_ptr_t /*begin*/, underlying_ptr_t /*end*/) noexcept
+        : ptr_(ptr) {}
     template<bool Const_ = Const>
-    array_iterator(const std::enable_if_t<Const_, array_iterator<Traits, UnderlyingPtrTy, false>>& it) noexcept
-        : ptr_(it.ptr_) {}
+    array_iterator(const std::enable_if_t<Const_, array_iterator<Traits, false>>& other) noexcept : ptr_(other.ptr_) {}
     template<bool Const_ = Const>
-    array_iterator& operator=(
-        const std::enable_if_t<Const_, array_iterator<Traits, UnderlyingPtrTy, false>>& it) noexcept {
-        ptr_ = it.ptr_;
+    array_iterator& operator=(const std::enable_if_t<Const_, array_iterator<Traits, false>>& other) noexcept {
+        ptr_ = other.ptr_;
         return *this;
     }
 #endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
@@ -444,96 +447,95 @@ class array_iterator : public container_iterator_facade<Traits, array_iterator<T
         return *ptr_;
     }
 
-    template<bool Const2>
-    bool is_equal_to(const array_iterator<Traits, UnderlyingPtrTy, Const2>& it) const noexcept {
-        assert((!ptr_ && !it.ptr_) || (ptr_ && it.ptr_));
-        uxs_iterator_assert(begin_ == it.begin_ && end_ == it.end_);
-        return ptr_ == it.ptr_;
+    template<bool ConstOther>
+    bool is_equal_to(const array_iterator<Traits, ConstOther>& other) const noexcept {
+        assert((!ptr_ && !other.ptr_) || (ptr_ && other.ptr_));
+        uxs_iterator_assert(begin_ == other.begin_ && end_ == other.end_);
+        return ptr_ == other.ptr_;
     }
 
-    template<bool Const2>
-    bool is_less_than(const array_iterator<Traits, UnderlyingPtrTy, Const2>& it) const noexcept {
-        assert((!ptr_ && !it.ptr_) || (ptr_ && it.ptr_));
-        uxs_iterator_assert(begin_ == it.begin_ && end_ == it.end_);
-        return ptr_ < it.ptr_;
+    template<bool ConstOther>
+    bool is_less_than(const array_iterator<Traits, ConstOther>& other) const noexcept {
+        assert((!ptr_ && !other.ptr_) || (ptr_ && other.ptr_));
+        uxs_iterator_assert(begin_ == other.begin_ && end_ == other.end_);
+        return ptr_ < other.ptr_;
     }
 
-    template<bool Const2>
-    difference_type distance_to(const array_iterator<Traits, UnderlyingPtrTy, Const2>& it) const noexcept {
-        assert((!ptr_ && !it.ptr_) || (ptr_ && it.ptr_));
-        uxs_iterator_assert(begin_ == it.begin_ && end_ == it.end_);
-        return it.ptr_ - ptr_;
+    template<bool ConstOther>
+    difference_type distance_to(const array_iterator<Traits, ConstOther>& other) const noexcept {
+        assert((!ptr_ && !other.ptr_) || (ptr_ && other.ptr_));
+        uxs_iterator_assert(begin_ == other.begin_ && end_ == other.end_);
+        return other.ptr_ - ptr_;
     }
 
-    underlying_ptr ptr() const noexcept { return ptr_; }
+    underlying_ptr_t ptr() const noexcept { return ptr_; }
 
  private:
-    underlying_ptr ptr_{nullptr};
+    template<typename Traits_, bool Const_>
+    friend class array_iterator;
+
+    underlying_ptr_t ptr_{nullptr};
 #if UXS_ITERATOR_DEBUG_LEVEL != 0
-    underlying_ptr begin_{nullptr};
-    underlying_ptr end_{nullptr};
+    underlying_ptr_t begin_{nullptr};
+    underlying_ptr_t end_{nullptr};
 #endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
 };
 
 //-----------------------------------------------------------------------------
 // List iterator
 
-template<typename Traits, typename NodeTraits, bool Const>
-class list_iterator : public container_iterator_facade<Traits, list_iterator<Traits, NodeTraits, Const>,
-                                                       std::bidirectional_iterator_tag, Const> {
+template<typename Traits, bool Const>
+class list_iterator
+    : public container_iterator_facade<Traits, list_iterator<Traits, Const>, std::bidirectional_iterator_tag, Const> {
  private:
     using super = container_iterator_facade<Traits, list_iterator, std::bidirectional_iterator_tag, Const>;
 
  public:
     using reference = typename super::reference;
-    using node_type = typename NodeTraits::iterator_node_t;
-
-    template<typename, typename, bool>
-    friend class list_iterator;
+    using node_type = typename Traits::iterator_node_t;
 
     list_iterator() noexcept = default;
     explicit list_iterator(node_type* node) noexcept : node_(node) {}
 
-    // This iterator consists of one natural pointer,
-    // so explicit copy constructor and operator are not needed
-
     template<bool Const_ = Const>
-    list_iterator(const std::enable_if_t<Const_, list_iterator<Traits, NodeTraits, false>>& it) noexcept
-        : node_(it.node_) {}
+    list_iterator(const std::enable_if_t<Const_, list_iterator<Traits, false>>& other) noexcept : node_(other.node_) {}
     template<bool Const_ = Const>
-    list_iterator& operator=(const std::enable_if_t<Const_, list_iterator<Traits, NodeTraits, false>>& it) noexcept {
-        node_ = it.node_;
+    list_iterator& operator=(const std::enable_if_t<Const_, list_iterator<Traits, false>>& other) noexcept {
+        node_ = other.node_;
         return *this;
     }
 
     void increment() noexcept {
         assert(node_);
-        uxs_iterator_assert(node_ != NodeTraits::get_head(node_));
-        node_ = NodeTraits::get_next(node_);
+        uxs_iterator_assert(node_ != Traits::get_head(node_));
+        node_ = Traits::get_next(node_);
     }
 
     void decrement() noexcept {
         assert(node_);
-        uxs_iterator_assert(node_ != NodeTraits::get_front(NodeTraits::get_head(node_)));
-        node_ = NodeTraits::get_prev(node_);
+        uxs_iterator_assert(node_ != Traits::get_front(Traits::get_head(node_)));
+        node_ = Traits::get_prev(node_);
     }
 
-    template<bool Const2>
-    bool is_equal_to(const list_iterator<Traits, NodeTraits, Const2>& it) const noexcept {
-        assert((!node_ && !it.node_) || (node_ && it.node_));
-        uxs_iterator_assert(!node_ || NodeTraits::get_head(node_) == NodeTraits::get_head(it.node_));
-        return node_ == it.node_;
+    template<bool ConstOther>
+    bool is_equal_to(const list_iterator<Traits, ConstOther>& other) const noexcept {
+        assert((!node_ && !other.node_) || (node_ && other.node_));
+        uxs_iterator_assert(!node_ || Traits::get_head(node_) == Traits::get_head(other.node_));
+        return node_ == other.node_;
     }
 
     reference dereference() const noexcept {
         assert(node_);
-        uxs_iterator_assert(node_ != NodeTraits::get_head(node_));
-        return NodeTraits::get_value(node_);
+        uxs_iterator_assert(node_ != Traits::get_head(node_));
+        return Traits::get_value(node_);
     }
 
     node_type* node() const noexcept { return node_; }
 
  private:
+    template<typename Traits_, bool Const_>
+    friend class list_iterator;
+
     node_type* node_ = nullptr;
 };
 
@@ -541,14 +543,14 @@ class list_iterator : public container_iterator_facade<Traits, list_iterator<Tra
 
 #if __cplusplus >= 202002L && defined(__cpp_concepts) && defined(__cpp_lib_addressof_constexpr)
 namespace std {
-template<typename Traits, typename UnderlyingPtrTy, bool Const>
-struct pointer_traits<est::array_iterator<Traits, UnderlyingPtrTy, Const>> {
-    using pointer = est::array_iterator<Traits, UnderlyingPtrTy, Const>;
+template<typename Traits, bool Const>
+struct pointer_traits<est::array_iterator<Traits, Const>> {
+    using pointer = est::array_iterator<Traits, Const>;
     using element_type = std::conditional_t<Const, const typename pointer::value_type, typename pointer::value_type>;
     using difference_type = typename pointer::difference_type;
-    [[nodiscard]] static constexpr element_type* to_address(const pointer iter) noexcept {
-        uxs_iterator_assert(iter.debug_begin() <= iter.ptr() && iter.ptr() <= iter.debug_end());
-        return std::to_address(iter.ptr());
+    [[nodiscard]] static constexpr element_type* to_address(const pointer it) noexcept {
+        uxs_iterator_assert(it.debug_begin() <= it.ptr() && it.ptr() <= it.debug_end());
+        return std::to_address(it.ptr());
     }
 };
 }  // namespace std

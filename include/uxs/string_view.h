@@ -20,19 +20,29 @@ class basic_string_view {
     static_assert(!std::is_array<CharT>::value && std::is_trivial<CharT>::value && std::is_standard_layout<CharT>::value,
                   "the character type of basic_string_view must be a non-array trivial standard-layout type");
 
+    struct iterator_traits {
+        using value_type = CharT;
+        using difference_type = std::ptrdiff_t;
+        using pointer = CharT*;
+        using const_pointer = const CharT*;
+        using reference = CharT&;
+        using const_reference = const CharT&;
+        using underlying_ptr_t = const_pointer;
+    };
+
  public:
-    using traits_type = Traits;
     using value_type = CharT;
+    using traits_type = Traits;
+    using size_type = std::size_t;
+    using difference_type = std::ptrdiff_t;
     using pointer = CharT*;
     using const_pointer = const CharT*;
     using reference = CharT&;
     using const_reference = const CharT&;
-    using const_iterator = est::array_iterator<basic_string_view, const_pointer, true>;
+    using const_iterator = est::array_iterator<iterator_traits, true>;
     using iterator = const_iterator;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
     using reverse_iterator = const_reverse_iterator;
-    using size_type = std::size_t;
-    using difference_type = std::ptrdiff_t;
 
     static constexpr size_type npos = std::string::npos;
 
@@ -252,8 +262,10 @@ using wstring_view = basic_string_view<wchar_t>;
 
 template<typename CharT, typename Traits>
 struct hash<basic_string_view<CharT, Traits>> {
-    std::size_t operator()(basic_string_view<CharT, Traits> s) const {
-        return std::hash<std::basic_string<CharT, Traits>>()(static_cast<std::basic_string<CharT, Traits>>(s));
+    std::size_t operator()(basic_string_view<CharT, Traits> s) const noexcept {
+        try {
+            return std::hash<std::basic_string<CharT, Traits>>()(std::basic_string<CharT, Traits>(s));
+        } catch (...) { return 0; }
     }
 };
 }  // namespace std

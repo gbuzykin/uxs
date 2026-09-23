@@ -2,11 +2,6 @@
 
 namespace uxs {
 
-struct dllist_node_t {
-    dllist_node_t* next;
-    dllist_node_t* prev;
-};
-
 template<typename Ty>
 bool dllist_is_empty(const Ty* node) noexcept {
     return node->next == node;
