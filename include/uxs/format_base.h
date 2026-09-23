@@ -405,8 +405,8 @@ using arg_size = est::size_of<typename arg_store_type<FmtCtx, Ty>::type>;
 template<typename FmtCtx, typename Ty>
 using arg_alignment = std::alignment_of<typename arg_store_type<FmtCtx, Ty>::type>;
 
-template<typename FmtCtx, std::size_t, typename...>
-struct arg_store_size_evaluator;
+template<typename FmtCtx, std::size_t Size, typename... Ts>
+struct arg_store_size_evaluator {};
 template<typename FmtCtx, std::size_t Size>
 struct arg_store_size_evaluator<FmtCtx, Size> : std::integral_constant<std::size_t, Size> {};
 template<typename FmtCtx, std::size_t Size, typename Ty, typename... Rest>
@@ -418,15 +418,8 @@ struct arg_store_size_evaluator<FmtCtx, Size, Ty, Rest...>
                                        arg_size<FmtCtx, Ty>::value,
                                    Rest...>::value> {};
 
-template<typename FmtCtx, typename...>
-struct arg_store_alignment_evaluator;
-template<typename FmtCtx, typename Ty>
-struct arg_store_alignment_evaluator<FmtCtx, Ty> : arg_alignment<FmtCtx, Ty> {};
-template<typename FmtCtx, typename Ty1, typename Ty2, typename... Rest>
-struct arg_store_alignment_evaluator<FmtCtx, Ty1, Ty2, Rest...>
-    : std::conditional<(arg_alignment<FmtCtx, Ty1>::value > arg_alignment<FmtCtx, Ty2>::value),
-                       arg_store_alignment_evaluator<FmtCtx, Ty1, Rest...>,
-                       arg_store_alignment_evaluator<FmtCtx, Ty2, Rest...>>::type {};
+template<typename FmtCtx, typename... Ts>
+using arg_store_alignment_evaluator = est::maximum<arg_alignment<FmtCtx, Ts>...>;
 
 template<typename FmtCtx, typename... Args>
 class arg_store {
@@ -476,7 +469,7 @@ class arg_store {
     template<typename Ty, typename... Ts>
     UXS_CONSTEXPR void store_values(std::size_t i, std::size_t offset, const Ty& val, const Ts&... other) noexcept {
         static_assert(is_formattable<Ty, char_type>::value, "value of this type cannot be formatted");
-        offset = est::align_up<arg_alignment<FmtCtx, Ty>::value>::value(offset);
+        offset = est::align_up<arg_alignment<FmtCtx, Ty>::value>{}(offset);
         ::new (reinterpret_cast<unsigned*>(&data_) + i) unsigned(
             static_cast<unsigned>(offset << 8) | static_cast<unsigned>(arg_type_index<Ty, char_type>::value));
         store_value(val, &data_[offset]);

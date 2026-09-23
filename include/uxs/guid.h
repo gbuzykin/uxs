@@ -174,8 +174,8 @@ struct formatter<guid, CharT> {
 namespace std {
 template<>
 struct hash<uxs::guid> {
-    std::size_t operator()(uxs::guid val) const {
-        return hash<std::uint64_t>{}(val.data64[0]) ^ (hash<std::uint64_t>{}(val.data64[1]) << 1);
+    std::size_t operator()(uxs::guid val) const noexcept {
+        return std::hash<std::uint64_t>{}(val.data64[0]) ^ (std::hash<std::uint64_t>{}(val.data64[1]) << 1);
     }
 };
 }  // namespace std

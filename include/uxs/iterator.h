@@ -113,10 +113,8 @@ struct is_contiguous_range<
     : std::true_type {};
 #endif  // __cplusplus < 201703L
 
-template<typename Iter, typename = void>
-class iterator_range;
 template<typename Iter>
-class iterator_range<Iter, std::enable_if_t<is_input_iterator<Iter>::value>> {
+class iterator_range {
  public:
     using iterator = Iter;
     UXS_CONSTEXPR iterator_range(Iter from, Iter to) : from_(from), to_(to) {}
