@@ -133,7 +133,7 @@ concept variant_compatible = is_variant_compatible_v<Ty>;
 template<typename Ty, variant_id_t TypeId, typename = void>
 struct variant_type_base_impl {
     using is_variant_type_impl = int;
-    static constexpr variant_id_t type_id = TypeId;
+    static const variant_id_t type_id = TypeId;
 
     static const cow_ptr<Ty>& deref(const void* p) { return *static_cast<const cow_ptr<Ty>*>(p); }
     static cow_ptr<Ty>& deref(void* p) { return *static_cast<cow_ptr<Ty>*>(p); }
@@ -173,7 +173,7 @@ struct variant_type_base_impl<
                      (std::alignment_of<Ty>::value <= detail::variant_traits::storage_alignment) &&
                      std::is_nothrow_move_constructible<Ty>::value && std::is_nothrow_move_assignable<Ty>::value>> {
     using is_variant_type_impl = int;
-    static constexpr variant_id_t type_id = TypeId;
+    static const variant_id_t type_id = TypeId;
 
     static const Ty& deref(const void* p) { return *static_cast<const Ty*>(p); }
     static Ty& deref(void* p) { return *static_cast<Ty*>(p); }

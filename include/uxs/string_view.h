@@ -44,7 +44,7 @@ class basic_string_view {
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
     using reverse_iterator = const_reverse_iterator;
 
-    static constexpr size_type npos = std::string::npos;
+    enum : std::size_t { npos = std::string::npos };
 
     basic_string_view() noexcept = default;
     basic_string_view(const CharT* s, size_type count) : begin_(s), size_(count) {}
