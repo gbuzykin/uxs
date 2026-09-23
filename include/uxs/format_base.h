@@ -10,7 +10,7 @@ namespace uxs {
 namespace fmt {
 template<typename Ty, typename CharT, typename = void>
 struct reduce_type {
-    using type = std::remove_cv_t<Ty>;
+    using type = Ty;
 };
 template<typename Ty, typename CharT>
 struct reduce_type<Ty, CharT,
@@ -24,8 +24,8 @@ struct reduce_type<Ty, CharT,
                                     !est::is_boolean<Ty>::value && !est::is_character<Ty>::value>> {
     using type = std::conditional_t<(sizeof(Ty) <= sizeof(std::int32_t)), std::int32_t, std::int64_t>;
 };
-template<typename Ty>
-struct reduce_type<Ty, wchar_t, std::enable_if_t<std::is_same<std::remove_cv_t<Ty>, char>::value>> {
+template<>
+struct reduce_type<char, wchar_t> {
     using type = wchar_t;
 };
 template<typename CharT, typename Traits>
@@ -39,7 +39,8 @@ struct reduce_type<std::basic_string<CharT, Traits, Alloc>, CharT> {
 template<typename Ty, typename CharT>
 struct reduce_type<Ty*, CharT,
                    std::enable_if_t<!est::is_character<Ty>::value || std::is_same<std::remove_cv_t<Ty>, CharT>::value>> {
-    using type = std::conditional_t<std::is_same<std::remove_cv_t<Ty>, CharT>::value, const CharT*, const void*>;
+    using type =
+        std::conditional_t<std::is_same<std::remove_cv_t<Ty>, CharT>::value, std::basic_string_view<CharT>, const void*>;
 };
 template<typename Ty, typename CharT>
 struct reduce_type<Ty, CharT, std::enable_if_t<std::is_array<Ty>::value>> {
@@ -50,7 +51,7 @@ struct reduce_type<std::nullptr_t, CharT> {
     using type = const void*;
 };
 template<typename Ty, typename CharT>
-using reduce_type_t = typename reduce_type<Ty, CharT>::type;
+using reduce_type_t = typename reduce_type<std::remove_cv_t<Ty>, CharT>::type;
 }  // namespace fmt
 
 // --------------------------
@@ -279,48 +280,44 @@ struct formatter<const void*, CharT> {
     }
 };
 
-#define UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(ty) \
-    template<typename CharT> \
-    struct formatter<ty, CharT> { \
-     private: \
-        fmt_opts opts_; \
-        std::size_t width_arg_id_ = est::unspecified_size; \
-        std::size_t prec_arg_id_ = est::unspecified_size; \
-\
-     public: \
-        UXS_CONSTEXPR void set_debug_format() { opts_.flags |= fmt_flags::debug_format; } \
-        template<typename ParseCtx> \
-        UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) { \
-            auto it = ctx.begin(); \
-            if (it == ctx.end() || *it != ':') { return it; } \
-            it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, prec_arg_id_); \
-            auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, opts_) : ParseCtx::type_spec::none; \
-            if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::report_unexpected_sign_error(); } \
-            if (!!(opts_.flags & fmt_flags::leading_zeroes)) { ParseCtx::report_unexpected_leading_zeroes_error(); } \
-            if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::report_unexpected_alternate_error(); } \
-            if (!!(opts_.flags & fmt_flags::localize)) { ParseCtx::report_unexpected_locale_specific_error(); } \
-            if (type == ParseCtx::type_spec::debug_string) { \
-                set_debug_format(); \
-            } else if (type != ParseCtx::type_spec::none && type != ParseCtx::type_spec::string) { \
-                ParseCtx::report_type_error(); \
-            } \
-            return type == ParseCtx::type_spec::none ? it : it + 1; \
-        } \
-        template<typename FmtCtx> \
-        void format(FmtCtx& ctx, ty val) const { \
-            fmt_opts opts = opts_; \
-            if (width_arg_id_ != est::unspecified_size) { \
-                opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>(); \
-            } \
-            if (prec_arg_id_ != est::unspecified_size) { \
-                opts.prec = ctx.arg(prec_arg_id_).template get_unsigned<decltype(opts.prec)>(); \
-            } \
-            sconv::fmt_string<CharT>(ctx.out(), val, opts, ctx.locale()); \
-        } \
+template<typename CharT>
+struct formatter<std::basic_string_view<CharT>, CharT> {
+ private:
+    fmt_opts opts_;
+    std::size_t width_arg_id_ = est::unspecified_size;
+    std::size_t prec_arg_id_ = est::unspecified_size;
+
+ public:
+    UXS_CONSTEXPR void set_debug_format() { opts_.flags |= fmt_flags::debug_format; }
+    template<typename ParseCtx>
+    UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) {
+        auto it = ctx.begin();
+        if (it == ctx.end() || *it != ':') { return it; }
+        it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, prec_arg_id_);
+        auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, opts_) : ParseCtx::type_spec::none;
+        if (!!(opts_.flags & fmt_flags::sign_field)) { ParseCtx::report_unexpected_sign_error(); }
+        if (!!(opts_.flags & fmt_flags::leading_zeroes)) { ParseCtx::report_unexpected_leading_zeroes_error(); }
+        if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::report_unexpected_alternate_error(); }
+        if (!!(opts_.flags & fmt_flags::localize)) { ParseCtx::report_unexpected_locale_specific_error(); }
+        if (type == ParseCtx::type_spec::debug_string) {
+            set_debug_format();
+        } else if (type != ParseCtx::type_spec::none && type != ParseCtx::type_spec::string) {
+            ParseCtx::report_type_error();
+        }
+        return type == ParseCtx::type_spec::none ? it : it + 1;
     }
-UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(const CharT*);
-UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::basic_string_view<CharT>);
-#undef UXS_FMT_IMPLEMENT_STANDARD_FORMATTER
+    template<typename FmtCtx>
+    void format(FmtCtx& ctx, std::basic_string_view<CharT> val) const {
+        fmt_opts opts = opts_;
+        if (width_arg_id_ != est::unspecified_size) {
+            opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>();
+        }
+        if (prec_arg_id_ != est::unspecified_size) {
+            opts.prec = ctx.arg(prec_arg_id_).template get_unsigned<decltype(opts.prec)>();
+        }
+        sconv::fmt_string<CharT>(ctx.out(), val, opts, ctx.locale());
+    }
+};
 
 // --------------------------
 
@@ -337,7 +334,6 @@ enum class index_t : std::uint8_t {
     double_precision,
     long_double_precision,
     pointer,
-    z_string,
     string,
     custom,
 };
@@ -357,7 +353,6 @@ UXS_FMT_DECLARE_ARG_TYPE_INDEX(float, index_t::single_precision);
 UXS_FMT_DECLARE_ARG_TYPE_INDEX(double, index_t::double_precision);
 UXS_FMT_DECLARE_ARG_TYPE_INDEX(long double, index_t::long_double_precision);
 UXS_FMT_DECLARE_ARG_TYPE_INDEX(const void*, index_t::pointer);
-UXS_FMT_DECLARE_ARG_TYPE_INDEX(const CharT*, index_t::z_string);
 UXS_FMT_DECLARE_ARG_TYPE_INDEX(std::basic_string_view<CharT>, index_t::string);
 #undef UXS_FMT_DECLARE_ARG_TYPE_INDEX
 
@@ -370,8 +365,7 @@ class custom_arg_handle {
     using format_func_type = typename parse_context::iterator (*)(FmtCtx&, parse_context&, const void*);
 
     template<typename Ty>
-    explicit UXS_CONSTEXPR custom_arg_handle(const Ty& val) noexcept
-        : val_(&val), print_fn_(func<fmt::reduce_type_t<Ty, typename FmtCtx::char_type>>) {}
+    explicit UXS_CONSTEXPR custom_arg_handle(const Ty& val) noexcept : val_(&val), print_fn_(func<Ty>) {}
 
     typename parse_context::iterator format(FmtCtx& ctx, parse_context& parse_ctx) const {
         return print_fn_(ctx, parse_ctx, val_);
@@ -425,7 +419,7 @@ template<typename FmtCtx, typename... Args>
 class arg_store {
  public:
     using char_type = typename FmtCtx::char_type;
-    static constexpr std::size_t arg_count = sizeof...(Args);
+    enum : std::size_t { arg_count = sizeof...(Args) };
 
     static_assert(std::is_trivially_copyable<std::basic_string_view<char_type>>::value &&
                       std::is_trivially_destructible<std::basic_string_view<char_type>>::value,
@@ -444,9 +438,11 @@ class arg_store {
     UXS_CONSTEXPR const void* data() const noexcept { return data_; }
 
  private:
-    static constexpr std::size_t storage_size =
-        arg_store_size_evaluator<FmtCtx, arg_count * sizeof(unsigned), Args...>::value;
-    static constexpr std::size_t storage_alignment = arg_store_alignment_evaluator<FmtCtx, unsigned, Args...>::value;
+    enum : std::size_t {
+        storage_size = arg_store_size_evaluator<FmtCtx, arg_count * sizeof(unsigned), Args...>::value,
+        storage_alignment = arg_store_alignment_evaluator<FmtCtx, unsigned, Args...>::value,
+    };
+
     alignas(storage_alignment) std::uint8_t data_[storage_size];
 
     template<typename Ty, typename = std::enable_if_t<is_formattable<Ty, char_type>::value>>
@@ -481,7 +477,7 @@ template<typename FmtCtx>
 class arg_store<FmtCtx> {
  public:
     using char_type = typename FmtCtx::char_type;
-    static constexpr std::size_t arg_count = 0;
+    enum : std::size_t { arg_count = 0 };
 #if __cplusplus >= 201703L
     arg_store(const arg_store&) = delete;
 #else   // __cplusplus >= 201703L
@@ -495,12 +491,40 @@ class arg_store<FmtCtx> {
 // --------------------------
 
 struct parse_context_utils {
+    [[noreturn]] static void report_syntax_error() { throw format_error("invalid specifier syntax"); }
+    [[noreturn]] static void report_unexpected_prec_error() { throw format_error("unexpected precision specifier"); }
+    [[noreturn]] static void report_unexpected_sign_error() { throw format_error("unexpected sign specifier"); }
+    [[noreturn]] static void report_unexpected_alternate_error() {
+        throw format_error("unexpected alternate specifier");
+    }
+    [[noreturn]] static void report_unexpected_leading_zeroes_error() {
+        throw format_error("unexpected leading zeroes specifier");
+    }
+    [[noreturn]] static void report_unexpected_locale_specific_error() {
+        throw format_error("unexpected locale-specific specifier");
+    }
+    [[noreturn]] static void report_type_error() { throw format_error("unacceptable type specifier"); }
+    [[noreturn]] static void report_out_of_argument_list_error() { throw format_error("out of argument list"); }
+    [[noreturn]] static void report_integer_out_of_range_error() { throw format_error("integer out of range"); }
+    [[noreturn]] static void report_invalid_argument_type_error() {
+        throw format_error("argument is not of valid type");
+    }
+    [[noreturn]] static void report_negative_argument_specified_error() {
+        throw format_error("negative argument specified");
+    }
+    [[noreturn]] static void report_automatic_argument_indexing_error() {
+        throw format_error("automatic argument indexing error");
+    }
+    [[noreturn]] static void report_manual_argument_indexing_error() {
+        throw format_error("manual argument indexing error");
+    }
+
     template<typename InputIt, typename Ty>
     static UXS_CONSTEXPR InputIt parse_number(InputIt first, InputIt last, Ty& num) {
         for (unsigned dig = 0; first != last && (dig = dig_v{}(*first)) < 10; ++first) {
             Ty num0 = num;
             num = 10 * num + dig;
-            if (num < num0) { throw format_error("integer overflow"); }
+            if (num < num0) { report_integer_out_of_range_error(); }
         }
         return first;
     }
@@ -676,24 +700,10 @@ struct parse_context_utils {
 #if defined(UXS_HAS_CONSTEVAL)
     template<typename ParseCtx, typename Ty>
     static constexpr typename ParseCtx::iterator parse_arg(ParseCtx& ctx) {
-        formatter<Ty, typename ParseCtx::char_type> f;
+        formatter_t<Ty, typename ParseCtx::char_type> f;
         return f.parse(ctx);
     }
 #endif  // defined(UXS_HAS_CONSTEVAL)
-
-    [[noreturn]] static void report_syntax_error() { throw format_error("invalid specifier syntax"); }
-    [[noreturn]] static void report_unexpected_prec_error() { throw format_error("unexpected precision specifier"); }
-    [[noreturn]] static void report_unexpected_sign_error() { throw format_error("unexpected sign specifier"); }
-    [[noreturn]] static void report_unexpected_alternate_error() {
-        throw format_error("unexpected alternate specifier");
-    }
-    [[noreturn]] static void report_unexpected_leading_zeroes_error() {
-        throw format_error("unexpected leading zeroes specifier");
-    }
-    [[noreturn]] static void report_unexpected_locale_specific_error() {
-        throw format_error("unexpected locale-specific specifier");
-    }
-    [[noreturn]] static void report_type_error() { throw format_error("unacceptable type specifier"); }
 };
 
 template<typename ParseCtx, typename OnTextFn, typename OnArgFn>
@@ -745,7 +755,9 @@ class basic_format_arg {
 
     template<typename Ty>
     const Ty& as() const {
-        if (index_ != format_arg_type_index<FmtCtx, Ty>::value) { throw format_error("invalid value type"); }
+        if (index_ != format_arg_type_index<FmtCtx, Ty>::value) {
+            FmtCtx::parse_context::report_invalid_argument_type_error();
+        }
         return *static_cast<const Ty*>(data_);
     }
 
@@ -771,7 +783,6 @@ class basic_format_arg {
             UXS_FMT_FORMAT_ARG_VALUE(double);
             UXS_FMT_FORMAT_ARG_VALUE(long double);
             UXS_FMT_FORMAT_ARG_VALUE(const void*);
-            UXS_FMT_FORMAT_ARG_VALUE(const char_type*);
             UXS_FMT_FORMAT_ARG_VALUE(std::basic_string_view<char_type>);
             UXS_FMT_FORMAT_ARG_VALUE(typename basic_format_arg<FmtCtx>::handle);
 #undef UXS_FMT_FORMAT_ARG_VALUE
@@ -788,8 +799,10 @@ class basic_format_arg {
 #define UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE(ty) \
     case format_arg_type_index<FmtCtx, ty>::value: { \
         ty val = *static_cast<const ty*>(data_); \
-        if (val < 0) { throw format_error("negative argument specified"); } \
-        if (static_cast<std::make_unsigned<ty>::type>(val) > limit) { throw format_error("too large integer"); } \
+        if (val < 0) { FmtCtx::parse_context::report_negative_argument_specified_error(); } \
+        if (static_cast<std::make_unsigned<ty>::type>(val) > limit) { \
+            FmtCtx::parse_context::report_integer_out_of_range_error(); \
+        } \
         return static_cast<unsigned>(val); \
     } break
             UXS_FMT_ARG_SIGNED_INTEGER_VALUE_CASE(std::int32_t);
@@ -798,13 +811,13 @@ class basic_format_arg {
 #define UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(ty) \
     case format_arg_type_index<FmtCtx, ty>::value: { \
         ty val = *static_cast<const ty*>(data_); \
-        if (val > limit) { throw format_error("too large integer"); } \
+        if (val > limit) { FmtCtx::parse_context::report_integer_out_of_range_error(); } \
         return static_cast<unsigned>(val); \
     } break
             UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(std::uint32_t);
             UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE(std::uint64_t);
 #undef UXS_FMT_ARG_UNSIGNED_INTEGER_VALUE_CASE
-            default: throw format_error("argument is not an integer");
+            default: FmtCtx::parse_context::report_invalid_argument_type_error();
         }
     }
 };
@@ -817,7 +830,7 @@ class basic_format_args {
         : data_(store.data()), size_(fmt::arg_store<FmtCtx, Args...>::arg_count) {}
 
     basic_format_arg<FmtCtx> get(std::size_t id) const {
-        if (id >= size_) { throw format_error("out of argument list"); }
+        if (id >= size_) { FmtCtx::parse_context::report_out_of_argument_list_error(); }
         const unsigned meta = static_cast<const unsigned*>(data_)[id];
         return basic_format_arg<FmtCtx>(static_cast<fmt::index_t>(meta & 0xff),
                                         static_cast<const std::uint8_t*>(data_) + (meta >> 8));
@@ -848,14 +861,12 @@ class basic_format_parse_context : public fmt::parse_context_utils {
     UXS_CONSTEXPR void advance_to(iterator it) noexcept { first_ = it; }
 
     UXS_NODISCARD UXS_CONSTEXPR std::size_t next_arg_id() {
-        if (next_arg_id_ == est::unspecified_size) { throw format_error("automatic argument indexing error"); }
+        if (next_arg_id_ == est::unspecified_size) { report_automatic_argument_indexing_error(); }
         return next_arg_id_++;
     }
 
     UXS_CONSTEXPR void check_arg_id(std::size_t /*id*/) {
-        if (next_arg_id_ != est::unspecified_size && next_arg_id_ > 0) {
-            throw format_error("manual argument indexing error");
-        }
+        if (next_arg_id_ != est::unspecified_size && next_arg_id_ > 0) { report_manual_argument_indexing_error(); }
         next_arg_id_ = est::unspecified_size;
     }
 
@@ -882,19 +893,19 @@ class compile_parse_context : public basic_format_parse_context<CharT> {
 
     [[nodiscard]] constexpr std::size_t next_arg_id() {
         std::size_t id = basic_format_parse_context<CharT>::next_arg_id();
-        if (id >= arg_types_.size()) { throw format_error("out of argument list"); }
+        if (id >= arg_types_.size()) { fmt::parse_context_utils::report_out_of_argument_list_error(); }
         return id;
     }
 
     constexpr void check_arg_id(std::size_t id) {
         basic_format_parse_context<CharT>::check_arg_id(id);
-        if (id >= arg_types_.size()) { throw format_error("out of argument list"); }
+        if (id >= arg_types_.size()) { fmt::parse_context_utils::report_out_of_argument_list_error(); }
     }
 
     template<typename... Ts>
     constexpr void check_dynamic_spec(std::size_t id) {
         if (((arg_types_[id] != fmt::type_index<Ts, char_type>::value) && ...)) {
-            throw format_error("argument is not of valid type");
+            fmt::parse_context_utils::report_invalid_argument_type_error();
         }
     }
 
@@ -919,8 +930,6 @@ class basic_format_context {
     using parse_context = basic_format_parse_context<char_type>;
     using format_args_type = basic_format_args<basic_format_context>;
     using format_arg_type = basic_format_arg<basic_format_context>;
-    template<typename Ty>
-    using formatter_type = formatter<Ty, char_type>;
 
     basic_format_context(output_type& out, locale_ref loc, format_args_type args) noexcept
         : out_(out), loc_(loc), args_(args) {}
@@ -939,7 +948,7 @@ class basic_format_context {
 
     template<typename Ty>
     typename parse_context::iterator format_arg(parse_context& parse_ctx, Ty val) {
-        formatter_type<Ty> f;
+        formatter_t<Ty, char_type> f;
         const auto it = f.parse(parse_ctx);
         f.format(*this, val);
         return it;
@@ -996,7 +1005,7 @@ class basic_format_string {
         using parse_context = compile_parse_context<char_type>;
         constexpr std::array<fmt::index_t, sizeof...(Args)> arg_types{fmt::arg_type_index<Args, char_type>::value...};
         constexpr std::array<typename parse_context::iterator (*)(parse_context&), sizeof...(Args)> parsers{
-            fmt::parse_context_utils::parse_arg<parse_context, fmt::reduce_type_t<Args, char_type>>...};
+            parse_context::template parse_arg<parse_context, Args>...};
         parse_context ctx(fmt_.begin(), fmt_.end(), arg_types);
         fmt::parse_format(ctx, [](auto&&...) {}, [&parsers](auto& ctx, std::size_t id) { return parsers[id](ctx); });
 #endif  // defined(UXS_HAS_CONSTEVAL)
