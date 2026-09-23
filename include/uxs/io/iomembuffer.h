@@ -6,24 +6,24 @@
 
 namespace uxs {
 
-template<typename Ty>
-class basic_iomembuffer : public basic_membuffer<Ty> {
+template<typename CharT>
+class basic_iomembuffer : public basic_membuffer<CharT> {
  public:
-    using size_type = typename basic_membuffer<Ty>::size_type;
+    using size_type = typename basic_membuffer<CharT>::size_type;
 
-    explicit basic_iomembuffer(basic_iobuf<Ty>& out) noexcept
-        : basic_membuffer<Ty>(out.first(), out.pos(), out.capacity(), try_grow_impl), out_(out) {}
+    explicit basic_iomembuffer(basic_iobuf<CharT>& out) noexcept
+        : basic_membuffer<CharT>(out.first(), out.pos(), out.capacity(), try_grow_impl), out_(out) {}
     ~basic_iomembuffer() { flush(); }
     void flush() noexcept { out_.setpos(this->size()); }
 
  private:
-    basic_iobuf<Ty>& out_;
+    basic_iobuf<CharT>& out_;
 
-    void reset(Ty* data, size_type size, size_type capacity) noexcept {
-        basic_membuffer<Ty>::reset(data, size, capacity);
+    void reset(CharT* data, size_type size, size_type capacity) noexcept {
+        basic_membuffer<CharT>::reset(data, size, capacity);
     }
 
-    static size_type try_grow_impl(basic_membuffer<Ty>& buf, size_type /*extra*/, bool /*track_size*/) {
+    static size_type try_grow_impl(basic_membuffer<CharT>& buf, size_type /*extra*/, bool /*track_size*/) {
         auto& iomembuf = static_cast<basic_iomembuffer&>(buf);
         iomembuf.flush();
         if (!iomembuf.out_.reserve().good()) { return 0; }

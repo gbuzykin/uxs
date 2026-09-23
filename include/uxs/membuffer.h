@@ -9,22 +9,21 @@
 
 namespace uxs {
 
-template<typename Ty>
+template<typename CharT>
 class basic_membuffer {
  private:
-    static_assert(std::is_same<std::remove_cv_t<Ty>, Ty>::value,
+    static_assert(std::is_same<std::remove_cv_t<CharT>, CharT>::value,
                   "uxs::basic_membuffer<> must have a non-const, non-volatile value type");
-    static_assert(std::is_trivially_copyable<Ty>::value && std::is_trivially_destructible<Ty>::value,
-                  "uxs::basic_membuffer<> must have trivially copyable and destructible value type");
+    static_assert(std::is_integral<CharT>::value, "uxs::basic_membuffer<> defined for integral types");
 
  public:
-    using value_type = Ty;
+    using value_type = CharT;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
     using pointer = value_type*;
     using const_pointer = const value_type*;
     using reference = value_type&;
-    using const_reference = const value_type&;
+    using const_reference = value_type;
     using const_iterator = est::array_iterator<basic_membuffer, const_pointer, true>;
     using iterator = const_iterator;
 
@@ -96,14 +95,15 @@ class basic_membuffer {
     }
 
     template<typename InputIt, typename = std::enable_if_t<est::is_random_access_iterator<InputIt>::value &&
-                                                           std::is_same<est::iterator_value_t<InputIt>, Ty>::value>>
+                                                           std::is_same<est::iterator_value_t<InputIt>, CharT>::value>>
     basic_membuffer& append(InputIt first, InputIt last) {
         assert(first <= last);
         size_type count = static_cast<size_type>(last - first);
         size_type n_avail = avail();
         while (count > n_avail) {
             std::copy_n(first, n_avail, endp());
-            first += n_avail, count -= n_avail, size_ += n_avail;
+            first += n_avail;
+            count -= n_avail, size_ += n_avail;
             if (!(n_avail = try_grow_impl_(*this, count, true))) { return *this; }
         }
         std::copy(first, last, endp());
@@ -111,7 +111,7 @@ class basic_membuffer {
         return *this;
     }
 
-    basic_membuffer& append(size_type count, const value_type& val) {
+    basic_membuffer& append(size_type count, value_type val) {
         size_type n_avail = avail();
         while (count > n_avail) {
             std::fill_n(endp(), n_avail, val);
@@ -123,33 +123,31 @@ class basic_membuffer {
         return *this;
     }
 
-    template<typename... Args>
-    void emplace_back(Args&&... args) {
-        if (size_ != capacity_ || try_grow_impl_(*this, 1, true)) {
-            ::new (&data_[size_++]) value_type(std::forward<Args>(args)...);
-        }
+    void push_back(value_type val) {
+        if (size_ == capacity_ && !try_grow_impl_(*this, 1, true)) { return; }
+        data_[size_++] = val;
     }
-    void push_back(const value_type& val) { emplace_back(val); }
 
     void pop_back() noexcept {
         assert(size_ != 0);
         --size_;
     }
 
-    template<typename CharT = value_type>
-    std::enable_if_t<est::is_character<CharT>::value, basic_membuffer&> append(const_pointer s, size_type count) {
+    template<typename CharT_ = value_type>
+    std::enable_if_t<est::is_character<CharT_>::value, basic_membuffer&> append(const_pointer s, size_type count) {
         return append(s, s + count);
     }
-    template<typename CharT = value_type>
-    std::enable_if_t<est::is_character<CharT>::value, basic_membuffer&> operator+=(std::basic_string_view<value_type> s) {
+    template<typename CharT_ = value_type>
+    std::enable_if_t<est::is_character<CharT_>::value, basic_membuffer&> operator+=(
+        std::basic_string_view<value_type> s) {
         return append(s.data(), s.size());
     }
-    template<typename CharT = value_type>
-    std::enable_if_t<est::is_character<CharT>::value, basic_membuffer&> operator+=(const_pointer s) {
-        return *this += std::basic_string_view<value_type>(s);
+    template<typename CharT_ = value_type>
+    std::enable_if_t<est::is_character<CharT_>::value, basic_membuffer&> operator+=(const_pointer s) {
+        return *this += to_string_view(s);
     }
-    template<typename CharT = value_type>
-    std::enable_if_t<est::is_character<CharT>::value, basic_membuffer&> operator+=(value_type ch) {
+    template<typename CharT_ = value_type>
+    std::enable_if_t<est::is_character<CharT_>::value, basic_membuffer&> operator+=(value_type ch) {
         push_back(ch);
         return *this;
     }
@@ -160,12 +158,12 @@ class basic_membuffer {
     basic_membuffer(pointer data, size_type size, size_type capacity, try_grow_impl_t try_grow_impl) noexcept
         : data_(data), size_(size), capacity_(capacity), try_grow_impl_(try_grow_impl) {}
 
-    void reset(Ty* data, size_type size, size_type capacity) noexcept {
+    void reset(CharT* data, size_type size, size_type capacity) noexcept {
         data_ = data, size_ = size, capacity_ = capacity;
     }
 
  private:
-    Ty* data_ = nullptr;
+    CharT* data_ = nullptr;
     size_type size_ = 0;
     size_type capacity_ = 0;
 
@@ -175,26 +173,27 @@ class basic_membuffer {
 using membuffer = basic_membuffer<char>;
 using wmembuffer = basic_membuffer<wchar_t>;
 
-template<typename Ty, typename Alloc = std::allocator<Ty>>
-class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty>, public basic_membuffer<Ty> {
+template<typename CharT, typename Alloc = std::allocator<CharT>>
+class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_alloc<CharT>,
+                        public basic_membuffer<CharT> {
  private:
-    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>;
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<CharT>;
     using alloc_traits = std::allocator_traits<alloc_type>;
 
  public:
-    using value_type = typename basic_membuffer<Ty>::value_type;
-    using size_type = typename basic_membuffer<Ty>::size_type;
-    using difference_type = typename basic_membuffer<Ty>::difference_type;
-    using pointer = typename basic_membuffer<Ty>::pointer;
-    using const_pointer = typename basic_membuffer<Ty>::const_pointer;
-    using reference = typename basic_membuffer<Ty>::reference;
-    using const_reference = typename basic_membuffer<Ty>::const_reference;
+    using value_type = typename basic_membuffer<CharT>::value_type;
+    using size_type = typename basic_membuffer<CharT>::size_type;
+    using difference_type = typename basic_membuffer<CharT>::difference_type;
+    using pointer = typename basic_membuffer<CharT>::pointer;
+    using const_pointer = typename basic_membuffer<CharT>::const_pointer;
+    using reference = typename basic_membuffer<CharT>::reference;
+    using const_reference = typename basic_membuffer<CharT>::const_reference;
     using allocator_type = Alloc;
 
     basic_dynbuffer() noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
-        : alloc_type(), basic_membuffer<Ty>(nullptr, 0, try_grow_impl) {}
+        : alloc_type(), basic_membuffer<CharT>(nullptr, 0, try_grow_impl) {}
     explicit basic_dynbuffer(const Alloc& al) noexcept
-        : alloc_type(al), basic_membuffer<Ty>(nullptr, 0, try_grow_impl) {}
+        : alloc_type(al), basic_membuffer<CharT>(nullptr, 0, try_grow_impl) {}
     ~basic_dynbuffer() {
         if (this->capacity() & 1) { alloc_traits::deallocate(*this, this->data(), this->capacity()); }
     }
@@ -207,69 +206,69 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
     }
 
  protected:
-    basic_dynbuffer(Ty* data, size_type capacity) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
-        : alloc_type(), basic_membuffer<Ty>(data, capacity, try_grow_impl) {}
-    basic_dynbuffer(Ty* data, size_type capacity, const Alloc& al) noexcept
-        : alloc_type(al), basic_membuffer<Ty>(data, capacity, try_grow_impl) {}
+    basic_dynbuffer(CharT* data, size_type capacity) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
+        : alloc_type(), basic_membuffer<CharT>(data, capacity, try_grow_impl) {}
+    basic_dynbuffer(CharT* data, size_type capacity, const Alloc& al) noexcept
+        : alloc_type(al), basic_membuffer<CharT>(data, capacity, try_grow_impl) {}
 
-    void reset(Ty* data, size_type size, size_type capacity) noexcept {
-        basic_membuffer<Ty>::reset(data, size, capacity);
+    void reset(CharT* data, size_type size, size_type capacity) noexcept {
+        basic_membuffer<CharT>::reset(data, size, capacity);
     }
 
-    static size_type try_grow_impl(basic_membuffer<Ty>& buf, size_type extra, bool /*track_size*/) {
-        const size_type sz = buf.size();
-        size_type delta_sz = std::max(++extra, sz >> 1);
+    static size_type try_grow_impl(basic_membuffer<CharT>& buf, size_type extra, bool /*track_size*/) {
+        const size_type size = buf.size();
+        size_type delta_sz = std::max(++extra, size >> 1);
         auto& dynbuf = static_cast<basic_dynbuffer&>(buf);
-        const size_type max_avail = std::allocator_traits<alloc_type>::max_size(dynbuf) - sz;
+        const size_type max_avail = std::allocator_traits<alloc_type>::max_size(dynbuf) - size;
         if (delta_sz > max_avail) {
             if (extra > max_avail) { throw std::length_error("too much to reserve"); }
             delta_sz = std::max(extra, max_avail >> 1);
         }
-        const size_type capacity = ((sz + delta_sz - 1) & ~size_type(1)) + 1;  // Make new dynamic odd capacity
-        Ty* data = alloc_traits::allocate(dynbuf, capacity);
-        std::memcpy(data, buf.data(), sz * sizeof(Ty));
+        const size_type capacity = ((size + delta_sz - 1) & ~size_type(1)) + 1;  // Make new dynamic odd capacity
+        CharT* data = alloc_traits::allocate(dynbuf, capacity);
+        std::memcpy(data, buf.data(), size * sizeof(CharT));
         if (buf.capacity() & 1) { alloc_traits::deallocate(dynbuf, buf.data(), buf.capacity()); }
         dynbuf.reset(data, buf.size(), capacity);
         return buf.avail();
     }
 };
 
-template<typename Ty, std::size_t InlineBufSize = 0, typename Alloc = std::allocator<Ty>>
-class basic_inline_dynbuffer : public basic_dynbuffer<Ty, Alloc> {
+template<typename CharT, std::size_t InlineBufSize = 0, typename Alloc = std::allocator<CharT>>
+class basic_inline_dynbuffer : public basic_dynbuffer<CharT, Alloc> {
  public:
-    basic_inline_dynbuffer() noexcept(std::is_nothrow_default_constructible<basic_dynbuffer<Ty, Alloc>>::value)
-        : basic_dynbuffer<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), inline_buf_size) {}
+    basic_inline_dynbuffer() noexcept(std::is_nothrow_default_constructible<basic_dynbuffer<CharT, Alloc>>::value)
+        : basic_dynbuffer<CharT, Alloc>(reinterpret_cast<CharT*>(buf_), inline_buf_size) {}
     explicit basic_inline_dynbuffer(const Alloc& al) noexcept
-        : basic_dynbuffer<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), inline_buf_size, al) {}
+        : basic_dynbuffer<CharT, Alloc>(reinterpret_cast<CharT*>(buf_), inline_buf_size, al) {}
 
  private:
     enum : unsigned {  // Always even
 #if UXS_DEBUG_REDUCED_BUFFERS != 0
         inline_buf_size = 8,
 #else   // UXS_DEBUG_REDUCED_BUFFERS != 0
-        inline_buf_size = ((InlineBufSize != 0 ? InlineBufSize : 256 / sizeof(Ty)) + 1) & ~1U,
+        inline_buf_size = ((InlineBufSize != 0 ? InlineBufSize : 256 / sizeof(CharT)) + 1) & ~1U,
 #endif  // UXS_DEBUG_REDUCED_BUFFERS != 0
     };
 
-    alignas(std::alignment_of<Ty>::value) std::uint8_t buf_[inline_buf_size * sizeof(Ty)];
+    alignas(std::alignment_of<CharT>::value) std::uint8_t buf_[inline_buf_size * sizeof(CharT)];
 };
 
 using inline_dynbuffer = basic_inline_dynbuffer<char>;
 using inline_wdynbuffer = basic_inline_dynbuffer<wchar_t>;
 
-template<typename Ty>
-class basic_membuffer_with_size_tracker : public basic_membuffer<Ty> {
+template<typename CharT>
+class basic_membuffer_with_size_tracker : public basic_membuffer<CharT> {
  public:
-    using size_type = typename basic_membuffer<Ty>::size_type;
+    using size_type = typename basic_membuffer<CharT>::size_type;
 
-    basic_membuffer_with_size_tracker(Ty* data, size_type capacity) noexcept
-        : basic_membuffer<Ty>(data, capacity, try_grow_impl), tracked_size_(capacity) {}
+    basic_membuffer_with_size_tracker(CharT* data, size_type capacity) noexcept
+        : basic_membuffer<CharT>(data, capacity, try_grow_impl), tracked_size_(capacity) {}
     size_type tracked_size() const noexcept { return this->avail() ? this->size() : tracked_size_; }
 
  private:
     size_type tracked_size_;
 
-    static size_type try_grow_impl(basic_membuffer<Ty>& buf, size_type extra, bool track_size) {
+    static size_type try_grow_impl(basic_membuffer<CharT>& buf, size_type extra, bool track_size) {
         if (track_size) { static_cast<basic_membuffer_with_size_tracker&>(buf).tracked_size_ += extra; }
         return 0;
     }
