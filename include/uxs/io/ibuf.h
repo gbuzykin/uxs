@@ -11,7 +11,9 @@ namespace uxs {
 
 template<typename CharT>
 class basic_ibuf : public iostate {
-    static_assert(std::is_integral<CharT>::value, "uxs::basic_ibuf must have integral character type");
+    static_assert(std::is_same<std::remove_cv_t<CharT>, CharT>::value,
+                  "uxs::basic_ibuf<> must have a non-const, non-volatile character type");
+    static_assert(std::is_integral<CharT>::value, "uxs::basic_ibuf<> defined for integral types");
 
  public:
     using char_type = CharT;
