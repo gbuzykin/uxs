@@ -85,6 +85,16 @@ struct local_time_format_t {
     std::chrono::seconds tz_offset{0};
 };
 
+[[noreturn]] inline void report_out_of_bounds_error() { throw format_error("time point is out-of-bounds"); }
+[[noreturn]] inline void report_failed_to_format_time_error() { throw format_error("failed to format time"); }
+[[noreturn]] inline void report_last_february_day_without_a_year_error() {
+    throw format_error("cannot print the last day of February without a year");
+}
+[[noreturn]] inline void report_unacceptable_specifier_error() { throw format_error("unacceptable chrono specifier"); }
+[[noreturn]] inline void report_cannot_print_non_unique_local_info_error() {
+    throw format_error("cannot print non-unique local_info");
+}
+
 template<typename... CharTs>
 constexpr bool check_modifier(char modifier) noexcept {
     return !modifier;
@@ -266,7 +276,7 @@ void format_locale(FmtCtx& ctx, const std::tm& tm, char spec, char modifier, fmt
     os.imbue(loc);
     const auto& facet = std::use_facet<std::time_put<char_type>>(loc);
     auto end = facet.put(os, os, ' ', &tm, spec, modifier);
-    if (end.failed()) { throw format_error("failed to format time"); }
+    if (end.failed()) { report_failed_to_format_time_error(); }
 }
 
 template<typename FmtCtx>
@@ -289,8 +299,6 @@ void append_2digs(FmtCtx& ctx, int v) {
         ctx.out() += digs[1];
     }
 }
-
-[[noreturn]] inline void report_out_of_bounds() { throw format_error("time point is out-of-bounds"); }
 
 // --- year ---
 
@@ -326,7 +334,7 @@ void format_year(FmtCtx& ctx, std::chrono::year y, const chrono_specs& specs) {
             default: break;
         }
     }
-    if (!y.ok()) { report_out_of_bounds(); }
+    if (!y.ok()) { report_out_of_bounds_error(); }
     std::tm tm{};
     tm.tm_year = static_cast<int>(y) - 1900;
     format_locale(ctx, tm, specs);
@@ -385,13 +393,13 @@ void format_month(FmtCtx& ctx, std::chrono::month m, const chrono_specs& specs) 
         switch (specs.spec) {
             case chrono_specifier::month_brief: {
                 if (is_classic) {
-                    if (!m.ok()) { report_out_of_bounds(); }
+                    if (!m.ok()) { report_out_of_bounds_error(); }
                     return format_month_brief(ctx, m);
                 }
             } break;
             case chrono_specifier::month_full: {
                 if (is_classic) {
-                    if (!m.ok()) { report_out_of_bounds(); }
+                    if (!m.ok()) { report_out_of_bounds_error(); }
                     return format_month_full(ctx, m);
                 }
             } break;
@@ -399,7 +407,7 @@ void format_month(FmtCtx& ctx, std::chrono::month m, const chrono_specs& specs) 
             default: break;
         }
     }
-    if (!m.ok()) { report_out_of_bounds(); }
+    if (!m.ok()) { report_out_of_bounds_error(); }
     std::tm tm{};
     tm.tm_mon = static_cast<unsigned>(m) - 1;
     format_locale(ctx, tm, specs);
@@ -429,7 +437,7 @@ void format_day(FmtCtx& ctx, std::chrono::day d, const chrono_specs& specs) {
             default: break;
         }
     }
-    if (!d.ok()) { report_out_of_bounds(); }
+    if (!d.ok()) { report_out_of_bounds_error(); }
     std::tm tm{};
     tm.tm_mday = static_cast<unsigned>(d);
     format_locale(ctx, tm, specs);
@@ -438,8 +446,8 @@ void format_day(FmtCtx& ctx, std::chrono::day d, const chrono_specs& specs) {
 template<typename FmtCtx>
 void format_month_day_last(FmtCtx& ctx, std::chrono::month m, const chrono_specs& specs) {
     static constexpr unsigned last_day_list[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-    if (!m.ok()) { report_out_of_bounds(); }
-    if (m == std::chrono::February) { throw format_error("cannot print the last day of February without a year"); }
+    if (!m.ok()) { report_out_of_bounds_error(); }
+    if (m == std::chrono::February) { report_last_february_day_without_a_year_error(); }
     format_day(ctx, std::chrono::day{last_day_list[static_cast<unsigned>(m) - 1]}, specs);
 }
 
@@ -476,7 +484,7 @@ void format_weekday_full(FmtCtx& ctx, std::chrono::weekday wd) {
 
 template<typename FmtCtx>
 void format_weekday(FmtCtx& ctx, std::chrono::weekday wd, const chrono_specs& specs) {
-    if (!wd.ok()) { report_out_of_bounds(); }
+    if (!wd.ok()) { report_out_of_bounds_error(); }
     if (!specs.modifier) {
         const bool is_classic = is_locale_classic(ctx.locale(), specs.opts);
         switch (specs.spec) {
@@ -824,9 +832,7 @@ struct chrono_formatter {
                 case chrono_specifier::new_line:
                 case chrono_specifier::tab: break;
                 default: {
-                    if (!DeriverFormatterTy::check_spec(result.second)) {
-                        throw format_error("unacceptable chrono specifier");
-                    }
+                    if (!DeriverFormatterTy::check_spec(result.second)) { report_unacceptable_specifier_error(); }
                 } break;
             }
             it = result.first;
@@ -1231,7 +1237,7 @@ struct formatter<std::chrono::year_month_day, CharT>
 
     template<typename FmtCtx>
     static void write_value(FmtCtx& ctx, value_type ymd, const fmt_chrono::chrono_specs& specs) {
-        if (!ymd.ok()) { fmt_chrono::report_out_of_bounds(); }
+        if (!ymd.ok()) { fmt_chrono::report_out_of_bounds_error(); }
         fmt_chrono::format_date(ctx, ymd, specs);
     }
 
@@ -1258,7 +1264,7 @@ struct formatter<std::chrono::year_month_day_last, CharT>
 
     template<typename FmtCtx>
     static void write_value(FmtCtx& ctx, value_type ymdl, const fmt_chrono::chrono_specs& specs) {
-        if (!ymdl.ok()) { fmt_chrono::report_out_of_bounds(); }
+        if (!ymdl.ok()) { fmt_chrono::report_out_of_bounds_error(); }
         fmt_chrono::format_date(ctx, ymdl, specs);
     }
 
@@ -1284,7 +1290,7 @@ struct formatter<std::chrono::year_month_weekday, CharT>
 
     template<typename FmtCtx>
     static void write_value(FmtCtx& ctx, value_type ymw, const fmt_chrono::chrono_specs& specs) {
-        if (!ymw.ok()) { fmt_chrono::report_out_of_bounds(); }
+        if (!ymw.ok()) { fmt_chrono::report_out_of_bounds_error(); }
         fmt_chrono::format_date(ctx, std::chrono::sys_days{ymw}, specs);
     }
 
@@ -1312,7 +1318,7 @@ struct formatter<std::chrono::year_month_weekday_last, CharT>
 
     template<typename FmtCtx>
     static void write_value(FmtCtx& ctx, value_type ymwl, const fmt_chrono::chrono_specs& specs) {
-        if (!ymwl.ok()) { fmt_chrono::report_out_of_bounds(); }
+        if (!ymwl.ok()) { fmt_chrono::report_out_of_bounds_error(); }
         fmt_chrono::format_date(ctx, std::chrono::sys_days{ymwl}, specs);
     }
 
@@ -1523,7 +1529,9 @@ struct formatter<std::chrono::local_info, CharT>
 
     template<typename FmtCtx>
     static void write_value(FmtCtx& ctx, value_type li, const fmt_chrono::chrono_specs& specs) {
-        if (li.result != std::chrono::local_info::unique) { throw format_error("cannot print non-unique local_info"); }
+        if (li.result != std::chrono::local_info::unique) {
+            fmt_chrono::report_cannot_print_non_unique_local_info_error();
+        }
         if (specs.spec == fmt_chrono::chrono_specifier::time_zone) {
             fmt_chrono::format_time_zone(ctx, li.first.offset, specs);
         } else {
