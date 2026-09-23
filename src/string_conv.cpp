@@ -1,12 +1,12 @@
 #include "uxs/impl/string_conv_impl.h"
 
-namespace uxs {
+using namespace uxs;
 
 format_error::format_error(const char* message) : std::runtime_error(message) {}
 format_error::format_error(const std::string& message) : std::runtime_error(message) {}
 const char* format_error::what() const noexcept { return std::runtime_error::what(); }
 
-namespace sconv {
+namespace {
 
 UXS_FORCE_INLINE std::uint64_t umul128(std::uint64_t x, std::uint64_t y, std::uint64_t bias, std::uint64_t& result_hi) {
 #if UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
@@ -158,10 +158,12 @@ UXS_FORCE_INLINE std::uint64_t udiv128(uint128_t x, std::uint64_t y) {
 #endif
 }
 
+}  // namespace
+
 // --------------------------
 
 // Is used by `accum_mantissa<>` template
-std::uint64_t bignum_mul32(std::uint64_t* x, unsigned sz, std::uint32_t mul, std::uint32_t bias) {
+std::uint64_t sconv::bignum_mul32(std::uint64_t* x, unsigned sz, std::uint32_t mul, std::uint32_t bias) {
     assert(sz > 0);
     std::uint64_t higher = bias;
     std::uint64_t* x0 = x;
@@ -169,6 +171,8 @@ std::uint64_t bignum_mul32(std::uint64_t* x, unsigned sz, std::uint32_t mul, std
     do { --x, *x = umul64x32(*x, mul, static_cast<std::uint32_t>(higher), higher); } while (x != x0);
     return higher;
 }
+
+namespace {
 
 inline std::uint64_t bignum_mul(std::uint64_t* x, unsigned sz, std::uint64_t mul) {
     assert(sz > 0);
@@ -400,8 +404,8 @@ UXS_FORCE_INLINE uint96_t get_cached_pow10(int pow) noexcept {
     static UXS_CONSTEXPR_DATA std::uint32_t mul10[] = {0,          0xa0000000, 0xc8000000, 0xfa000000,
                                                        0x9c400000, 0xc3500000, 0xf4240000, 0x98968000};
     std::uint64_t t = umul96x32(result, mul10[k], result.hi);
-    if (!(result.hi & msb64)) { result.hi = shl128(result.hi, t, t, 1); }
-    result.lo = static_cast<std::uint32_t>(hi32(t));
+    if (!(result.hi & sconv::msb64)) { result.hi = shl128(result.hi, t, t, 1); }
+    result.lo = static_cast<std::uint32_t>(sconv::hi32(t));
     return result;
 }
 
@@ -409,16 +413,16 @@ UXS_FORCE_INLINE uint96_t get_cached_pow10(int pow) noexcept {
 
 UXS_FORCE_INLINE int exp10to2(int exp) {
     UXS_CONSTEXPR_DATA std::int64_t ln10_ln2 = 0x35269e12f;  // 2^32 * ln(10) / ln(2)
-    return static_cast<int>(hi32(ln10_ln2 * exp));
+    return static_cast<int>(sconv::hi32(ln10_ln2 * exp));
 }
 
-static std::uint64_t fp10_to_fp2_slow(fp10_t& fp10, unsigned bpm, int exp_max) noexcept {
+std::uint64_t fp10_to_fp2_slow(sconv::fp10_t& fp10, unsigned bpm, int exp_max) noexcept {
     unsigned sz_num = fp10.bits_used;
-    std::uint64_t* m10 = &fp10.bits[max_fp10_mantissa_size - sz_num];
+    std::uint64_t* m10 = &fp10.bits[sconv::max_fp10_mantissa_size - sz_num];
 
     // Calculate lower digs_per_64-aligned decimal exponent
-    int index = digs_per_64 * 1000000 + fp10.exp;
-    const std::uint64_t mul10 = get_pow10(divmod<digs_per_64>(index));
+    int index = sconv::digs_per_64 * 1000000 + fp10.exp;
+    const std::uint64_t mul10 = sconv::get_pow10(sconv::divmod<sconv::digs_per_64>(index));
     index -= 1000000;
     if (mul10 != 1) {
         const std::uint64_t higher = bignum_mul(m10, sz_num, mul10);
@@ -427,7 +431,7 @@ static std::uint64_t fp10_to_fp2_slow(fp10_t& fp10, unsigned bpm, int exp_max) n
 
     // Obtain binary exponent
     const int exp_bias = exp_max >> 1;
-    const int log = ulog2(m10[0]);
+    const int log = sconv::ulog2(m10[0]);
     int exp2 = exp_bias + log + (static_cast<int>(sz_num - 1) << 6 /* *64 */);
 
     // Align numerator so 2 left bits are zero (reserved)
@@ -445,7 +449,8 @@ static std::uint64_t fp10_to_fp2_slow(fp10_t& fp10, unsigned bpm, int exp_max) n
         index = std::min<int>(index0, bigpow10_tbl_size - 1);
         bignum_t denominator = get_bigpow10(index);
 
-        std::uint64_t big_denominator[max_fp10_mantissa_size + 1];  // all powers >= -1100 (aligned to -1116) will fit
+        std::uint64_t
+            big_denominator[sconv::max_fp10_mantissa_size + 1];  // all powers >= -1100 (aligned to -1116) will fit
         if (index < index0) {
             // Calculate big denominator multiplying powers of 10 from table
             std::memcpy(big_denominator, denominator.x, denominator.sz * sizeof(std::uint64_t));
@@ -457,7 +462,7 @@ static std::uint64_t fp10_to_fp2_slow(fp10_t& fp10, unsigned bpm, int exp_max) n
                 if (!big_denominator[denominator.sz - 1]) { --denominator.sz; }
                 denominator.exp += 1 + denominator2.exp, index += index2 + 1;
             } while (index < index0);
-            const unsigned shift = 63 - ulog2(big_denominator[0]);
+            const unsigned shift = 63 - sconv::ulog2(big_denominator[0]);
             if (shift > 0) {
                 bignum_shift_left(big_denominator, denominator.sz, shift);
                 if (!big_denominator[denominator.sz - 1]) { --denominator.sz; }
@@ -509,7 +514,9 @@ static std::uint64_t fp10_to_fp2_slow(fp10_t& fp10, unsigned bpm, int exp_max) n
     return (static_cast<std::uint64_t>(exp2) << bpm) | (m & ((1ULL << bpm) - 1));  // normalized
 }
 
-std::uint64_t fp10_to_fp2(fp10_t& fp10, unsigned bpm, int exp_max) noexcept {
+}  // namespace
+
+std::uint64_t sconv::fp10_to_fp2(fp10_t& fp10, unsigned bpm, int exp_max) noexcept {
     const unsigned sz_num = fp10.bits_used;
     std::uint64_t m = fp10.bits[max_fp10_mantissa_size - sz_num];
 
@@ -570,7 +577,7 @@ std::uint64_t fp10_to_fp2(fp10_t& fp10, unsigned bpm, int exp_max) noexcept {
 
 // --------------------------
 
-void fp_hex_fmt_t::format(unsigned bpm, int exp_bias) noexcept {
+void sconv::fp_hex_fmt_t::format(unsigned bpm, int exp_bias) noexcept {
     if (significand_ == 0 && exp_ == 0) {  // real zero
         prec_ = n_zeroes_ = prec_ < 0 ? 0 : (prec_ & 0xffff);
         return;
@@ -600,14 +607,16 @@ void fp_hex_fmt_t::format(unsigned bpm, int exp_bias) noexcept {
 
 // --------------------------
 
-UXS_FORCE_INLINE void fix_fp2(fp_m64_t& fp2, unsigned bpm, int exp_bias) {
+namespace {
+
+UXS_FORCE_INLINE void fix_fp2(sconv::fp_m64_t& fp2, unsigned bpm, int exp_bias) {
     // Shift binary mantissa so the MSB bit is `1`
     if (fp2.exp > 0) {
         fp2.m <<= 63 - bpm;
-        fp2.m |= msb64;
+        fp2.m |= sconv::msb64;
     } else {  // handle denormalized form
         const unsigned bpm0 = bpm;
-        bpm = ulog2(fp2.m);
+        bpm = sconv::ulog2(fp2.m);
         fp2.m <<= 63 - bpm, fp2.exp -= bpm0 - bpm - 1;
     }
     fp2.exp -= exp_bias;
@@ -615,7 +624,7 @@ UXS_FORCE_INLINE void fix_fp2(fp_m64_t& fp2, unsigned bpm, int exp_bias) {
 
 UXS_FORCE_INLINE int exp2to10(int exp) {
     UXS_CONSTEXPR_DATA std::int64_t ln2_ln10 = 0x4d104d42;  // 2^32 * ln(2) / ln(10)
-    return static_cast<int>(hi32(ln2_ln10 * exp));
+    return static_cast<int>(sconv::hi32(ln2_ln10 * exp));
 }
 
 // Compilers should be able to optimize this into the ror instruction
@@ -639,7 +648,9 @@ UXS_FORCE_INLINE int remove_trailing_zeros(std::uint64_t& n, int max_remove) {
     return max_remove - s;
 }
 
-void fp_dec_fmt_t::format(fp_m64_t fp2, unsigned bpm, int exp_bias, fmt_flags fp_fmt) noexcept {
+}  // namespace
+
+void sconv::fp_dec_fmt_t::format(fp_m64_t fp2, unsigned bpm, int exp_bias, fmt_flags fp_fmt) noexcept {
     const int default_prec = 6;
     fixed_ = fp_fmt == fmt_flags::fixed;
     prec_ = prec_ < 0 ? default_prec : (prec_ & 0xffff);
@@ -669,7 +680,7 @@ void fp_dec_fmt_t::format(fp_m64_t fp2, unsigned bpm, int exp_bias, fmt_flags fp
     }
 }
 
-void fp_dec_fmt_t::format_default(fp_m64_t fp2, unsigned bpm, int exp_bias, bool mandatory_frac) noexcept {
+void sconv::fp_dec_fmt_t::format_default(fp_m64_t fp2, unsigned bpm, int exp_bias, bool mandatory_frac) noexcept {
     if (fp2.m == 0 && fp2.exp == 0) {  // real zero
         fixed_ = true;
         prec_ = mandatory_frac ? 1 : 0;
@@ -738,7 +749,7 @@ void fp_dec_fmt_t::format_default(fp_m64_t fp2, unsigned bpm, int exp_bias, bool
     if (mandatory_frac && prec_ == 0) { significand_ *= 10U, prec_ = 1; }
 }
 
-void fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, fmt_flags fp_fmt) noexcept {
+void sconv::fp_dec_fmt_t::format_short_decimal(const fp_m64_t& fp2, int n_digs, fmt_flags fp_fmt) noexcept {
     assert(n_digs < digs_per_64);
     ++n_digs;  // one additional digit for rounding
 
@@ -794,7 +805,7 @@ finish:
     }
 }
 
-void fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, fmt_flags fp_fmt) noexcept {
+void sconv::fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, fmt_flags fp_fmt) noexcept {
     // `max_pow10_size` uint64-s are enough to hold all (normalized!) 10^n, n <= 324 + digs_per_64
     std::uint64_t num[max_pow10_size + 1];  // +1 to multiply by uint64
     unsigned sz_num = 1;
@@ -862,7 +873,7 @@ void fp_dec_fmt_t::format_short_decimal_slow(const fp_m64_t& fp2, int n_digs, fm
     }
 }
 
-void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, fmt_flags fp_fmt) noexcept {
+void sconv::fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, fmt_flags fp_fmt) noexcept {
     assert(n_digs >= digs_per_64);
     ++n_digs;  // one additional digit for rounding
 
@@ -979,6 +990,8 @@ void fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, fmt_flag
     n_zeroes_ = n_digs;
 }
 
+namespace uxs {
+namespace sconv {
 template UXS_EXPORT parse_result<bool, char> parse_boolean(const char*, const char*) noexcept;
 template UXS_EXPORT parse_result<std::int32_t, char> parse_signed_integer_common(const char*, const char*,
                                                                                  std::int32_t) noexcept;
@@ -1022,7 +1035,5 @@ template UXS_EXPORT void fmt_float_common(wmembuffer&, std::uint64_t, unsigned, 
 template UXS_EXPORT void fmt_float_common(wmembuffer&, std::uint64_t, unsigned, int, fmt_opts, locale_ref);
 template UXS_EXPORT void fmt_character(wmembuffer&, wchar_t, fmt_opts, locale_ref);
 template UXS_EXPORT void fmt_string(wmembuffer&, std::wstring_view, fmt_opts, locale_ref);
-
 }  // namespace sconv
-
 }  // namespace uxs

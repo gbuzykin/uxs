@@ -8,6 +8,10 @@ namespace lex_detail {
 #include "xml_lex_analyzer.inl"
 }
 
+void uxs::db::xml::detail::report_error(unsigned ln, const char* message) {
+    throw uxs::db::database_error(uxs::format("{}: {}", ln, message));
+}
+
 namespace uxs {
 namespace db {
 namespace xml {
@@ -160,8 +164,6 @@ template UXS_EXPORT value parser::parse(std::string_view, const std::allocator<c
 template UXS_EXPORT wvalue parser::parse(std::string_view, const std::allocator<wchar_t>&);
 
 namespace detail {
-
-void report_error(unsigned ln, const char* message) { throw database_error(format("{}: {}", ln, message)); }
 
 lexer::lexer(ibuf& in) : in(in) { stack.push_back(lex_detail::sc_initial); }
 

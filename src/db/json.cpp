@@ -8,6 +8,10 @@ namespace lex_detail {
 #include "json_lex_analyzer.inl"
 }
 
+void uxs::db::json::detail::report_error(unsigned ln, const char* message) {
+    throw uxs::db::database_error(uxs::format("{}: {}", ln, message));
+}
+
 namespace uxs {
 namespace db {
 namespace json {
@@ -15,8 +19,6 @@ template UXS_EXPORT value parse(ibuf&, const std::allocator<char>&);
 template UXS_EXPORT wvalue parse(ibuf&, const std::allocator<wchar_t>&);
 
 namespace detail {
-
-void report_error(unsigned ln, const char* message) { throw database_error(format("{}: {}", ln, message)); }
 
 lexer::lexer(ibuf& in) : in(in) { stack.push_back(lex_detail::sc_initial); }
 
