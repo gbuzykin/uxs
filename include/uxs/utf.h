@@ -4,7 +4,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 
 namespace uxs {
 
@@ -29,12 +28,25 @@ struct to_utf_result {
     unsigned count;
 };
 
-UXS_CONSTEXPR bool is_acceptable_utf32(std::uint32_t ch) { return ch < 0x110000 && (ch & 0x1ff800) != 0xd800; }
+constexpr bool is_utf_surrogate(std::uint32_t code) { return (code & ~0x7ff) == 0xd800; }
+constexpr bool is_utf_lower_surrogate(std::uint32_t code) { return (code & ~0x3ff) == 0xd800; }
+constexpr bool is_utf_upper_surrogate(std::uint32_t code) { return (code & ~0x3ff) == 0xdc00; }
+constexpr bool is_utf_wellformed(std::uint32_t code) { return code < 0x110000 && !is_utf_surrogate(code); }
+constexpr std::uint32_t combine_utf_surrogate_code(std::uint32_t lower, std::uint32_t upper) {
+    return 0x10000 + (((lower & 0x3ff) << 10) | (upper & 0x3ff));
+}
+
+constexpr unsigned count_utf8(std::uint32_t code) {
+    return code < 0x80 ? 1 : (code < 0x800 ? 2 : (code < 0x10000 || code >= 0x110000 ? 3 : 4));
+}
+
+constexpr unsigned count_utf16(std::uint32_t code) { return code < 0x10000 || code >= 0x110000 ? 1 : 2; }
 
 template<typename InputIt>
 UXS_CONSTEXPR from_utf_result<InputIt> from_utf8(InputIt first, InputIt last, std::uint32_t& code) {
     if (first == last) { return {first, utf_errc::empty}; }
-    std::uint8_t ch0 = static_cast<std::uint8_t>(*first++);
+    std::uint8_t ch0 = static_cast<std::uint8_t>(*first);
+    ++first;
     code = ch0;
     if (ch0 < 0x80) { return {first, utf_errc::wellformed}; }
     unsigned count = 1;
@@ -51,32 +63,43 @@ UXS_CONSTEXPR from_utf_result<InputIt> from_utf8(InputIt first, InputIt last, st
     const auto first0 = first;
     do {
         if (first == last || (*first & 0xc0) != 0x80) { return {first0, utf_errc::invalid}; }
-        result = (result << 6) | (*first++ & 0x3f);
+        result = (result << 6) | static_cast<std::uint32_t>(*first & 0x3f);
+        ++first;
     } while (--count > 0);
-    if (!is_acceptable_utf32(result)) { return {first0, utf_errc::invalid}; }
+    if (!is_utf_wellformed(result)) { return {first0, utf_errc::invalid}; }
     code = result;
     return {first, utf_errc::wellformed};
 }
 
 template<typename OutputIt>
-UXS_CONSTEXPR to_utf_result<OutputIt> to_utf8(std::uint32_t code, OutputIt out,
-                                              std::size_t avail = std::numeric_limits<std::size_t>::max()) {
-    if (avail == 0) { return {out, 0}; }
-    if (code < 0x80) {
-        *out = static_cast<std::uint8_t>(code);
-        ++out;
-        return {out, 1};
-    }
-    if (!is_acceptable_utf32(code)) { code = 0xfffd; }
-    const std::uint8_t mask[] = {0, 0x1f, 0xf, 0x7};
-    const std::uint8_t hdr[] = {0, 0xc0, 0xe0, 0xf0};
+UXS_CONSTEXPR to_utf_result<OutputIt> to_utf8(std::uint32_t code, OutputIt out) {
+    unsigned count = 1;
     std::uint8_t ch[4] = {};
-    unsigned count = 0;
-    do { ch[count] = 0x80 | (code & 0x3f); } while ((code >>= 6) > mask[++count]);
-    const unsigned n_written = count + 1;
-    if (avail < n_written) { return {out, 0}; }
-    *out = static_cast<std::uint8_t>(hdr[count] | code);
-    ++out;
+    if (code < 0x80) {
+        ch[0] = static_cast<std::uint8_t>(code);
+    } else if (is_utf_wellformed(code)) {
+        ch[0] = 0x80 | static_cast<std::uint8_t>(code & 0x3f);
+        code >>= 6;
+        if (code < 0x20) {
+            count = 2;
+            ch[1] = 0xc0 | static_cast<std::uint8_t>(code);
+        } else {
+            ch[1] = 0x80 | static_cast<std::uint8_t>(code & 0x3f);
+            code >>= 6;
+            if (code < 0x10) {
+                count = 3;
+                ch[2] = 0xe0 | static_cast<std::uint8_t>(code);
+            } else {
+                count = 4;
+                ch[2] = 0x80 | static_cast<std::uint8_t>(code & 0x3f);
+                ch[3] = 0xf0 | static_cast<std::uint8_t>(code >> 6);
+            }
+        }
+    } else {
+        count = 3;
+        ch[0] = 0xbd, ch[1] = 0xbf, ch[2] = 0xef;
+    }
+    const unsigned n_written = count;
     do {
         *out = ch[--count];
         ++out;
@@ -87,116 +110,125 @@ UXS_CONSTEXPR to_utf_result<OutputIt> to_utf8(std::uint32_t code, OutputIt out,
 template<typename InputIt>
 UXS_CONSTEXPR from_utf_result<InputIt> from_utf16(InputIt first, InputIt last, std::uint32_t& code) {
     if (first == last) { return {first, utf_errc::empty}; }
-    const std::uint16_t ch0 = static_cast<std::uint16_t>(*first++);
+    const std::uint16_t ch0 = static_cast<std::uint16_t>(*first);
+    ++first;
     code = ch0;
-    if ((ch0 & 0xf800) != 0xd800) { return {first, utf_errc::wellformed}; }
-    if (first == last || (ch0 & 0xfc00) != 0xd800 || (*first & 0xfc00) != 0xdc00) { return {first, utf_errc::invalid}; }
-    code = 0x10000 + ((static_cast<std::uint32_t>(ch0 & 0x3ff) << 10) | (*first++ & 0x3ff));
+    if (!is_utf_surrogate(ch0)) { return {first, utf_errc::wellformed}; }
+    if (first == last || !is_utf_lower_surrogate(ch0) || !is_utf_upper_surrogate(*first)) {
+        return {first, utf_errc::invalid};
+    }
+    code = combine_utf_surrogate_code(ch0, *first);
+    ++first;
     return {first, utf_errc::wellformed};
 }
 
 template<typename OutputIt>
-UXS_CONSTEXPR to_utf_result<OutputIt> to_utf16(std::uint32_t code, OutputIt out,
-                                               std::size_t avail = std::numeric_limits<std::size_t>::max()) {
-    if (avail == 0) { return {out, 0}; }
-    if (code >= 0x10000) {
-        if (code < 0x110000) {
-            if (avail < 2) { return {out, 0}; }
-            code -= 0x10000;
-            *out = static_cast<std::uint16_t>(0xd800 | (code >> 10));
-            ++out;
-            *out = static_cast<std::uint16_t>(0xdc00 | (code & 0x3ff));
-            ++out;
-            return {out, 2};
-        }
-        code = 0xfffd;
-    } else if ((code & 0xf800) == 0xd800) {
-        code = 0xfffd;
+UXS_CONSTEXPR to_utf_result<OutputIt> to_utf16(std::uint32_t code, OutputIt out) {
+    unsigned count = 1;
+    std::uint16_t ch[2] = {};
+    if (!is_utf_wellformed(code)) {
+        ch[0] = 0xfffd;
+    } else if (code < 0x10000) {
+        ch[0] = static_cast<std::uint16_t>(code);
+    } else {
+        count = 2;
+        code -= 0x10000;
+        ch[0] = 0xdc00 | static_cast<std::uint16_t>(code & 0x3ff);
+        ch[1] = 0xd800 | static_cast<std::uint16_t>(code >> 10);
     }
-    *out = static_cast<std::uint16_t>(code);
-    ++out;
-    return {out, 1};
+    const unsigned n_written = count;
+    do {
+        *out = ch[--count];
+        ++out;
+    } while (count > 0);
+    return {out, n_written};
 }
 
 template<typename InputIt>
 UXS_CONSTEXPR from_utf_result<InputIt> from_utf32(InputIt first, InputIt last, std::uint32_t& code) {
     if (first == last) { return {first, utf_errc::empty}; }
-    code = static_cast<std::uint32_t>(*first++);
-    return {first, is_acceptable_utf32(code) ? utf_errc::wellformed : utf_errc::invalid};
+    code = static_cast<std::uint32_t>(*first);
+    ++first;
+    return {first, is_utf_wellformed(code) ? utf_errc::wellformed : utf_errc::invalid};
 }
 
 template<typename OutputIt>
-UXS_CONSTEXPR to_utf_result<OutputIt> to_utf32(std::uint32_t code, OutputIt out,
-                                               std::size_t avail = std::numeric_limits<std::size_t>::max()) {
-    if (avail == 0) { return {out, 0}; }
-    *out = is_acceptable_utf32(code) ? code : 0xfffd;
+UXS_CONSTEXPR to_utf_result<OutputIt> to_utf32(std::uint32_t code, OutputIt out) {
+    *out = is_utf_wellformed(code) ? code : 0xfffd;
     ++out;
     return {out, 1};
 }
 
-#if WCHAR_MAX > 0xffff
-template<typename InputIt>
-UXS_CONSTEXPR from_utf_result<InputIt> from_wchars(InputIt first, InputIt last, std::uint32_t& code) {
-    return from_utf32(first, last, code);
-}
-template<typename OutputIt>
-UXS_CONSTEXPR to_utf_result<OutputIt> to_wchars(std::uint32_t code, OutputIt out,
-                                                std::size_t avail = std::numeric_limits<std::size_t>::max()) {
-    return to_utf32(code, out, avail);
-}
-#else   // WCHAR_MAX > 0xffff
-template<typename InputIt>
-UXS_CONSTEXPR from_utf_result<InputIt> from_wchars(InputIt first, InputIt last, std::uint32_t& code) {
-    return from_utf16(first, last, code);
-}
-template<typename OutputIt>
-UXS_CONSTEXPR to_utf_result<OutputIt> to_wchars(std::uint32_t code, OutputIt out,
-                                                std::size_t avail = std::numeric_limits<std::size_t>::max()) {
-    return to_utf16(code, out, avail);
-}
-#endif  // WCHAR_MAX > 0xffff
-
 template<typename CharT>
-struct utf_decoder;
+struct utf_codec;
 
 template<>
-struct utf_decoder<char> {
+struct utf_codec<char> {
+    enum : unsigned { max_code_length = 4 };
     template<typename InputIt>
     UXS_CONSTEXPR from_utf_result<InputIt> decode(InputIt first, InputIt last, std::uint32_t& code) const {
         return from_utf8(first, last, code);
     }
+    template<typename OutputIt>
+    UXS_CONSTEXPR to_utf_result<OutputIt> encode(std::uint32_t code, OutputIt out) const {
+        return to_utf8(code, out);
+    }
+    constexpr unsigned count(std::uint32_t code) const { return count_utf8(code); }
 };
 
 template<>
-struct utf_decoder<wchar_t> {
+struct utf_codec<char16_t> {
+    enum : unsigned { max_code_length = 2 };
     template<typename InputIt>
     UXS_CONSTEXPR from_utf_result<InputIt> decode(InputIt first, InputIt last, std::uint32_t& code) const {
-        return from_wchars(first, last, code);
+        return from_utf16(first, last, code);
     }
-};
-
-template<typename CharT>
-struct utf_encoder;
-
-template<>
-struct utf_encoder<char> {
     template<typename OutputIt>
-    UXS_CONSTEXPR to_utf_result<OutputIt> encode(std::uint32_t code, OutputIt out,
-                                                 std::size_t avail = std::numeric_limits<std::size_t>::max()) const {
-        return to_utf8(code, out, avail);
+    UXS_CONSTEXPR to_utf_result<OutputIt> encode(std::uint32_t code, OutputIt out) const {
+        return to_utf16(code, out);
     }
+    constexpr unsigned count(std::uint32_t code) const { return count_utf16(code); }
 };
 
 template<>
-struct utf_encoder<wchar_t> {
-    template<typename OutputIt>
-    UXS_CONSTEXPR to_utf_result<OutputIt> encode(std::uint32_t code, OutputIt out,
-                                                 std::size_t avail = std::numeric_limits<std::size_t>::max()) const {
-        return to_wchars(code, out, avail);
+struct utf_codec<char32_t> {
+    enum : unsigned { max_code_length = 1 };
+    template<typename InputIt>
+    UXS_CONSTEXPR from_utf_result<InputIt> decode(InputIt first, InputIt last, std::uint32_t& code) const {
+        return from_utf32(first, last, code);
     }
+    template<typename OutputIt>
+    UXS_CONSTEXPR to_utf_result<OutputIt> encode(std::uint32_t code, OutputIt out) const {
+        return to_utf32(code, out);
+    }
+    constexpr unsigned count(std::uint32_t /*code*/) const { return 1; }
 };
 
-UXS_EXPORT bool is_utf_code_printable(std::uint32_t code) noexcept;
-UXS_EXPORT unsigned get_utf_code_width(std::uint32_t code) noexcept;
+#if WCHAR_MAX > 0xffff
+template<>
+struct utf_codec<wchar_t> : utf_codec<char32_t> {};
+#else   // WCHAR_MAX > 0xffff
+template<>
+struct utf_codec<wchar_t> : utf_codec<char16_t> {};
+#endif  // WCHAR_MAX > 0xffff
+
+#if __cplusplus >= 202002L
+template<>
+struct utf_codec<char8_t> : utf_codec<char> {};
+#endif  // __cplusplus >= 202002L
+
+UXS_EXPORT bool is_utf_printable(std::uint32_t code) noexcept;
+UXS_EXPORT unsigned get_utf_printable_width(std::uint32_t code) noexcept;
+
+template<typename CharT, typename InputIt>
+std::size_t eval_string_printable_width(InputIt first, InputIt last) {
+    std::size_t width = 0;
+    while (first != last) {
+        std::uint32_t code = 0;
+        first = utf_codec<CharT>{}.decode(first, last, code).iter;
+        width += get_utf_printable_width(code);
+    }
+    return width;
+}
 
 }  // namespace uxs
