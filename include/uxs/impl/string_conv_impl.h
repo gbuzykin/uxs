@@ -758,8 +758,8 @@ void fmt_string(basic_membuffer<CharT>& out, std::basic_string_view<CharT> val, 
             auto limit = first;
             while (limit != last) {
                 std::uint32_t code = 0;
-                const auto next = utf_decoder<CharT>{}.decode(limit, last, code).iter;
-                const unsigned w = get_utf_code_width(code);
+                const auto next = utf_codec<CharT>{}.decode(limit, last, code).iter;
+                const unsigned w = get_utf_printable_width(code);
                 if (max_width - width < w) { break; }
                 width += w, limit = next;
             }
