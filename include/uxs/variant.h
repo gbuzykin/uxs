@@ -84,8 +84,8 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC variant_error : public std::runtime_error {
 
 namespace detail {
 template<typename... Ts>
-struct alignas(est::alignment_of<Ts...>::value) aligned_storage_t {
-    std::uint8_t x[est::size_of<Ts...>::value];
+struct alignas(est::maximum<std::alignment_of<Ts>...>::value) aligned_storage_t {
+    std::uint8_t x[est::maximum<est::size_of<Ts>...>::value];
 };
 using variant_storage_t = aligned_storage_t<std::uintptr_t, double[4], std::string>;
 
@@ -265,35 +265,35 @@ class variant {
         vtable_ = nullptr;
     }
 
-    template<typename Ty>
+    template<typename U>
     bool is() const noexcept {
-        return is_impl<Ty>();
+        return is_impl<U>();
     }
 
-    template<typename Ty>
-    Ty as() const {
-        return as_impl<Ty>();
+    template<typename U>
+    U as() const {
+        return as_impl<U>();
     }
 
-    template<typename Ty>
-    Ty as() {
-        return as_impl<Ty>();
+    template<typename U>
+    U as() {
+        return as_impl<U>();
     }
 
-    template<typename Ty>
-    est::optional<Ty> get() const {
-        return get_impl<Ty>();
+    template<typename U>
+    est::optional<U> get() const {
+        return get_impl<U>();
     }
 
-    template<typename Ty, typename U>
-    Ty value_or(U&& default_value) const {
-        auto result = get<Ty>();
-        return result ? *result : Ty(std::forward<U>(default_value));
+    template<typename U, typename V>
+    U value_or(V&& default_value) const {
+        auto result = get<U>();
+        return result ? *result : U(std::forward<V>(default_value));
     }
 
-    template<typename Ty>
-    Ty value() const {
-        return value_or<Ty>(Ty());
+    template<typename U>
+    U value() const {
+        return value_or<U>(U());
     }
 
     UXS_EXPORT bool convert(variant_id_t type);
@@ -342,7 +342,7 @@ class variant {
              typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::string_view>::value &&
                                          !is_variant_compatible<StrLikeTy>::value>>
     void assign_impl(const StrLikeTy& s) {
-        return assign_impl(std::string(s));
+        assign_impl(std::string(s));
     }
 
     template<typename U, typename Ty = std::decay_t<U>, typename = std::enable_if_t<is_variant_compatible<Ty>::value>>

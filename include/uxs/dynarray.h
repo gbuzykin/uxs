@@ -17,6 +17,16 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>;
     using alloc_traits = std::allocator_traits<alloc_type>;
 
+    struct iterator_traits {
+        using value_type = Ty;
+        using difference_type = std::ptrdiff_t;
+        using pointer = value_type*;
+        using const_pointer = const value_type*;
+        using reference = value_type&;
+        using const_reference = const value_type&;
+        using underlying_ptr_t = pointer;
+    };
+
  public:
     using value_type = Ty;
     using allocator_type = Alloc;
@@ -26,8 +36,8 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
     using const_pointer = const value_type*;
     using reference = value_type&;
     using const_reference = const value_type&;
-    using iterator = est::array_iterator<dynarray, pointer, false>;
-    using const_iterator = est::array_iterator<dynarray, pointer, true>;
+    using iterator = est::array_iterator<iterator_traits, false>;
+    using const_iterator = est::array_iterator<iterator_traits, true>;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 

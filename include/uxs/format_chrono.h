@@ -772,8 +772,8 @@ template<typename DeriverFormatterTy, typename Ty, typename CharT>
 struct chrono_formatter {
  private:
     fmt_opts opts_;
-    std::size_t width_arg_id_ = unspecified_size;
-    std::size_t prec_arg_id_ = unspecified_size;
+    std::size_t width_arg_id_ = est::unspecified_size;
+    std::size_t prec_arg_id_ = est::unspecified_size;
     std::basic_string_view<CharT> fmt_;
 
     template<typename FmtCtx>
@@ -839,10 +839,10 @@ struct chrono_formatter {
     void format(FmtCtx& ctx, const Ty& val) const {
         chrono_specs specs;
         specs.opts = opts_;
-        if (width_arg_id_ != unspecified_size) {
+        if (width_arg_id_ != est::unspecified_size) {
             specs.opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(specs.opts.width)>();
         }
-        if (prec_arg_id_ != unspecified_size) {
+        if (prec_arg_id_ != est::unspecified_size) {
             specs.opts.prec = ctx.arg(prec_arg_id_).template get_unsigned<decltype(specs.opts.prec)>();
         }
         if (specs.opts.width == 0) { return format_impl(ctx, val, specs); }

@@ -384,15 +384,13 @@ void flexarray_t<Ty, Alloc>::append_impl(alloc_type& al, InputIt first, InputIt 
 // Record container implementation
 namespace detail {
 
-#if UXS_ITERATOR_DEBUG_LEVEL != 0
 struct list_links_t {
     list_links_t* next;
     list_links_t* prev;
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
     list_links_t* head;
-};
-#else   // UXS_ITERATOR_DEBUG_LEVEL != 0
-using list_links_t = dllist_node_t;
 #endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
+};
 
 template<typename CharT, typename Alloc>
 class object_t;
@@ -533,13 +531,23 @@ class object_t {
     using const_pointer = const value_type*;
     using reference = value_type&;
     using const_reference = const value_type&;
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<data_t>;
+    using alloc_traits = std::allocator_traits<alloc_type>;
     using node_traits = object_node_traits<CharT, Alloc>;
     using node_t = typename node_traits::node_t;
     using hasher_t = std::hash<key_type>;
-    using iterator = est::list_iterator<object_t, node_traits, false>;
-    using const_iterator = est::list_iterator<object_t, node_traits, true>;
-    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<data_t>;
-    using alloc_traits = std::allocator_traits<alloc_type>;
+
+    struct iterator_traits : node_traits {
+        using value_type = object_value<CharT, Alloc>;
+        using difference_type = std::ptrdiff_t;
+        using pointer = value_type*;
+        using const_pointer = const value_type*;
+        using reference = value_type&;
+        using const_reference = const value_type&;
+    };
+
+    using iterator = est::list_iterator<iterator_traits, false>;
+    using const_iterator = est::list_iterator<iterator_traits, true>;
 
     size_type size() const noexcept { return p_->size; }
     list_links_t* cbegin() const noexcept { return p_->head.next; }
