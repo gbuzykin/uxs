@@ -21,9 +21,6 @@ struct zipfile_info {
     std::uint32_t crc = 0;
 };
 
-class ziparch;
-class zipfile;
-
 class ziparch_source {
  public:
     ziparch_source() noexcept = default;
