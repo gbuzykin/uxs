@@ -8,7 +8,7 @@ namespace uxs {
 
 namespace detail {
 
-template<typename Ty, typename CharT, typename, typename = void>
+template<typename Ty, typename CharT, typename IndexSequence, typename = void>
 struct tuple_formatter_impl {};
 template<typename Ty, typename CharT, std::size_t... Indices>
 struct tuple_formatter_impl<

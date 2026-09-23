@@ -1,5 +1,7 @@
 #pragma once
 
+#include "value.h"
+
 #include "uxs/io/iomembuffer.h"
 #include "uxs/string_conv_base.h"
 
@@ -8,9 +10,6 @@
 
 namespace uxs {
 namespace db {
-template<typename CharT, typename Alloc>
-class basic_value;
-
 namespace xml {
 
 enum class token_t : int {

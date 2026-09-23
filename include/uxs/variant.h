@@ -374,10 +374,10 @@ class variant {
     UXS_EXPORT friend bibuf& operator>>(bibuf& is, variant& v);
     UXS_EXPORT friend biobuf& operator<<(biobuf& os, const variant& v);
 
-    template<typename>
+    template<typename Ty>
     friend struct variant_type_impl;
 
-    template<typename, typename = void>
+    template<typename U, typename = void>
     struct getters_specializer;
 
     UXS_EXPORT static detail::variant_vtable_t* vtables_[];
