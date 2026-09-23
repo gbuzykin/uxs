@@ -219,7 +219,7 @@ std::size_t append_escaped_text(StrTy& out, InputIt first, InputIt last, bool si
     while (first != last) {
         char esc = '\0';
         std::uint32_t code = 0;
-        const auto result = utf_decoder<char_type>{}.decode(first, last, code);
+        const auto result = utf_codec<char_type>{}.decode(first, last, code);
         switch (code) {
             case '\t': esc = 't'; break;
             case '\n': esc = 'n'; break;
@@ -242,8 +242,8 @@ std::size_t append_escaped_text(StrTy& out, InputIt first, InputIt last, bool si
                 esc = '\'';
             } break;
             default: {
-                if (result && is_utf_code_printable(code)) {
-                    const unsigned w = get_utf_code_width(code);
+                if (result && is_utf_printable(code)) {
+                    const unsigned w = get_utf_printable_width(code);
                     if (max_width - width < w) { goto finish; }
                     width += w, first = result.iter;
                     continue;
@@ -282,8 +282,8 @@ std::size_t estimate_string_width(InputIt first, InputIt last) {
     std::size_t width = 0;
     while (first != last) {
         std::uint32_t code = 0;
-        first = utf_decoder<CharT>{}.decode(first, last, code).iter;
-        width += get_utf_code_width(code);
+        first = utf_codec<CharT>{}.decode(first, last, code).iter;
+        width += get_utf_printable_width(code);
     }
     return width;
 }
