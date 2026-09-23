@@ -5,7 +5,7 @@
 
 #include <cstdlib>
 
-#define UXS_SCONV_USE_COMPILER_EXTENSIONS 1
+#define UXS_SCONV_USE_COMPILER_EXTENSIONS 0
 
 #if UXS_SCONV_USE_COMPILER_EXTENSIONS != 0
 #    if defined(_MSC_VER) && defined(_M_X64)
@@ -43,14 +43,6 @@ struct fp_m64_t {
     int exp;
 };
 
-UXS_CONSTEXPR_DATA std::uint64_t msb64 = 1ULL << 63;
-UXS_FORCE_INLINE std::uint64_t lo32(std::uint64_t x) { return x & 0xffffffff; }
-UXS_FORCE_INLINE std::uint64_t hi32(std::uint64_t x) { return x >> 32; }
-template<typename TyH, typename TyL>
-UXS_FORCE_INLINE std::uint64_t make64(TyH hi, TyL lo) {
-    return (static_cast<std::uint64_t>(hi) << 32) | static_cast<std::uint64_t>(lo);
-}
-
 #if UXS_SCONV_USE_COMPILER_EXTENSIONS != 0 && defined(_MSC_VER) && defined(_M_X64)
 UXS_FORCE_INLINE unsigned ulog2(std::uint32_t x) {
     unsigned long ret;
@@ -81,8 +73,8 @@ UXS_FORCE_INLINE unsigned ulog2(std::uint32_t x) {
     return bias + v[x];
 }
 UXS_FORCE_INLINE unsigned ulog2(std::uint64_t x) {
-    if (x >= 1ULL << 32) { return 32 + ulog2(static_cast<std::uint32_t>(hi32(x))); }
-    return ulog2(static_cast<std::uint32_t>(lo32(x)));
+    if (x >= 1ULL << 32) { return 32 + ulog2(static_cast<std::uint32_t>(x >> 32)); }
+    return ulog2(static_cast<std::uint32_t>(x));
 }
 #endif
 
