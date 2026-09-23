@@ -14,16 +14,27 @@ constexpr std::size_t dynamic_extent = std::numeric_limits<std::size_t>::max();
 
 template<typename Ty>
 class span {
+ private:
+    struct iterator_traits {
+        using value_type = std::remove_cv_t<Ty>;
+        using difference_type = std::ptrdiff_t;
+        using pointer = Ty*;
+        using const_pointer = const Ty*;
+        using reference = Ty&;
+        using const_reference = const Ty&;
+        using underlying_ptr_t = pointer;
+    };
+
  public:
     using value_type = std::remove_cv_t<Ty>;
+    using size_type = std::size_t;
+    using difference_type = std::ptrdiff_t;
     using pointer = Ty*;
     using const_pointer = const Ty*;
     using reference = Ty&;
     using const_reference = const Ty&;
-    using iterator = array_iterator<span, pointer, std::is_const<Ty>::value>;
+    using iterator = array_iterator<iterator_traits, std::is_const<Ty>::value>;
     using reverse_iterator = std::reverse_iterator<iterator>;
-    using size_type = std::size_t;
-    using difference_type = std::ptrdiff_t;
 
     UXS_CONSTEXPR span() noexcept = default;
     template<typename Ty2, typename = std::enable_if_t<std::is_convertible<Ty2*, Ty*>::value>>

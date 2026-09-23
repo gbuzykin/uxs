@@ -99,14 +99,14 @@ template<typename CharT>
 struct formatter<bool, CharT> {
  private:
     fmt_opts opts_;
-    std::size_t width_arg_id_ = unspecified_size;
+    std::size_t width_arg_id_ = est::unspecified_size;
 
  public:
     template<typename ParseCtx>
     UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) {
         auto it = ctx.begin();
         if (it == ctx.end() || *it != ':') { return it; }
-        std::size_t dummy_id = unspecified_size;
+        std::size_t dummy_id = est::unspecified_size;
         it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
         auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, opts_) : ParseCtx::type_spec::none;
         if (opts_.prec >= 0) { ParseCtx::report_unexpected_prec_error(); }
@@ -122,7 +122,7 @@ struct formatter<bool, CharT> {
     template<typename FmtCtx>
     void format(FmtCtx& ctx, bool val) const {
         fmt_opts opts = opts_;
-        if (width_arg_id_ != unspecified_size) {
+        if (width_arg_id_ != est::unspecified_size) {
             opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>();
         }
         sconv::fmt_boolean(ctx.out(), val, opts, ctx.locale());
@@ -133,7 +133,7 @@ template<typename CharT>
 struct formatter<CharT, CharT> {
  private:
     fmt_opts opts_;
-    std::size_t width_arg_id_ = unspecified_size;
+    std::size_t width_arg_id_ = est::unspecified_size;
 
  public:
     UXS_CONSTEXPR void set_debug_format() { opts_.flags |= fmt_flags::debug_format; }
@@ -141,7 +141,7 @@ struct formatter<CharT, CharT> {
     UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) {
         auto it = ctx.begin();
         if (it == ctx.end() || *it != ':') { return it; }
-        std::size_t dummy_id = unspecified_size;
+        std::size_t dummy_id = est::unspecified_size;
         it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
         auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, opts_) : ParseCtx::type_spec::none;
         if (opts_.prec >= 0) { ParseCtx::report_unexpected_prec_error(); }
@@ -159,7 +159,7 @@ struct formatter<CharT, CharT> {
     template<typename FmtCtx>
     void format(FmtCtx& ctx, CharT val) const {
         fmt_opts opts = opts_;
-        if (width_arg_id_ != unspecified_size) {
+        if (width_arg_id_ != est::unspecified_size) {
             opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>();
         }
         sconv::fmt_character(ctx.out(), val, opts, ctx.locale());
@@ -171,14 +171,14 @@ struct formatter<CharT, CharT> {
     struct formatter<ty, CharT> { \
      private: \
         fmt_opts opts_; \
-        std::size_t width_arg_id_ = unspecified_size; \
+        std::size_t width_arg_id_ = est::unspecified_size; \
 \
      public: \
         template<typename ParseCtx> \
         UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) { \
             auto it = ctx.begin(); \
             if (it == ctx.end() || *it != ':') { return it; } \
-            std::size_t dummy_id = unspecified_size; \
+            std::size_t dummy_id = est::unspecified_size; \
             it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id); \
             auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, opts_) : ParseCtx::type_spec::none; \
             if (opts_.prec >= 0) { ParseCtx::report_unexpected_prec_error(); } \
@@ -196,7 +196,7 @@ struct formatter<CharT, CharT> {
         template<typename FmtCtx> \
         void format(FmtCtx& ctx, ty val) const { \
             fmt_opts opts = opts_; \
-            if (width_arg_id_ != unspecified_size) { \
+            if (width_arg_id_ != est::unspecified_size) { \
                 opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>(); \
             } \
             sconv::fmt_integer(ctx.out(), val, opts, ctx.locale()); \
@@ -213,8 +213,8 @@ UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::uint64_t);
     struct formatter<ty, CharT> { \
      private: \
         fmt_opts opts_; \
-        std::size_t width_arg_id_ = unspecified_size; \
-        std::size_t prec_arg_id_ = unspecified_size; \
+        std::size_t width_arg_id_ = est::unspecified_size; \
+        std::size_t prec_arg_id_ = est::unspecified_size; \
 \
      public: \
         template<typename ParseCtx> \
@@ -231,10 +231,10 @@ UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::uint64_t);
         template<typename FmtCtx> \
         void format(FmtCtx& ctx, ty val) const { \
             fmt_opts opts = opts_; \
-            if (width_arg_id_ != unspecified_size) { \
+            if (width_arg_id_ != est::unspecified_size) { \
                 opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>(); \
             } \
-            if (prec_arg_id_ != unspecified_size) { \
+            if (prec_arg_id_ != est::unspecified_size) { \
                 opts.prec = ctx.arg(prec_arg_id_).template get_unsigned<decltype(opts.prec)>(); \
             } \
             sconv::fmt_float(ctx.out(), val, opts, ctx.locale()); \
@@ -249,14 +249,14 @@ template<typename CharT>
 struct formatter<const void*, CharT> {
  private:
     fmt_opts opts_;
-    std::size_t width_arg_id_ = unspecified_size;
+    std::size_t width_arg_id_ = est::unspecified_size;
 
  public:
     template<typename ParseCtx>
     UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) {
         auto it = ctx.begin();
         if (it == ctx.end() || *it != ':') { return it; }
-        std::size_t dummy_id = unspecified_size;
+        std::size_t dummy_id = est::unspecified_size;
         it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
         auto type = it != ctx.end() ? ParseCtx::classify_standard_type(*it, opts_) : ParseCtx::type_spec::none;
         if (opts_.prec >= 0) { ParseCtx::report_unexpected_prec_error(); }
@@ -271,7 +271,7 @@ struct formatter<const void*, CharT> {
     template<typename FmtCtx>
     void format(FmtCtx& ctx, const void* val) const {
         fmt_opts opts = opts_;
-        if (width_arg_id_ != unspecified_size) {
+        if (width_arg_id_ != est::unspecified_size) {
             opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>();
         }
         opts.flags |= fmt_flags::hex | fmt_flags::alternate;
@@ -284,8 +284,8 @@ struct formatter<const void*, CharT> {
     struct formatter<ty, CharT> { \
      private: \
         fmt_opts opts_; \
-        std::size_t width_arg_id_ = unspecified_size; \
-        std::size_t prec_arg_id_ = unspecified_size; \
+        std::size_t width_arg_id_ = est::unspecified_size; \
+        std::size_t prec_arg_id_ = est::unspecified_size; \
 \
      public: \
         UXS_CONSTEXPR void set_debug_format() { opts_.flags |= fmt_flags::debug_format; } \
@@ -309,10 +309,10 @@ struct formatter<const void*, CharT> {
         template<typename FmtCtx> \
         void format(FmtCtx& ctx, ty val) const { \
             fmt_opts opts = opts_; \
-            if (width_arg_id_ != unspecified_size) { \
+            if (width_arg_id_ != est::unspecified_size) { \
                 opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>(); \
             } \
-            if (prec_arg_id_ != unspecified_size) { \
+            if (prec_arg_id_ != est::unspecified_size) { \
                 opts.prec = ctx.arg(prec_arg_id_).template get_unsigned<decltype(opts.prec)>(); \
             } \
             sconv::fmt_string<CharT>(ctx.out(), val, opts, ctx.locale()); \
@@ -405,8 +405,8 @@ using arg_size = est::size_of<typename arg_store_type<FmtCtx, Ty>::type>;
 template<typename FmtCtx, typename Ty>
 using arg_alignment = std::alignment_of<typename arg_store_type<FmtCtx, Ty>::type>;
 
-template<typename FmtCtx, std::size_t, typename...>
-struct arg_store_size_evaluator;
+template<typename FmtCtx, std::size_t Size, typename... Ts>
+struct arg_store_size_evaluator {};
 template<typename FmtCtx, std::size_t Size>
 struct arg_store_size_evaluator<FmtCtx, Size> : std::integral_constant<std::size_t, Size> {};
 template<typename FmtCtx, std::size_t Size, typename Ty, typename... Rest>
@@ -418,15 +418,8 @@ struct arg_store_size_evaluator<FmtCtx, Size, Ty, Rest...>
                                        arg_size<FmtCtx, Ty>::value,
                                    Rest...>::value> {};
 
-template<typename FmtCtx, typename...>
-struct arg_store_alignment_evaluator;
-template<typename FmtCtx, typename Ty>
-struct arg_store_alignment_evaluator<FmtCtx, Ty> : arg_alignment<FmtCtx, Ty> {};
-template<typename FmtCtx, typename Ty1, typename Ty2, typename... Rest>
-struct arg_store_alignment_evaluator<FmtCtx, Ty1, Ty2, Rest...>
-    : std::conditional<(arg_alignment<FmtCtx, Ty1>::value > arg_alignment<FmtCtx, Ty2>::value),
-                       arg_store_alignment_evaluator<FmtCtx, Ty1, Rest...>,
-                       arg_store_alignment_evaluator<FmtCtx, Ty2, Rest...>>::type {};
+template<typename FmtCtx, typename... Ts>
+using arg_store_alignment_evaluator = est::maximum<arg_alignment<FmtCtx, Ts>...>;
 
 template<typename FmtCtx, typename... Args>
 class arg_store {
@@ -476,7 +469,7 @@ class arg_store {
     template<typename Ty, typename... Ts>
     UXS_CONSTEXPR void store_values(std::size_t i, std::size_t offset, const Ty& val, const Ts&... other) noexcept {
         static_assert(is_formattable<Ty, char_type>::value, "value of this type cannot be formatted");
-        offset = est::align_up<arg_alignment<FmtCtx, Ty>::value>::value(offset);
+        offset = est::align_up<arg_alignment<FmtCtx, Ty>::value>{}(offset);
         ::new (reinterpret_cast<unsigned*>(&data_) + i) unsigned(
             static_cast<unsigned>(offset << 8) | static_cast<unsigned>(arg_type_index<Ty, char_type>::value));
         store_value(val, &data_[offset]);
@@ -855,15 +848,15 @@ class basic_format_parse_context : public fmt::parse_context_utils {
     UXS_CONSTEXPR void advance_to(iterator it) noexcept { first_ = it; }
 
     UXS_NODISCARD UXS_CONSTEXPR std::size_t next_arg_id() {
-        if (next_arg_id_ == unspecified_size) { throw format_error("automatic argument indexing error"); }
+        if (next_arg_id_ == est::unspecified_size) { throw format_error("automatic argument indexing error"); }
         return next_arg_id_++;
     }
 
     UXS_CONSTEXPR void check_arg_id(std::size_t /*id*/) {
-        if (next_arg_id_ != unspecified_size && next_arg_id_ > 0) {
+        if (next_arg_id_ != est::unspecified_size && next_arg_id_ > 0) {
             throw format_error("manual argument indexing error");
         }
-        next_arg_id_ = unspecified_size;
+        next_arg_id_ = est::unspecified_size;
     }
 
     template<typename... Ts>

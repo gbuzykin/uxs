@@ -197,7 +197,7 @@ template<typename OutCharT, typename CharT, typename Alloc>
 struct formatter<db::basic_value<CharT, Alloc>, OutCharT> {
  private:
     db::json::json_fmt_opts opts_;
-    std::size_t indent_size_arg_id_ = unspecified_size;
+    std::size_t indent_size_arg_id_ = est::unspecified_size;
     bool use_condensed_ = false;
 
  public:
@@ -230,7 +230,7 @@ struct formatter<db::basic_value<CharT, Alloc>, OutCharT> {
     template<typename FmtCtx>
     void format(FmtCtx& ctx, const db::basic_value<CharT, Alloc>& val) const {
         unsigned indent_size = opts_.indent_size;
-        if (indent_size_arg_id_ != unspecified_size) {
+        if (indent_size_arg_id_ != est::unspecified_size) {
             indent_size = ctx.arg(indent_size_arg_id_).template get_unsigned<decltype(indent_size)>();
         }
         return use_condensed_ ? db::json::detail::write_impl(ctx.out(), val) :

@@ -19,7 +19,7 @@ template<typename CharT>
 struct formatter<std::filesystem::path, CharT> {
  private:
     fmt_opts opts_;
-    std::size_t width_arg_id_ = unspecified_size;
+    std::size_t width_arg_id_ = est::unspecified_size;
     bool use_generic_ = false;
 
  public:
@@ -29,7 +29,7 @@ struct formatter<std::filesystem::path, CharT> {
     constexpr typename ParseCtx::iterator parse(ParseCtx& ctx) {
         auto it = ctx.begin();
         if (it == ctx.end() || *it != ':') { return it; }
-        std::size_t dummy_id = unspecified_size;
+        std::size_t dummy_id = est::unspecified_size;
         it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, dummy_id);
         if (opts_.prec >= 0 || !!(opts_.flags & ~fmt_flags::adjust_field)) { ParseCtx::report_syntax_error(); }
         if (it != ctx.end() && *it == '?') {
@@ -44,7 +44,7 @@ struct formatter<std::filesystem::path, CharT> {
     template<typename FmtCtx>
     void format(FmtCtx& ctx, const std::filesystem::path& val) const {
         fmt_opts opts = opts_;
-        if (width_arg_id_ != unspecified_size) {
+        if (width_arg_id_ != est::unspecified_size) {
             opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(opts.width)>();
         }
         sconv::fmt_string<CharT>(

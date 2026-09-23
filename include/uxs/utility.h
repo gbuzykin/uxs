@@ -57,29 +57,29 @@ struct make_index_sequence<0U, Next...> {
 namespace std {
 #    if __cplusplus < 201402L
 template<bool B, typename Ty = void>
-using enable_if_t = typename enable_if<B, Ty>::type;
+using enable_if_t = typename std::enable_if<B, Ty>::type;
 template<typename Ty>
-using decay_t = typename decay<Ty>::type;
+using decay_t = typename std::decay<Ty>::type;
 template<typename Ty>
-using remove_reference_t = typename remove_reference<Ty>::type;
+using remove_reference_t = typename std::remove_reference<Ty>::type;
 template<typename Ty>
-using remove_pointer_t = typename remove_pointer<Ty>::type;
+using remove_pointer_t = typename std::remove_pointer<Ty>::type;
 template<typename Ty>
-using remove_const_t = typename remove_const<Ty>::type;
+using remove_const_t = typename std::remove_const<Ty>::type;
 template<typename Ty>
-using remove_cv_t = typename remove_cv<Ty>::type;
+using remove_cv_t = typename std::remove_cv<Ty>::type;
 template<typename Ty>
-using add_const_t = typename add_const<Ty>::type;
+using add_const_t = typename std::add_const<Ty>::type;
 template<bool B, typename Ty1, typename Ty2>
-using conditional_t = typename conditional<B, Ty1, Ty2>::type;
+using conditional_t = typename std::conditional<B, Ty1, Ty2>::type;
 #    endif  // type traits
 #    if !defined(__cpp_lib_bool_constant)
 template<bool B>
-using bool_constant = integral_constant<bool, B>;
+using bool_constant = std::integral_constant<bool, B>;
 #    endif  // bool constant
 #    if !defined(__cpp_lib_as_const)
 template<typename Ty>
-add_const_t<Ty>& as_const(Ty& t) {
+std::add_const_t<Ty>& as_const(Ty& t) {
     return t;
 }
 template<typename Ty>
@@ -95,7 +95,7 @@ using index_sequence = est::detail::index_sequence<Indices...>;
 template<std::size_t I>
 using make_index_sequence = typename est::detail::make_index_sequence<I>::type;
 template<typename... Ts>
-using index_sequence_for = make_index_sequence<sizeof...(Ts)>;
+using index_sequence_for = std::make_index_sequence<sizeof...(Ts)>;
 #    endif  // integer sequence
 }  // namespace std
 #endif  // __cplusplus < 201703L
@@ -103,9 +103,9 @@ using index_sequence_for = make_index_sequence<sizeof...(Ts)>;
 #if __cplusplus < 202002L && !defined(__cpp_lib_remove_cvref)
 namespace std {
 template<typename Ty>
-using remove_cvref = remove_cv<remove_reference_t<Ty>>;
+using remove_cvref = std::remove_cv<remove_reference_t<Ty>>;
 template<typename Ty>
-using remove_cvref_t = typename remove_cvref<Ty>::type;
+using remove_cvref_t = typename std::remove_cvref<Ty>::type;
 }  // namespace std
 #endif  // remove_cvref
 
@@ -129,19 +129,27 @@ template<typename Ty>
 constexpr in_place_type_t<Ty> in_place_type{};
 #endif  // __cplusplus >= 201402L
 
+template<typename Ty, typename... U>
+struct is_one_of {};
+template<typename Ty, typename U>
+struct is_one_of<Ty, U> : std::is_same<Ty, U> {};
+template<typename Ty, typename U, typename... Rest>
+struct is_one_of<Ty, U, Rest...>
+    : std::conditional_t<std::is_same<Ty, U>::value, std::true_type, is_one_of<Ty, Rest...>> {};
+#if __cplusplus >= 201402L
+template<typename Ty, typename... U>
+constexpr bool is_one_of_v = is_one_of<Ty, U...>::value;
+#endif  // __cplusplus >= 201402L
+
 template<typename Ty>
 using is_boolean = std::is_same<std::remove_cv_t<Ty>, bool>;
 
-template<typename Ty, typename = void>
-struct is_character : std::false_type {};
-template<typename Ty>
-struct is_character<Ty, std::enable_if_t<std::is_same<std::remove_cv_t<Ty>, char>::value ||
-                                         std::is_same<std::remove_cv_t<Ty>, wchar_t>::value ||
-                                         std::is_same<std::remove_cv_t<Ty>, char16_t>::value ||
-                                         std::is_same<std::remove_cv_t<Ty>, char32_t>::value>> : std::true_type {};
 #if __cplusplus >= 202002L
 template<typename Ty>
-struct is_character<Ty, std::enable_if_t<std::is_same<std::remove_cv_t<Ty>, char8_t>::value>> : std::true_type {};
+using is_character = is_one_of<std::remove_cv_t<Ty>, char, wchar_t, char8_t, char16_t, char32_t>;
+#else   // __cplusplus >= 202002L
+template<typename Ty>
+using is_character = is_one_of<std::remove_cv_t<Ty>, char, wchar_t, char16_t, char32_t>;
 #endif  // __cplusplus >= 202002L
 
 #if __cplusplus >= 201402L

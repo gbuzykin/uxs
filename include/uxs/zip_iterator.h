@@ -19,19 +19,19 @@ using zip_iterator_tag =
 
 template<typename... Iters>
 class zip_iterator
-    : public iterator_facade<zip_iterator<Iters...>, std::tuple<typename std::iterator_traits<Iters>::value_type...>,
-                             detail::zip_iterator_tag<Iters...>,
-                             std::tuple<typename std::iterator_traits<Iters>::reference...>,
-                             std::tuple<typename std::iterator_traits<Iters>::pointer...>> {
+    : public input_iterator_facade<
+          zip_iterator<Iters...>, std::tuple<typename std::iterator_traits<Iters>::value_type...>,
+          detail::zip_iterator_tag<Iters...>, std::tuple<typename std::iterator_traits<Iters>::reference...>,
+          std::tuple<typename std::iterator_traits<Iters>::pointer...>> {
     static_assert(sizeof...(Iters) != 0, "base iterator list is empty");
     static_assert(std::conjunction<is_forward_iterator<Iters>...>::value,
                   "all iterators must satisfy at least forward iterator concept");
 
  private:
-    using super = iterator_facade<zip_iterator, std::tuple<typename std::iterator_traits<Iters>::value_type...>,
-                                  detail::zip_iterator_tag<Iters...>,
-                                  std::tuple<typename std::iterator_traits<Iters>::reference...>,
-                                  std::tuple<typename std::iterator_traits<Iters>::pointer...>>;
+    using super = input_iterator_facade<zip_iterator, std::tuple<typename std::iterator_traits<Iters>::value_type...>,
+                                        detail::zip_iterator_tag<Iters...>,
+                                        std::tuple<typename std::iterator_traits<Iters>::reference...>,
+                                        std::tuple<typename std::iterator_traits<Iters>::pointer...>>;
 
  public:
     using reference = typename super::reference;

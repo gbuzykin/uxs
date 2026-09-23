@@ -17,6 +17,16 @@ class basic_membuffer {
     static_assert(std::is_trivially_copyable<Ty>::value && std::is_trivially_destructible<Ty>::value,
                   "uxs::basic_membuffer<> must have trivially copyable and destructible value type");
 
+    struct iterator_traits {
+        using value_type = Ty;
+        using difference_type = std::ptrdiff_t;
+        using pointer = value_type*;
+        using const_pointer = const value_type*;
+        using reference = value_type&;
+        using const_reference = const value_type&;
+        using underlying_ptr_t = const_pointer;
+    };
+
  public:
     using value_type = Ty;
     using size_type = std::size_t;
@@ -25,7 +35,7 @@ class basic_membuffer {
     using const_pointer = const value_type*;
     using reference = value_type&;
     using const_reference = const value_type&;
-    using const_iterator = est::array_iterator<basic_membuffer, const_pointer, true>;
+    using const_iterator = est::array_iterator<iterator_traits, true>;
     using iterator = const_iterator;
 
  protected:
@@ -43,12 +53,12 @@ class basic_membuffer {
     size_type capacity() const noexcept { return capacity_; }
     size_type avail() const noexcept { return capacity_ - size_; }
 
-    iterator begin() noexcept { return iterator(data_, data_, endp()); }
-    const_iterator begin() const noexcept { return const_iterator(data_, data_, endp()); }
+    iterator begin() noexcept { return iterator(data(), data(), endp()); }
+    const_iterator begin() const noexcept { return const_iterator(data(), data(), endp()); }
     const_iterator cbegin() const noexcept { return begin(); }
 
-    iterator end() noexcept { return iterator(endp(), data_, endp()); }
-    const_iterator end() const noexcept { return const_iterator(endp(), data_, endp()); }
+    iterator end() noexcept { return iterator(endp(), data(), endp()); }
+    const_iterator end() const noexcept { return const_iterator(endp(), data(), endp()); }
     const_iterator cend() const noexcept { return end(); }
 
     pointer data() noexcept { return data_; }
