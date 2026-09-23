@@ -92,12 +92,14 @@ struct formatter<Ty, CharT, std::void_t<typename detail::tuple_formatter<Ty, Cha
         static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
     }
 
-    UXS_CONSTEXPR void switch_to_map_style(std::true_type) noexcept {
+    template<typename Ty_ = Ty>
+    UXS_CONSTEXPR void switch_to_map_style(std::true_type /* is pair-like */) noexcept {
         set_separator(string_literal<CharT, ':', ' '>{});
     }
 
-    UXS_CONSTEXPR void switch_to_map_style(std::false_type) {
-        throw format_error("`m` specifier requires a pair or a tuple with two elements");
+    template<typename Ty_ = Ty>
+    UXS_CONSTEXPR void switch_to_map_style(std::false_type /* is pair-like */) {
+        throw format_error("`m` specifier requires a pair-like type");
     }
 
     template<typename ParseCtx>
@@ -117,10 +119,18 @@ struct formatter<Ty, CharT, std::void_t<typename detail::tuple_formatter<Ty, Cha
 
     template<typename FmtCtx, std::size_t I>
     void format_element(FmtCtx& ctx, const Ty& val, std::integral_constant<std::size_t, I>) const {
-        if UXS_CONSTEXPR_IF (I != 0) { ctx.out() += separator_; }
+        put_separator(ctx, std::bool_constant<I != 0>());
         std::get<I>(underlying_).format(ctx, std::get<I>(val));
         format_element(ctx, val, std::integral_constant<std::size_t, I + 1>());
     }
+
+    template<typename FmtCtx>
+    void put_separator(FmtCtx& ctx, std::true_type /* I != 0 */) const {
+        ctx.out() += separator_;
+    }
+
+    template<typename FmtCtx>
+    void put_separator(FmtCtx& /*ctx*/, std::false_type /* I != 0 */) const {}
 
     template<typename FmtCtx>
     void format_impl(FmtCtx& ctx, const Ty& val) const {
@@ -181,7 +191,7 @@ struct range_formatter {
     fmt_opts opts_;
     std::size_t width_arg_id_ = unspecified_size;
     std::size_t prec_arg_id_ = unspecified_size;
-    formatter<Ty, CharT> underlying_;
+    formatter_t<Ty, CharT> underlying_;
     bool format_as_string_ = false;
     std::basic_string_view<CharT> separator_;
     std::basic_string_view<CharT> opening_bracket_;
@@ -197,23 +207,30 @@ struct range_formatter {
         static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
     }
 
-    UXS_CONSTEXPR void switch_to_map_style(std::true_type) noexcept {
+    template<typename Ty_ = Ty>
+    UXS_CONSTEXPR void switch_to_map_style(std::true_type /* range of pair-like elements */) noexcept {
         underlying_.set_separator(string_literal<CharT, ':', ' '>{});
         underlying_.set_brackets({}, {});
     }
 
-    UXS_CONSTEXPR void switch_to_map_style(std::false_type) {
-        throw format_error("`m` specifier requires a range of pairs or tuples with two elements");
+    template<typename Ty_ = Ty>
+    UXS_CONSTEXPR void switch_to_map_style(std::false_type /* range of pair-like elements */) {
+        throw format_error("`m` specifier requires a range of pairs-like item");
     }
 
-    UXS_CONSTEXPR void switch_to_string_style(std::true_type) noexcept { format_as_string_ = true; }
+    template<typename Ty_ = Ty>
+    UXS_CONSTEXPR void switch_to_string_style(std::true_type /* range of chars */) noexcept {
+        format_as_string_ = true;
+    }
 
-    UXS_CONSTEXPR void switch_to_string_style(std::false_type) {
+    template<typename Ty_ = Ty>
+    UXS_CONSTEXPR void switch_to_string_style(std::false_type /* range of chars */) {
         throw format_error("`s` specifier requires a range of native characters");
     }
 
     template<typename StrTy, typename Range>
-    static std::size_t format_as_string(StrTy& out, const Range& val, fmt_opts opts, std::true_type) {
+    static std::size_t format_as_string(StrTy& out, const Range& val, fmt_opts opts,
+                                        std::true_type /* range of chars */) {
         if (!(opts.flags & fmt_flags::debug_format)) {
             std::size_t width = 0;
             auto first = std::begin(val);
@@ -238,7 +255,7 @@ struct range_formatter {
     }
 
     template<typename StrTy, typename Range>
-    static std::size_t format_as_string(StrTy&, const Range&, fmt_opts, std::false_type) {
+    static std::size_t format_as_string(StrTy&, const Range&, fmt_opts, std::false_type /* range of chars */) {
         return 0;
     }
 
@@ -256,8 +273,8 @@ struct range_formatter {
     UXS_CONSTEXPR range_formatter() noexcept
         : separator_(string_literal<CharT, ',', ' '>{}), opening_bracket_(string_literal<CharT, '['>{}),
           closing_bracket_(string_literal<CharT, ']'>{}) {}
-    UXS_CONSTEXPR formatter<Ty, CharT>& underlying() { return underlying_; }
-    UXS_CONSTEXPR const formatter<Ty, CharT>& underlying() const { return underlying_; }
+    UXS_CONSTEXPR formatter_t<Ty, CharT>& underlying() { return underlying_; }
+    UXS_CONSTEXPR const formatter_t<Ty, CharT>& underlying() const { return underlying_; }
     UXS_CONSTEXPR void set_separator(std::basic_string_view<CharT> sep) noexcept { separator_ = sep; }
     UXS_CONSTEXPR void set_brackets(std::basic_string_view<CharT> opening,
                                     std::basic_string_view<CharT> closing) noexcept {
@@ -305,7 +322,7 @@ struct range_formatter {
 
     template<typename FmtCtx, typename Range>
     void format(FmtCtx& ctx, const Range& val) const {
-        static_assert(std::is_same<fmt::reduce_type_t<est::range_element_t<Range>, CharT>, Ty>::value,
+        static_assert(std::is_same<est::range_element_t<Range>, Ty>::value,
                       "inconsistent template parameter and range types");
         fmt_opts opts = opts_;
         if (width_arg_id_ != unspecified_size) {
@@ -333,12 +350,9 @@ struct range_formatter {
     }
 };
 
-template<typename Ty, typename CharT>
-using range_formatter_t = range_formatter<fmt::reduce_type_t<Ty, CharT>, CharT>;
-
 template<typename Range, typename CharT>
 struct formatter<Range, CharT, std::enable_if_t<format_kind<Range, CharT>::value == range_format::map>>
-    : range_formatter_t<est::range_element_t<Range>, CharT> {
+    : range_formatter<est::range_element_t<Range>, CharT> {
     UXS_CONSTEXPR formatter() noexcept {
         this->set_brackets(string_literal<CharT, '{'>{}, string_literal<CharT, '}'>{});
         this->underlying().set_separator(string_literal<CharT, ':', ' '>{});
@@ -348,7 +362,7 @@ struct formatter<Range, CharT, std::enable_if_t<format_kind<Range, CharT>::value
 
 template<typename Range, typename CharT>
 struct formatter<Range, CharT, std::enable_if_t<format_kind<Range, CharT>::value == range_format::set>>
-    : range_formatter_t<est::range_element_t<Range>, CharT> {
+    : range_formatter<est::range_element_t<Range>, CharT> {
     UXS_CONSTEXPR formatter() noexcept {
         this->set_brackets(string_literal<CharT, '{'>{}, string_literal<CharT, '}'>{});
     }
@@ -356,6 +370,6 @@ struct formatter<Range, CharT, std::enable_if_t<format_kind<Range, CharT>::value
 
 template<typename Range, typename CharT>
 struct formatter<Range, CharT, std::enable_if_t<format_kind<Range, CharT>::value == range_format::sequence>>
-    : range_formatter_t<est::range_element_t<Range>, CharT> {};
+    : range_formatter<est::range_element_t<Range>, CharT> {};
 
 }  // namespace uxs

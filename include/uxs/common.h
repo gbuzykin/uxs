@@ -44,11 +44,9 @@
 #    if __cplusplus < 201703L
 #        define UXS_CONSTEXPR      inline
 #        define UXS_CONSTEXPR_DATA const
-#        define UXS_CONSTEXPR_IF
 #    else  // __cplusplus < 201703L
 #        define UXS_CONSTEXPR      constexpr
 #        define UXS_CONSTEXPR_DATA constexpr
-#        define UXS_CONSTEXPR_IF   constexpr
 #    endif  // __cplusplus < 201703L
 #endif      // !defined(UXS_CONSTEXPR)
 

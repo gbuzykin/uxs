@@ -12,7 +12,7 @@ namespace uxs {
 template<typename Ty, typename CharT>
 struct formatter<est::optional<Ty>, CharT, std::enable_if_t<is_formattable<Ty, CharT>::value>> {
  private:
-    formatter<Ty, CharT> underlying_;
+    formatter_t<Ty, CharT> underlying_;
 
  public:
     UXS_CONSTEXPR void set_debug_format() { underlying_.set_debug_format(); }
@@ -34,7 +34,7 @@ struct formatter<est::optional<Ty>, CharT, std::enable_if_t<is_formattable<Ty, C
 template<typename Ty, typename CharT>
 struct formatter<std::optional<Ty>, CharT, std::enable_if_t<is_formattable<Ty, CharT>::value>> {
  private:
-    formatter<Ty, CharT> underlying_;
+    formatter_t<Ty, CharT> underlying_;
 
  public:
     constexpr void set_debug_format() { underlying_.set_debug_format(); }

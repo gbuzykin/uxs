@@ -10,7 +10,7 @@ namespace uxs {
 namespace fmt {
 template<typename Ty, typename CharT, typename = void>
 struct reduce_type {
-    using type = std::remove_cv_t<Ty>;
+    using type = Ty;
 };
 template<typename Ty, typename CharT>
 struct reduce_type<Ty, CharT,
@@ -24,8 +24,8 @@ struct reduce_type<Ty, CharT,
                                     !est::is_boolean<Ty>::value && !est::is_character<Ty>::value>> {
     using type = std::conditional_t<(sizeof(Ty) <= sizeof(std::int32_t)), std::int32_t, std::int64_t>;
 };
-template<typename Ty>
-struct reduce_type<Ty, wchar_t, std::enable_if_t<std::is_same<std::remove_cv_t<Ty>, char>::value>> {
+template<>
+struct reduce_type<char, wchar_t> {
     using type = wchar_t;
 };
 template<typename CharT, typename Traits>
@@ -37,9 +37,8 @@ struct reduce_type<std::basic_string<CharT, Traits, Alloc>, CharT> {
     using type = std::basic_string_view<CharT>;
 };
 template<typename Ty, typename CharT>
-struct reduce_type<Ty*, CharT,
-                   std::enable_if_t<!est::is_character<Ty>::value || std::is_same<std::remove_cv_t<Ty>, CharT>::value>> {
-    using type = std::conditional_t<std::is_same<std::remove_cv_t<Ty>, CharT>::value, const CharT*, const void*>;
+struct reduce_type<Ty*, CharT, std::enable_if_t<!est::is_character<Ty>::value || std::is_same<Ty, CharT>::value>> {
+    using type = std::conditional_t<std::is_same<Ty, CharT>::value, const CharT*, const void*>;
 };
 template<typename Ty, typename CharT>
 struct reduce_type<Ty, CharT, std::enable_if_t<std::is_array<Ty>::value>> {
@@ -50,7 +49,7 @@ struct reduce_type<std::nullptr_t, CharT> {
     using type = const void*;
 };
 template<typename Ty, typename CharT>
-using reduce_type_t = typename reduce_type<Ty, CharT>::type;
+using reduce_type_t = typename reduce_type<std::remove_cv_t<Ty>, CharT>::type;
 }  // namespace fmt
 
 // --------------------------
@@ -370,8 +369,7 @@ class custom_arg_handle {
     using format_func_type = typename parse_context::iterator (*)(FmtCtx&, parse_context&, const void*);
 
     template<typename Ty>
-    explicit UXS_CONSTEXPR custom_arg_handle(const Ty& val) noexcept
-        : val_(&val), print_fn_(func<fmt::reduce_type_t<Ty, typename FmtCtx::char_type>>) {}
+    explicit UXS_CONSTEXPR custom_arg_handle(const Ty& val) noexcept : val_(&val), print_fn_(func<Ty>) {}
 
     typename parse_context::iterator format(FmtCtx& ctx, parse_context& parse_ctx) const {
         return print_fn_(ctx, parse_ctx, val_);
@@ -676,7 +674,7 @@ struct parse_context_utils {
 #if defined(UXS_HAS_CONSTEVAL)
     template<typename ParseCtx, typename Ty>
     static constexpr typename ParseCtx::iterator parse_arg(ParseCtx& ctx) {
-        formatter<Ty, typename ParseCtx::char_type> f;
+        formatter_t<Ty, typename ParseCtx::char_type> f;
         return f.parse(ctx);
     }
 #endif  // defined(UXS_HAS_CONSTEVAL)
@@ -919,8 +917,6 @@ class basic_format_context {
     using parse_context = basic_format_parse_context<char_type>;
     using format_args_type = basic_format_args<basic_format_context>;
     using format_arg_type = basic_format_arg<basic_format_context>;
-    template<typename Ty>
-    using formatter_type = formatter<Ty, char_type>;
 
     basic_format_context(output_type& out, locale_ref loc, format_args_type args) noexcept
         : out_(out), loc_(loc), args_(args) {}
@@ -939,7 +935,7 @@ class basic_format_context {
 
     template<typename Ty>
     typename parse_context::iterator format_arg(parse_context& parse_ctx, Ty val) {
-        formatter_type<Ty> f;
+        formatter_t<Ty, char_type> f;
         const auto it = f.parse(parse_ctx);
         f.format(*this, val);
         return it;
@@ -996,7 +992,7 @@ class basic_format_string {
         using parse_context = compile_parse_context<char_type>;
         constexpr std::array<fmt::index_t, sizeof...(Args)> arg_types{fmt::arg_type_index<Args, char_type>::value...};
         constexpr std::array<typename parse_context::iterator (*)(parse_context&), sizeof...(Args)> parsers{
-            fmt::parse_context_utils::parse_arg<parse_context, fmt::reduce_type_t<Args, char_type>>...};
+            fmt::parse_context_utils::parse_arg<parse_context, Args>...};
         parse_context ctx(fmt_.begin(), fmt_.end(), arg_types);
         fmt::parse_format(ctx, [](auto&&...) {}, [&parsers](auto& ctx, std::size_t id) { return parsers[id](ctx); });
 #endif  // defined(UXS_HAS_CONSTEVAL)
