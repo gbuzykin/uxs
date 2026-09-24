@@ -1,6 +1,7 @@
 #pragma once
 
 #include "uxs/db/value.h"
+#include "uxs/dllist.h"
 #include "uxs/string_conv.h"
 
 #include <cmath>
@@ -9,82 +10,46 @@ namespace uxs {
 namespace db {
 
 //-----------------------------------------------------------------------------
-
-template<typename CharT, typename Alloc>
-UXS_EXPORT bool operator==(const basic_value<CharT, Alloc>& lhs, const basic_value<CharT, Alloc>& rhs) noexcept {
-    static const auto compare_long_integer = [](std::int64_t lhs, const basic_value<CharT, Alloc>& rhs) {
-        switch (rhs.type_) {
-            case dtype::integer: return lhs == rhs.value_.i;
-            case dtype::unsigned_integer: return lhs == static_cast<std::int64_t>(rhs.value_.u);
-            case dtype::long_integer: return lhs == rhs.value_.i64;
-            case dtype::unsigned_long_integer: {
-                return rhs.value_.u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) &&
-                       lhs == static_cast<std::int64_t>(rhs.value_.u64);
-            } break;
-            default: return false;
-        }
-    };
-
-    static const auto compare_unsigned_long_integer = [](std::uint64_t lhs, const basic_value<CharT, Alloc>& rhs) {
-        switch (rhs.type_) {
-            case dtype::integer: return rhs.value_.i >= 0 && lhs == static_cast<std::uint64_t>(rhs.value_.i);
-            case dtype::unsigned_integer: return lhs == rhs.value_.u;
-            case dtype::long_integer: return rhs.value_.i64 >= 0 && lhs == static_cast<std::uint64_t>(rhs.value_.i64);
-            case dtype::unsigned_long_integer: return lhs == rhs.value_.u64;
-            default: return false;
-        }
-    };
-
-    switch (lhs.type_) {
-        case dtype::null: return rhs.type_ == dtype::null;
-        case dtype::boolean: return rhs.type_ == dtype::boolean && lhs.value_.b == rhs.value_.b;
-        case dtype::integer: return compare_long_integer(lhs.value_.i, rhs);
-        case dtype::unsigned_integer: return compare_unsigned_long_integer(lhs.value_.u, rhs);
-        case dtype::long_integer: return compare_long_integer(lhs.value_.i64, rhs);
-        case dtype::unsigned_long_integer: return compare_unsigned_long_integer(lhs.value_.u64, rhs);
-        case dtype::double_precision: return rhs.type_ == dtype::double_precision && lhs.value_.dbl == rhs.value_.dbl;
-        case dtype::string: return rhs.type_ == dtype::string && lhs.value_.str.is_equal_to(rhs.value_.str);
-        case dtype::array: return rhs.type_ == dtype::array && lhs.value_.arr.is_equal_to(rhs.value_.arr);
-        case dtype::object: return rhs.type_ == dtype::object && lhs.value_.obj.is_equal_to(rhs.value_.obj);
-        default: UXS_UNREACHABLE_CODE;
-    }
-}
-
-//-----------------------------------------------------------------------------
 // Flexible array implementation
 namespace detail {
 
 template<typename Alloc, typename Ty,
          typename = std::enable_if_t<
-             std::is_trivially_move_constructible<Ty>::value ||
-             std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value>>
+             std::is_trivially_copyable<Ty>::value ||
+             std::is_empty<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>>::value ||
+             std::is_trivially_copyable<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>>::value>>
 static void move_values(Alloc& /*al*/, const Ty* first, const Ty* last, Ty* dst) noexcept {
+    static_assert(std::is_empty<std::allocator<Ty>>::value, "standard allocator must be empty");
     std::memcpy(static_cast<void*>(dst), static_cast<const void*>(first), (last - first) * sizeof(Ty));
 }
 
 template<typename Alloc, typename Ty, typename... Dummy>
 static void move_values(Alloc& al, const Ty* first, const Ty* last, Ty* dst, Dummy&&...) noexcept {
     static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
-    static_assert(!std::is_trivially_move_constructible<Ty>::value, "Ty must not be trivially move constructible");
-    static_assert(
-        !std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value,
-        "not standard allocator is used");
+    static_assert(!std::is_trivially_copyable<Ty>::value, "Ty must not be trivially move constructible");
+    static_assert(!std::is_empty<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>>::value,
+                  "allocator must not be empty");
+    static_assert(!std::is_trivially_copyable<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>>::value,
+                  "allocator must not be trivially move constructible");
     for (; first != last; ++first, ++dst) { std::allocator_traits<Alloc>::construct(al, dst, std::move(*first)); }
 }
 
 template<typename Alloc, typename Ty,
          typename = std::enable_if_t<
              std::is_trivially_destructible<Ty>::value ||
-             std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value>>
+             std::is_empty<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>>::value ||
+             std::is_trivially_destructible<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>>::value>>
 static void destruct_moved_values(Alloc& /*al*/, Ty* /*first*/, Ty* /*last*/) noexcept {}
 
 template<typename Alloc, typename Ty, typename... Dummy>
 static void destruct_moved_values(Alloc& al, Ty* first, Ty* last, Dummy&&...) noexcept {
     static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
     static_assert(!std::is_trivially_destructible<Ty>::value, "Ty must not be trivially destructible");
+    static_assert(!std::is_empty<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>>::value,
+                  "allocator must not be empty");
     static_assert(
-        !std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value,
-        "not standard allocator is used");
+        !std::is_trivially_destructible<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>>::value,
+        "allocator must not be trivially destructible");
     for (; first != last; ++first) { std::allocator_traits<Alloc>::destroy(al, first); };
 }
 
@@ -105,7 +70,7 @@ void flexarray_t<Ty, Alloc>::grow(alloc_type& al, std::size_t extra) {
     std::size_t delta_sz = std::max(extra, p_->size >> 1);
     const std::size_t max_sz = max_size(al);
     if (delta_sz > max_sz - p_->size) {
-        if (extra > max_sz - p_->size) { throw std::length_error("too much to reserve"); }
+        if (extra > max_sz - p_->size) { report_too_much_to_allocate_error(); }
         delta_sz = std::max(extra, (max_sz - p_->size) >> 1);
     }
     data_t* p_new = alloc(al, p_->size, p_->size + delta_sz);
@@ -141,7 +106,7 @@ template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::construct(alloc_type& al, const_view_type init) {
     p_ = nullptr;
     try {
-        construct_dispatch(al, init.size(), init.data());
+        construct_dispatch(al, init.data(), init.size());
     } catch (...) {
         if (p_) { destruct(al); }
         throw;
@@ -157,7 +122,7 @@ void flexarray_t<Ty, Alloc>::construct(alloc_type& al, std::initializer_list<Ty>
 
 template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::assign(alloc_type& al, const_view_type init) {
-    if (p_ && p_->ref_count == 1) { return assign_dispatch(al, init.size(), init.data()); }
+    if (p_ && p_->ref_count == 1) { return assign_dispatch(al, init.data(), init.size()); }
     flexarray_t new_arr;
     new_arr.construct(al, init);
     reset(al, new_arr.p_);
@@ -165,9 +130,9 @@ void flexarray_t<Ty, Alloc>::assign(alloc_type& al, const_view_type init) {
 
 template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::append(alloc_type& al, const_view_type init) {
-    if (!p_) { return construct_dispatch(al, init.size(), init.data()); }
+    if (!p_) { return construct_dispatch(al, init.data(), init.size()); }
     ensure_unique(al);
-    append_dispatch(al, init.size(), init.data());
+    append_dispatch(al, init.data(), init.size());
 }
 
 template<typename Ty, typename Alloc>
@@ -232,7 +197,7 @@ namespace detail {
 
 template<typename CharT, typename Alloc>
 auto object_item<CharT, Alloc>::alloc(alloc_type& al, key_type key) -> object_item* {
-    if (key.size() + 1 > max_name_alloc_size(al)) { throw std::length_error("too much to reserve"); }
+    if (key.size() + 1 > max_name_alloc_size(al)) { report_too_much_to_allocate_error(); }
     const std::size_t alloc_sz = get_alloc_sz(key.size() + 1);
     object_item* node = alloc_traits::allocate(al, alloc_sz);
     node->key_sz_ = key.size();
@@ -246,21 +211,18 @@ void object_t<CharT, Alloc>::data_t::init() noexcept {
     dllist_make_cycle(&head);
     size = 0;
     node_traits::set_head(&head, &head);
-    for (auto& item : est::as_span(hashtbl, bucket_count)) { item = nullptr; }
+    std::fill_n(hashtbl, bucket_count, nullptr);
 }
 
 template<typename CharT, typename Alloc>
 void object_t<CharT, Alloc>::data_t::init_from(data_t* p) noexcept {
-    if (p->size) {
-        head = p->head;
-        head.next->prev = &head;
-        head.prev->next = &head;
-    } else {
-        dllist_make_cycle(&head);
-    }
+    if (!p->size) { return init(); }
+    head = p->head;
+    head.next->prev = &head;
+    head.prev->next = &head;
     size = p->size;
     node_traits::set_head(&head, &head);
-    for (auto& item : est::as_span(hashtbl, bucket_count)) { item = nullptr; }
+    std::fill_n(hashtbl, bucket_count, nullptr);
 }
 
 template<typename CharT, typename Alloc>
@@ -360,7 +322,7 @@ void object_t<CharT, Alloc>::rehash(alloc_type& al, std::size_t extra) {
     std::size_t delta_count = std::max(extra, p_->size >> 1);
     const std::size_t max_count = max_size(al);
     if (delta_count > max_count - p_->size) {
-        if (extra > max_count - p_->size) { throw std::length_error("too much to reserve"); }
+        if (extra > max_count - p_->size) { report_too_much_to_allocate_error(); }
         delta_count = std::max(extra, (max_count - p_->size) >> 1);
     }
     data_t* p_new = alloc(al, p_->size + delta_count);
@@ -392,7 +354,7 @@ void object_t<CharT, Alloc>::clear_dispatch(alloc_type& al, std::false_type) {
 template<typename CharT, typename Alloc>
 void object_t<CharT, Alloc>::clear_dispatch(alloc_type& al, std::size_t bucket_count) {
     if (p_->ref_count != 1) {
-        if (bucket_count > max_size(al)) { throw std::length_error("too much to reserve"); }
+        if (bucket_count > max_size(al)) { report_too_much_to_allocate_error(); }
         reset(al, alloc(al, bucket_count));
     } else {
         destruct_items(al);
@@ -496,18 +458,6 @@ basic_value<CharT, Alloc>::basic_value(std::initializer_list<value_type> init, c
         typename value_array_t::alloc_type arr_al(*this);
         value_.arr.construct(arr_al, init);
     }
-}
-
-template<typename CharT, typename Alloc>
-auto basic_value<CharT, Alloc>::operator=(std::basic_string_view<char_type> s) -> basic_value& {
-    if (type_ != dtype::string) {
-        if (type_ != dtype::null) { destroy(); }
-        value_.str.construct();
-        type_ = dtype::string;
-    }
-    typename char_array_t::alloc_type str_al(*this);
-    value_.str.assign(str_al, s);
-    return *this;
 }
 
 template<typename CharT, typename Alloc>
@@ -617,19 +567,11 @@ void basic_value<CharT, Alloc>::resize(size_type size, const value_type& v) {
     value_.arr.resize(arr_al, size, v);
 }
 
-template<typename CharT, typename Alloc>
-auto basic_value<CharT, Alloc>::append_string(std::basic_string_view<char_type> s) -> basic_value& {
-    if (type_ != dtype::string) { init_as_string(); }
-    typename char_array_t::alloc_type str_al(*this);
-    value_.str.append(str_al, s);
-    return *this;
-}
-
 // --------------------------
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::erase(size_type pos) {
-    if (type_ != dtype::array) { throw database_error("not an array"); }
+    if (type_ != dtype::array) { report_not_an_array_error(); }
     assert(pos < value_.arr.size());
     typename value_array_t::alloc_type arr_al(*this);
     value_.arr.erase(arr_al, value_.arr.cbegin() + pos);
@@ -638,13 +580,13 @@ void basic_value<CharT, Alloc>::erase(size_type pos) {
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::erase(const_iterator it) -> iterator {
     if (it.is_object()) {
-        if (type_ != dtype::object) { throw database_error("not an object"); }
+        if (type_ != dtype::object) { report_not_an_object_error(); }
         detail::list_links_t* node = static_cast<detail::list_links_t*>(it.ptr_);
         uxs_iterator_assert(object_t::node_traits::get_head(node) == value_.obj.cend());
         typename object_t::alloc_type obj_al(*this);
         return iterator(value_.obj.erase(obj_al, node));
     }
-    if (type_ != dtype::array) { throw database_error("not an array"); }
+    if (type_ != dtype::array) { report_not_an_array_error(); }
     value_type* item = static_cast<value_type*>(it.ptr_);
     uxs_iterator_assert(it.begin_ == value_.arr.cbegin() && it.end_ == value_.arr.cend());
     typename value_array_t::alloc_type arr_al(*this);
@@ -654,7 +596,7 @@ auto basic_value<CharT, Alloc>::erase(const_iterator it) -> iterator {
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::erase(key_type key) -> size_type {
-    if (type_ != dtype::object) { throw database_error("not an object"); }
+    if (type_ != dtype::object) { report_not_an_object_error(); }
     typename object_t::alloc_type obj_al(*this);
     return value_.obj.erase(obj_al, key);
 }
@@ -1057,21 +999,21 @@ void basic_value<CharT, Alloc>::destroy() noexcept {
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::init_as_string() {
-    if (type_ != dtype::null) { throw database_error("not a string"); }
+    if (type_ != dtype::null) { report_not_a_string_error(); }
     value_.str.construct();
     type_ = dtype::string;
 }
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::init_as_array() {
-    if (type_ != dtype::null) { throw database_error("not an array"); }
+    if (type_ != dtype::null) { report_not_an_array_error(); }
     value_.arr.construct();
     type_ = dtype::array;
 }
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::init_as_object() {
-    if (type_ != dtype::null) { throw database_error("not an object"); }
+    if (type_ != dtype::null) { report_not_an_object_error(); }
     typename object_t::alloc_type obj_al(*this);
     value_.obj.construct(obj_al);
     type_ = dtype::object;
@@ -1087,6 +1029,48 @@ void basic_value<CharT, Alloc>::convert_to_array() {
     }
     value_.arr = arr;
     type_ = dtype::array;
+}
+
+//-----------------------------------------------------------------------------
+
+template<typename CharT, typename Alloc>
+bool basic_value<CharT, Alloc>::is_equal_to(const basic_value& other) const noexcept {
+    static const auto compare_long_integer = [](std::int64_t lhs, const basic_value& rhs) {
+        switch (rhs.type_) {
+            case dtype::integer: return lhs == rhs.value_.i;
+            case dtype::unsigned_integer: return lhs == static_cast<std::int64_t>(rhs.value_.u);
+            case dtype::long_integer: return lhs == rhs.value_.i64;
+            case dtype::unsigned_long_integer: {
+                return rhs.value_.u64 <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) &&
+                       lhs == static_cast<std::int64_t>(rhs.value_.u64);
+            } break;
+            default: return false;
+        }
+    };
+
+    static const auto compare_unsigned_long_integer = [](std::uint64_t lhs, const basic_value& rhs) {
+        switch (rhs.type_) {
+            case dtype::integer: return rhs.value_.i >= 0 && lhs == static_cast<std::uint64_t>(rhs.value_.i);
+            case dtype::unsigned_integer: return lhs == rhs.value_.u;
+            case dtype::long_integer: return rhs.value_.i64 >= 0 && lhs == static_cast<std::uint64_t>(rhs.value_.i64);
+            case dtype::unsigned_long_integer: return lhs == rhs.value_.u64;
+            default: return false;
+        }
+    };
+
+    switch (type_) {
+        case dtype::null: return other.type_ == dtype::null;
+        case dtype::boolean: return other.type_ == dtype::boolean && value_.b == other.value_.b;
+        case dtype::integer: return compare_long_integer(value_.i, other);
+        case dtype::unsigned_integer: return compare_unsigned_long_integer(value_.u, other);
+        case dtype::long_integer: return compare_long_integer(value_.i64, other);
+        case dtype::unsigned_long_integer: return compare_unsigned_long_integer(value_.u64, other);
+        case dtype::double_precision: return other.type_ == dtype::double_precision && value_.dbl == other.value_.dbl;
+        case dtype::string: return other.type_ == dtype::string && value_.str.is_equal_to(other.value_.str);
+        case dtype::array: return other.type_ == dtype::array && value_.arr.is_equal_to(other.value_.arr);
+        case dtype::object: return other.type_ == dtype::object && value_.obj.is_equal_to(other.value_.obj);
+        default: UXS_UNREACHABLE_CODE;
+    }
 }
 
 }  // namespace db
