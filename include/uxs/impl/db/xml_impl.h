@@ -460,7 +460,7 @@ basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, 
                 return {from_string<double>(val), al};
             } break;
             case value_class::floating_point_number: return {from_string<double>(val), al};
-            case value_class::ws_with_nl: return make_object<CharT>(al);
+            case value_class::ws_with_nl: return basic_value<CharT, Alloc>(object_tag, al);
             case value_class::other: return utf_string_adapter<CharT>{}(val);
             default: UXS_UNREACHABLE_CODE;
         }

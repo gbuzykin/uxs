@@ -56,35 +56,41 @@ namespace detail {
 
 template<typename Alloc, typename Ty,
          typename = std::enable_if_t<
-             std::is_trivially_move_constructible<Ty>::value ||
-             std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value>>
+             std::is_trivially_copyable<Ty>::value ||
+             std::is_empty<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>>::value ||
+             std::is_trivially_copyable<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>>::value>>
 static void move_values(Alloc& /*al*/, const Ty* first, const Ty* last, Ty* dst) noexcept {
+    static_assert(std::is_empty<std::allocator<Ty>>::value, "standard allocator must be empty");
     std::memcpy(static_cast<void*>(dst), static_cast<const void*>(first), (last - first) * sizeof(Ty));
 }
 
 template<typename Alloc, typename Ty, typename... Dummy>
 static void move_values(Alloc& al, const Ty* first, const Ty* last, Ty* dst, Dummy&&...) noexcept {
     static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
-    static_assert(!std::is_trivially_move_constructible<Ty>::value, "Ty must not be trivially move constructible");
-    static_assert(
-        !std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value,
-        "not standard allocator is used");
+    static_assert(!std::is_trivially_copyable<Ty>::value, "Ty must not be trivially move constructible");
+    static_assert(!std::is_empty<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>>::value,
+                  "allocator must not be empty");
+    static_assert(!std::is_trivially_copyable<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>>::value,
+                  "allocator must not be trivially move constructible");
     for (; first != last; ++first, ++dst) { std::allocator_traits<Alloc>::construct(al, dst, std::move(*first)); }
 }
 
 template<typename Alloc, typename Ty,
          typename = std::enable_if_t<
              std::is_trivially_destructible<Ty>::value ||
-             std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value>>
+             std::is_empty<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>>::value ||
+             std::is_trivially_destructible<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>>::value>>
 static void destruct_moved_values(Alloc& /*al*/, Ty* /*first*/, Ty* /*last*/) noexcept {}
 
 template<typename Alloc, typename Ty, typename... Dummy>
 static void destruct_moved_values(Alloc& al, Ty* first, Ty* last, Dummy&&...) noexcept {
     static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
     static_assert(!std::is_trivially_destructible<Ty>::value, "Ty must not be trivially destructible");
+    static_assert(!std::is_empty<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>>::value,
+                  "allocator must not be empty");
     static_assert(
-        !std::is_same<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>, std::allocator<Ty>>::value,
-        "not standard allocator is used");
+        !std::is_trivially_destructible<typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>>::value,
+        "allocator must not be trivially destructible");
     for (; first != last; ++first) { std::allocator_traits<Alloc>::destroy(al, first); };
 }
 
@@ -141,7 +147,7 @@ template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::construct(alloc_type& al, const_view_type init) {
     p_ = nullptr;
     try {
-        construct_dispatch(al, init.size(), init.data());
+        construct_dispatch(al, init.data(), init.size());
     } catch (...) {
         if (p_) { destruct(al); }
         throw;
@@ -157,7 +163,7 @@ void flexarray_t<Ty, Alloc>::construct(alloc_type& al, std::initializer_list<Ty>
 
 template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::assign(alloc_type& al, const_view_type init) {
-    if (p_ && p_->ref_count == 1) { return assign_dispatch(al, init.size(), init.data()); }
+    if (p_ && p_->ref_count == 1) { return assign_dispatch(al, init.data(), init.size()); }
     flexarray_t new_arr;
     new_arr.construct(al, init);
     reset(al, new_arr.p_);
@@ -165,9 +171,9 @@ void flexarray_t<Ty, Alloc>::assign(alloc_type& al, const_view_type init) {
 
 template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::append(alloc_type& al, const_view_type init) {
-    if (!p_) { return construct_dispatch(al, init.size(), init.data()); }
+    if (!p_) { return construct_dispatch(al, init.data(), init.size()); }
     ensure_unique(al);
-    append_dispatch(al, init.size(), init.data());
+    append_dispatch(al, init.data(), init.size());
 }
 
 template<typename Ty, typename Alloc>
@@ -499,18 +505,6 @@ basic_value<CharT, Alloc>::basic_value(std::initializer_list<value_type> init, c
 }
 
 template<typename CharT, typename Alloc>
-auto basic_value<CharT, Alloc>::operator=(std::basic_string_view<char_type> s) -> basic_value& {
-    if (type_ != dtype::string) {
-        if (type_ != dtype::null) { destroy(); }
-        value_.str.construct();
-        type_ = dtype::string;
-    }
-    typename char_array_t::alloc_type str_al(*this);
-    value_.str.assign(str_al, s);
-    return *this;
-}
-
-template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::assign(std::initializer_list<value_type> init) {
     if (!detail::is_object(init)) { return assign(array_tag, init.begin(), init.end()); }
     typename object_t::alloc_type obj_al(*this);
@@ -617,19 +611,11 @@ void basic_value<CharT, Alloc>::resize(size_type size, const value_type& v) {
     value_.arr.resize(arr_al, size, v);
 }
 
-template<typename CharT, typename Alloc>
-auto basic_value<CharT, Alloc>::append_string(std::basic_string_view<char_type> s) -> basic_value& {
-    if (type_ != dtype::string) { init_as_string(); }
-    typename char_array_t::alloc_type str_al(*this);
-    value_.str.append(str_al, s);
-    return *this;
-}
-
 // --------------------------
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::erase(size_type pos) {
-    if (type_ != dtype::array) { throw database_error("not an array"); }
+    if (type_ != dtype::array) { report_not_an_array_error(); }
     assert(pos < value_.arr.size());
     typename value_array_t::alloc_type arr_al(*this);
     value_.arr.erase(arr_al, value_.arr.cbegin() + pos);
@@ -638,13 +624,13 @@ void basic_value<CharT, Alloc>::erase(size_type pos) {
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::erase(const_iterator it) -> iterator {
     if (it.is_object()) {
-        if (type_ != dtype::object) { throw database_error("not an object"); }
+        if (type_ != dtype::object) { report_not_an_object_error(); }
         detail::list_links_t* node = static_cast<detail::list_links_t*>(it.ptr_);
         uxs_iterator_assert(object_t::node_traits::get_head(node) == value_.obj.cend());
         typename object_t::alloc_type obj_al(*this);
         return iterator(value_.obj.erase(obj_al, node));
     }
-    if (type_ != dtype::array) { throw database_error("not an array"); }
+    if (type_ != dtype::array) { report_not_an_array_error(); }
     value_type* item = static_cast<value_type*>(it.ptr_);
     uxs_iterator_assert(it.begin_ == value_.arr.cbegin() && it.end_ == value_.arr.cend());
     typename value_array_t::alloc_type arr_al(*this);
@@ -654,7 +640,7 @@ auto basic_value<CharT, Alloc>::erase(const_iterator it) -> iterator {
 
 template<typename CharT, typename Alloc>
 auto basic_value<CharT, Alloc>::erase(key_type key) -> size_type {
-    if (type_ != dtype::object) { throw database_error("not an object"); }
+    if (type_ != dtype::object) { report_not_an_object_error(); }
     typename object_t::alloc_type obj_al(*this);
     return value_.obj.erase(obj_al, key);
 }
@@ -1057,21 +1043,21 @@ void basic_value<CharT, Alloc>::destroy() noexcept {
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::init_as_string() {
-    if (type_ != dtype::null) { throw database_error("not a string"); }
+    if (type_ != dtype::null) { report_not_a_string_error(); }
     value_.str.construct();
     type_ = dtype::string;
 }
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::init_as_array() {
-    if (type_ != dtype::null) { throw database_error("not an array"); }
+    if (type_ != dtype::null) { report_not_an_array_error(); }
     value_.arr.construct();
     type_ = dtype::array;
 }
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::init_as_object() {
-    if (type_ != dtype::null) { throw database_error("not an object"); }
+    if (type_ != dtype::null) { report_not_an_object_error(); }
     typename object_t::alloc_type obj_al(*this);
     value_.obj.construct(obj_al);
     type_ = dtype::object;

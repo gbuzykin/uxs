@@ -304,8 +304,8 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
             if (tt >= token_t::null_value) {
                 *item = token_to_value(tt, val, item->get_allocator());
             } else {
-                *item = tt == token_t::array ? make_array<CharT>(item->get_allocator()) :
-                                               make_object<CharT>(item->get_allocator());
+                *item = tt == token_t::array ? basic_value<CharT, Alloc>(array_tag, item->get_allocator()) :
+                                               basic_value<CharT, Alloc>(object_tag, item->get_allocator());
                 stack.push_back(item);
             }
             return parse_step::into;
