@@ -106,7 +106,7 @@ class parser {
     using string_view_type = std::basic_string_view<char_type>;
     using iterator = parser_iterator<InCharT>;
 
-    explicit parser(basic_ibuf<InCharT>& input) : lexer_(input) { str_cache_.resize(16); }
+    explicit parser(basic_ibuf<InCharT>& input) : lexer_(input), str_cache_(array_tag, 16) {}
     parser(const parser&) = delete;
     parser& operator=(const parser&) = delete;
 

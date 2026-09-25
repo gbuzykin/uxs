@@ -461,7 +461,13 @@ basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, 
             } break;
             case value_class::floating_point_number: return {from_string<double>(val), al};
             case value_class::ws_with_nl: return basic_value<CharT, Alloc>(object_tag, al);
-            case value_class::other: return utf_string_adapter<CharT>{}(val);
+            case value_class::other: {
+                return {string_tag, utf_string_adapter<CharT>{}.count(val.begin(), val.end()),
+                        [val](est::span<CharT> s) {
+                            utf_string_adapter<CharT>{}.transform(val.begin(), val.end(), s.data());
+                            return s.size();
+                        }};
+            } break;
             default: UXS_UNREACHABLE_CODE;
         }
     };

@@ -288,7 +288,13 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
                 return {from_string<double>(val), al};
             } break;
             case token_t::floating_point_number: return {from_string<double>(val), al};
-            case token_t::string: return utf_string_adapter<CharT>{}(val);
+            case token_t::string: {
+                return {string_tag, utf_string_adapter<CharT>{}.count(val.begin(), val.end()),
+                        [val](est::span<CharT> s) {
+                            utf_string_adapter<CharT>{}.transform(val.begin(), val.end(), s.data());
+                            return s.size();
+                        }};
+            } break;
             default: UXS_UNREACHABLE_CODE;
         }
     };
@@ -312,7 +318,15 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
         },
         [&stack, &item]() { item = &stack.back()->emplace_back(item->get_allocator()); },
         [&stack, &item](std::basic_string_view<InCharT> val) {
-            item = &stack.back()->emplace(utf_string_adapter<CharT>{}(val), item->get_allocator()).value();
+            item = &stack.back()
+                        ->emplace_fill_key(
+                            utf_string_adapter<CharT>{}.count(val.begin(), val.end()),
+                            [val](est::span<CharT> s) {
+                                utf_string_adapter<CharT>{}.transform(val.begin(), val.end(), s.data());
+                                return s.size();
+                            },
+                            item->get_allocator())
+                        .value();
         },
         [&stack] { stack.pop_back(); });
 

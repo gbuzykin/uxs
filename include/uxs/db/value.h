@@ -89,6 +89,7 @@ class flexarray_t {
 
     void construct_empty() noexcept { p_ = nullptr; }
     UXS_EXPORT void construct_from_view(alloc_type& al, const_view_type view);
+    UXS_EXPORT void construct_value(alloc_type& al, std::size_t count, const Ty& v);
     void construct_from_initializer(alloc_type& al, std::initializer_list<Ty> init) {
         construct_from_view(al, const_view_type(init.begin(), init.size()));
     }
@@ -104,6 +105,9 @@ class flexarray_t {
         }
     }
 
+    template<typename FillFn, typename Ty_ = Ty, typename = std::enable_if_t<std::is_trivially_copyable<Ty_>::value>>
+    void construct_fill(alloc_type& al, std::size_t max_count, FillFn&& fn);
+
     view_type view(alloc_type& al) {
         if (!p_) { return view_type(); }
         ensure_unique(al);
@@ -112,6 +116,9 @@ class flexarray_t {
 
     UXS_EXPORT void assign_view(alloc_type& al, const_view_type view);
     UXS_EXPORT void append_view(alloc_type& al, const_view_type view);
+    void assign_initializer(alloc_type& al, std::initializer_list<Ty> init) {
+        assign_view(al, const_view_type(init.begin(), init.size()));
+    }
 
     template<typename InputIt>
     void assign_range(alloc_type& al, InputIt first, InputIt last) {
@@ -124,11 +131,19 @@ class flexarray_t {
     }
 
     template<typename InputIt>
-    void insert_range(alloc_type& al, std::size_t pos, InputIt first, InputIt last) {
+    void append_range(alloc_type& al, InputIt first, InputIt last) {
         if (!p_) { return construct_dispatch(al, first, last, est::is_random_access_iterator<InputIt>()); }
         ensure_unique(al);
-        const std::size_t prev_sz = p_->size;
         append_dispatch(al, first, last, est::is_random_access_iterator<InputIt>());
+    }
+
+    template<typename FillFn, typename Ty_ = Ty, typename = std::enable_if_t<std::is_trivially_copyable<Ty_>::value>>
+    void append_fill(alloc_type& al, std::size_t max_count, FillFn&& fn);
+
+    template<typename InputIt>
+    void insert_range(alloc_type& al, std::size_t pos, InputIt first, InputIt last) {
+        const std::size_t prev_sz = size();
+        append_range(al, first, last);
         if (pos < prev_sz) { std::rotate(p_->data() + pos, p_->data() + prev_sz, p_->data() + p_->size); }
     }
 
@@ -168,9 +183,6 @@ class flexarray_t {
     UXS_EXPORT void clear(alloc_type& al) noexcept;
     UXS_EXPORT void reserve(alloc_type& al, std::size_t size);
     UXS_EXPORT void resize(alloc_type& al, std::size_t size, const Ty& v);
-
-    template<typename FillFn, typename Ty_ = Ty, typename = std::enable_if_t<std::is_trivially_copyable<Ty_>::value>>
-    void append_fill(alloc_type& al, std::size_t max_count, FillFn&& fn);
 
     Ty* erase(alloc_type& al, const Ty* item_to_erase);
 
@@ -216,32 +228,17 @@ class flexarray_t {
     }
 
     template<typename InputIt>
-    void construct_dispatch(alloc_type& al, InputIt first, std::size_t count);
-
-    template<typename InputIt>
-    void construct_dispatch(alloc_type& al, InputIt first, InputIt last, std::true_type /* random access iterator */) {
-        construct_dispatch(al, first, static_cast<std::size_t>(last - first));
-    }
+    void construct_dispatch(alloc_type& al, InputIt first, InputIt last, std::true_type /* random access iterator */);
     template<typename InputIt>
     void construct_dispatch(alloc_type& al, InputIt first, InputIt last, std::false_type /* random access iterator */);
 
     template<typename InputIt>
-    void assign_dispatch(alloc_type& al, InputIt first, std::size_t count);
-
-    template<typename InputIt>
-    void assign_dispatch(alloc_type& al, InputIt first, InputIt last, std::true_type /* random access iterator */) {
-        assign_dispatch(al, first, static_cast<std::size_t>(last - first));
-    }
+    void assign_dispatch(alloc_type& al, InputIt first, InputIt last, std::true_type /* random access iterator */);
     template<typename InputIt>
     void assign_dispatch(alloc_type& al, InputIt first, InputIt last, std::false_type /* random access iterator */);
 
     template<typename InputIt>
-    void append_dispatch(alloc_type& al, InputIt first, std::size_t count);
-
-    template<typename InputIt>
-    void append_dispatch(alloc_type& al, InputIt first, InputIt last, std::true_type /* random access iterator */) {
-        append_dispatch(al, first, static_cast<std::size_t>(last - first));
-    }
+    void append_dispatch(alloc_type& al, InputIt first, InputIt last, std::true_type /* random access iterator */);
     template<typename InputIt>
     void append_dispatch(alloc_type& al, InputIt first, InputIt last, std::false_type /* random access iterator */);
 
@@ -344,15 +341,25 @@ class flexarray_t {
 
 template<typename Ty, typename Alloc>
 template<typename FillFn, typename, typename>
-void flexarray_t<Ty, Alloc>::append_fill(alloc_type& al, std::size_t max_count, FillFn&& fn) {
-    if (!p_) {
+void flexarray_t<Ty, Alloc>::construct_fill(alloc_type& al, std::size_t max_count, FillFn&& fn) {
+    p_ = nullptr;
+    try {
         if (!max_count) { return; }
         p_ = alloc_checked(al, max_count + tail_zero);
-    } else {
-        ensure_unique(al);
-        if (!max_count) { return; }
-        if (max_count + tail_zero > p_->capacity - p_->size) { grow(al, max_count + tail_zero); }
+        p_->size = fn(est::as_span(p_->data(), max_count));
+        put_tail_zero();
+    } catch (...) {
+        if (p_) { destruct(al); }
+        throw;
     }
+}
+
+template<typename Ty, typename Alloc>
+template<typename FillFn, typename, typename>
+void flexarray_t<Ty, Alloc>::append_fill(alloc_type& al, std::size_t max_count, FillFn&& fn) {
+    if (!p_) { return construct_fill(al, max_count, std::forward<FillFn>(fn)); }
+    ensure_unique(al);
+    if (max_count + tail_zero > p_->capacity - p_->size) { grow(al, max_count + tail_zero); }
     try {
         p_->size += fn(est::as_span(p_->data() + p_->size, max_count));
     } catch (...) {
@@ -364,7 +371,9 @@ void flexarray_t<Ty, Alloc>::append_fill(alloc_type& al, std::size_t max_count, 
 
 template<typename Ty, typename Alloc>
 template<typename InputIt>
-void flexarray_t<Ty, Alloc>::construct_dispatch(alloc_type& al, InputIt first, std::size_t count) {
+void flexarray_t<Ty, Alloc>::construct_dispatch(alloc_type& al, InputIt first, InputIt last,
+                                                std::true_type /* random access iterator */) {
+    const std::size_t count = static_cast<std::size_t>(last - first);
     if (!count) { return; }
     p_ = alloc_checked(al, count + tail_zero);
     init_items_copy(al, p_->data(), p_->data() + count, first);
@@ -383,7 +392,9 @@ void flexarray_t<Ty, Alloc>::construct_dispatch(alloc_type& al, InputIt first, I
 
 template<typename Ty, typename Alloc>
 template<typename InputIt>
-void flexarray_t<Ty, Alloc>::assign_dispatch(alloc_type& al, InputIt first, std::size_t count) {
+void flexarray_t<Ty, Alloc>::assign_dispatch(alloc_type& al, InputIt first, InputIt last,
+                                             std::true_type /* random access iterator */) {
+    const std::size_t count = static_cast<std::size_t>(last - first);
     if (count + tail_zero > p_->capacity) { grow(al, count - p_->size + tail_zero); }
     Ty* dst = std::copy_n(first, std::min(count, p_->size), p_->data());
     if (count <= p_->size) {
@@ -413,7 +424,9 @@ void flexarray_t<Ty, Alloc>::assign_dispatch(alloc_type& al, InputIt first, Inpu
 
 template<typename Ty, typename Alloc>
 template<typename InputIt>
-void flexarray_t<Ty, Alloc>::append_dispatch(alloc_type& al, InputIt first, std::size_t count) {
+void flexarray_t<Ty, Alloc>::append_dispatch(alloc_type& al, InputIt first, InputIt last,
+                                             std::true_type /* random access iterator */) {
+    const std::size_t count = static_cast<std::size_t>(last - first);
     if (count + tail_zero > p_->capacity - p_->size) { grow(al, count + tail_zero); }
     init_items_copy(al, p_->data() + p_->size, p_->data() + p_->size + count, first);
     p_->size += count;
@@ -488,6 +501,23 @@ class object_item {
     UXS_NODISCARD static object_item* construct(alloc_type& al, key_type key, Args&&... args) {
         object_item* node = alloc(al, key);
         try {
+            alloc_traits::construct(al, &node->value(), std::forward<Args>(args)...);
+            return node;
+        } catch (...) {
+            dealloc(al, node);
+            throw;
+        }
+    }
+
+    template<typename FillFn, typename... Args>
+    UXS_NODISCARD static object_item* construct_fill_key(alloc_type& al, std::size_t max_key_length,
+                                                         FillFn&& fill_key_fn, Args&&... args) {
+        if (max_key_length + 1 > max_name_alloc_size(al)) { throw std::length_error("too much to reserve"); }
+        const std::size_t alloc_sz = get_alloc_sz(max_key_length + 1);
+        object_item* node = alloc_traits::allocate(al, alloc_sz);
+        try {
+            node->key_sz_ = fill_key_fn(est::as_span(node->key_chars_, max_key_length));
+            node->key_chars_[node->key_sz_] = '\0';
             alloc_traits::construct(al, &node->value(), std::forward<Args>(args)...);
             return node;
         } catch (...) {
@@ -680,6 +710,17 @@ class object_t {
         if (p_->size == p_->bucket_count) { rehash(al, 1); }
         typename node_t::alloc_type node_al(al);
         node_t* node = node_t::construct(node_al, key, std::forward<Args>(args)...);
+        insert_node(node, hasher_t{}(node->key()));
+        return &node->links_;
+    }
+
+    template<typename FillFn, typename... Args>
+    list_links_t* emplace_fill_key(alloc_type& al, std::size_t max_key_length, FillFn&& fill_key_fn, Args&&... args) {
+        ensure_unique(al);
+        if (p_->size == p_->bucket_count) { rehash(al, 1); }
+        typename node_t::alloc_type node_al(al);
+        node_t* node = node_t::construct_fill_key(node_al, max_key_length, std::forward<FillFn>(fill_key_fn),
+                                                  std::forward<Args>(args)...);
         insert_node(node, hasher_t{}(node->key()));
         return &node->links_;
     }
@@ -1028,6 +1069,24 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         value_.str.construct_from_view(str_al, to_string_view(s));
     }
 
+    template<typename FillFn>
+    basic_value(string_tag_t, size_type max_length, FillFn&& fn, const Alloc& al = Alloc())
+        : alloc_type(al), type_(dtype::string) {
+        typename char_array_t::alloc_type str_al(*this);
+        value_.str.construct_fill(str_al, max_length, std::forward<FillFn>(fn));
+    }
+
+    basic_value(array_tag_t, size_type count, const Alloc& al = Alloc()) : alloc_type(al), type_(dtype::array) {
+        typename value_array_t::alloc_type arr_al(*this);
+        value_.arr.construct_value(arr_al, count, value_type());
+    }
+
+    basic_value(array_tag_t, size_type count, const value_type& v, const Alloc& al = Alloc())
+        : alloc_type(al), type_(dtype::array) {
+        typename value_array_t::alloc_type arr_al(*this);
+        value_.arr.construct_value(arr_al, count, v);
+    }
+
     template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value>>
     basic_value(InputIt first, InputIt last, const Alloc& al = Alloc())
         : basic_value(detail::select_construct_t<CharT, Alloc, InputIt>(0), first, last, al) {}
@@ -1122,6 +1181,9 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         assign(init);
         return *this;
     }
+
+    template<typename FillFn>
+    void assign(string_tag_t, size_type max_length, FillFn&& fn);
 
     template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value>>
     void assign(InputIt first, InputIt last) {
@@ -1408,6 +1470,9 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     iterator insert(key_type key, const value_type& v) { return emplace(key, v); }
     iterator insert(key_type key, value_type&& v) { return emplace(key, std::move(v)); }
 
+    template<typename FillFn, typename... Args>
+    iterator emplace_fill_key(size_type max_length, FillFn&& fn, Args&&... args);
+
     template<typename... Args>
     std::pair<iterator, bool> emplace_unique(key_type key, Args&&... args);
     std::pair<iterator, bool> insert_unique(key_type key, const value_type& v) { return emplace_unique(key, v); }
@@ -1508,6 +1573,20 @@ auto basic_value<CharT, Alloc>::append_string(size_type max_length, FillFn&& fn)
 }
 
 template<typename CharT, typename Alloc>
+template<typename FillFn>
+void basic_value<CharT, Alloc>::assign(string_tag_t, size_type max_length, FillFn&& fn) {
+    if (type_ != dtype::string) {
+        if (type_ != dtype::null) { destroy(); }
+        value_.str.construct();
+        type_ = dtype::string;
+    } else {
+        value_.str.clear();
+    }
+    typename char_array_t::alloc_type str_al(*this);
+    value_.str.append_fill(str_al, max_length, std::forward<FillFn>(fn));
+}
+
+template<typename CharT, typename Alloc>
 template<typename InputIt, typename>
 void basic_value<CharT, Alloc>::assign(array_tag_t, InputIt first, InputIt last) {
     if (type_ != dtype::array) {
@@ -1562,6 +1641,16 @@ auto basic_value<CharT, Alloc>::emplace(key_type key, Args&&... args) -> iterato
     if (type_ != dtype::object) { init_as_object(); }
     typename object_t::alloc_type obj_al(*this);
     return iterator(value_.obj.emplace(obj_al, key, std::forward<Args>(args)...));
+}
+
+template<typename CharT, typename Alloc>
+template<typename FillFn, typename... Args>
+auto basic_value<CharT, Alloc>::emplace_fill_key(size_type max_key_length, FillFn&& fill_key_fn, Args&&... args)
+    -> iterator {
+    if (type_ != dtype::object) { init_as_object(); }
+    typename object_t::alloc_type obj_al(*this);
+    return iterator(value_.obj.emplace_fill_key(obj_al, max_key_length, std::forward<FillFn>(fill_key_fn),
+                                                std::forward<Args>(args)...));
 }
 
 template<typename CharT, typename Alloc>

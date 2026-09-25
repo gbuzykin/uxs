@@ -7,7 +7,6 @@
 #include "value.h"
 
 #include "uxs/io/serialize.h"
-#include "uxs/membuffer.h"
 
 namespace uxs {
 
@@ -41,10 +40,10 @@ void serialize_db_value(biobuf& os, const db::basic_value<CharT, Alloc>& v) {
 }
 
 template<typename CharT, typename Alloc>
-void deserialize_db_value(bibuf& is, db::basic_value<CharT, Alloc>& v, basic_dynbuffer<CharT>& key_buf) {
+void deserialize_db_value(bibuf& is, db::basic_value<CharT, Alloc>& v) {
     auto type = db::dtype::null;
     if (!(is >> type)) { return; }
-    v = db::basic_value<CharT, Alloc>(type, [&is, &key_buf](auto type, auto& x) {
+    v = db::basic_value<CharT, Alloc>(type, [&is](auto type, auto& x) {
         if constexpr (std::is_same_v<decltype(type), db::string_tag_t>) {
             std::uint64_t sz = 0;
             if (!(is >> sz)) { return; }
@@ -56,7 +55,7 @@ void deserialize_db_value(bibuf& is, db::basic_value<CharT, Alloc>& v, basic_dyn
             std::uint64_t sz = 0;
             if (!(is >> sz)) { return; }
             x.reserve(db::array_tag, static_cast<std::size_t>(sz));
-            for (; sz && is; --sz) { deserialize_db_value(is, x.emplace_back(x.get_allocator()), key_buf); }
+            for (; sz && is; --sz) { deserialize_db_value(is, x.emplace_back(x.get_allocator())); }
         } else if constexpr (std::is_same_v<decltype(type), db::object_tag_t>) {
             std::uint64_t sz = 0;
             if (!(is >> sz)) { return; }
@@ -64,13 +63,16 @@ void deserialize_db_value(bibuf& is, db::basic_value<CharT, Alloc>& v, basic_dyn
             for (; sz; --sz) {
                 std::uint64_t key_sz = 0;
                 if (!(is >> key_sz)) { return; }
-                key_buf.reserve(static_cast<std::size_t>(key_sz));
-                is.read_with_endian(
-                    est::as_span(reinterpret_cast<std::uint8_t*>(key_buf.data()), key_sz * sizeof(CharT)),
-                    sizeof(CharT));
-                if (!is) { return; }
-                std::basic_string_view<CharT> key(key_buf.data(), key_sz);
-                deserialize_db_value(is, x.emplace(key, x.get_allocator()).value(), key_buf);
+                deserialize_db_value(
+                    is, x.emplace_fill_key(
+                             key_sz,
+                             [&is](est::span<CharT> s) {
+                                 return is.read_with_endian(
+                                     est::as_span(reinterpret_cast<std::uint8_t*>(s.data()), s.size() * sizeof(CharT)),
+                                     sizeof(CharT));
+                             },
+                             x.get_allocator())
+                            .value());
             }
         } else {
             is >> x;
@@ -88,8 +90,7 @@ biobuf& operator<<(biobuf& os, const db::basic_value<CharT, Alloc>& v) {
 
 template<typename CharT, typename Alloc>
 bibuf& operator>>(bibuf& is, db::basic_value<CharT, Alloc>& v) {
-    basic_inline_dynbuffer<CharT> key_buf;
-    detail::deserialize_db_value(is, v, key_buf);
+    detail::deserialize_db_value(is, v);
     return is;
 }
 
