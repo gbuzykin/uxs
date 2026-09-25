@@ -87,14 +87,14 @@ class flexarray_t {
         return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin());
     }
 
-    void construct() noexcept { p_ = nullptr; }
-    UXS_EXPORT void construct(alloc_type& al, const_view_type init);
-#if __cplusplus < 201703L
-    UXS_EXPORT void construct(alloc_type& al, std::initializer_list<Ty> init);
-#endif  // __cplusplus < 201703L
+    void construct_empty() noexcept { p_ = nullptr; }
+    UXS_EXPORT void construct_from_view(alloc_type& al, const_view_type view);
+    void construct_from_initializer(alloc_type& al, std::initializer_list<Ty> init) {
+        construct_from_view(al, const_view_type(init.begin(), init.size()));
+    }
 
     template<typename InputIt>
-    void construct(alloc_type& al, InputIt first, InputIt last) {
+    void construct_from_range(alloc_type& al, InputIt first, InputIt last) {
         p_ = nullptr;
         try {
             construct_dispatch(al, first, last, est::is_random_access_iterator<InputIt>());
@@ -110,21 +110,21 @@ class flexarray_t {
         return view_type(p_->data(), p_->size);
     }
 
-    UXS_EXPORT void assign(alloc_type& al, const_view_type init);
-    UXS_EXPORT void append(alloc_type& al, const_view_type init);
+    UXS_EXPORT void assign_view(alloc_type& al, const_view_type view);
+    UXS_EXPORT void append_view(alloc_type& al, const_view_type view);
 
     template<typename InputIt>
-    void assign(alloc_type& al, InputIt first, InputIt last) {
+    void assign_range(alloc_type& al, InputIt first, InputIt last) {
         if (p_ && p_->ref_count == 1) {
             return assign_dispatch(al, first, last, est::is_random_access_iterator<InputIt>());
         }
         flexarray_t new_arr;
-        new_arr.construct(al, first, last);
+        new_arr.construct_from_range(al, first, last);
         reset(al, new_arr.p_);
     }
 
     template<typename InputIt>
-    void insert(alloc_type& al, std::size_t pos, InputIt first, InputIt last) {
+    void insert_range(alloc_type& al, std::size_t pos, InputIt first, InputIt last) {
         if (!p_) { return construct_dispatch(al, first, last, est::is_random_access_iterator<InputIt>()); }
         ensure_unique(al);
         const std::size_t prev_sz = p_->size;
@@ -170,7 +170,7 @@ class flexarray_t {
     UXS_EXPORT void resize(alloc_type& al, std::size_t size, const Ty& v);
 
     template<typename FillFn, typename Ty_ = Ty, typename = std::enable_if_t<std::is_trivially_copyable<Ty_>::value>>
-    void append(alloc_type& al, std::size_t max_count, FillFn&& fn);
+    void append_fill(alloc_type& al, std::size_t max_count, FillFn&& fn);
 
     Ty* erase(alloc_type& al, const Ty* item_to_erase);
 
@@ -185,7 +185,7 @@ class flexarray_t {
     void ensure_unique(alloc_type& al) {
         if (p_->ref_count == 1) { return; }
         flexarray_t new_arr;
-        new_arr.construct(al, const_view_type(p_->data(), p_->size));
+        new_arr.construct_from_view(al, const_view_type(p_->data(), p_->size));
         reset(al, new_arr.p_);
     }
 
@@ -344,7 +344,7 @@ class flexarray_t {
 
 template<typename Ty, typename Alloc>
 template<typename FillFn, typename, typename>
-void flexarray_t<Ty, Alloc>::append(alloc_type& al, std::size_t max_count, FillFn&& fn) {
+void flexarray_t<Ty, Alloc>::append_fill(alloc_type& al, std::size_t max_count, FillFn&& fn) {
     if (!p_) {
         if (!max_count) { return; }
         p_ = alloc_checked(al, max_count + tail_zero);
@@ -633,24 +633,25 @@ class object_t {
                std::equal(const_iterator(cbegin()), const_iterator(cend()), const_iterator(other.cbegin()));
     }
 
-    void construct(alloc_type& al, std::false_type = {}) {
+    void construct_empty(alloc_type& al, std::false_type = {}) {
         p_ = alloc(al, 0);
         p_->init();
     }
 
-    void construct(alloc_type& al, std::size_t bucket_count) {
+    void construct_empty(alloc_type& al, std::size_t bucket_count) {
         if (bucket_count > max_size(al)) { throw std::length_error("too much to reserve"); }
         p_ = alloc(al, bucket_count);
         p_->init();
     }
 
-    UXS_EXPORT void construct(alloc_type& al, object_t obj);
-    void construct(alloc_type& al, std::initializer_list<mapped_type> init);
-    UXS_EXPORT void construct(alloc_type& al, std::initializer_list<std::pair<key_type, mapped_type>> init);
+    UXS_EXPORT void construct_copy(alloc_type& al, object_t obj);
+    void construct_from_common_initializer(alloc_type& al, std::initializer_list<mapped_type> init);
+    UXS_EXPORT void construct_from_initializer(alloc_type& al,
+                                               std::initializer_list<std::pair<key_type, mapped_type>> init);
 
     template<typename InputIt>
-    void construct(alloc_type& al, InputIt first, InputIt last) {
-        construct(al, initial_bucket_count(first, last, est::is_random_access_iterator<InputIt>()));
+    void construct_from_range(alloc_type& al, InputIt first, InputIt last) {
+        construct_empty(al, initial_bucket_count(first, last, est::is_random_access_iterator<InputIt>()));
         try {
             insert_dispatch(al, first, last, est::is_random_access_iterator<InputIt>());
         } catch (...) {
@@ -659,16 +660,16 @@ class object_t {
         }
     }
 
-    void assign(alloc_type& al, std::initializer_list<mapped_type> init);
+    void assign_initializer(alloc_type& al, std::initializer_list<mapped_type> init);
 
     template<typename InputIt>
-    void assign(alloc_type& al, InputIt first, InputIt last) {
+    void assign_range(alloc_type& al, InputIt first, InputIt last) {
         clear_dispatch(al, initial_bucket_count(first, last, est::is_random_access_iterator<InputIt>()));
         insert_dispatch(al, first, last, est::is_random_access_iterator<InputIt>());
     }
 
     template<typename InputIt>
-    void insert(alloc_type& al, InputIt first, InputIt last) {
+    void insert_range(alloc_type& al, InputIt first, InputIt last) {
         ensure_unique(al);
         insert_dispatch(al, first, last, est::is_random_access_iterator<InputIt>());
     }
@@ -710,14 +711,14 @@ class object_t {
     void ensure_unique(alloc_type& al) {
         if (p_->ref_count == 1) { return; }
         object_t new_obj;
-        new_obj.construct(al, *this);
+        new_obj.construct_copy(al, *this);
         reset(al, new_obj.p_);
     }
 
  private:
     data_t* p_;
 
-    void insert_initializer_list(alloc_type& al, std::initializer_list<mapped_type> init);
+    void insert_initializer(alloc_type& al, std::initializer_list<mapped_type> init);
 
     template<typename InputIt>
     void insert_dispatch(alloc_type& al, InputIt first, InputIt last, std::true_type /* random access iterator */);
@@ -996,33 +997,35 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         : alloc_type(), type_(dtype::null) {}
     basic_value(string_tag_t) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
         : alloc_type(), type_(dtype::string) {
-        value_.str.construct();
+        value_.str.construct_empty();
     }
     basic_value(array_tag_t) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
         : alloc_type(), type_(dtype::array) {
-        value_.arr.construct();
+        value_.arr.construct_empty();
     }
     basic_value(object_tag_t) : alloc_type(), type_(dtype::object) {
         typename object_t::alloc_type obj_al(*this);
-        value_.obj.construct(obj_al);
+        value_.obj.construct_empty(obj_al);
     }
 
     explicit basic_value(const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) {}
     basic_value(std::nullptr_t, const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) {}
     basic_value(string_tag_t, const Alloc& al) noexcept : alloc_type(al), type_(dtype::string) {
-        value_.str.construct();
+        value_.str.construct_empty();
     }
-    basic_value(array_tag_t, const Alloc& al) noexcept : alloc_type(al), type_(dtype::array) { value_.arr.construct(); }
+    basic_value(array_tag_t, const Alloc& al) noexcept : alloc_type(al), type_(dtype::array) {
+        value_.arr.construct_empty();
+    }
     basic_value(object_tag_t, const Alloc& al) : alloc_type(al), type_(dtype::object) {
         typename object_t::alloc_type obj_al(*this);
-        value_.obj.construct(obj_al);
+        value_.obj.construct_empty(obj_al);
     }
 
     template<typename StrLikeTy,
              typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::basic_string_view<char_type>>::value>>
     basic_value(const StrLikeTy& s, const Alloc& al = Alloc()) : alloc_type(al), type_(dtype::string) {
         typename char_array_t::alloc_type str_al(*this);
-        value_.str.construct(str_al, to_string_view(s));
+        value_.str.construct_from_view(str_al, to_string_view(s));
     }
 
     template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value>>
@@ -1032,26 +1035,26 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     basic_value(array_tag_t, InputIt first, InputIt last, const Alloc& al = Alloc())
         : alloc_type(al), type_(dtype::array) {
         typename value_array_t::alloc_type arr_al(*this);
-        value_.arr.construct(arr_al, first, last);
+        value_.arr.construct_from_range(arr_al, first, last);
     }
     template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value &&
                                                            detail::is_object_iterator<CharT, Alloc, InputIt>::value>>
     basic_value(object_tag_t, InputIt first, InputIt last, const Alloc& al = Alloc())
         : alloc_type(al), type_(dtype::object) {
         typename object_t::alloc_type obj_al(*this);
-        value_.obj.construct(obj_al, first, last);
+        value_.obj.construct_from_range(obj_al, first, last);
     }
 
     UXS_EXPORT basic_value(std::initializer_list<value_type> init, const Alloc& al = Alloc());
     basic_value(array_tag_t, std::initializer_list<value_type> init, const Alloc& al = Alloc())
         : alloc_type(al), type_(dtype::array) {
         typename value_array_t::alloc_type arr_al(al);
-        value_.arr.construct(arr_al, init);
+        value_.arr.construct_from_initializer(arr_al, init);
     }
     basic_value(object_tag_t, std::initializer_list<std::pair<key_type, value_type>> init, const Alloc& al = Alloc())
         : alloc_type(al), type_(dtype::object) {
         typename object_t::alloc_type obj_al(*this);
-        value_.obj.construct(obj_al, init);
+        value_.obj.construct_from_initializer(obj_al, init);
     }
 
     template<typename Func>
@@ -1065,16 +1068,16 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
             case dtype::unsigned_long_integer: fn(scalar_tag, value_.u64); break;
             case dtype::double_precision: fn(scalar_tag, value_.dbl); break;
             case dtype::string: {
-                value_.str.construct();
+                value_.str.construct_empty();
                 fn(string_tag, *this);
             } break;
             case dtype::array: {
-                value_.arr.construct();
+                value_.arr.construct_empty();
                 fn(array_tag, *this);
             } break;
             case dtype::object: {
                 typename object_t::alloc_type obj_al(*this);
-                value_.obj.construct(obj_al);
+                value_.obj.construct_empty(obj_al);
                 fn(object_tag, *this);
             } break;
             default: UXS_UNREACHABLE_CODE;
@@ -1478,11 +1481,11 @@ template<typename StrLikeTy, typename>
 auto basic_value<CharT, Alloc>::operator=(const StrLikeTy& s) -> basic_value& {
     if (type_ != dtype::string) {
         if (type_ != dtype::null) { destroy(); }
-        value_.str.construct();
+        value_.str.construct_empty();
         type_ = dtype::string;
     }
     typename char_array_t::alloc_type str_al(*this);
-    value_.str.assign(str_al, to_string_view(s));
+    value_.str.assign_view(str_al, to_string_view(s));
     return *this;
 }
 
@@ -1491,7 +1494,7 @@ template<typename StrLikeTy, typename>
 auto basic_value<CharT, Alloc>::append_string(const StrLikeTy& s) -> basic_value& {
     if (type_ != dtype::string) { init_as_string(); }
     typename char_array_t::alloc_type str_al(*this);
-    value_.str.append(str_al, to_string_view(s));
+    value_.str.append_view(str_al, to_string_view(s));
     return *this;
 }
 
@@ -1500,7 +1503,7 @@ template<typename FillFn>
 auto basic_value<CharT, Alloc>::append_string(size_type max_length, FillFn&& fn) -> basic_value& {
     if (type_ != dtype::string) { init_as_string(); }
     typename char_array_t::alloc_type str_al(*this);
-    value_.str.append(str_al, max_length, std::forward<FillFn>(fn));
+    value_.str.append_fill(str_al, max_length, std::forward<FillFn>(fn));
     return *this;
 }
 
@@ -1509,11 +1512,11 @@ template<typename InputIt, typename>
 void basic_value<CharT, Alloc>::assign(array_tag_t, InputIt first, InputIt last) {
     if (type_ != dtype::array) {
         if (type_ != dtype::null) { destroy(); }
-        value_.arr.construct();
+        value_.arr.construct_empty();
         type_ = dtype::array;
     }
     typename value_array_t::alloc_type arr_al(*this);
-    value_.arr.assign(arr_al, first, last);
+    value_.arr.assign_range(arr_al, first, last);
 }
 
 template<typename CharT, typename Alloc>
@@ -1522,11 +1525,11 @@ void basic_value<CharT, Alloc>::assign(object_tag_t, InputIt first, InputIt last
     typename object_t::alloc_type obj_al(*this);
     if (type_ != dtype::object) {
         if (type_ != dtype::null) { destroy(); }
-        value_.obj.construct(obj_al,
-                             detail::initial_bucket_count(first, last, est::is_random_access_iterator<InputIt>()));
+        value_.obj.construct_empty(
+            obj_al, detail::initial_bucket_count(first, last, est::is_random_access_iterator<InputIt>()));
         type_ = dtype::object;
     }
-    value_.obj.assign(obj_al, first, last);
+    value_.obj.assign_range(obj_al, first, last);
 }
 
 template<typename CharT, typename Alloc>
@@ -1575,7 +1578,7 @@ template<typename InputIt, typename>
 void basic_value<CharT, Alloc>::insert(size_type pos, InputIt first, InputIt last) {
     if (type_ != dtype::array) { init_as_array(); }
     typename value_array_t::alloc_type arr_al(*this);
-    value_.arr.insert(arr_al, pos, first, last);
+    value_.arr.insert_range(arr_al, pos, first, last);
 }
 
 template<typename CharT, typename Alloc>
@@ -1584,11 +1587,11 @@ void basic_value<CharT, Alloc>::insert(InputIt first, InputIt last) {
     typename object_t::alloc_type obj_al(*this);
     if (type_ != dtype::object) {
         if (type_ != dtype::null) { report_not_an_object_error(); }
-        value_.obj.construct(obj_al,
-                             detail::initial_bucket_count(first, last, est::is_random_access_iterator<InputIt>()));
+        value_.obj.construct_empty(
+            obj_al, detail::initial_bucket_count(first, last, est::is_random_access_iterator<InputIt>()));
         type_ = dtype::object;
     }
-    value_.obj.insert(obj_al, first, last);
+    value_.obj.insert_range(obj_al, first, last);
 }
 
 // --------------------------
@@ -1795,14 +1798,14 @@ void basic_value<CharT, Alloc>::destroy() noexcept {
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::init_as_string() {
     if (type_ != dtype::null) { report_not_a_string_error(); }
-    value_.str.construct();
+    value_.str.construct_empty();
     type_ = dtype::string;
 }
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::init_as_array() {
     if (type_ != dtype::null) { report_not_an_array_error(); }
-    value_.arr.construct();
+    value_.arr.construct_empty();
     type_ = dtype::array;
 }
 
@@ -1810,14 +1813,14 @@ template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::init_as_object() {
     if (type_ != dtype::null) { report_not_an_object_error(); }
     typename object_t::alloc_type obj_al(*this);
-    value_.obj.construct(obj_al);
+    value_.obj.construct_empty(obj_al);
     type_ = dtype::object;
 }
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::convert_to_array() {
     value_array_t arr;
-    arr.construct();
+    arr.construct_empty();
     if (type_ != dtype::null) {
         typename value_array_t::alloc_type arr_al(*this);
         arr.emplace_back(arr_al, std::move(*this));
