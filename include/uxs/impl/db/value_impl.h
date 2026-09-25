@@ -93,7 +93,26 @@ template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::construct_from_view(alloc_type& al, const_view_type view) {
     p_ = nullptr;
     try {
-        construct_dispatch(al, view.data(), view.size());
+        if (view.empty()) { return; }
+        p_ = alloc_checked(al, view.size() + tail_zero);
+        init_items_copy(p_->data(), p_->data() + view.size(), view.data());
+        p_->size = view.size();
+        put_tail_zero();
+    } catch (...) {
+        if (p_) { destruct(al); }
+        throw;
+    }
+}
+
+template<typename Ty, typename Alloc>
+void flexarray_t<Ty, Alloc>::construct_fill_value(alloc_type& al, std::size_t count, const Ty& v) {
+    p_ = nullptr;
+    try {
+        if (!count) { return; }
+        p_ = alloc_checked(al, count + tail_zero);
+        init_items_fill(p_->data(), p_->data() + count, v);
+        p_->size = count;
+        put_tail_zero();
     } catch (...) {
         if (p_) { destruct(al); }
         throw;
@@ -102,7 +121,9 @@ void flexarray_t<Ty, Alloc>::construct_from_view(alloc_type& al, const_view_type
 
 template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::assign_view(alloc_type& al, const_view_type view) {
-    if (p_ && p_->ref_count == 1) { return assign_dispatch(al, view.data(), view.size()); }
+    if (p_ && p_->ref_count == 1 && view.size() <= p_->capacity) {
+        return assign_dispatch(al, view.begin(), view.end(), std::true_type());
+    }
     flexarray_t new_arr;
     new_arr.construct_from_view(al, view);
     reset(al, new_arr.p_);
@@ -110,9 +131,9 @@ void flexarray_t<Ty, Alloc>::assign_view(alloc_type& al, const_view_type view) {
 
 template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::append_view(alloc_type& al, const_view_type view) {
-    if (!p_) { return construct_dispatch(al, view.data(), view.size()); }
+    if (!p_) { return construct_dispatch(al, view.begin(), view.end(), std::true_type()); }
     ensure_unique(al);
-    append_dispatch(al, view.data(), view.size());
+    append_dispatch(al, view.begin(), view.end(), std::true_type());
 }
 
 template<typename Ty, typename Alloc>
@@ -180,12 +201,12 @@ auto object_item<CharT, Alloc>::alloc(alloc_type& al, key_type key) -> object_it
     if (key.size() + 1 > max_name_alloc_cap(al)) { report_too_much_to_allocate_error(); }
     const std::size_t alloc_sz = get_alloc_sz(std::max<std::size_t>(key.size() + 1, min_char_count));
     object_item* node = reinterpret_cast<object_item*>(alloc_traits::allocate(al, alloc_sz));
-    node->key_sz_ = key.size();
     node->key_chars_cap_ = (alloc_sz * sizeof(typename alloc_traits::value_type) -
                             offsetof(object_item, key_chars_buf_)) /
                            sizeof(char_type);
+    node->key_sz_ = key.size();
     std::copy_n(key.data(), key.size(), node->key_chars());
-    node->key_chars()[key.size()] = '\0';
+    node->key_chars()[node->key_sz_] = '\0';
     return node;
 }
 
@@ -434,7 +455,7 @@ basic_value<CharT, Alloc>::basic_value(std::initializer_list<value_type> init, c
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::assign(std::initializer_list<value_type> init) {
-    if (!detail::is_object(init)) { return assign(array_tag, init.begin(), init.end()); }
+    if (!detail::is_object(init)) { return assign(array_tag, init); }
     if (type_ != dtype::object) {
         destroy();
         value_.obj.construct_empty(*this, init.size());
@@ -445,7 +466,12 @@ void basic_value<CharT, Alloc>::assign(std::initializer_list<value_type> init) {
 
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::assign(array_tag_t, std::initializer_list<value_type> init) {
-    assign(array_tag, init.begin(), init.end());
+    if (type_ != dtype::array) {
+        destroy();
+        value_.arr.construct_empty();
+        type_ = dtype::array;
+    }
+    value_.arr.assign_view(*this, est::as_span(init.begin(), init.size()));
 }
 
 template<typename CharT, typename Alloc>
