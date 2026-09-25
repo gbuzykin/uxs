@@ -90,36 +90,29 @@ void flexarray_t<Ty, Alloc>::destruct(alloc_type& al) noexcept {
 }
 
 template<typename Ty, typename Alloc>
-void flexarray_t<Ty, Alloc>::construct(alloc_type& al, const_view_type init) {
+void flexarray_t<Ty, Alloc>::construct_from_view(alloc_type& al, const_view_type view) {
     p_ = nullptr;
     try {
-        construct_dispatch(al, init.data(), init.size());
+        construct_dispatch(al, view.data(), view.size());
     } catch (...) {
         if (p_) { destruct(al); }
         throw;
     }
 }
 
-#if __cplusplus < 201703L
 template<typename Ty, typename Alloc>
-void flexarray_t<Ty, Alloc>::construct(alloc_type& al, std::initializer_list<Ty> init) {
-    construct(al, init.begin(), init.end());
-}
-#endif  // __cplusplus < 201703L
-
-template<typename Ty, typename Alloc>
-void flexarray_t<Ty, Alloc>::assign(alloc_type& al, const_view_type init) {
-    if (p_ && p_->ref_count == 1) { return assign_dispatch(al, init.data(), init.size()); }
+void flexarray_t<Ty, Alloc>::assign_view(alloc_type& al, const_view_type view) {
+    if (p_ && p_->ref_count == 1) { return assign_dispatch(al, view.data(), view.size()); }
     flexarray_t new_arr;
-    new_arr.construct(al, init);
+    new_arr.construct_from_view(al, view);
     reset(al, new_arr.p_);
 }
 
 template<typename Ty, typename Alloc>
-void flexarray_t<Ty, Alloc>::append(alloc_type& al, const_view_type init) {
-    if (!p_) { return construct_dispatch(al, init.data(), init.size()); }
+void flexarray_t<Ty, Alloc>::append_view(alloc_type& al, const_view_type view) {
+    if (!p_) { return construct_dispatch(al, view.data(), view.size()); }
     ensure_unique(al);
-    append_dispatch(al, init.data(), init.size());
+    append_dispatch(al, view.data(), view.size());
 }
 
 template<typename Ty, typename Alloc>
@@ -228,10 +221,10 @@ auto object_t<CharT, Alloc>::alloc(alloc_type& al, std::size_t bucket_count) -> 
 }
 
 template<typename CharT, typename Alloc>
-void object_t<CharT, Alloc>::construct(alloc_type& al, object_t obj) {
-    construct(al, obj.size());
+void object_t<CharT, Alloc>::construct_copy(alloc_type& al, object_t other) {
+    construct_empty(al, other.size());
     try {
-        for (list_links_t* item = obj.p_->head.next; item != &obj.p_->head; item = item->next) {
+        for (list_links_t* item = other.p_->head.next; item != &other.p_->head; item = item->next) {
             const auto& v = *node_t::from_links(item);
             node_t* node = node_t::construct(al, v.key(), v.value());
             insert_node(node, v.hash_code_);
@@ -243,10 +236,10 @@ void object_t<CharT, Alloc>::construct(alloc_type& al, object_t obj) {
 }
 
 template<typename CharT, typename Alloc>
-void object_t<CharT, Alloc>::construct(alloc_type& al, std::initializer_list<mapped_type> init) {
-    construct(al, init.size());
+void object_t<CharT, Alloc>::construct_from_common_initializer(alloc_type& al, std::initializer_list<mapped_type> init) {
+    construct_empty(al, init.size());
     try {
-        insert_initializer_list(al, init);
+        insert_initializer(al, init);
     } catch (...) {
         destruct(al);
         throw;
@@ -254,14 +247,15 @@ void object_t<CharT, Alloc>::construct(alloc_type& al, std::initializer_list<map
 }
 
 template<typename CharT, typename Alloc>
-void object_t<CharT, Alloc>::construct(alloc_type& al, std::initializer_list<std::pair<key_type, mapped_type>> init) {
-    construct(al, init.begin(), init.end());
+void object_t<CharT, Alloc>::construct_from_initializer(alloc_type& al,
+                                                        std::initializer_list<std::pair<key_type, mapped_type>> init) {
+    construct_from_range(al, init.begin(), init.end());
 }
 
 template<typename CharT, typename Alloc>
-void object_t<CharT, Alloc>::assign(alloc_type& al, std::initializer_list<mapped_type> init) {
+void object_t<CharT, Alloc>::assign_initializer(alloc_type& al, std::initializer_list<mapped_type> init) {
     clear_dispatch(al, init.size());
-    insert_initializer_list(al, init);
+    insert_initializer(al, init);
 }
 
 template<typename CharT, typename Alloc>
@@ -297,7 +291,7 @@ void object_t<CharT, Alloc>::insert_node(node_t* node, std::size_t hash_code) no
 }
 
 template<typename CharT, typename Alloc>
-void object_t<CharT, Alloc>::insert_initializer_list(alloc_type& al, std::initializer_list<mapped_type> init) {
+void object_t<CharT, Alloc>::insert_initializer(alloc_type& al, std::initializer_list<mapped_type> init) {
     if (p_->bucket_count - p_->size < init.size()) { rehash(al, init.size()); }
     for (auto first = init.begin(); first != init.end(); ++first) {
         const auto key = (*first).value_.arr[0].value_.str.cview();
@@ -379,7 +373,7 @@ list_links_t* object_t<CharT, Alloc>::erase(alloc_type& al, list_links_t* node) 
     assert(node != &p_->head);
     if (p_->ref_count != 1) {
         object_t new_obj;
-        new_obj.construct(al, *this);
+        new_obj.construct_copy(al, *this);
         list_links_t* new_node = new_obj.p_->head.next;
         for (list_links_t* item = p_->head.next; item != node; item = item->next) { new_node = new_node->next; }
         node = new_node;
@@ -432,9 +426,9 @@ template<typename CharT, typename Alloc>
 basic_value<CharT, Alloc>::basic_value(std::initializer_list<value_type> init, const Alloc& al)
     : alloc_type(al), type_(detail::is_object(init) ? dtype::object : dtype::array) {
     if (type_ == dtype::object) {
-        value_.obj.construct(*this, init);
+        value_.obj.construct_from_common_initializer(*this, init);
     } else {
-        value_.arr.construct(*this, init);
+        value_.arr.construct_from_initializer(*this, init);
     }
 }
 
@@ -443,10 +437,10 @@ void basic_value<CharT, Alloc>::assign(std::initializer_list<value_type> init) {
     if (!detail::is_object(init)) { return assign(array_tag, init.begin(), init.end()); }
     if (type_ != dtype::object) {
         destroy();
-        value_.obj.construct(*this, init.size());
+        value_.obj.construct_empty(*this, init.size());
         type_ = dtype::object;
     }
-    value_.obj.assign(*this, init);
+    value_.obj.assign_initializer(*this, init);
 }
 
 template<typename CharT, typename Alloc>
