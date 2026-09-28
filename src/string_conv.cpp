@@ -1000,50 +1000,9 @@ void sconv::fp_dec_fmt_t::format_long_decimal(const fp_m64_t& fp2, int n_digs, f
     n_zeroes_ = n_digs;
 }
 
-namespace uxs {
-namespace sconv {
-template UXS_EXPORT parse_result<bool, char> parse_boolean(const char*, const char*) noexcept;
-template UXS_EXPORT parse_result<std::int32_t, char> parse_signed_integer_common(const char*, const char*,
-                                                                                 std::int32_t) noexcept;
-template UXS_EXPORT parse_result<std::int64_t, char> parse_signed_integer_common(const char*, const char*,
-                                                                                 std::int64_t) noexcept;
-template UXS_EXPORT parse_result<std::uint32_t, char> parse_unsigned_integer_common(const char*, const char*,
-                                                                                    std::uint32_t) noexcept;
-template UXS_EXPORT parse_result<std::uint64_t, char> parse_unsigned_integer_common(const char*, const char*,
-                                                                                    std::uint64_t) noexcept;
-template UXS_EXPORT parse_result<std::uint64_t, char> parse_float_common(const char*, const char*, unsigned,
-                                                                         int) noexcept;
-
-template UXS_EXPORT parse_result<bool, wchar_t> parse_boolean(const wchar_t*, const wchar_t*) noexcept;
-template UXS_EXPORT parse_result<std::int32_t, wchar_t> parse_signed_integer_common(const wchar_t*, const wchar_t*,
-                                                                                    std::int32_t) noexcept;
-template UXS_EXPORT parse_result<std::int64_t, wchar_t> parse_signed_integer_common(const wchar_t*, const wchar_t*,
-                                                                                    std::int64_t) noexcept;
-template UXS_EXPORT parse_result<std::uint32_t, wchar_t> parse_unsigned_integer_common(const wchar_t*, const wchar_t*,
-                                                                                       std::uint32_t) noexcept;
-template UXS_EXPORT parse_result<std::uint64_t, wchar_t> parse_unsigned_integer_common(const wchar_t*, const wchar_t*,
-                                                                                       std::uint64_t) noexcept;
-template UXS_EXPORT parse_result<std::uint64_t, wchar_t> parse_float_common(const wchar_t*, const wchar_t*, unsigned,
-                                                                            int) noexcept;
-
-template UXS_EXPORT void fmt_boolean(membuffer&, bool, fmt_opts, locale_ref);
-template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint32_t, bool);
-template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint32_t, bool, fmt_opts, locale_ref);
-template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint64_t, bool);
-template UXS_EXPORT void fmt_integer_common(membuffer&, std::uint64_t, bool, fmt_opts, locale_ref);
-template UXS_EXPORT void fmt_float_common(membuffer&, std::uint64_t, unsigned, int, fmt_flags);
-template UXS_EXPORT void fmt_float_common(membuffer&, std::uint64_t, unsigned, int, fmt_opts, locale_ref);
-template UXS_EXPORT void fmt_character(membuffer&, char32_t, fmt_opts, locale_ref);
-template UXS_EXPORT void fmt_string(membuffer&, std::string_view, fmt_opts, locale_ref);
-
-template UXS_EXPORT void fmt_boolean(wmembuffer&, bool, fmt_opts, locale_ref);
-template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint32_t, bool);
-template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint32_t, bool, fmt_opts, locale_ref);
-template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint64_t, bool);
-template UXS_EXPORT void fmt_integer_common(wmembuffer&, std::uint64_t, bool, fmt_opts, locale_ref);
-template UXS_EXPORT void fmt_float_common(wmembuffer&, std::uint64_t, unsigned, int, fmt_flags);
-template UXS_EXPORT void fmt_float_common(wmembuffer&, std::uint64_t, unsigned, int, fmt_opts, locale_ref);
-template UXS_EXPORT void fmt_character(wmembuffer&, char32_t, fmt_opts, locale_ref);
-template UXS_EXPORT void fmt_string(wmembuffer&, std::wstring_view, fmt_opts, locale_ref);
-}  // namespace sconv
-}  // namespace uxs
+UXS_SCONV_PARSE_INSTANTIATE_IMPLEMENTATION(char);
+UXS_SCONV_FORMAT_INSTANTIATE_IMPLEMENTATION(char);
+#if UXS_USE_WCHAR_T != 0
+UXS_SCONV_PARSE_INSTANTIATE_IMPLEMENTATION(wchar_t);
+UXS_SCONV_FORMAT_INSTANTIATE_IMPLEMENTATION(wchar_t);
+#endif  // UXS_USE_WCHAR_T != 0

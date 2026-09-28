@@ -154,3 +154,5 @@ int basic_byteseqdev<Alloc>::truncate() {
 }
 
 }  // namespace uxs
+
+#define UXS_IO_BYTESEQDEV_INSTANTIATE_IMPLEMENTATION(alloc_type) template class uxs::basic_byteseqdev<alloc_type>

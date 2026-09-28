@@ -484,3 +484,6 @@ auto basic_devbuf<CharT, Alloc>::seek_impl(off_type off, seekdir dir) -> pos_typ
 }
 
 }  // namespace uxs
+
+#define UXS_IO_DEVBUF_INSTANTIATE_IMPLEMENTATION(char_type, alloc_type) \
+    template class uxs::basic_devbuf<char_type, alloc_type>

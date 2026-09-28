@@ -1659,8 +1659,17 @@ basic_value<CharT, Alloc> make_object(
     return basic_value<CharT, Alloc>(object_tag, init, al);
 }
 
-using value = basic_value<char>;
-using wvalue = basic_value<wchar_t>;
+#define UXS_DECLARE_TYPE_ALIASES(type, prefix) using prefix##value = basic_value<type>
+UXS_DECLARE_TYPE_ALIASES(char, );
+#if UXS_USE_WCHAR_T != 0
+UXS_DECLARE_TYPE_ALIASES(wchar_t, w);
+#endif  // UXS_USE_WCHAR_T != 0
+#if UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char8_t, u8);
+#endif  // UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char16_t, u16);
+UXS_DECLARE_TYPE_ALIASES(char32_t, u32);
+#undef UXS_DECLARE_TYPE_ALIASES
 
 }  // namespace db
 }  // namespace uxs

@@ -25,11 +25,13 @@ class spin_mutex {
 struct random_generator {
     std::mt19937 generator;
     std::uniform_int_distribution<std::uint64_t> distribution;
+
     random_generator() : distribution(0, std::numeric_limits<std::uint64_t>::max()) {
         std::random_device r;
         std::seed_seq seed{r(), r(), r(), r(), r()};
         generator.seed(seed);
     }
+
     static guid::data64_t generate() {
         static bool is_initialized = false;
         static spin_mutex lock;
@@ -39,7 +41,9 @@ struct random_generator {
 
         auto& g = *reinterpret_cast<random_generator*>(&v);
         if (!is_initialized) {
-            new (&g) random_generator;
+            static_assert(std::is_trivially_destructible<random_generator>::value,
+                          "random_generator must be trivially destructible");
+            ::new (&g) random_generator;
             is_initialized = true;
         }
 

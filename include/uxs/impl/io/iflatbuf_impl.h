@@ -26,3 +26,5 @@ auto basic_iflatbuf<CharT>::seek_impl(off_type off, seekdir dir) -> pos_type {
 }
 
 }  // namespace uxs
+
+#define UXS_IO_IFLATBUF_INSTANTIATE_IMPLEMENTATION(char_type) template class uxs::basic_iflatbuf<char_type>

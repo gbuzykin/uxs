@@ -695,3 +695,14 @@ loop:
 }  // namespace xml
 }  // namespace db
 }  // namespace uxs
+
+#define UXS_DB_XML_INSTANTIATE_LEXER_IMPLEMENTATION(io_char_type) \
+    template class uxs::db::xml::parser<io_char_type>; \
+    template struct uxs::db::xml::detail::lexer<io_char_type>
+
+#define UXS_DB_XML_INSTANTIATE_IMPLEMENTATION(io_char_type, value_type) \
+    template UXS_EXPORT value_type uxs::db::xml::parser<io_char_type>::parse( \
+        string_view_type, const typename value_type::allocator_type&); \
+    template UXS_EXPORT void uxs::db::xml::detail::write_impl(uxs::basic_membuffer<io_char_type>&, const value_type&, \
+                                                              std::basic_string_view<typename value_type::char_type>, \
+                                                              uxs::db::xml::xml_fmt_opts, unsigned)

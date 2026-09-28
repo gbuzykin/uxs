@@ -802,17 +802,23 @@ class basic_format_string {
     std::basic_string_view<char_type> fmt_;
 };
 
+template<typename CharT, typename... Args>
+using format_string_t = basic_format_string<CharT, est::type_identity_t<Args>...>;
+
+template<typename CharT>
+using format_args_t = basic_format_args<basic_format_context<CharT>>;
+
 namespace detail {
 template<typename CharT>
 void vformat_append_impl(typename basic_format_context<CharT>::output_type& out, locale_ref loc,
-                         std::basic_string_view<CharT> fmt, basic_format_args<basic_format_context<CharT>> args) {
+                         std::basic_string_view<CharT> fmt, format_args_t<CharT> args) {
     fmt::format_impl(basic_format_context<CharT>(out, loc, args),
                      basic_format_parse_context<CharT>(fmt.begin(), fmt.end()));
 }
 template<typename StrTy, typename = std::enable_if_t<!std::is_convertible<
                              StrTy&, typename basic_format_context<typename StrTy::value_type>::output_type&>::value>>
 void vformat_append_impl(StrTy& out, locale_ref loc, std::basic_string_view<typename StrTy::value_type> fmt,
-                         basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
+                         format_args_t<typename StrTy::value_type> args) {
     using char_type = typename StrTy::value_type;
     basic_inline_dynbuffer<char_type> buf;
     fmt::format_impl(basic_format_context<char_type>(buf, loc, args),
@@ -823,28 +829,25 @@ void vformat_append_impl(StrTy& out, locale_ref loc, std::basic_string_view<type
 
 template<typename StrTy>
 void vformat_append(StrTy& out, std::basic_string_view<typename StrTy::value_type> fmt,
-                    basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
+                    format_args_t<typename StrTy::value_type> args) {
     detail::vformat_append_impl(out, locale_ref(), fmt, args);
 }
 
 template<typename StrTy>
 void vformat_append(StrTy& out, const std::locale& loc, std::basic_string_view<typename StrTy::value_type> fmt,
-                    basic_format_args<basic_format_context<typename StrTy::value_type>> args) {
+                    format_args_t<typename StrTy::value_type> args) {
     detail::vformat_append_impl(out, locale_ref(loc), fmt, args);
 }
 
 template<typename StrTy, typename... Args>
-void format_append(StrTy& out, basic_format_string<typename StrTy::value_type, est::type_identity_t<Args>...> fmt,
-                   const Args&... args) {
-    vformat_append(out, fmt.get(), basic_format_args<basic_format_context<typename StrTy::value_type>>::make(args...));
+void format_append(StrTy& out, format_string_t<typename StrTy::value_type, Args...> fmt, const Args&... args) {
+    vformat_append(out, fmt.get(), format_args_t<typename StrTy::value_type>::make(args...));
 }
 
 template<typename StrTy, typename... Args>
-void format_append(StrTy& out, const std::locale& loc,
-                   basic_format_string<typename StrTy::value_type, est::type_identity_t<Args>...> fmt,
+void format_append(StrTy& out, const std::locale& loc, format_string_t<typename StrTy::value_type, Args...> fmt,
                    const Args&... args) {
-    vformat_append(out, loc, fmt.get(),
-                   basic_format_args<basic_format_context<typename StrTy::value_type>>::make(args...));
+    vformat_append(out, loc, fmt.get(), format_args_t<typename StrTy::value_type>::make(args...));
 }
 
 }  // namespace uxs
