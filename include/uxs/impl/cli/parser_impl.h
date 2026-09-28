@@ -476,3 +476,8 @@ std::basic_string<CharT> basic_command<CharT>::make_man_page(text_coloring color
 
 }  // namespace cli
 }  // namespace uxs
+
+#define UXS_CLI_INSTANTIATE_IMPLEMENTATION(char_type) \
+    template class uxs::cli::basic_option_group<char_type>; \
+    template class uxs::cli::basic_option<char_type>; \
+    template class uxs::cli::basic_command<char_type>

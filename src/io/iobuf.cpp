@@ -1,7 +1,7 @@
 #include "uxs/impl/io/iobuf_impl.h"
 
-namespace uxs {
-template class basic_iobuf<char>;
-template class basic_iobuf<wchar_t>;
-template class basic_iobuf<std::uint8_t>;
-}  // namespace uxs
+UXS_IO_IOBUF_INSTANTIATE_IMPLEMENTATION(char);
+#if UXS_USE_WCHAR_T != 0
+UXS_IO_IOBUF_INSTANTIATE_IMPLEMENTATION(wchar_t);
+#endif  // UXS_USE_WCHAR_T != 0
+UXS_IO_IOBUF_INSTANTIATE_IMPLEMENTATION(std::uint8_t);
