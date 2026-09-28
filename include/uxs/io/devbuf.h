@@ -77,8 +77,17 @@ class basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_all
     UXS_EXPORT std::size_t remove_crlf(char_type* dst, std::size_t count) noexcept;
 };
 
-using devbuf = basic_devbuf<char>;
-using wdevbuf = basic_devbuf<wchar_t>;
-using bdevbuf = basic_devbuf<std::uint8_t>;
+#define UXS_DECLARE_TYPE_ALIASES(type, prefix) using prefix##devbuf = basic_devbuf<type>
+UXS_DECLARE_TYPE_ALIASES(char, );
+#if UXS_USE_WCHAR_T != 0
+UXS_DECLARE_TYPE_ALIASES(wchar_t, w);
+#endif  // UXS_USE_WCHAR_T != 0
+#if UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char8_t, u8);
+#endif  // UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char16_t, u16);
+UXS_DECLARE_TYPE_ALIASES(char32_t, u32);
+UXS_DECLARE_TYPE_ALIASES(std::uint8_t, b);
+#undef UXS_DECLARE_TYPE_ALIASES
 
 }  // namespace uxs

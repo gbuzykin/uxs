@@ -145,13 +145,15 @@ constexpr bool is_one_of_v = is_one_of<Ty, U...>::value;
 template<typename Ty>
 using is_boolean = std::is_same<std::remove_cv_t<Ty>, bool>;
 
-#if __cplusplus >= 202002L
 template<typename Ty>
-using is_character = is_one_of<std::remove_cv_t<Ty>, char, wchar_t, char8_t, char16_t, char32_t>;
-#else   // __cplusplus >= 202002L
-template<typename Ty>
-using is_character = is_one_of<std::remove_cv_t<Ty>, char, wchar_t, char16_t, char32_t>;
-#endif  // __cplusplus >= 202002L
+using is_character = is_one_of<std::remove_cv_t<Ty>, char,
+#if UXS_USE_WCHAR_T != 0
+                               wchar_t,
+#endif  // UXS_USE_WCHAR_T != 0
+#if UXS_USE_CHAR8_T != 0
+                               char8_t,
+#endif  // UXS_USE_CHAR8_T != 0
+                               char16_t, char32_t>;
 
 #if __cplusplus >= 201402L
 template<typename Ty>

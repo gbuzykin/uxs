@@ -85,3 +85,5 @@ int basic_ibuf<CharT>::sync() {
 }
 
 }  // namespace uxs
+
+#define UXS_IO_IBUF_INSTANTIATE_IMPLEMENTATION(char_type) template class uxs::basic_ibuf<char_type>

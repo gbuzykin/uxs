@@ -1,7 +1,7 @@
 #include "uxs/impl/io/devbuf_impl.h"
 
-namespace uxs {
-template class basic_devbuf<char>;
-template class basic_devbuf<wchar_t>;
-template class basic_devbuf<std::uint8_t>;
-}  // namespace uxs
+UXS_IO_DEVBUF_INSTANTIATE_IMPLEMENTATION(char, std::allocator<char>);
+#if UXS_USE_WCHAR_T != 0
+UXS_IO_DEVBUF_INSTANTIATE_IMPLEMENTATION(wchar_t, std::allocator<wchar_t>);
+#endif  // UXS_USE_WCHAR_T != 0
+UXS_IO_DEVBUF_INSTANTIATE_IMPLEMENTATION(std::uint8_t, std::allocator<std::uint8_t>);

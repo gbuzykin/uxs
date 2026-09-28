@@ -52,8 +52,17 @@ class basic_oflatbuf : protected std::allocator_traits<Alloc>::template rebind_a
     UXS_EXPORT void grow(size_type extra);
 };
 
-using oflatbuf = basic_oflatbuf<char>;
-using woflatbuf = basic_oflatbuf<wchar_t>;
-using boflatbuf = basic_oflatbuf<std::uint8_t>;
+#define UXS_DECLARE_TYPE_ALIASES(type, prefix) using prefix##oflatbuf = basic_oflatbuf<type>
+UXS_DECLARE_TYPE_ALIASES(char, );
+#if UXS_USE_WCHAR_T != 0
+UXS_DECLARE_TYPE_ALIASES(wchar_t, w);
+#endif  // UXS_USE_WCHAR_T != 0
+#if UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char8_t, u8);
+#endif  // UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char16_t, u16);
+UXS_DECLARE_TYPE_ALIASES(char32_t, u32);
+UXS_DECLARE_TYPE_ALIASES(std::uint8_t, b);
+#undef UXS_DECLARE_TYPE_ALIASES
 
 }  // namespace uxs

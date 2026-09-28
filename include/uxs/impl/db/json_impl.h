@@ -539,3 +539,13 @@ loop:
 }  // namespace json
 }  // namespace db
 }  // namespace uxs
+
+#define UXS_DB_JSON_INSTANTIATE_LEXER_IMPLEMENTATION(io_char_type) \
+    template struct uxs::db::json::detail::lexer<io_char_type>
+
+#define UXS_DB_JSON_INSTANTIATE_IMPLEMENTATION(io_char_type, value_type) \
+    template UXS_EXPORT value_type uxs::db::json::parse(uxs::basic_ibuf<io_char_type>&, \
+                                                        const typename value_type::allocator_type&); \
+    template UXS_EXPORT void uxs::db::json::detail::write_impl(uxs::basic_membuffer<io_char_type>&, const value_type&); \
+    template UXS_EXPORT void uxs::db::json::detail::write_formatted_impl( \
+        uxs::basic_membuffer<io_char_type>&, const value_type&, uxs::db::json::json_fmt_opts, unsigned)

@@ -233,17 +233,16 @@ struct formatter<std::basic_string_view<CharT>, CharT> {
 // ---- vformat
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-std::basic_string<string_char_type<StrLikeTy>> vformat(
-    const StrLikeTy& fmt, basic_format_args<basic_format_context<string_char_type<StrLikeTy>>> args) {
+std::basic_string<string_char_type<StrLikeTy>> vformat(const StrLikeTy& fmt,
+                                                       format_args_t<string_char_type<StrLikeTy>> args) {
     basic_inline_dynbuffer<string_char_type<StrLikeTy>> buf;
     vformat_append(buf, fmt, args);
     return std::basic_string<string_char_type<StrLikeTy>>(buf.data(), buf.size());
 }
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-std::basic_string<string_char_type<StrLikeTy>> vformat(
-    const std::locale& loc, const StrLikeTy& fmt,
-    basic_format_args<basic_format_context<string_char_type<StrLikeTy>>> args) {
+std::basic_string<string_char_type<StrLikeTy>> vformat(const std::locale& loc, const StrLikeTy& fmt,
+                                                       format_args_t<string_char_type<StrLikeTy>> args) {
     basic_inline_dynbuffer<string_char_type<StrLikeTy>> buf;
     vformat_append(buf, loc, fmt, args);
     return std::basic_string<string_char_type<StrLikeTy>>(buf.data(), buf.size());
@@ -253,7 +252,7 @@ std::basic_string<string_char_type<StrLikeTy>> vformat(
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
 string_char_type<StrLikeTy>* vformat_to(string_char_type<StrLikeTy>* p, const StrLikeTy& fmt,
-                                        basic_format_args<basic_format_context<string_char_type<StrLikeTy>>> args) {
+                                        format_args_t<string_char_type<StrLikeTy>> args) {
     basic_membuffer<string_char_type<StrLikeTy>> buf(p);
     vformat_append(buf, fmt, args);
     return buf.endp();
@@ -262,8 +261,7 @@ string_char_type<StrLikeTy>* vformat_to(string_char_type<StrLikeTy>* p, const St
 template<typename OutputIt, typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>,
          typename = std::enable_if_t<est::is_output_iterator<OutputIt, const string_char_type<StrLikeTy>&>::value &&
                                      !std::is_same<OutputIt, string_char_type<StrLikeTy>*>::value>>
-OutputIt vformat_to(OutputIt out, const StrLikeTy& fmt,
-                    basic_format_args<basic_format_context<string_char_type<StrLikeTy>>> args) {
+OutputIt vformat_to(OutputIt out, const StrLikeTy& fmt, format_args_t<string_char_type<StrLikeTy>> args) {
     basic_inline_dynbuffer<string_char_type<StrLikeTy>> buf;
     vformat_append(buf, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
@@ -271,7 +269,7 @@ OutputIt vformat_to(OutputIt out, const StrLikeTy& fmt,
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
 string_char_type<StrLikeTy>* vformat_to(string_char_type<StrLikeTy>* p, const std::locale& loc, const StrLikeTy& fmt,
-                                        basic_format_args<basic_format_context<string_char_type<StrLikeTy>>> args) {
+                                        format_args_t<string_char_type<StrLikeTy>> args) {
     basic_membuffer<string_char_type<StrLikeTy>> buf(p);
     vformat_append(buf, loc, fmt, args);
     return buf.endp();
@@ -281,7 +279,7 @@ template<typename OutputIt, typename StrLikeTy, typename = std::enable_if_t<is_s
          typename = std::enable_if_t<est::is_output_iterator<OutputIt, const string_char_type<StrLikeTy>&>::value &&
                                      !std::is_same<OutputIt, string_char_type<StrLikeTy>*>::value>>
 OutputIt vformat_to(OutputIt out, const std::locale& loc, const StrLikeTy& fmt,
-                    basic_format_args<basic_format_context<string_char_type<StrLikeTy>>> args) {
+                    format_args_t<string_char_type<StrLikeTy>> args) {
     basic_inline_dynbuffer<string_char_type<StrLikeTy>> buf;
     vformat_append(buf, loc, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
@@ -299,9 +297,9 @@ struct format_to_n_result {
 };
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-format_to_n_result<string_char_type<StrLikeTy>*> vformat_to_n(
-    string_char_type<StrLikeTy>* p, std::size_t n, const StrLikeTy& fmt,
-    basic_format_args<basic_format_context<string_char_type<StrLikeTy>>> args) {
+format_to_n_result<string_char_type<StrLikeTy>*> vformat_to_n(string_char_type<StrLikeTy>* p, std::size_t n,
+                                                              const StrLikeTy& fmt,
+                                                              format_args_t<string_char_type<StrLikeTy>> args) {
     basic_membuffer_with_size_tracker<string_char_type<StrLikeTy>> buf(p, n);
     vformat_append(buf, fmt, args);
     return {buf.endp(), buf.tracked_size()};
@@ -311,16 +309,16 @@ template<typename OutputIt, typename StrLikeTy, typename = std::enable_if_t<is_s
          typename = std::enable_if_t<est::is_output_iterator<OutputIt, const string_char_type<StrLikeTy>&>::value &&
                                      !std::is_same<OutputIt, string_char_type<StrLikeTy>*>::value>>
 format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, const StrLikeTy& fmt,
-                                          basic_format_args<basic_format_context<string_char_type<StrLikeTy>>> args) {
+                                          format_args_t<string_char_type<StrLikeTy>> args) {
     basic_inline_dynbuffer<string_char_type<StrLikeTy>> buf;
     vformat_append(buf, fmt, args);
     return {std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out)), buf.size()};
 }
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-format_to_n_result<string_char_type<StrLikeTy>*> vformat_to_n(
-    string_char_type<StrLikeTy>* p, std::size_t n, const std::locale& loc, const StrLikeTy& fmt,
-    basic_format_args<basic_format_context<string_char_type<StrLikeTy>>> args) {
+format_to_n_result<string_char_type<StrLikeTy>*> vformat_to_n(string_char_type<StrLikeTy>* p, std::size_t n,
+                                                              const std::locale& loc, const StrLikeTy& fmt,
+                                                              format_args_t<string_char_type<StrLikeTy>> args) {
     basic_membuffer_with_size_tracker<string_char_type<StrLikeTy>> buf(p, n);
     vformat_append(buf, loc, fmt, args);
     return {buf.endp(), buf.tracked_size()};
@@ -330,7 +328,7 @@ template<typename OutputIt, typename StrLikeTy, typename = std::enable_if_t<is_s
          typename = std::enable_if_t<est::is_output_iterator<OutputIt, const string_char_type<StrLikeTy>&>::value &&
                                      !std::is_same<OutputIt, string_char_type<StrLikeTy>*>::value>>
 format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, const std::locale& loc, const StrLikeTy& fmt,
-                                          basic_format_args<basic_format_context<string_char_type<StrLikeTy>>> args) {
+                                          format_args_t<string_char_type<StrLikeTy>> args) {
     basic_inline_dynbuffer<string_char_type<StrLikeTy>> buf;
     vformat_append(buf, loc, fmt, args);
     return {std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out)), buf.size()};
@@ -339,18 +337,17 @@ format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, const std
 // ---- vprint
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-basic_iobuf<string_char_type<StrLikeTy>>& vprint(
-    basic_iobuf<string_char_type<StrLikeTy>>& out, const StrLikeTy& fmt,
-    basic_format_args<basic_format_context<string_char_type<StrLikeTy>>> args) {
+basic_iobuf<string_char_type<StrLikeTy>>& vprint(basic_iobuf<string_char_type<StrLikeTy>>& out, const StrLikeTy& fmt,
+                                                 format_args_t<string_char_type<StrLikeTy>> args) {
     basic_iomembuffer<string_char_type<StrLikeTy>> buf(out);
     vformat_append(buf, fmt, args);
     return out;
 }
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-basic_iobuf<string_char_type<StrLikeTy>>& vprint(
-    basic_iobuf<string_char_type<StrLikeTy>>& out, const std::locale& loc, const StrLikeTy& fmt,
-    basic_format_args<basic_format_context<string_char_type<StrLikeTy>>> args) {
+basic_iobuf<string_char_type<StrLikeTy>>& vprint(basic_iobuf<string_char_type<StrLikeTy>>& out, const std::locale& loc,
+                                                 const StrLikeTy& fmt,
+                                                 format_args_t<string_char_type<StrLikeTy>> args) {
     basic_iomembuffer<string_char_type<StrLikeTy>> buf(out);
     vformat_append(buf, loc, fmt, args);
     return out;
@@ -358,107 +355,81 @@ basic_iobuf<string_char_type<StrLikeTy>>& vprint(
 
 // --------------------------
 
-using format_context = basic_format_context<char>;
-using format_parse_context = basic_format_parse_context<char>;
-using format_args = basic_format_args<format_context>;
-template<typename... Args>
-using format_string = basic_format_string<char, est::type_identity_t<Args>...>;
-using runtime_format = basic_runtime_format<char>;
+#define UXS_DECLARE_TYPE_ALIASES(type, prefix) \
+    using prefix##format_context = basic_format_context<type>; \
+    using prefix##format_parse_context = basic_format_parse_context<type>; \
+    using prefix##format_args = format_args_t<type>; \
+    template<typename... Args> \
+    using prefix##format_string = format_string_t<type, Args...>; \
+    using prefix##runtime_format = basic_runtime_format<type>
+UXS_DECLARE_TYPE_ALIASES(char, );
+#if UXS_USE_WCHAR_T != 0
+UXS_DECLARE_TYPE_ALIASES(wchar_t, w);
+#endif  // UXS_USE_WCHAR_T != 0
+#if UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char8_t, u8);
+#endif  // UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char16_t, u16);
+UXS_DECLARE_TYPE_ALIASES(char32_t, u32);
+#undef UXS_DECLARE_TYPE_ALIASES
 
-using wformat_context = basic_format_context<wchar_t>;
-using wformat_parse_context = basic_format_parse_context<wchar_t>;
-using wformat_args = basic_format_args<wformat_context>;
-template<typename... Args>
-using wformat_string = basic_format_string<wchar_t, est::type_identity_t<Args>...>;
-using wruntime_format = basic_runtime_format<wchar_t>;
-
-// ---- format
-
-template<typename... Args>
-std::string format(format_string<Args...> fmt, const Args&... args) {
-    return vformat(fmt.get(), format_args::make(args...));
-}
-
-template<typename... Args>
-std::wstring format(wformat_string<Args...> fmt, const Args&... args) {
-    return vformat(fmt.get(), wformat_args::make(args...));
-}
-
-template<typename... Args>
-std::string format(const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
-    return vformat(loc, fmt.get(), format_args::make(args...));
-}
-
-template<typename... Args>
-std::wstring format(const std::locale& loc, wformat_string<Args...> fmt, const Args&... args) {
-    return vformat(loc, fmt.get(), wformat_args::make(args...));
-}
-
-// ---- format_to
-
-template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<est::is_output_iterator<OutputIt, const char&>::value>>
-OutputIt format_to(OutputIt out, format_string<Args...> fmt, const Args&... args) {
-    return vformat_to(std::move(out), fmt.get(), format_args::make(args...));
-}
-
-template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<est::is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt format_to(OutputIt out, wformat_string<Args...> fmt, const Args&... args) {
-    return vformat_to(std::move(out), fmt.get(), wformat_args::make(args...));
-}
-
-template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<est::is_output_iterator<OutputIt, const char&>::value>>
-OutputIt format_to(OutputIt out, const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
-    return vformat_to(std::move(out), loc, fmt.get(), format_args::make(args...));
-}
-
-template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<est::is_output_iterator<OutputIt, const wchar_t&>::value>>
-OutputIt format_to(OutputIt out, const std::locale& loc, wformat_string<Args...> fmt, const Args&... args) {
-    return vformat_to(std::move(out), loc, fmt.get(), wformat_args::make(args...));
-}
-
-// ---- format_to_n
-
-template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<est::is_output_iterator<OutputIt, const char&>::value>>
-format_to_n_result<OutputIt> format_to_n(OutputIt out, std::size_t n, format_string<Args...> fmt, const Args&... args) {
-    return vformat_to_n(std::move(out), n, fmt.get(), format_args::make(args...));
-}
-
-template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<est::is_output_iterator<OutputIt, const wchar_t&>::value>>
-format_to_n_result<OutputIt> format_to_n(OutputIt out, std::size_t n, wformat_string<Args...> fmt, const Args&... args) {
-    return vformat_to_n(std::move(out), n, fmt.get(), wformat_args::make(args...));
-}
-
-template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<est::is_output_iterator<OutputIt, const char&>::value>>
-format_to_n_result<OutputIt> format_to_n(OutputIt out, std::size_t n, const std::locale& loc,
-                                         format_string<Args...> fmt, const Args&... args) {
-    return vformat_to_n(std::move(out), n, loc, fmt.get(), format_args::make(args...));
-}
-
-template<typename OutputIt, typename... Args,
-         typename = std::enable_if_t<est::is_output_iterator<OutputIt, const wchar_t&>::value>>
-format_to_n_result<OutputIt> format_to_n(OutputIt out, std::size_t n, const std::locale& loc,
-                                         wformat_string<Args...> fmt, const Args&... args) {
-    return vformat_to_n(std::move(out), n, loc, fmt.get(), wformat_args::make(args...));
-}
-
-// ---- print
-
-template<typename... Args>
-iobuf& print(iobuf& out, format_string<Args...> fmt, const Args&... args) {
-    return vprint(out, fmt.get(), format_args::make(args...));
-}
-
-template<typename... Args>
-wiobuf& print(wiobuf& out, wformat_string<Args...> fmt, const Args&... args) {
-    return vprint(out, fmt.get(), wformat_args::make(args...));
-}
+#define UXS_FMT_IMPLEMENT_WRAPPER_FUNCTIONS(char_type) \
+    template<typename... Args> \
+    std::basic_string<char_type> format(format_string_t<char_type, Args...> fmt, const Args&... args) { \
+        return vformat(fmt.get(), format_args_t<char_type>::make(args...)); \
+    } \
+    template<typename... Args> \
+    std::basic_string<char_type> format(const std::locale& loc, format_string_t<char_type, Args...> fmt, \
+                                        const Args&... args) { \
+        return vformat(loc, fmt.get(), format_args_t<char_type>::make(args...)); \
+    } \
+    template<typename OutputIt, typename... Args, \
+             typename = std::enable_if_t<est::is_output_iterator<OutputIt, const char_type&>::value>> \
+    OutputIt format_to(OutputIt out, format_string_t<char_type, Args...> fmt, const Args&... args) { \
+        return vformat_to(std::move(out), fmt.get(), format_args_t<char_type>::make(args...)); \
+    } \
+    template<typename OutputIt, typename... Args, \
+             typename = std::enable_if_t<est::is_output_iterator<OutputIt, const char_type&>::value>> \
+    OutputIt format_to(OutputIt out, const std::locale& loc, format_string_t<char_type, Args...> fmt, \
+                       const Args&... args) { \
+        return vformat_to(std::move(out), loc, fmt.get(), format_args_t<char_type>::make(args...)); \
+    } \
+    template<typename OutputIt, typename... Args, \
+             typename = std::enable_if_t<est::is_output_iterator<OutputIt, const char_type&>::value>> \
+    format_to_n_result<OutputIt> format_to_n(OutputIt out, std::size_t n, format_string_t<char_type, Args...> fmt, \
+                                             const Args&... args) { \
+        return vformat_to_n(std::move(out), n, fmt.get(), format_args_t<char_type>::make(args...)); \
+    } \
+    template<typename OutputIt, typename... Args, \
+             typename = std::enable_if_t<est::is_output_iterator<OutputIt, const char_type&>::value>> \
+    format_to_n_result<OutputIt> format_to_n(OutputIt out, std::size_t n, const std::locale& loc, \
+                                             format_string_t<char_type, Args...> fmt, const Args&... args) { \
+        return vformat_to_n(std::move(out), n, loc, fmt.get(), format_args_t<char_type>::make(args...)); \
+    } \
+    template<typename... Args> \
+    basic_iobuf<char_type>& print(basic_iobuf<char_type>& out, format_string_t<char_type, Args...> fmt, \
+                                  const Args&... args) { \
+        return vprint(out, fmt.get(), format_args_t<char_type>::make(args...)); \
+    } \
+    template<typename... Args> \
+    basic_iobuf<char_type>& print(basic_iobuf<char_type>& out, const std::locale& loc, \
+                                  format_string_t<char_type, Args...> fmt, const Args&... args) { \
+        return vprint(out, loc, fmt.get(), format_args_t<char_type>::make(args...)); \
+    } \
+    template<typename... Args> \
+    basic_iobuf<char_type>& println(basic_iobuf<char_type>& out, format_string_t<char_type, Args...> fmt, \
+                                    const Args&... args) { \
+        return vprint(out, fmt.get(), format_args_t<char_type>::make(args...)).endl(); \
+    } \
+    template<typename... Args> \
+    basic_iobuf<char_type>& println(basic_iobuf<char_type>& out, const std::locale& loc, \
+                                    format_string_t<char_type, Args...> fmt, const Args&... args) { \
+        return vprint(out, loc, fmt.get(), format_args_t<char_type>::make(args...)).endl(); \
+    } \
+    static_assert(true, "")
+UXS_FMT_IMPLEMENT_WRAPPER_FUNCTIONS(char);
+UXS_FMT_IMPLEMENT_WRAPPER_FUNCTIONS(wchar_t);
+#undef UXS_FMT_IMPLEMENT_WRAPPER_FUNCTIONS
 
 template<typename... Args>
 iobuf& print(format_string<Args...> fmt, const Args&... args) {
@@ -466,45 +437,13 @@ iobuf& print(format_string<Args...> fmt, const Args&... args) {
 }
 
 template<typename... Args>
-iobuf& print(iobuf& out, const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
-    return vprint(out, loc, fmt.get(), format_args::make(args...));
-}
-
-template<typename... Args>
-wiobuf& print(wiobuf& out, const std::locale& loc, wformat_string<Args...> fmt, const Args&... args) {
-    return vprint(out, loc, fmt.get(), wformat_args::make(args...));
-}
-
-template<typename... Args>
 iobuf& print(const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
     return vprint(stdbuf::out(), loc, fmt.get(), format_args::make(args...));
-}
-
-// ---- println
-
-template<typename... Args>
-iobuf& println(iobuf& out, format_string<Args...> fmt, const Args&... args) {
-    return vprint(out, fmt.get(), format_args::make(args...)).endl();
-}
-
-template<typename... Args>
-wiobuf& println(wiobuf& out, wformat_string<Args...> fmt, const Args&... args) {
-    return vprint(out, fmt.get(), wformat_args::make(args...)).endl();
 }
 
 template<typename... Args>
 iobuf& println(format_string<Args...> fmt, const Args&... args) {
     return vprint(stdbuf::out(), fmt.get(), format_args::make(args...)).endl();
-}
-
-template<typename... Args>
-iobuf& println(iobuf& out, const std::locale& loc, format_string<Args...> fmt, const Args&... args) {
-    return vprint(out, loc, fmt.get(), format_args::make(args...)).endl();
-}
-
-template<typename... Args>
-wiobuf& println(wiobuf& out, const std::locale& loc, wformat_string<Args...> fmt, const Args&... args) {
-    return vprint(out, loc, fmt.get(), wformat_args::make(args...)).endl();
 }
 
 template<typename... Args>

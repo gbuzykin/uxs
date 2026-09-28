@@ -178,7 +178,9 @@ bool ziparch::stat_file(const NameCharT* fname, zipfile_info& info) const {
     return stat_file(fname_buf.data(), info);
 }
 
-template UXS_EXPORT bool ziparch::open(const wchar_t* name, iomode mode);
-template UXS_EXPORT std::int64_t ziparch::add_file(const wchar_t* fname, const void* data, std::size_t sz,
-                                                   zipfile_compression compr, unsigned level);
-template UXS_EXPORT bool ziparch::stat_file(const wchar_t* fname, zipfile_info& info) const;
+#define UXS_ZIPARCH_INSTANTIATE_IMPLEMENTATION(char_type) \
+    template UXS_EXPORT bool ziparch::open(const char_type* name, iomode mode); \
+    template UXS_EXPORT std::int64_t ziparch::add_file(const char_type* fname, const void* data, std::size_t sz, \
+                                                       zipfile_compression compr, unsigned level); \
+    template UXS_EXPORT bool ziparch::stat_file(const char_type* fname, zipfile_info& info) const
+UXS_ZIPARCH_INSTANTIATE_IMPLEMENTATION(wchar_t);

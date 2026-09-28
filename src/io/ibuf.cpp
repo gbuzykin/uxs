@@ -1,7 +1,6 @@
 #include "uxs/impl/io/ibuf_impl.h"
 
-namespace uxs {
-iomode detail::iomode_from_str(const char* mode, iomode default_mode) noexcept {
+uxs::iomode uxs::detail::iomode_from_str(const char* mode, iomode default_mode) noexcept {
     iomode result = default_mode;
     while (*mode) {
         switch (*mode) {
@@ -35,7 +34,8 @@ iomode detail::iomode_from_str(const char* mode, iomode default_mode) noexcept {
     return result;
 }
 
-template class basic_ibuf<char>;
-template class basic_ibuf<wchar_t>;
-template class basic_ibuf<std::uint8_t>;
-}  // namespace uxs
+UXS_IO_IBUF_INSTANTIATE_IMPLEMENTATION(char);
+#if UXS_USE_WCHAR_T != 0
+UXS_IO_IBUF_INSTANTIATE_IMPLEMENTATION(wchar_t);
+#endif  // UXS_USE_WCHAR_T != 0
+UXS_IO_IBUF_INSTANTIATE_IMPLEMENTATION(std::uint8_t);

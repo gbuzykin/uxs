@@ -1114,3 +1114,35 @@ void fmt_float_common(basic_membuffer<CharT>& out, std::uint64_t u64, unsigned b
 
 }  // namespace sconv
 }  // namespace uxs
+
+#define UXS_SCONV_PARSE_INSTANTIATE_IMPLEMENTATION(char_type) \
+    template UXS_EXPORT uxs::sconv::parse_result<bool, char_type> uxs::sconv::parse_boolean( \
+        char_type const*, char_type const*) noexcept; \
+    template UXS_EXPORT uxs::sconv::parse_result<std::int32_t, char_type> uxs::sconv::parse_signed_integer_common( \
+        char_type const*, char_type const*, std::int32_t) noexcept; \
+    template UXS_EXPORT uxs::sconv::parse_result<std::int64_t, char_type> uxs::sconv::parse_signed_integer_common( \
+        char_type const*, char_type const*, std::int64_t) noexcept; \
+    template UXS_EXPORT uxs::sconv::parse_result<std::uint32_t, char_type> uxs::sconv::parse_unsigned_integer_common( \
+        char_type const*, char_type const*, std::uint32_t) noexcept; \
+    template UXS_EXPORT uxs::sconv::parse_result<std::uint64_t, char_type> uxs::sconv::parse_unsigned_integer_common( \
+        char_type const*, char_type const*, std::uint64_t) noexcept; \
+    template UXS_EXPORT uxs::sconv::parse_result<std::uint64_t, char_type> uxs::sconv::parse_float_common( \
+        char_type const*, char_type const*, unsigned, int) noexcept
+
+#define UXS_SCONV_FORMAT_INSTANTIATE_IMPLEMENTATION(char_type) \
+    template UXS_EXPORT void uxs::sconv::fmt_boolean(uxs::basic_membuffer<char_type>&, bool, uxs::fmt_opts, \
+                                                     uxs::locale_ref); \
+    template UXS_EXPORT void uxs::sconv::fmt_integer_common(uxs::basic_membuffer<char_type>&, std::uint32_t, bool); \
+    template UXS_EXPORT void uxs::sconv::fmt_integer_common(uxs::basic_membuffer<char_type>&, std::uint32_t, bool, \
+                                                            uxs::fmt_opts, uxs::locale_ref); \
+    template UXS_EXPORT void uxs::sconv::fmt_integer_common(uxs::basic_membuffer<char_type>&, std::uint64_t, bool); \
+    template UXS_EXPORT void uxs::sconv::fmt_integer_common(uxs::basic_membuffer<char_type>&, std::uint64_t, bool, \
+                                                            uxs::fmt_opts, uxs::locale_ref); \
+    template UXS_EXPORT void uxs::sconv::fmt_float_common(uxs::basic_membuffer<char_type>&, std::uint64_t, unsigned, \
+                                                          int, fmt_flags); \
+    template UXS_EXPORT void uxs::sconv::fmt_float_common(uxs::basic_membuffer<char_type>&, std::uint64_t, unsigned, \
+                                                          int, uxs::fmt_opts, uxs::locale_ref); \
+    template UXS_EXPORT void uxs::sconv::fmt_character(uxs::basic_membuffer<char_type>&, char32_t, uxs::fmt_opts, \
+                                                       uxs::locale_ref); \
+    template UXS_EXPORT void uxs::sconv::fmt_string(uxs::basic_membuffer<char_type>&, \
+                                                    std::basic_string_view<char_type>, uxs::fmt_opts, uxs::locale_ref)

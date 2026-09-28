@@ -35,8 +35,17 @@ class basic_obuf_iterator {
     obuf_type* buf_;
 };
 
-using obuf_iterator = basic_obuf_iterator<char>;
-using wobuf_iterator = basic_obuf_iterator<wchar_t>;
-using bobuf_iterator = basic_obuf_iterator<std::uint8_t>;
+#define UXS_DECLARE_TYPE_ALIASES(type, prefix) using prefix##obuf_iterator = basic_obuf_iterator<type>
+UXS_DECLARE_TYPE_ALIASES(char, );
+#if UXS_USE_WCHAR_T != 0
+UXS_DECLARE_TYPE_ALIASES(wchar_t, w);
+#endif  // UXS_USE_WCHAR_T != 0
+#if UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char8_t, u8);
+#endif  // UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char16_t, u16);
+UXS_DECLARE_TYPE_ALIASES(char32_t, u32);
+UXS_DECLARE_TYPE_ALIASES(std::uint8_t, b);
+#undef UXS_DECLARE_TYPE_ALIASES
 
 }  // namespace uxs

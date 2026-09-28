@@ -277,3 +277,5 @@ void basic_byteseq<Alloc>::create_next_chunk() {
 }
 
 }  // namespace uxs
+
+#define UXS_IO_BYTESEQ_INSTANTIATE_IMPLEMENTATION(alloc_type) template class uxs::basic_byteseq<alloc_type>

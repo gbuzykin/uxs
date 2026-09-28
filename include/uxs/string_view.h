@@ -257,8 +257,12 @@ bool operator>=(const Ty& lhs, basic_string_view<CharT, Traits> rhs) {
     return basic_string_view<CharT, Traits>(lhs) >= rhs;
 }
 
-using string_view = basic_string_view<char>;
-using wstring_view = basic_string_view<wchar_t>;
+#    define UXS_DECLARE_TYPE_ALIASES(type, prefix) using prefix##string_view = basic_string_view<type>
+UXS_DECLARE_TYPE_ALIASES(char, );
+UXS_DECLARE_TYPE_ALIASES(wchar_t, w);
+UXS_DECLARE_TYPE_ALIASES(char16_t, u16);
+UXS_DECLARE_TYPE_ALIASES(char32_t, u32);
+#    undef UXS_DECLARE_TYPE_ALIASES
 
 template<typename CharT, typename Traits>
 struct hash<basic_string_view<CharT, Traits>> {

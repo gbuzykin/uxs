@@ -28,3 +28,7 @@ void format_impl(FmtCtx ctx, typename FmtCtx::parse_context parse_ctx) {
 
 }  // namespace fmt
 }  // namespace uxs
+
+#define UXS_FMT_INSTANTIATE_IMPLEMENTATION(char_type) \
+    template UXS_EXPORT void uxs::fmt::format_impl(uxs::basic_format_context<char_type>, \
+                                                   uxs::basic_format_parse_context<char_type>)

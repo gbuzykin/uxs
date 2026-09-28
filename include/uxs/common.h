@@ -4,6 +4,11 @@
 
 #include <climits>
 
+#define UXS_USE_WCHAR_T 1
+#if __cplusplus >= 202002L
+#    define UXS_USE_CHAR8_T 1
+#endif  // __cplusplus >= 202002L
+
 #if !defined(UXS_HAS_INCLUDE)
 #    if defined(__has_include) || _MSC_VER >= 1900
 #        define UXS_HAS_INCLUDE(x) __has_include(x)

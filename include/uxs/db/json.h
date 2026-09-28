@@ -133,22 +133,17 @@ basic_value<CharT, Alloc> parse(const StrLikeTy& s, const Alloc& al = Alloc()) {
 
 #if __cplusplus >= 201402L
 namespace literals {
-inline value operator""_json(const char* s, std::size_t len) {
-    iflatbuf in(est::as_span(s, len));
-    return parse<char>(in);
-}
-inline wvalue operator""_wjson(const char* s, std::size_t len) {
-    iflatbuf in(est::as_span(s, len));
-    return parse<wchar_t>(in);
-}
-inline value operator""_json(const wchar_t* s, std::size_t len) {
-    wiflatbuf in(est::as_span(s, len));
-    return parse<char>(in);
-}
-inline wvalue operator""_wjson(const wchar_t* s, std::size_t len) {
-    wiflatbuf in(est::as_span(s, len));
-    return parse<wchar_t>(in);
-}
+#    define UXS_DB_JSON_IMPLEMENT_LITERALS(char_type) \
+        inline basic_value<char_type> operator""_json(char_type const* s, std::size_t len) { \
+            basic_iflatbuf<char_type> in(est::as_span(s, len)); \
+            return parse<char_type>(in); \
+        } \
+        static_assert(true, "")
+UXS_DB_JSON_IMPLEMENT_LITERALS(char);
+#    if UXS_USE_WCHAR_T != 0
+UXS_DB_JSON_IMPLEMENT_LITERALS(wchar_t);
+#    endif  // UXS_USE_WCHAR_T != 0
+#    undef UXS_DB_JSON_IMPLEMENT_LITERALS
 }  // namespace literals
 #endif  // __cplusplus >= 201402L
 
@@ -181,9 +176,9 @@ struct from_string_impl<db::basic_value<CharT, Alloc>, InCharT> {
     from_chars_result<InCharT> operator()(const InCharT* first, const InCharT* last,
                                           db::basic_value<CharT, Alloc>& val) const {
         if (first == last) { return {first, sconv_errc::empty}; }
-        iflatbuf in(est::as_span(first, static_cast<std::size_t>(last - first)));
+        basic_iflatbuf<InCharT> in(est::as_span(first, static_cast<std::size_t>(last - first)));
         try {
-            val = db::json::parse(in);
+            val = db::json::parse<CharT, Alloc>(in);
             return {in.curr(), sconv_errc::ok};
         } catch (const db::database_error&) { return {first, sconv_errc::invalid}; }
     }

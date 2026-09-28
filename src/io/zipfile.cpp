@@ -124,4 +124,6 @@ void zipfile::set_compression(zipfile_compression compr, unsigned level) {
     }
 }
 
-template UXS_EXPORT bool zipfile::open(ziparch& arch, const wchar_t* fname, iomode mode);
+#define UXS_ZIPFILE_INSTANTIATE_IMPLEMENTATION(char_type) \
+    template UXS_EXPORT bool zipfile::open(ziparch& arch, const char_type* fname, iomode mode)
+UXS_ZIPFILE_INSTANTIATE_IMPLEMENTATION(wchar_t);

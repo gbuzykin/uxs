@@ -201,13 +201,15 @@ struct utf_codec<char32_t> {
     constexpr unsigned count(std::uint32_t /*code*/) const { return 1; }
 };
 
+#if UXS_USE_WCHAR_T != 0
 template<>
 struct utf_codec<wchar_t> : std::conditional_t<sizeof(wchar_t) == 2, utf_codec<char16_t>, utf_codec<char32_t>> {};
+#endif  // UXS_USE_WCHAR_T != 0
 
-#if __cplusplus >= 202002L
+#if UXS_USE_CHAR8_T != 0
 template<>
 struct utf_codec<char8_t> : utf_codec<char> {};
-#endif  // __cplusplus >= 202002L
+#endif  // UXS_USE_CHAR8_T != 0
 
 UXS_EXPORT bool is_utf_printable(std::uint32_t code) noexcept;
 UXS_EXPORT unsigned get_utf_printable_width_others(std::uint32_t code) noexcept;

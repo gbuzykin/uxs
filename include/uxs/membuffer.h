@@ -180,9 +180,6 @@ class basic_membuffer {
     try_grow_impl_t try_grow_impl_ = nullptr;
 };
 
-using membuffer = basic_membuffer<char>;
-using wmembuffer = basic_membuffer<wchar_t>;
-
 template<typename CharT, typename Alloc = std::allocator<CharT>>
 class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_alloc<CharT>,
                         public basic_membuffer<CharT> {
@@ -263,9 +260,6 @@ class basic_inline_dynbuffer : public basic_dynbuffer<CharT, Alloc> {
     alignas(std::alignment_of<CharT>::value) std::uint8_t buf_[inline_buf_size * sizeof(CharT)];
 };
 
-using inline_dynbuffer = basic_inline_dynbuffer<char>;
-using inline_wdynbuffer = basic_inline_dynbuffer<wchar_t>;
-
 template<typename CharT>
 class basic_membuffer_with_size_tracker : public basic_membuffer<CharT> {
  public:
@@ -284,7 +278,19 @@ class basic_membuffer_with_size_tracker : public basic_membuffer<CharT> {
     }
 };
 
-using membuffer_with_size_tracker = basic_membuffer_with_size_tracker<char>;
-using wmembuffer_with_size_tracker = basic_membuffer_with_size_tracker<wchar_t>;
+#define UXS_DECLARE_TYPE_ALIASES(type, prefix) \
+    using prefix##membuffer = basic_membuffer<type>; \
+    using inline_##prefix##dynbuffer = basic_inline_dynbuffer<type>; \
+    using prefix##membuffer_with_size_tracker = basic_membuffer_with_size_tracker<type>
+UXS_DECLARE_TYPE_ALIASES(char, );
+#if UXS_USE_WCHAR_T != 0
+UXS_DECLARE_TYPE_ALIASES(wchar_t, w);
+#endif  // UXS_USE_WCHAR_T != 0
+#if UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char8_t, u8);
+#endif  // UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char16_t, u16);
+UXS_DECLARE_TYPE_ALIASES(char32_t, u32);
+#undef UXS_DECLARE_TYPE_ALIASES
 
 }  // namespace uxs

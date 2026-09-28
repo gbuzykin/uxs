@@ -9,23 +9,11 @@
 #include "xml_lex_analyzer.inl"
 #undef LEXEGEN_DATA_DECL_PREFIX
 
-namespace uxs {
-namespace db {
-namespace xml {
-template UXS_EXPORT value_class parser<char>::classify_value(const string_view_type&) noexcept;
-template UXS_EXPORT value_class parser<wchar_t>::classify_value(const string_view_type&) noexcept;
-template UXS_EXPORT value parser<char>::parse(string_view_type, const std::allocator<char>&);
-template UXS_EXPORT wvalue parser<char>::parse(string_view_type, const std::allocator<wchar_t>&);
-template UXS_EXPORT value parser<wchar_t>::parse(string_view_type, const std::allocator<char>&);
-template UXS_EXPORT wvalue parser<wchar_t>::parse(string_view_type, const std::allocator<wchar_t>&);
-namespace detail {
-template UXS_EXPORT lex_token_t lexer<char>::lex(std::string_view&);
-template UXS_EXPORT lex_token_t lexer<wchar_t>::lex(std::wstring_view&);
-template UXS_EXPORT void write_impl(membuffer& out, const value&, std::string_view, xml_fmt_opts, unsigned);
-template UXS_EXPORT void write_impl(membuffer& out, const wvalue&, std::wstring_view, xml_fmt_opts, unsigned);
-template UXS_EXPORT void write_impl(wmembuffer& out, const value&, std::string_view, xml_fmt_opts, unsigned);
-template UXS_EXPORT void write_impl(wmembuffer& out, const wvalue&, std::wstring_view, xml_fmt_opts, unsigned);
-}  // namespace detail
-}  // namespace xml
-}  // namespace db
-}  // namespace uxs
+UXS_DB_XML_INSTANTIATE_LEXER_IMPLEMENTATION(char);
+UXS_DB_XML_INSTANTIATE_IMPLEMENTATION(char, uxs::db::value);
+#if UXS_USE_WCHAR_T != 0
+UXS_DB_XML_INSTANTIATE_LEXER_IMPLEMENTATION(wchar_t);
+UXS_DB_XML_INSTANTIATE_IMPLEMENTATION(char, uxs::db::wvalue);
+UXS_DB_XML_INSTANTIATE_IMPLEMENTATION(wchar_t, uxs::db::value);
+UXS_DB_XML_INSTANTIATE_IMPLEMENTATION(wchar_t, uxs::db::wvalue);
+#endif  // UXS_USE_WCHAR_T != 0

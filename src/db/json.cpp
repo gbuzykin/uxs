@@ -9,25 +9,11 @@
 #include "json_lex_analyzer.inl"
 #undef LEXEGEN_DATA_DECLARATOR
 
-namespace uxs {
-namespace db {
-namespace json {
-template UXS_EXPORT value parse(ibuf&, const std::allocator<char>&);
-template UXS_EXPORT wvalue parse(ibuf&, const std::allocator<wchar_t>&);
-template UXS_EXPORT value parse(wibuf&, const std::allocator<char>&);
-template UXS_EXPORT wvalue parse(wibuf&, const std::allocator<wchar_t>&);
-namespace detail {
-template UXS_EXPORT token_t lexer<char>::lex(std::string_view&);
-template UXS_EXPORT token_t lexer<wchar_t>::lex(std::wstring_view&);
-template UXS_EXPORT void write_impl(membuffer& out, const value&);
-template UXS_EXPORT void write_impl(membuffer& out, const wvalue&);
-template UXS_EXPORT void write_impl(wmembuffer& out, const value&);
-template UXS_EXPORT void write_impl(wmembuffer& out, const wvalue&);
-template UXS_EXPORT void write_formatted_impl(membuffer& out, const value&, json_fmt_opts, unsigned);
-template UXS_EXPORT void write_formatted_impl(membuffer& out, const wvalue&, json_fmt_opts, unsigned);
-template UXS_EXPORT void write_formatted_impl(wmembuffer& out, const value&, json_fmt_opts, unsigned);
-template UXS_EXPORT void write_formatted_impl(wmembuffer& out, const wvalue&, json_fmt_opts, unsigned);
-}  // namespace detail
-}  // namespace json
-}  // namespace db
-}  // namespace uxs
+UXS_DB_JSON_INSTANTIATE_LEXER_IMPLEMENTATION(char);
+UXS_DB_JSON_INSTANTIATE_IMPLEMENTATION(char, uxs::db::value);
+#if UXS_USE_WCHAR_T != 0
+UXS_DB_JSON_INSTANTIATE_LEXER_IMPLEMENTATION(wchar_t);
+UXS_DB_JSON_INSTANTIATE_IMPLEMENTATION(char, uxs::db::wvalue);
+UXS_DB_JSON_INSTANTIATE_IMPLEMENTATION(wchar_t, uxs::db::value);
+UXS_DB_JSON_INSTANTIATE_IMPLEMENTATION(wchar_t, uxs::db::wvalue);
+#endif  // UXS_USE_WCHAR_T != 0

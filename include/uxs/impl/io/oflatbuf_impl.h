@@ -87,3 +87,6 @@ void basic_oflatbuf<CharT, Alloc>::grow(size_type extra) {
 }
 
 }  // namespace uxs
+
+#define UXS_IO_OFLATBUF_INSTANTIATE_IMPLEMENTATION(char_type, alloc_type) \
+    template class uxs::basic_oflatbuf<char_type, alloc_type>

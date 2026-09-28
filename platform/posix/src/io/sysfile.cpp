@@ -120,5 +120,7 @@ bool sysfile::remove(const NameCharT* fname) {
     return remove(fname_buf.data());
 }
 
-template UXS_EXPORT bool sysfile::open(const wchar_t*, iomode);
-template UXS_EXPORT bool sysfile::remove(const wchar_t*);
+#define UXS_SYSFILE_INSTANTIATE_IMPLEMENTATION(char_type) \
+    template UXS_EXPORT bool sysfile::open(const char_type*, iomode); \
+    template UXS_EXPORT bool sysfile::remove(const char_type*)
+UXS_SYSFILE_INSTANTIATE_IMPLEMENTATION(wchar_t);

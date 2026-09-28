@@ -1091,3 +1091,11 @@ void basic_value<CharT, Alloc>::convert_to_array() {
 
 }  // namespace db
 }  // namespace uxs
+
+#define UXS_DB_VALUE_INSTANTIATE_IMPLEMENTATION(char_type, alloc_type) \
+    template class uxs::db::detail::flexarray_t<char_type, alloc_type>; \
+    template class UXS_EXPORT_ALL_STUFF_FOR_GNUC \
+        uxs::db::detail::flexarray_t<uxs::db::basic_value<char_type, alloc_type>, alloc_type>; \
+    template class uxs::db::detail::object_t<char_type, alloc_type>; \
+    template class uxs::db::detail::object_value<char_type, alloc_type>; \
+    template class uxs::db::basic_value<char_type, alloc_type>
