@@ -59,3 +59,5 @@ int basic_iobuf<CharT>::truncate_impl() {
 }
 
 }  // namespace uxs
+
+#define UXS_IO_IOBUF_INSTANTIATE_IMPLEMENTATION(char_type) template class uxs::basic_iobuf<char_type>

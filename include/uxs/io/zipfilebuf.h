@@ -61,8 +61,17 @@ class basic_zipfilebuf : public basic_devbuf<CharT> {
     zipfile zip_file_;
 };
 
-using zipfilebuf = basic_zipfilebuf<char>;
-using wzipfilebuf = basic_zipfilebuf<wchar_t>;
-using bzipfilebuf = basic_zipfilebuf<std::uint8_t>;
+#define UXS_DECLARE_TYPE_ALIASES(type, prefix) using prefix##zipfilebuf = basic_zipfilebuf<type>
+UXS_DECLARE_TYPE_ALIASES(char, );
+#if UXS_USE_WCHAR_T != 0
+UXS_DECLARE_TYPE_ALIASES(wchar_t, w);
+#endif  // UXS_USE_WCHAR_T != 0
+#if UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char8_t, u8);
+#endif  // UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char16_t, u16);
+UXS_DECLARE_TYPE_ALIASES(char32_t, u32);
+UXS_DECLARE_TYPE_ALIASES(std::uint8_t, b);
+#undef UXS_DECLARE_TYPE_ALIASES
 
 }  // namespace uxs

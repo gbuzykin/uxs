@@ -69,9 +69,18 @@ class basic_iobuf : public basic_ibuf<CharT> {
     UXS_EXPORT virtual int truncate_impl();
 };
 
-using iobuf = basic_iobuf<char>;
-using wiobuf = basic_iobuf<wchar_t>;
-using biobuf = basic_iobuf<std::uint8_t>;
+#define UXS_DECLARE_TYPE_ALIASES(type, prefix) using prefix##iobuf = basic_iobuf<type>
+UXS_DECLARE_TYPE_ALIASES(char, );
+#if UXS_USE_WCHAR_T != 0
+UXS_DECLARE_TYPE_ALIASES(wchar_t, w);
+#endif  // UXS_USE_WCHAR_T != 0
+#if UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char8_t, u8);
+#endif  // UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char16_t, u16);
+UXS_DECLARE_TYPE_ALIASES(char32_t, u32);
+UXS_DECLARE_TYPE_ALIASES(std::uint8_t, b);
+#undef UXS_DECLARE_TYPE_ALIASES
 
 namespace stdbuf {
 UXS_EXPORT extern iobuf& out();

@@ -127,9 +127,18 @@ class basic_ibuf : public iostate {
     size_type capacity_ = 0;
 };
 
-using ibuf = basic_ibuf<char>;
-using wibuf = basic_ibuf<wchar_t>;
-using bibuf = basic_ibuf<std::uint8_t>;
+#define UXS_DECLARE_TYPE_ALIASES(type, prefix) using prefix##ibuf = basic_ibuf<type>
+UXS_DECLARE_TYPE_ALIASES(char, );
+#if UXS_USE_WCHAR_T != 0
+UXS_DECLARE_TYPE_ALIASES(wchar_t, w);
+#endif  // UXS_USE_WCHAR_T != 0
+#if UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char8_t, u8);
+#endif  // UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char16_t, u16);
+UXS_DECLARE_TYPE_ALIASES(char32_t, u32);
+UXS_DECLARE_TYPE_ALIASES(std::uint8_t, b);
+#undef UXS_DECLARE_TYPE_ALIASES
 
 namespace stdbuf {
 UXS_EXPORT extern ibuf& in();

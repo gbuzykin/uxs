@@ -73,8 +73,17 @@ class basic_filebuf : public basic_devbuf<CharT> {
     sysfile file_;
 };
 
-using filebuf = basic_filebuf<char>;
-using wfilebuf = basic_filebuf<wchar_t>;
-using bfilebuf = basic_filebuf<std::uint8_t>;
+#define UXS_DECLARE_TYPE_ALIASES(type, prefix) using prefix##filebuf = basic_filebuf<type>
+UXS_DECLARE_TYPE_ALIASES(char, );
+#if UXS_USE_WCHAR_T != 0
+UXS_DECLARE_TYPE_ALIASES(wchar_t, w);
+#endif  // UXS_USE_WCHAR_T != 0
+#if UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char8_t, u8);
+#endif  // UXS_USE_CHAR8_T != 0
+UXS_DECLARE_TYPE_ALIASES(char16_t, u16);
+UXS_DECLARE_TYPE_ALIASES(char32_t, u32);
+UXS_DECLARE_TYPE_ALIASES(std::uint8_t, b);
+#undef UXS_DECLARE_TYPE_ALIASES
 
 }  // namespace uxs
