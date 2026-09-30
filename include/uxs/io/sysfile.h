@@ -14,10 +14,17 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC sysfile : public iodevice {
  public:
     UXS_EXPORT sysfile() noexcept;
     UXS_EXPORT explicit sysfile(file_desc_t fd) noexcept;
-    sysfile(const char* fname, iomode mode) : sysfile() { open(fname, mode); }
-    sysfile(const wchar_t* fname, iomode mode) : sysfile() { open(fname, mode); }
-    sysfile(const char* fname, const char* mode) : sysfile() { open(fname, mode); }
-    sysfile(const wchar_t* fname, const char* mode) : sysfile() { open(fname, mode); }
+
+    template<typename NameCharT>
+    sysfile(const NameCharT* fname, iomode mode) : sysfile() {
+        open(fname, mode);
+    }
+
+    template<typename NameCharT>
+    sysfile(const NameCharT* fname, const char* mode) : sysfile() {
+        open(fname, mode);
+    }
+
     ~sysfile() override { close(); }
     sysfile(sysfile&& other) noexcept : fd_(other.detach()) {}
     sysfile& operator=(sysfile&& other) noexcept {
@@ -32,12 +39,14 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC sysfile : public iodevice {
     UXS_EXPORT void attach(file_desc_t fd) noexcept;
     UXS_EXPORT file_desc_t detach() noexcept;
 
-    UXS_EXPORT bool open(const char* fname, iomode mode);
-    UXS_EXPORT bool open(const wchar_t* fname, iomode mode);
-    bool open(const char* fname, const char* mode) { return open(fname, detail::iomode_from_str(mode, iomode::none)); }
-    bool open(const wchar_t* fname, const char* mode) {
+    template<typename NameCharT>
+    UXS_EXPORT bool open(const NameCharT* fname, iomode mode);
+
+    template<typename NameCharT>
+    bool open(const NameCharT* fname, const char* mode) {
         return open(fname, detail::iomode_from_str(mode, iomode::none));
     }
+
     UXS_EXPORT void close() noexcept;
 
     UXS_EXPORT int read(void* data, std::size_t sz, std::size_t& n_read) override;
@@ -47,8 +56,8 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC sysfile : public iodevice {
     UXS_EXPORT int truncate() override;
     UXS_EXPORT int flush() override;
 
-    UXS_EXPORT static bool remove(const char* fname);
-    UXS_EXPORT static bool remove(const wchar_t* fname);
+    template<typename NameCharT>
+    UXS_EXPORT static bool remove(const NameCharT* fname);
 
  private:
     file_desc_t fd_;

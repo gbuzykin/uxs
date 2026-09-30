@@ -8,12 +8,20 @@ namespace uxs {
 class UXS_EXPORT_ALL_STUFF_FOR_GNUC zipfile : public iodevice {
  public:
     zipfile() noexcept = default;
-    zipfile(ziparch& arch, const char* fname, iomode mode) { open(arch, fname, mode); }
-    zipfile(ziparch& arch, const wchar_t* fname, iomode mode) { open(arch, fname, mode); }
+
+    template<typename NameCharT>
+    zipfile(ziparch& arch, const NameCharT* fname, iomode mode) {
+        open(arch, fname, mode);
+    }
+
+    template<typename NameCharT>
+    zipfile(ziparch& arch, const NameCharT* fname, const char* mode) {
+        open(arch, fname, mode);
+    }
+
     zipfile(ziparch& arch, std::uint64_t index, iomode mode) { open(arch, index, mode); }
-    zipfile(ziparch& arch, const char* fname, const char* mode) { open(arch, fname, mode); }
-    zipfile(ziparch& arch, const wchar_t* fname, const char* mode) { open(arch, fname, mode); }
     zipfile(ziparch& arch, std::uint64_t index, const char* mode) { open(arch, index, mode); }
+
     ~zipfile() override { close(); }
     zipfile(zipfile&& other) noexcept : mode_(other.mode_), zip_fdesc_(other.zip_fdesc_) { other.zip_fdesc_ = nullptr; }
     zipfile& operator=(zipfile&& other) noexcept {
@@ -26,18 +34,19 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC zipfile : public iodevice {
     bool valid() const noexcept { return zip_fdesc_ != nullptr; }
     explicit operator bool() const noexcept { return zip_fdesc_ != nullptr; }
 
-    UXS_EXPORT bool open(ziparch& arch, const char* fname, iomode mode);
-    UXS_EXPORT bool open(ziparch& arch, const wchar_t* fname, iomode mode);
+    template<typename NameCharT>
+    UXS_EXPORT bool open(ziparch& arch, const NameCharT* fname, iomode mode);
+
+    template<typename NameCharT>
+    bool open(ziparch& arch, const NameCharT* fname, const char* mode) {
+        return open(arch, fname, detail::iomode_from_str(mode, iomode::none));
+    }
+
     UXS_EXPORT bool open(ziparch& arch, std::uint64_t index, iomode mode);
-    bool open(ziparch& arch, const char* fname, const char* mode) {
-        return open(arch, fname, detail::iomode_from_str(mode, iomode::none));
-    }
-    bool open(ziparch& arch, const wchar_t* fname, const char* mode) {
-        return open(arch, fname, detail::iomode_from_str(mode, iomode::none));
-    }
     bool open(ziparch& arch, std::uint64_t index, const char* mode) {
         return open(arch, index, detail::iomode_from_str(mode, iomode::none));
     }
+
     UXS_EXPORT void set_compression(zipfile_compression compr, unsigned level = 0);
     UXS_EXPORT void close() noexcept;
 
