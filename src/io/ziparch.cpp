@@ -11,7 +11,8 @@
 
 using namespace uxs;
 
-bool ziparch::open(const char* name, iomode mode) {
+template<>
+UXS_EXPORT bool ziparch::open(const char* name, iomode mode) {
     int flags = ZIP_RDONLY;
     if (!!(mode & iomode::out)) {
         flags &= ~ZIP_RDONLY;
@@ -79,8 +80,9 @@ void ziparch::close() noexcept {
     zip_ = zip_source_ = nullptr;
 }
 
-std::int64_t ziparch::add_file(const char* fname, const void* data, std::size_t sz, zipfile_compression compr,
-                               unsigned level) {
+template<>
+UXS_EXPORT std::int64_t ziparch::add_file(const char* fname, const void* data, std::size_t sz,
+                                          zipfile_compression compr, unsigned level) {
     if (!zip_) { return -1; }
     zip_t* zip = static_cast<zip_t*>(zip_);
     zip_source_t* source = ::zip_source_buffer_create(nullptr, 0, 0, nullptr);
@@ -98,7 +100,8 @@ std::int64_t ziparch::add_file(const char* fname, const void* data, std::size_t 
     return index;
 }
 
-bool ziparch::stat_file(const char* fname, zipfile_info& info) const {
+template<>
+UXS_EXPORT bool ziparch::stat_file(const char* fname, zipfile_info& info) const {
     if (!zip_) { return false; }
     zip_t* zip = static_cast<zip_t*>(zip_);
     zip_stat_t stat;
@@ -127,25 +130,39 @@ bool ziparch::stat_file(std::uint64_t index, zipfile_info& info) const {
 #else  // UXS_USE_LIBZIP != 0
 
 using namespace uxs;
-bool ziparch::open(const char* /*name*/, iomode /*mode*/) { return false; }
+
+template<>
+UXS_EXPORT bool ziparch::open(const char* /*name*/, iomode /*mode*/) {
+    return false;
+}
+
 void ziparch::close() noexcept {}
-std::int64_t ziparch::add_file(const char* /*fname*/, const void* /*data*/, std::size_t /*sz*/,
-                               zipfile_compression /*compr*/, unsigned /*level*/) {
+
+template<>
+UXS_EXPORT std::int64_t ziparch::add_file(const char* /*fname*/, const void* /*data*/, std::size_t /*sz*/,
+                                          zipfile_compression /*compr*/, unsigned /*level*/) {
     return -1;
 }
-bool ziparch::stat_file(const char* /*fname*/, zipfile_info& /*info*/) const { return false; }
+
+template<>
+UXS_EXPORT bool ziparch::stat_file(const char* /*fname*/, zipfile_info& /*info*/) const {
+    return false;
+}
+
 bool ziparch::stat_file(std::uint64_t /*index*/, zipfile_info& /*info*/) const { return false; }
 
 #endif  // UXS_USE_LIBZIP != 0
 
-bool ziparch::open(const wchar_t* name, iomode mode) {
+template<typename NameCharT>
+bool ziparch::open(const NameCharT* name, iomode mode) {
     inline_dynbuffer name_buf;
     utf_string_adapter<char>{}.append(name_buf, name);
     name_buf += '\0';
     return open(name_buf.data(), mode);
 }
 
-std::int64_t ziparch::add_file(const wchar_t* fname, const void* data, std::size_t sz, zipfile_compression compr,
+template<typename NameCharT>
+std::int64_t ziparch::add_file(const NameCharT* fname, const void* data, std::size_t sz, zipfile_compression compr,
                                unsigned level) {
     inline_dynbuffer fname_buf;
     utf_string_adapter<char>{}.append(fname_buf, fname);
@@ -153,9 +170,15 @@ std::int64_t ziparch::add_file(const wchar_t* fname, const void* data, std::size
     return add_file(fname_buf.data(), data, sz, compr, level);
 }
 
-bool ziparch::stat_file(const wchar_t* fname, zipfile_info& info) const {
+template<typename NameCharT>
+bool ziparch::stat_file(const NameCharT* fname, zipfile_info& info) const {
     inline_dynbuffer fname_buf;
     utf_string_adapter<char>{}.append(fname_buf, fname);
     fname_buf += '\0';
     return stat_file(fname_buf.data(), info);
 }
+
+template UXS_EXPORT bool ziparch::open(const wchar_t* name, iomode mode);
+template UXS_EXPORT std::int64_t ziparch::add_file(const wchar_t* fname, const void* data, std::size_t sz,
+                                                   zipfile_compression compr, unsigned level);
+template UXS_EXPORT bool ziparch::stat_file(const wchar_t* fname, zipfile_info& info) const;

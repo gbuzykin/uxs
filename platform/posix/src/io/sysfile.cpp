@@ -30,7 +30,8 @@ file_desc_t sysfile::detach() noexcept {
     return fd;
 }
 
-bool sysfile::open(const char* fname, iomode mode) {
+template<>
+UXS_EXPORT bool sysfile::open(const char* fname, iomode mode) {
     int oflag = O_RDONLY;
     if (!!(mode & iomode::out)) {
         oflag = !!(mode & iomode::in) ? O_RDWR : O_WRONLY;
@@ -53,13 +54,6 @@ bool sysfile::open(const char* fname, iomode mode) {
 
     attach(::open(fname, O_LARGEFILE | oflag, S_IREAD | S_IWRITE));
     return fd_ >= 0;
-}
-
-bool sysfile::open(const wchar_t* fname, iomode mode) {
-    inline_dynbuffer fname_buf;
-    utf_string_adapter<char>{}.append(fname_buf, fname);
-    fname_buf += '\0';
-    return open(fname_buf.data(), mode);
 }
 
 void sysfile::close() noexcept { ::close(detach()); }
@@ -105,11 +99,26 @@ int sysfile::truncate() {
 
 int sysfile::flush() { return 0; }
 
-bool sysfile::remove(const char* fname) { return ::unlink(fname) == 0; }
+template<>
+UXS_EXPORT bool sysfile::remove(const char* fname) {
+    return ::unlink(fname) == 0;
+}
 
-bool sysfile::remove(const wchar_t* fname) {
+template<typename NameCharT>
+bool sysfile::open(const NameCharT* fname, iomode mode) {
+    inline_dynbuffer fname_buf;
+    utf_string_adapter<char>{}.append(fname_buf, fname);
+    fname_buf += '\0';
+    return open(fname_buf.data(), mode);
+}
+
+template<typename NameCharT>
+bool sysfile::remove(const NameCharT* fname) {
     inline_dynbuffer fname_buf;
     utf_string_adapter<char>{}.append(fname_buf, fname);
     fname_buf += '\0';
     return remove(fname_buf.data());
 }
+
+template UXS_EXPORT bool sysfile::open(const wchar_t*, iomode);
+template UXS_EXPORT bool sysfile::remove(const wchar_t*);
