@@ -14,16 +14,14 @@ class basic_filebuf : public basic_devbuf<CharT> {
         this->settie(tie);
         if (file_.valid()) { this->initbuf(mode); }
     }
-    basic_filebuf(const char* fname, iomode mode) : basic_devbuf<CharT>(file_), file_(fname, mode) {
+
+    template<typename NameCharT>
+    basic_filebuf(const NameCharT* fname, iomode mode) : basic_devbuf<CharT>(file_), file_(fname, mode) {
         if (file_.valid()) { this->initbuf(mode); }
     }
-    basic_filebuf(const wchar_t* fname, iomode mode) : basic_devbuf<CharT>(file_), file_(fname, mode) {
-        if (file_.valid()) { this->initbuf(mode); }
-    }
-    basic_filebuf(const char* fname, const char* mode)
-        : basic_filebuf(fname,
-                        detail::iomode_from_str(mode, est::is_character<CharT>::value ? iomode::text : iomode::none)) {}
-    basic_filebuf(const wchar_t* fname, const char* mode)
+
+    template<typename NameCharT>
+    basic_filebuf(const NameCharT* fname, const char* mode)
         : basic_filebuf(fname,
                         detail::iomode_from_str(mode, est::is_character<CharT>::value ? iomode::text : iomode::none)) {}
 
@@ -50,24 +48,19 @@ class basic_filebuf : public basic_devbuf<CharT> {
         return file_.detach();
     }
 
-    bool open(const char* fname, iomode mode) {
+    template<typename NameCharT>
+    bool open(const NameCharT* fname, iomode mode) {
         this->freebuf();
         const bool res = file_.open(fname, mode);
         if (res) { this->initbuf(mode); }
         return res;
     }
-    bool open(const wchar_t* fname, iomode mode) {
-        this->freebuf();
-        const bool res = file_.open(fname, mode);
-        if (res) { this->initbuf(mode); }
-        return res;
-    }
-    bool open(const char* fname, const char* mode) {
+
+    template<typename NameCharT>
+    bool open(const NameCharT* fname, const char* mode) {
         return open(fname, detail::iomode_from_str(mode, est::is_character<CharT>::value ? iomode::text : iomode::none));
     }
-    bool open(const wchar_t* fname, const char* mode) {
-        return open(fname, detail::iomode_from_str(mode, est::is_character<CharT>::value ? iomode::text : iomode::none));
-    }
+
     void close() noexcept {
         this->freebuf();
         file_.close();

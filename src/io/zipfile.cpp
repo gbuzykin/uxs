@@ -9,7 +9,8 @@
 
 using namespace uxs;
 
-bool zipfile::open(ziparch& arch, const char* fname, iomode mode) {
+template<>
+UXS_EXPORT bool zipfile::open(ziparch& arch, const char* fname, iomode mode) {
     if (!arch.zip_) { return false; }
     close();
     zip_t* zip = static_cast<zip_t*>(arch.zip_);
@@ -92,15 +93,22 @@ int zipfile::write(const void* data, std::size_t sz, std::size_t& n_written) {
 #else  // UXS_USE_LIBZIP != 0
 
 using namespace uxs;
-bool zipfile::open(ziparch& /*arch*/, const char* /*fname*/, iomode /*mode*/) { return false; }
+
+template<>
+UXS_EXPORT bool zipfile::open(ziparch& /*arch*/, const char* /*fname*/, iomode /*mode*/) {
+    return false;
+}
+
 bool zipfile::open(ziparch& /*arch*/, std::uint64_t /*index*/, iomode /*mode*/) { return false; }
+
 void zipfile::close() noexcept {}
 int zipfile::read(void* /*data*/, std::size_t /*sz*/, std::size_t& /*n_read*/) { return -1; }
 int zipfile::write(const void* /*data*/, std::size_t /*sz*/, std::size_t& /*n_written*/) { return -1; }
 
 #endif  // UXS_USE_LIBZIP != 0
 
-bool zipfile::open(ziparch& arch, const wchar_t* fname, iomode mode) {
+template<typename NameCharT>
+bool zipfile::open(ziparch& arch, const NameCharT* fname, iomode mode) {
     inline_dynbuffer fname_buf;
     utf_string_adapter<char>{}.append(fname_buf, fname);
     fname_buf += '\0';
@@ -115,3 +123,5 @@ void zipfile::set_compression(zipfile_compression compr, unsigned level) {
         wr_desc->zip_compr_level = level;
     }
 }
+
+template UXS_EXPORT bool zipfile::open(ziparch& arch, const wchar_t* fname, iomode mode);

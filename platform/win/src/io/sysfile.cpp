@@ -26,7 +26,8 @@ file_desc_t sysfile::detach() noexcept {
     return fd;
 }
 
-bool sysfile::open(const wchar_t* fname, iomode mode) {
+template<>
+UXS_EXPORT bool sysfile::open(const wchar_t* fname, iomode mode) {
     DWORD access = GENERIC_READ;
     DWORD share_mode = FILE_SHARE_READ;
     DWORD creat_disp = OPEN_EXISTING;
@@ -59,13 +60,6 @@ bool sysfile::open(const wchar_t* fname, iomode mode) {
         return true;
     }
     return false;
-}
-
-bool sysfile::open(const char* fname, iomode mode) {
-    inline_wdynbuffer fname_buf;
-    utf_string_adapter<wchar_t>{}.append(fname_buf, fname);
-    fname_buf += L'\0';
-    return open(fname_buf.data(), mode);
 }
 
 void sysfile::close() noexcept { ::CloseHandle(detach()); }
@@ -140,11 +134,26 @@ int sysfile::truncate() { return ::SetEndOfFile(fd_) ? 0 : -1; }
 
 int sysfile::flush() { return 0; }
 
-bool sysfile::remove(const wchar_t* fname) { return !!::DeleteFileW(fname); }
+template<>
+UXS_EXPORT bool sysfile::remove(const wchar_t* fname) {
+    return !!::DeleteFileW(fname);
+}
 
-bool sysfile::remove(const char* fname) {
+template<typename NameCharT>
+bool sysfile::open(const NameCharT* fname, iomode mode) {
+    inline_wdynbuffer fname_buf;
+    utf_string_adapter<wchar_t>{}.append(fname_buf, fname);
+    fname_buf += L'\0';
+    return open(fname_buf.data(), mode);
+}
+
+template<typename NameCharT>
+bool sysfile::remove(const NameCharT* fname) {
     inline_wdynbuffer fname_buf;
     utf_string_adapter<wchar_t>{}.append(fname_buf, fname);
     fname_buf += L'\0';
     return remove(fname_buf.data());
 }
+
+template UXS_EXPORT bool sysfile::open(const char*, iomode);
+template UXS_EXPORT bool sysfile::remove(const char*);
