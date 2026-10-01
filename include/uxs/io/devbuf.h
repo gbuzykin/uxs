@@ -6,9 +6,11 @@
 namespace uxs {
 
 template<typename CharT, typename Alloc = std::allocator<CharT>>
-class basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_alloc<CharT>, public basic_iobuf<CharT> {
+class basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_alloc<std::max_align_t>,
+                     public basic_iobuf<CharT> {
  protected:
-    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<CharT>;
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<std::max_align_t>;
+    using alloc_traits = std::allocator_traits<alloc_type>;
 
  public:
     using char_type = typename basic_iobuf<CharT>::char_type;
