@@ -173,16 +173,15 @@ void flexarray_t<Ty, Alloc>::resize(alloc_type& al, std::size_t size, const Ty& 
 }
 
 template<typename Ty, typename Alloc>
-Ty* flexarray_t<Ty, Alloc>::erase(alloc_type& al, const Ty* item_to_erase) {
-    assert(p_ && item_to_erase >= p_->data() && item_to_erase < p_->data() + p_->size);
-    const std::size_t pos = item_to_erase - p_->data();
+Ty& flexarray_t<Ty, Alloc>::erase(alloc_type& al, std::size_t pos) {
+    assert(p_ && pos < p_->size);
     ensure_unique(al);
-    Ty* next_item = p_->data() + pos;
+    Ty* next = p_->data() + pos;
     Ty* last = p_->data() + --p_->size;
-    for (Ty* item = next_item; item != last; ++item) { *item = std::move(*(item + 1)); }
+    for (Ty* item = next; item != last; ++item) { *item = std::move(*(item + 1)); }
     alloc_traits::destroy(al, last);
     put_tail_zero();
-    return next_item;
+    return *next;
 }
 
 }  // namespace detail
@@ -488,7 +487,7 @@ void basic_value<CharT, Alloc>::erase(size_type pos) {
     if (type_ != dtype::array) { report_not_an_array_error(); }
     assert(pos < value_.arr.size());
     typename value_array_t::alloc_type arr_al(*this);
-    value_.arr.erase(arr_al, value_.arr.cbegin() + pos);
+    value_.arr.erase(arr_al, pos);
 }
 
 template<typename CharT, typename Alloc>
@@ -501,11 +500,11 @@ auto basic_value<CharT, Alloc>::erase(const_iterator it) -> iterator {
         return iterator(value_.obj.erase(obj_al, node));
     }
     if (type_ != dtype::array) { report_not_an_array_error(); }
-    value_type* item = static_cast<value_type*>(it.ptr_);
     uxs_iterator_assert(it.begin_ == value_.arr.cbegin() && it.end_ == value_.arr.cend());
     typename value_array_t::alloc_type arr_al(*this);
-    item = value_.arr.erase(arr_al, item);
-    return iterator(item, value_.arr.cbegin(), value_.arr.cend());
+    const std::size_t pos = static_cast<value_type*>(it.ptr_) - static_cast<const value_type*>(it.begin_);
+    value_type& next = value_.arr.erase(arr_al, pos);
+    return iterator(&next, value_.arr.cbegin(), value_.arr.cend());
 }
 
 template<typename CharT, typename Alloc>
@@ -857,6 +856,19 @@ bool basic_value<CharT, Alloc>::is_equal_to(const basic_value& other) const noex
     }
 }
 
+//-----------------------------------------------------------------------------
+
+template<typename CharT, typename Alloc, bool Const>
+void detail::value_iterator_proxy<CharT, Alloc, Const>::create_index_string() const noexcept {
+    const std::size_t index = static_cast<const value_type*>(ptr_) - static_cast<const value_type*>(begin_);
+    while (lock_.test_and_set(std::memory_order_acquire)) {}
+    char_type* end_p = to_chars(index_string_, index);
+    *end_p = '\0';
+    index_string_len_ = static_cast<std::uint8_t>(end_p - index_string_);
+    lock_.clear(std::memory_order_release);
+    index_cached_ = true;
+}
+
 }  // namespace db
 }  // namespace uxs
 
@@ -866,4 +878,6 @@ bool basic_value<CharT, Alloc>::is_equal_to(const basic_value& other) const noex
         uxs::db::detail::flexarray_t<uxs::db::basic_value<char_type, alloc_type>, alloc_type>; \
     template class uxs::db::detail::object_t<char_type, alloc_type>; \
     template class uxs::db::detail::object_item<char_type, alloc_type>; \
+    template class uxs::db::detail::value_iterator_proxy<char_type, alloc_type, false>; \
+    template class uxs::db::detail::value_iterator_proxy<char_type, alloc_type, true>; \
     template class uxs::db::basic_value<char_type, alloc_type>

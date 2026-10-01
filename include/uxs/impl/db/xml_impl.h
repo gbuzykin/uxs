@@ -304,7 +304,7 @@ auto parser<CharT>::next_impl() -> std::pair<token_t, string_view_type> {
             attrs_.clear();
 
             const auto parse_attribute = [this, &str_cache_idx](string_view_type lval) {
-                auto& item = attrs_.emplace(lval).value();
+                auto& item = (*attrs_.emplace(lval)).value();
 
                 if (lexer_.lex(lval) != detail::lex_token_t::eq) { detail::report_error(lexer_.ln, "expected `=`"); }
                 if (lexer_.lex(lval) != detail::lex_token_t::string) {
@@ -490,8 +490,9 @@ basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, 
             case token_t::start_element: {
                 txt.clear();
                 auto result = top.first->emplace_unique(utf_string_adapter<CharT>{}(name()), al);
-                stack.emplace_back(&result.first.value(), name());
-                if (!result.second) { stack.back().first = &result.first.value().emplace_back(al); }
+                auto& val = (*result.first).value();
+                stack.emplace_back(&val, name());
+                if (!result.second) { stack.back().first = &val.emplace_back(al); }
                 for (const auto& attr : attributes()) {
                     stack.back().first->emplace_unique(utf_string_adapter<CharT>{}(attr.key()),
                                                        text_to_value(attr.value().as_string_view(), al));

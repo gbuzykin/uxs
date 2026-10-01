@@ -187,7 +187,7 @@ class flexarray_t {
         put_tail_zero();
     }
 
-    Ty* erase(alloc_type& al, const Ty* item_to_erase);
+    Ty& erase(alloc_type& al, std::size_t pos);
 
     void ref() noexcept {
         if (p_) { ++p_->ref_count; }
@@ -440,7 +440,6 @@ class object_item {
     object_item& operator=(const object_item&) = delete;
 
     key_type key() const noexcept { return key_type(key_chars_, key_sz_); }
-    const char_type* c_key() const noexcept { return key_chars_; }
     const value_type& value() const& noexcept { return *reinterpret_cast<const value_type*>(&x_); }
     value_type& value() & noexcept { return *reinterpret_cast<value_type*>(&x_); }
     value_type&& value() && noexcept { return std::move(*reinterpret_cast<value_type*>(&x_)); }
@@ -775,120 +774,144 @@ void object_t<CharT, Alloc>::insert_dispatch(alloc_type& al, InputIt first, Inpu
 // Universal value iterator
 
 template<typename CharT, typename Alloc, bool Const>
-class value_iterator
-    : public est::container_iterator_facade<basic_value<CharT, Alloc>, value_iterator<CharT, Alloc, Const>,
-                                            std::bidirectional_iterator_tag, Const> {
+class value_iterator_proxy {
  public:
     using char_type = CharT;
     using key_type = std::basic_string_view<char_type>;
     using value_type = basic_value<CharT, Alloc>;
 
-    template<typename CharT_, typename Alloc_, bool Const_>
-    friend class value_iterator;
-    friend class basic_value<CharT, Alloc>;
+    value_iterator_proxy(void* ptr, const void* begin) noexcept : ptr_(ptr), begin_(begin) {}
+#if __cplusplus >= 201703L
+    value_iterator_proxy(const value_iterator_proxy&) = delete;
+#else   // __cplusplus >= 201703L
+    value_iterator_proxy(const value_iterator_proxy& other) noexcept : ptr_(other.ptr_), begin_(other.begin_) {}
+#endif  // __cplusplus >= 201703L
+    value_iterator_proxy& operator=(const value_iterator_proxy&) = delete;
 
-    value_iterator() noexcept = default;
-#if UXS_ITERATOR_DEBUG_LEVEL != 0
-    explicit value_iterator(value_type* ptr, const value_type* begin, const value_type* end) noexcept
-        : ptr_(ptr), begin_(begin), end_(end) {}
-    template<bool Const_ = Const>
-    value_iterator(const std::enable_if_t<Const_, value_iterator<CharT, Alloc, false>>& other) noexcept
-        : is_object_(other.is_object_), ptr_(other.ptr_), begin_(other.begin_), end_(other.end_) {}
-    template<bool Const_ = Const>
-    value_iterator& operator=(const std::enable_if_t<Const_, value_iterator<CharT, Alloc, false>>& other) noexcept {
-        is_object_ = other.is_object_, ptr_ = other.ptr_, begin_ = other.begin_, end_ = other.end_;
-        return *this;
-    }
-#else   // UXS_ITERATOR_DEBUG_LEVEL != 0
-    explicit value_iterator(value_type* ptr, const value_type* /*begin*/, const value_type* /*end*/) noexcept
-        : is_object_(false), ptr_(ptr) {}
-    template<bool Const_ = Const>
-    value_iterator(const std::enable_if_t<Const_, value_iterator<CharT, Alloc, false>>& other) noexcept
-        : is_object_(other.is_object_), ptr_(other.ptr_) {}
-    template<bool Const_ = Const>
-    value_iterator& operator=(const std::enable_if_t<Const_, value_iterator<CharT, Alloc, false>>& other) noexcept {
-        is_object_ = other.is_object_, ptr_ = other.ptr_;
-        return *this;
-    }
-#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
-    explicit value_iterator(list_links_t* node) noexcept : is_object_(true), ptr_(node) {}
+    bool is_object() const noexcept { return !begin_; }
 
-    void increment() noexcept {
-        assert(ptr_);
-        uxs_iterator_assert(is_object_ ? ptr_ != get_head() : begin_ <= ptr_ && ptr_ < end_);
-        ptr_ = is_object_ ? static_cast<void*>(static_cast<list_links_t*>(ptr_)->next) :
-                            static_cast<void*>(static_cast<value_type*>(ptr_) + 1);
+    key_type key() const noexcept {
+        if (is_object()) { return get_object_item().key(); }
+        if (!index_cached_) { create_index_string(); }
+        return key_type(index_string_, index_string_len_);
     }
 
-    void decrement() noexcept {
-        assert(ptr_);
-        uxs_iterator_assert(is_object_ ? ptr_ != get_head()->next : begin_ < ptr_ && ptr_ <= end_);
-        ptr_ = is_object_ ? static_cast<void*>(static_cast<list_links_t*>(ptr_)->prev) :
-                            static_cast<void*>(static_cast<value_type*>(ptr_) - 1);
-    }
-
-    template<bool ConstOther>
-    bool is_equal_to(const value_iterator<CharT, Alloc, ConstOther>& other) const noexcept {
-        assert(is_object_ == other.is_object_);
-        assert(!is_object_ || (!ptr_ && !other.ptr_) || (ptr_ && other.ptr_));
-        uxs_iterator_assert(is_object_ ? !ptr_ || get_head() == other.get_head() :
-                                         begin_ == other.begin_ && end_ == other.end_);
-        return ptr_ == other.ptr_;
-    }
-
-    value_iterator dereference() const noexcept { return *this; }
-
-    bool is_object() const noexcept { return is_object_; }
-
-    key_type key() const {
-        if (!is_object_) { report_not_an_object_error(); }
-        return get_object_item().key();
-    }
-
-    const char_type* c_key() const {
-        if (!is_object_) { report_not_an_object_error(); }
-        return get_object_item().c_key();
-    }
+    const char_type* c_key() const noexcept { return key().data(); }
 
     std::conditional_t<Const, const value_type&, value_type&> value() const noexcept {
-        assert(ptr_);
-        uxs_iterator_assert(is_object_ ? ptr_ != get_head() : begin_ <= ptr_ && ptr_ < end_);
-        return is_object_ ? get_object_item().value() : *static_cast<value_type*>(ptr_);
+        return is_object() ? get_object_item().value() : *static_cast<value_type*>(ptr_);
     }
 
  private:
-    bool is_object_ = false;
     void* ptr_ = nullptr;
-#if UXS_ITERATOR_DEBUG_LEVEL != 0
     const void* begin_ = nullptr;
-    const void* end_ = nullptr;
-    list_links_t* get_head() const noexcept { return static_cast<list_links_t*>(ptr_)->head; }
-#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
+
+    mutable std::atomic_bool index_cached_{false};
+    mutable std::atomic_flag lock_ = ATOMIC_FLAG_INIT;
+    mutable std::uint8_t index_string_len_;
+    mutable char_type index_string_[21];
 
     object_item<CharT, Alloc>& get_object_item() const noexcept {
         return *object_item<CharT, Alloc>::from_links(static_cast<list_links_t*>(ptr_));
     }
 
-    [[noreturn]] static void report_not_an_object_error() {
-        throw database_error("cannot use key() for non-object iterators");
-    }
+    UXS_EXPORT void create_index_string() const noexcept;
 };
 
-template<typename Iter>
-class value_reverse_iterator : public std::reverse_iterator<Iter> {
+template<typename CharT, typename Alloc, bool Const>
+class value_iterator
+    : public est::input_iterator_facade<value_iterator<CharT, Alloc, Const>, basic_value<CharT, Alloc>,
+                                        std::bidirectional_iterator_tag, value_iterator_proxy<CharT, Alloc, Const>,
+                                        value_iterator_proxy<CharT, Alloc, Const>&&> {
  public:
-    explicit value_reverse_iterator(Iter it) noexcept : std::reverse_iterator<Iter>(it) {}
-    bool is_object() const noexcept { return (**this).is_object(); }
-    auto key() const -> decltype((**this).key()) { return (**this).key(); }
-    auto value() const noexcept -> decltype((**this).value()) { return (**this).value(); }
+    using value_type = basic_value<CharT, Alloc>;
+
+    value_iterator() noexcept = default;
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
+    value_iterator(value_type* ptr, const value_type* begin, const value_type* end) noexcept
+        : ptr_(ptr), begin_(begin), end_(end) {}
+    value_iterator(const value_iterator& other) noexcept : ptr_(other.ptr_), begin_(other.begin_), end_(other.end_) {}
+    value_iterator& operator=(const value_iterator& other) noexcept {
+        ptr_ = other.ptr_, begin_ = other.begin_, end_ = other.end_;
+        return *this;
+    }
+    template<bool Const_ = Const>
+    value_iterator(const std::enable_if_t<Const_, value_iterator<CharT, Alloc, false>>& other) noexcept
+        : ptr_(other.ptr_), begin_(other.begin_), end_(other.end_) {}
+    template<bool Const_ = Const>
+    value_iterator& operator=(const std::enable_if_t<Const_, value_iterator<CharT, Alloc, false>>& other) noexcept {
+        ptr_ = other.ptr_, begin_ = other.begin_, end_ = other.end_;
+        return *this;
+    }
+#else   // UXS_ITERATOR_DEBUG_LEVEL != 0
+    value_iterator(value_type* ptr, const value_type* begin, const value_type* /*end*/) noexcept
+        : ptr_(ptr), begin_(begin) {}
+    value_iterator(const value_iterator& other) noexcept : ptr_(other.ptr_), begin_(other.begin_) {}
+    value_iterator& operator=(const value_iterator& other) noexcept {
+        ptr_ = other.ptr_, begin_ = other.begin_;
+        return *this;
+    }
+    template<bool Const_ = Const>
+    value_iterator(const std::enable_if_t<Const_, value_iterator<CharT, Alloc, false>>& other) noexcept
+        : ptr_(other.ptr_), begin_(other.begin_) {}
+    template<bool Const_ = Const>
+    value_iterator& operator=(const std::enable_if_t<Const_, value_iterator<CharT, Alloc, false>>& other) noexcept {
+        ptr_ = other.ptr_, begin_ = other.begin_;
+        return *this;
+    }
+#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
+    explicit value_iterator(list_links_t* node) noexcept : ptr_(node) {}
+
+    void increment() noexcept {
+        assert(ptr_);
+        uxs_iterator_assert(is_object() ? ptr_ != get_head() : begin_ <= ptr_ && ptr_ < end_);
+        ptr_ = is_object() ? static_cast<void*>(static_cast<list_links_t*>(ptr_)->next) :
+                             static_cast<void*>(static_cast<value_type*>(ptr_) + 1);
+    }
+
+    void decrement() noexcept {
+        assert(ptr_);
+        uxs_iterator_assert(is_object() ? ptr_ != get_head()->next : begin_ < ptr_ && ptr_ <= end_);
+        ptr_ = is_object() ? static_cast<void*>(static_cast<list_links_t*>(ptr_)->prev) :
+                             static_cast<void*>(static_cast<value_type*>(ptr_) - 1);
+    }
+
+    template<bool ConstOther>
+    bool is_equal_to(const value_iterator<CharT, Alloc, ConstOther>& other) const noexcept {
+        assert(is_object() == other.is_object());
+        assert(!is_object() || (!ptr_ && !other.ptr_) || (ptr_ && other.ptr_));
+        uxs_iterator_assert(is_object() ? !ptr_ || get_head() == other.get_head() :
+                                          begin_ == other.begin_ && end_ == other.end_);
+        return ptr_ == other.ptr_;
+    }
+
+    value_iterator_proxy<CharT, Alloc, Const> dereference() const noexcept {
+        assert(ptr_);
+        uxs_iterator_assert(is_object() ? ptr_ != get_head() : begin_ <= ptr_ && ptr_ < end_);
+        return {ptr_, begin_};
+    }
+
+ private:
+    template<typename CharT_, typename Alloc_, bool Const_>
+    friend class value_iterator;
+    friend class basic_value<CharT, Alloc>;
+
+    void* ptr_ = nullptr;
+    const void* begin_ = nullptr;
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
+    const void* end_ = nullptr;
+    list_links_t* get_head() const noexcept { return static_cast<list_links_t*>(ptr_)->head; }
+#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
+
+    bool is_object() const noexcept { return !begin_; }
 };
 
 template<std::size_t I, typename CharT, typename Alloc, bool Const, typename = std::enable_if_t<I == 0>>
-auto get(const value_iterator<CharT, Alloc, Const>& v) -> decltype(v.key()) {
+auto get(const value_iterator_proxy<CharT, Alloc, Const>& v) noexcept -> decltype(v.key()) {
     return v.key();
 }
 template<std::size_t I, typename CharT, typename Alloc, bool Const, typename = std::enable_if_t<I == 1>>
-auto get(const value_iterator<CharT, Alloc, Const>& v) noexcept -> decltype(v.value()) {
+auto get(const value_iterator_proxy<CharT, Alloc, Const>& v) noexcept -> decltype(v.value()) {
     return v.value();
 }
 
@@ -966,18 +989,14 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     using difference_type = std::ptrdiff_t;
     using iterator = detail::value_iterator<CharT, Alloc, false>;
     using const_iterator = detail::value_iterator<CharT, Alloc, true>;
-    using reverse_iterator = detail::value_reverse_iterator<iterator>;
-    using const_reverse_iterator = detail::value_reverse_iterator<const_iterator>;
+    using reverse_iterator = std::reverse_iterator<iterator>;
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
     using object_iterator = typename object_t::iterator;
     using const_object_iterator = typename object_t::const_iterator;
     using array_range = est::span<value_type>;
     using const_array_range = est::span<const value_type>;
     using object_range = detail::object_range<object_iterator>;
     using const_object_range = detail::object_range<const_object_iterator>;
-    using pointer = void;
-    using const_pointer = void;
-    using reference = iterator;
-    using const_reference = const_iterator;
 
     basic_value() noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
         : alloc_type(), type_(dtype::null) {}
@@ -1289,7 +1308,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     Ty value_or(key_type key, U&& default_value) const {
         const auto it = find(key);
         if (it != end()) {
-            auto result = it.value().template get<Ty>();
+            auto result = (*it).value().template get<Ty>();
             if (result) { return detail::get_optional_value(std::move(result)); }
         }
         return Ty(std::forward<U>(default_value));
@@ -1317,7 +1336,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     value_type value(key_type key) const {
         const auto it = find(key);
-        return it != end() ? it.value() : value_type();
+        return it != end() ? (*it).value() : value_type();
     }
 
     bool is_null() const noexcept { return type_ == dtype::null; }
@@ -1422,12 +1441,6 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
     const_reverse_iterator crend() const noexcept { return rend(); }
 
-    reference front() { return begin(); }
-    const_reference front() const { return begin(); }
-
-    reference back() { return std::prev(end()); }
-    const_reference back() const { return std::prev(end()); }
-
     const_array_range as_array() const noexcept {
         if (type_ != dtype::array) { return type_ != dtype::null ? est::as_span(this, 1) : const_array_range(); }
         return value_.arr.cview();
@@ -1468,16 +1481,18 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     const value_type& at(key_type key) const {
         const auto it = find(key);
         if (it == end()) { report_invalid_key_error(); }
-        return it.value();
+        return (*it).value();
     }
 
     value_type& at(key_type key) {
         const auto it = find(key);
         if (it == std::as_const(*this).end()) { report_invalid_key_error(); }
-        return it.value();
+        return (*it).value();
     }
 
-    value_type& operator[](key_type key) { return emplace_unique(key, static_cast<const Alloc&>(*this)).first.value(); }
+    value_type& operator[](key_type key) {
+        return (*emplace_unique(key, static_cast<const Alloc&>(*this)).first).value();
+    }
 
     template<typename Func>
     auto visit(Func&& fn) const -> decltype(fn(nullptr)) {
@@ -1857,17 +1872,14 @@ class tuple_element<I, uxs::db::detail::object_item<CharT, Alloc>> {
 };
 
 template<typename CharT, typename Alloc, bool Const>
-class tuple_size<uxs::db::detail::value_iterator<CharT, Alloc, Const>> : public std::integral_constant<std::size_t, 2> {
-};
+class tuple_size<uxs::db::detail::value_iterator_proxy<CharT, Alloc, Const>>
+    : public std::integral_constant<std::size_t, 2> {};
 template<std::size_t I, typename CharT, typename Alloc, bool Const>
-class tuple_element<I, uxs::db::detail::value_iterator<CharT, Alloc, Const>> {
+class tuple_element<I, uxs::db::detail::value_iterator_proxy<CharT, Alloc, Const>> {
  public:
     using type = std::remove_cvref_t<decltype(uxs::db::detail::get<I>(
-        std::declval<uxs::db::detail::value_iterator<CharT, Alloc, Const>&>()))>;
+        std::declval<uxs::db::detail::value_iterator_proxy<CharT, Alloc, Const>&>()))>;
 };
-
-template<typename CharT, typename Alloc, bool Const>
-void addressof(uxs::db::detail::value_iterator<CharT, Alloc, Const>&) = delete;
 
 template<typename CharT, typename Alloc>
 void swap(uxs::db::basic_value<CharT, Alloc>& v1, uxs::db::basic_value<CharT, Alloc>& v2) noexcept {
