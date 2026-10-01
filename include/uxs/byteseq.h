@@ -7,39 +7,39 @@ namespace uxs {
 template<typename Alloc>
 class basic_byteseqdev;
 
-namespace detail {
 template<typename Alloc>
-struct byteseq_chunk {
-    byteseq_chunk* next;
-    byteseq_chunk* prev;
-    std::uint8_t* end;
-    std::uint8_t* boundary;
-    alignas(std::alignment_of<max_align_t>::value) std::uint8_t data[1];
-
-    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<byteseq_chunk>;
+class basic_byteseq : protected std::allocator_traits<Alloc>::template rebind_alloc<std::max_align_t> {
+ private:
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<std::max_align_t>;
     using alloc_traits = std::allocator_traits<alloc_type>;
 
-    std::size_t size() const noexcept { return static_cast<std::size_t>(end - data); }
-    std::size_t capacity() const noexcept { return static_cast<std::size_t>(boundary - data); }
-    std::size_t avail() const noexcept { return static_cast<std::size_t>(boundary - end); }
-    static std::size_t get_alloc_sz(std::size_t cap) noexcept {
-        return (offsetof(byteseq_chunk, data) + cap + sizeof(byteseq_chunk) - 1) / sizeof(byteseq_chunk);
-    }
-    static std::size_t max_size(const alloc_type& al) noexcept {
-        return (std::allocator_traits<alloc_type>::max_size(al) * sizeof(byteseq_chunk) - offsetof(byteseq_chunk, data));
-    }
-    static byteseq_chunk* alloc(alloc_type& al, std::size_t cap);
-    static void dealloc(alloc_type& al, byteseq_chunk* chunk) noexcept {
-        alloc_traits::deallocate(al, chunk, get_alloc_sz(chunk->capacity()));
-    }
-};
-}  // namespace detail
+    struct chunk_t {
+        chunk_t* next;
+        chunk_t* prev;
+        std::uint8_t* end;
+        std::uint8_t* boundary;
+        alignas(std::alignment_of<std::max_align_t>::value) std::uint8_t data_buf[1];
 
-template<typename Alloc>
-class basic_byteseq : protected detail::byteseq_chunk<Alloc>::alloc_type {
- private:
-    using chunk_t = detail::byteseq_chunk<Alloc>;
-    using alloc_type = typename chunk_t::alloc_type;
+        const std::uint8_t* data() const noexcept { return data_buf; }
+        std::uint8_t* data() noexcept { return data_buf; }
+
+        std::size_t size() const noexcept { return static_cast<std::size_t>(end - data()); }
+        std::size_t capacity() const noexcept { return static_cast<std::size_t>(boundary - data()); }
+        std::size_t avail() const noexcept { return static_cast<std::size_t>(boundary - end); }
+        static std::size_t get_alloc_sz(std::size_t cap) noexcept {
+            return (offsetof(chunk_t, data_buf) + cap + sizeof(typename alloc_traits::value_type) - 1) /
+                   sizeof(typename alloc_traits::value_type);
+        }
+        static std::size_t max_size(const alloc_type& al) noexcept {
+            return (std::allocator_traits<alloc_type>::max_size(al) * sizeof(typename alloc_traits::value_type) -
+                    offsetof(chunk_t, data_buf));
+        }
+        static chunk_t* alloc(alloc_type& al, std::size_t cap);
+        static void dealloc(alloc_type& al, chunk_t* chunk) noexcept {
+            alloc_traits::deallocate(al, reinterpret_cast<typename alloc_traits::value_type*>(chunk),
+                                     get_alloc_sz(chunk->capacity()));
+        }
+    };
 
  public:
     using allocator_type = Alloc;
@@ -87,8 +87,8 @@ class basic_byteseq : protected detail::byteseq_chunk<Alloc>::alloc_type {
     basic_byteseq& assign(std::size_t max_size, FillFn&& fn) {
         clear_and_reserve(max_size);
         if (head_) {
-            size_ = fn(est::as_span(head_->data, max_size));
-            head_->end = head_->data + size_;
+            size_ = fn(est::as_span(head_->data(), max_size));
+            head_->end = head_->data() + size_;
         }
         return *this;
     }
@@ -99,7 +99,7 @@ class basic_byteseq : protected detail::byteseq_chunk<Alloc>::alloc_type {
         const chunk_t* chunk = head_->next;
         do {
             const std::size_t chunk_sz = chunk->size() < count ? chunk->size() : count;
-            fn(est::as_span(chunk->data, chunk_sz));
+            fn(est::as_span(chunk->data(), chunk_sz));
             count -= chunk_sz;
             chunk = chunk->next;
         } while (count && chunk != head_->next);
