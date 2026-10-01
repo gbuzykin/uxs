@@ -313,7 +313,7 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
         },
         [&stack, &item]() { item = &stack.back()->emplace_back(item->get_allocator()); },
         [&stack, &item](string_view_type key) {
-            item = &stack.back()->emplace(utf_string_adapter<CharT>{}(key), item->get_allocator()).value();
+            item = &(*stack.back()->emplace(utf_string_adapter<CharT>{}(key), item->get_allocator())).value();
         },
         [&stack] { stack.pop_back(); });
 

@@ -70,7 +70,7 @@ void deserialize_db_value(bibuf& is, db::basic_value<CharT, Alloc>& v, basic_dyn
                     sizeof(CharT));
                 if (!is) { return; }
                 std::basic_string_view<CharT> key(key_buf.data(), key_sz);
-                deserialize_db_value(is, x.emplace(key, x.get_allocator()).value(), key_buf);
+                deserialize_db_value(is, (*x.emplace(key, x.get_allocator())).value(), key_buf);
             }
         } else {
             is >> x;
