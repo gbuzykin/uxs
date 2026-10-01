@@ -33,25 +33,29 @@ struct basic_devbuf<CharT, Alloc>::flexbuf_t {
     z_stream zstr;
 #endif  // UXS_USE_ZLIB != 0
 
-    char_type data[1];
+    char_type data_buf[1];
 
-    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<flexbuf_t>;
-    using alloc_traits = std::allocator_traits<alloc_type>;
+    char_type* data() noexcept { return data_buf; }
 
     static std::size_t get_alloc_sz(std::size_t sz) {
-        return (offsetof(flexbuf_t, data) + sz * sizeof(char_type) + sizeof(flexbuf_t) - 1) / sizeof(flexbuf_t);
+        return (offsetof(flexbuf_t, data_buf) + sz * sizeof(char_type) + sizeof(typename alloc_traits::value_type) - 1) /
+               sizeof(typename alloc_traits::value_type);
     }
+
     static flexbuf_t* alloc(alloc_type& al, std::size_t sz) {
         const std::size_t alloc_sz = get_alloc_sz(sz);
-        flexbuf_t* buf = alloc_traits::allocate(al, alloc_sz);
+        flexbuf_t* buf = reinterpret_cast<flexbuf_t*>(alloc_traits::allocate(al, alloc_sz));
         std::memset(buf, 0, sizeof(flexbuf_t));
         buf->alloc_sz = alloc_sz;
-        buf->sz = (alloc_sz * sizeof(flexbuf_t) - offsetof(flexbuf_t, data)) / sizeof(char_type);
-        assert(buf->sz >= sz && get_alloc_sz(buf->sz) == alloc_sz);
+        buf->sz = (alloc_sz * sizeof(typename alloc_traits::value_type) - offsetof(flexbuf_t, data_buf)) /
+                  sizeof(char_type);
+        assert(buf->sz >= sz);
         return buf;
     }
 
-    static void dealloc(alloc_type& al, flexbuf_t* buf) { alloc_traits::deallocate(al, buf, buf->alloc_sz); }
+    static void dealloc(alloc_type& al, flexbuf_t* buf) {
+        alloc_traits::deallocate(al, reinterpret_cast<typename alloc_traits::value_type*>(buf), buf->alloc_sz);
+    }
 };
 
 template<typename CharT, typename Alloc>
@@ -87,8 +91,7 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
     if (!!(mode & iomode::out)) {
         mode &= ~iomode::in;
         if (!mappable || !!(mode & (iomode::cr_lf | iomode::ctrl_esc | iomode::z_compr))) {
-            typename flexbuf_t::alloc_type al(*this);
-            buf_ = flexbuf_t::alloc(al, bufsz);
+            buf_ = flexbuf_t::alloc(*this, bufsz);
 
 #if UXS_USE_ZLIB != 0
             if (!!(mode & iomode::z_compr)) {
@@ -98,7 +101,7 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
                 if (!mappable) {
                     const std::size_t tot_sz = buf_->sz;
                     buf_->sz /= 2;
-                    buf_->z_buf = reinterpret_cast<Bytef*>(buf_->data + buf_->sz);
+                    buf_->z_buf = reinterpret_cast<Bytef*>(buf_->data() + buf_->sz);
                     buf_->z_buf_sz = static_cast<uLong>(tot_sz - buf_->sz);
                     buf_->zstr.next_out = buf_->z_buf;
                     buf_->zstr.avail_out = buf_->z_buf_sz;
@@ -108,11 +111,10 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
 
             // reserve additional space for Lf->CrLf expansion
             const std::size_t cr_reserve_sz = !!(mode & iomode::cr_lf) ? buf_->sz / cr_reserve_ratio : 0;
-            this->reset(buf_->data + cr_reserve_sz, 0, buf_->sz - cr_reserve_sz);
+            this->reset(buf_->data() + cr_reserve_sz, 0, buf_->sz - cr_reserve_sz);
         }
     } else if (!mappable || !!(mode & (iomode::cr_lf | iomode::z_compr))) {
-        typename flexbuf_t::alloc_type al(*this);
-        buf_ = flexbuf_t::alloc(al, bufsz);
+        buf_ = flexbuf_t::alloc(*this, bufsz);
 
 #if UXS_USE_ZLIB != 0
         if (!!(mode & iomode::z_compr)) {
@@ -120,7 +122,7 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
             if (!mappable) {
                 const std::size_t tot_sz = buf_->sz;
                 buf_->sz /= 2;
-                buf_->z_buf = reinterpret_cast<Bytef*>(buf_->data + buf_->sz);
+                buf_->z_buf = reinterpret_cast<Bytef*>(buf_->data() + buf_->sz);
                 buf_->z_buf_sz = static_cast<uLong>(tot_sz - buf_->sz);
             }
         }
@@ -148,8 +150,7 @@ void basic_devbuf<CharT, Alloc>::freebuf() noexcept {
 #endif  // UXS_USE_ZLIB != 0
     }
     if (buf_) {
-        typename flexbuf_t::alloc_type al(*this);
-        flexbuf_t::dealloc(al, buf_);
+        flexbuf_t::dealloc(*this, buf_);
         buf_ = nullptr;
     }
     this->reset(nullptr, 0, 0);
@@ -345,7 +346,7 @@ int basic_devbuf<CharT, Alloc>::flush_buffer() {
         return 0;
     }
     do {
-        char_type* to0 = buf_->data;
+        char_type* to0 = buf_->data();
         char_type* to = to0;
         while (from != this->curr()) {
             if (*from == '\n' && !!(this->mode() & iomode::cr_lf)) {
@@ -410,20 +411,20 @@ int basic_devbuf<CharT, Alloc>::underflow() {
     std::size_t n_read = 0;
     if (!!(this->mode() & iomode::cr_lf)) {
         std::size_t sz = buf_->sz;
-        char_type* p = buf_->data;
+        char_type* p = buf_->data();
         if (!!(buf_->flags & detail::devbuf_impl_flags::pending_cr)) {
             *p++ = '\r', --sz, buf_->flags &= ~detail::devbuf_impl_flags::pending_cr;
         }
         if ((ret = read_buf(p, sz, n_read)) < 0) { return ret; }
-        n_read = remove_crlf(buf_->data, static_cast<std::size_t>(p - buf_->data) + n_read);
-        if (n_read && buf_->data[n_read - 1] == '\r') {
+        n_read = remove_crlf(buf_->data(), static_cast<std::size_t>(p - buf_->data()) + n_read);
+        if (n_read && buf_->data()[n_read - 1] == '\r') {
             --n_read, buf_->flags |= detail::devbuf_impl_flags::pending_cr;
         }
-    } else if ((ret = read_buf(buf_->data, buf_->sz, n_read)) < 0) {
+    } else if ((ret = read_buf(buf_->data(), buf_->sz, n_read)) < 0) {
         return ret;
     }
     assert(n_read);
-    this->reset(buf_->data, 0, n_read);
+    this->reset(buf_->data(), 0, n_read);
     return 0;
 }
 
