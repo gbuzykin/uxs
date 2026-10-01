@@ -1,11 +1,11 @@
 #pragma once
 
+#include "except.h"
 #include "iterator.h"
 #include "string_view.h"
 
 #include <algorithm>
 #include <cstring>
-#include <stdexcept>
 
 namespace uxs {
 
@@ -228,7 +228,7 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
         auto& dynbuf = static_cast<basic_dynbuffer&>(buf);
         const size_type max_avail = std::allocator_traits<alloc_type>::max_size(dynbuf) - size;
         if (delta_sz > max_avail) {
-            if (extra > max_avail) { throw std::length_error("too much to reserve"); }
+            if (extra > max_avail) { report_too_much_to_allocate_error(); }
             delta_sz = std::max(extra, max_avail >> 1);
         }
         const size_type capacity = ((size + delta_sz - 1) & ~size_type(1)) + 1;  // Make new dynamic odd capacity

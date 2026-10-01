@@ -1,8 +1,7 @@
 #pragma once
 
+#include "except.h"
 #include "iterator.h"
-
-#include <stdexcept>
 
 namespace est {
 
@@ -65,7 +64,7 @@ class span {
     }
     reference at(size_type pos) const {
         if (pos < size_) { return begin_[pos]; }
-        throw std::out_of_range("index out of range");
+        uxs::report_index_out_of_range_error();
     }
     UXS_CONSTEXPR reference front() const {
         assert(size_ > 0);

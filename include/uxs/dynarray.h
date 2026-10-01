@@ -1,10 +1,10 @@
 #pragma once
 
+#include "except.h"
 #include "iterator.h"
 
 #include <algorithm>
 #include <cstring>
-#include <stdexcept>
 
 namespace uxs {
 
@@ -255,7 +255,7 @@ auto dynarray<Ty, Alloc>::eval_new_capacity(size_type extra) const -> size_type 
     size_type delta_sz = std::max(++extra, size >> 1);
     const size_type max_avail = std::allocator_traits<alloc_type>::max_size(*this) - size;
     if (delta_sz > max_avail) {
-        if (extra > max_avail) { throw std::length_error("too much to reserve"); }
+        if (extra > max_avail) { report_too_much_to_allocate_error(); }
         delta_sz = std::max(extra, max_avail >> 1);
     }
     return ((size + delta_sz - 1) & ~size_type(1)) + 1;  // Make new dynamic odd capacity

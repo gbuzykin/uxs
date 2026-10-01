@@ -253,7 +253,7 @@ detail::byteseq_chunk<Alloc>* detail::byteseq_chunk<Alloc>::alloc(alloc_type& al
 
 template<typename Alloc>
 void basic_byteseq<Alloc>::create_head(std::size_t cap) {
-    if (cap > chunk_t::max_size(*this)) { throw std::length_error("too much to reserve"); }
+    if (cap > chunk_t::max_size(*this)) { report_too_much_to_allocate_error(); }
     head_ = chunk_t::alloc(*this, cap);
     dllist_make_cycle(head_);
     head_->end = head_->data;

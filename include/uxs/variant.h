@@ -334,6 +334,9 @@ class variant {
 #undef UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE
 
  private:
+    [[noreturn]] static void report_bad_conversion_error() { throw variant_error("bad value conversion"); }
+    [[noreturn]] static void report_invalid_value_type_error() { throw variant_error("invalid value type"); }
+
     template<typename U, typename = std::enable_if_t<is_variant_compatible<std::decay_t<U>>::value>>
     void assign_impl(U&& val);
 
@@ -473,8 +476,8 @@ struct variant::getters_specializer {
     template<typename Ty_ = Ty, typename = std::enable_if_t<is_variant_compatible<Ty_>::value>>
     static Ty_ as(const variant& v) {
         auto result = v.get_impl<Ty>();
-        if (result) { return *result; }
-        throw variant_error("bad value conversion");
+        if (!result) { report_bad_conversion_error(); }
+        return *result;
     }
 };
 
@@ -484,14 +487,14 @@ struct variant::getters_specializer<U, std::enable_if_t<std::is_reference<U>::va
     static U as(const variant& v) {
         auto* val_vtable = get_vtable(variant_type_impl<type>::type_id);
         assert(val_vtable);
-        if (v.vtable_ != val_vtable) { throw variant_error("invalid value type"); }
+        if (v.vtable_ != val_vtable) { report_invalid_value_type_error(); }
         return *static_cast<const type*>(v.vtable_->get_value_const_ptr(&v.data_));
     }
     template<typename U_ = U, typename = std::enable_if_t<!std::is_const<std::remove_reference_t<U_>>::value>>
     static U_ as(variant& v) {
         auto* val_vtable = get_vtable(variant_type_impl<type>::type_id);
         assert(val_vtable);
-        if (v.vtable_ != val_vtable) { throw variant_error("invalid value type"); }
+        if (v.vtable_ != val_vtable) { report_invalid_value_type_error(); }
         return std::forward<U>(*static_cast<type*>(v.vtable_->get_value_ptr(&v.data_)));
     }
 };

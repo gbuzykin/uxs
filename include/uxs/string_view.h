@@ -6,11 +6,11 @@
 #    include <string_view>  // NOLINT
 #else                       // string view
 
+#    include "except.h"
 #    include "iterator.h"
 
 #    include <algorithm>
 #    include <functional>
-#    include <stdexcept>
 #    include <string>
 
 namespace std {
@@ -78,7 +78,7 @@ class basic_string_view {
         return begin_[pos];
     }
     const_reference at(size_type pos) const {
-        if (pos >= size_) { throw out_of_range("index out of range"); }
+        if (pos >= size_) { uxs::report_index_out_of_range_error(); }
         return begin_[pos];
     }
     const_reference front() const {
@@ -95,7 +95,7 @@ class basic_string_view {
     void remove_suffix(size_type n) { size_ -= n; }
 
     basic_string_view substr(size_type pos, size_type count = npos) const {
-        if (pos > size_) { throw std::out_of_range("index out of range"); }
+        if (pos > size_) { uxs::report_index_out_of_range_error(); }
         return basic_string_view(begin_ + pos, count < size_ - pos ? count : size_ - pos);
     }
 
