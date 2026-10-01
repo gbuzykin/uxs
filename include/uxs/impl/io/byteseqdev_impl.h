@@ -70,11 +70,11 @@ void* basic_byteseqdev<Alloc>::map(std::size_t& sz, bool wr) {
     const std::size_t chunk_pos = pos_ - pos0_;
     if (!wr || chunk_ != seq_->head_) {
         sz = chunk_ ? chunk_->size() - chunk_pos : 0;
-        return chunk_ ? chunk_->data + chunk_pos : nullptr;
+        return chunk_ ? chunk_->data() + chunk_pos : nullptr;
     }
     if (chunk_ && chunk_pos < chunk_->capacity()) {
         sz = chunk_->capacity() - chunk_pos;
-        return chunk_->data + chunk_pos;
+        return chunk_->data() + chunk_pos;
     }
     if (!chunk_) {
         seq_->create_head_chunk();
@@ -85,7 +85,7 @@ void* basic_byteseqdev<Alloc>::map(std::size_t& sz, bool wr) {
     }
     chunk_ = seq_->head_;
     sz = chunk_->capacity();
-    return chunk_->data;
+    return chunk_->data();
 }
 
 template<typename Alloc>

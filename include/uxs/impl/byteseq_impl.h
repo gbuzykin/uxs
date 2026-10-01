@@ -20,7 +20,7 @@ void basic_byteseq<Alloc>::clear() noexcept {
     delete_chunks();
     size_ = 0;
     dllist_make_cycle(head_);
-    head_->end = head_->data;
+    head_->end = head_->data();
 }
 
 template<typename Alloc>
@@ -113,13 +113,13 @@ basic_byteseq<Alloc> basic_byteseq<Alloc>::make_compressed(unsigned level) const
 
     try {
         const chunk_t* chunk = head_->next;
-        zstr.next_in = chunk->data;
-        zstr.next_out = seq.head_->data;
+        zstr.next_in = chunk->data();
+        zstr.next_out = seq.head_->data();
 
         while (true) {
             if (zstr.next_in == chunk->end && chunk != head_) {
                 chunk = chunk->next;
-                zstr.next_in = chunk->data;
+                zstr.next_in = chunk->data();
             }
 
             zstr.avail_in = static_cast<uInt>(std::min<std::size_t>(chunk->end - zstr.next_in, max_avail_count));
@@ -137,7 +137,7 @@ basic_byteseq<Alloc> basic_byteseq<Alloc>::make_compressed(unsigned level) const
 
             if (zstr.next_out == seq.head_->boundary) {
                 seq.create_next_chunk();
-                zstr.next_out = seq.head_->data;
+                zstr.next_out = seq.head_->data();
             }
         }
     } catch (...) {
@@ -161,13 +161,13 @@ basic_byteseq<Alloc> basic_byteseq<Alloc>::make_uncompressed() const {
 
     try {
         const chunk_t* chunk = head_->next;
-        zstr.next_in = chunk->data;
-        zstr.next_out = seq.head_->data;
+        zstr.next_in = chunk->data();
+        zstr.next_out = seq.head_->data();
 
         while (true) {
             if (zstr.next_in == chunk->end && chunk != head_) {
                 chunk = chunk->next;
-                zstr.next_in = chunk->data;
+                zstr.next_in = chunk->data();
             }
 
             zstr.avail_in = static_cast<uInt>(std::min<std::size_t>(chunk->end - zstr.next_in, max_avail_count));
@@ -185,7 +185,7 @@ basic_byteseq<Alloc> basic_byteseq<Alloc>::make_uncompressed() const {
 
             if (zstr.next_out == seq.head_->boundary) {
                 seq.create_next_chunk();
-                zstr.next_out = seq.head_->data;
+                zstr.next_out = seq.head_->data();
             }
         }
     } catch (...) {
@@ -235,7 +235,7 @@ void basic_byteseq<Alloc>::clear_and_reserve(std::size_t cap) {
             create_head(cap);
         } else {  // reuse head buffer
             dllist_make_cycle(head_);
-            head_->end = head_->data;
+            head_->end = head_->data();
         }
     } else if (cap) {
         create_head(cap);
@@ -243,10 +243,11 @@ void basic_byteseq<Alloc>::clear_and_reserve(std::size_t cap) {
 }
 
 template<typename Alloc>
-detail::byteseq_chunk<Alloc>* detail::byteseq_chunk<Alloc>::alloc(alloc_type& al, std::size_t cap) {
+auto basic_byteseq<Alloc>::chunk_t::alloc(alloc_type& al, std::size_t cap) -> chunk_t* {
     const std::size_t alloc_sz = get_alloc_sz(cap);
-    byteseq_chunk* chunk = alloc_traits::allocate(al, alloc_sz);
-    chunk->boundary = chunk->data + alloc_sz * sizeof(byteseq_chunk) - offsetof(byteseq_chunk, data);
+    chunk_t* chunk = reinterpret_cast<chunk_t*>(alloc_traits::allocate(al, alloc_sz));
+    chunk->boundary = chunk->data() + alloc_sz * sizeof(typename alloc_traits::value_type) -
+                      offsetof(chunk_t, data_buf);
     assert(chunk->capacity() >= cap && get_alloc_sz(chunk->capacity()) == alloc_sz);
     return chunk;
 }
@@ -256,14 +257,14 @@ void basic_byteseq<Alloc>::create_head(std::size_t cap) {
     if (cap > chunk_t::max_size(*this)) { report_too_much_to_allocate_error(); }
     head_ = chunk_t::alloc(*this, cap);
     dllist_make_cycle(head_);
-    head_->end = head_->data;
+    head_->end = head_->data();
 }
 
 template<typename Alloc>
 void basic_byteseq<Alloc>::create_head_chunk() {
     head_ = chunk_t::alloc(*this, min_chunk_size);
     dllist_make_cycle(head_);
-    head_->end = head_->data;
+    head_->end = head_->data();
 }
 
 template<typename Alloc>
@@ -272,7 +273,7 @@ void basic_byteseq<Alloc>::create_next_chunk() {
     head_->end = head_->boundary;
     chunk_t* chunk = chunk_t::alloc(*this, std::max<std::size_t>(size_ >> 1, min_chunk_size));
     dllist_insert_after(head_, chunk);
-    chunk->end = chunk->data;
+    chunk->end = chunk->data();
     head_ = chunk;
 }
 
