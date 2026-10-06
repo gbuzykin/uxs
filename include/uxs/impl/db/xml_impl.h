@@ -287,8 +287,8 @@ lex_token_t lexer<CharT>::lex(string_view_type& lval) {
 
 }  // namespace detail
 
-template<typename CharT>
-auto parser<CharT>::next_impl() -> std::pair<token_t, string_view_type> {
+template<typename InCharT>
+auto parser<InCharT>::next_impl() -> std::pair<token_t, string_view_type> {
     if (is_end_element_pending_) {
         is_end_element_pending_ = false;
         return {token_t::end_element, str_cache_[0].as_string_view()};
@@ -296,7 +296,7 @@ auto parser<CharT>::next_impl() -> std::pair<token_t, string_view_type> {
 
     while (lexer_.in.peek() != ibuf::traits_type::eof()) {
         string_view_type lval;
-        const CharT* curr0 = lexer_.in.curr();
+        const InCharT* curr0 = lexer_.in.curr();
 
         if (*curr0 == '<') {
             std::size_t str_cache_idx = 1;
@@ -304,7 +304,7 @@ auto parser<CharT>::next_impl() -> std::pair<token_t, string_view_type> {
             attrs_.clear();
 
             const auto parse_attribute = [this, &str_cache_idx](string_view_type lval) {
-                auto& item = (*attrs_.emplace(lval)).value();
+                auto& item = (*attrs_.insert(lval, basic_value<InCharT>())).value();
 
                 if (lexer_.lex(lval) != detail::lex_token_t::eq) { detail::report_error(lexer_.ln, "expected `=`"); }
                 if (lexer_.lex(lval) != detail::lex_token_t::string) {
@@ -314,7 +314,7 @@ auto parser<CharT>::next_impl() -> std::pair<token_t, string_view_type> {
                 if (str_cache_idx < str_cache_.size()) {
                     str_cache_[str_cache_idx] = lval;
                 } else {
-                    str_cache_.emplace_back(lval);
+                    str_cache_.push_back(lval);
                 }
                 item = str_cache_[str_cache_idx++];
             };
@@ -345,7 +345,7 @@ auto parser<CharT>::next_impl() -> std::pair<token_t, string_view_type> {
                 } break;
 
                 case detail::lex_token_t::pi_open: {  // <?xml n1=v1 n2=v2...?>
-                    if (!detail::is_equal_to_string_nocase(lval, string_literal<CharT, 'x', 'm', 'l'>{}())) {
+                    if (!detail::is_equal_to_string_nocase(lval, string_literal<InCharT, 'x', 'm', 'l'>{}())) {
                         detail::report_error(lexer_.ln, "invalid document declaration");
                     }
                     str_cache_[0] = lval;
@@ -382,7 +382,7 @@ auto parser<CharT>::next_impl() -> std::pair<token_t, string_view_type> {
         } else {
             using char_tbl_t = uxs::detail::char_tbl_t;
             if (*curr0 == '\n') { ++lexer_.ln; }
-            const CharT* curr = std::find_if(curr0 + 1, lexer_.in.last(), [this](CharT ch) {
+            const InCharT* curr = std::find_if(curr0 + 1, lexer_.in.last(), [this](InCharT ch) {
                 if (ch != '\n') { return char_tbl_t::has_bits(ch, char_tbl_t::bits::xml_special); }
                 ++lexer_.ln;
                 return false;
@@ -395,10 +395,10 @@ auto parser<CharT>::next_impl() -> std::pair<token_t, string_view_type> {
     return {token_t::eof, {}};
 }
 
-template<typename CharT>
-value_class parser<CharT>::classify_value(const string_view_type& sval) noexcept {
+template<typename InCharT>
+value_class parser<InCharT>::classify_value(const string_view_type& sval) noexcept {
     std::int8_t state = lex_detail::sc_value;
-    for (const CharT ch : sval) { state = detail::get_next_state(state, ch); }
+    for (const InCharT ch : sval) { state = detail::get_next_state(state, ch); }
     switch (lex_detail::accept[state]) {
         case lex_detail::pat_null: return value_class::null_value;
         case lex_detail::pat_true: return value_class::true_value;
@@ -415,7 +415,9 @@ value_class parser<CharT>::classify_value(const string_view_type& sval) noexcept
 template<typename InCharT>
 template<typename CharT, typename Alloc>
 basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, const Alloc& al) {
-    static const auto text_to_value = [](string_view_type sval, const Alloc& al) -> basic_value<CharT, Alloc> {
+    using value_type = basic_value<CharT, Alloc>;
+
+    static const auto text_to_value = [](string_view_type sval, const Alloc& al) -> value_type {
         switch (classify_value(sval)) {
             case value_class::empty:
             case value_class::null_value: return {nullptr, al};
@@ -460,7 +462,7 @@ basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, 
                 return {from_string<double>(sval), al};
             } break;
             case value_class::floating_point_number: return {from_string<double>(sval), al};
-            case value_class::ws_with_nl: return basic_value<CharT, Alloc>(object_tag, al);
+            case value_class::ws_with_nl: return value_type(object_tag, al);
             case value_class::other: {
                 return {string_tag, utf_string_adapter<CharT>{}.count(sval.begin(), sval.end()),
                         [sval](est::span<CharT> s) {
@@ -477,9 +479,9 @@ basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, 
     if (eof()) { detail::report_error(lexer_.ln, "no such element"); }
 
     basic_inline_dynbuffer<InCharT> txt;
-    inline_dynarray<std::pair<basic_value<CharT, Alloc>*, std::basic_string<InCharT>>, 64> stack;
+    inline_dynarray<std::pair<value_type*, std::basic_string<InCharT>>, 64> stack;
 
-    basic_value<CharT, Alloc> val(al);
+    value_type val(al);
     stack.emplace_back(&val, root_element);
 
     tt = next();
@@ -495,13 +497,13 @@ basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, 
             } break;
             case token_t::start_element: {
                 txt.clear();
-                auto result = top.first->emplace_unique(utf_string_adapter<CharT>{}(name()), al);
+                auto result = top.first->try_insert_unique(utf_string_adapter<CharT>{}(name()), al);
                 auto& val = (*result.first).value();
                 stack.emplace_back(&val, name());
-                if (!result.second) { stack.back().first = &val.emplace_back(al); }
+                if (!result.second) { stack.back().first = &val.push_back(value_type(al)); }
                 for (const auto& attr : attributes()) {
-                    stack.back().first->emplace_unique(utf_string_adapter<CharT>{}(attr.key()),
-                                                       text_to_value(attr.value().as_string_view(), al));
+                    stack.back().first->try_insert_unique(utf_string_adapter<CharT>{}(attr.key()),
+                                                          text_to_value(attr.value().as_string_view(), al));
                 }
             } break;
             case token_t::end_element: {

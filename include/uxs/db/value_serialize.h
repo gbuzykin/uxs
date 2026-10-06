@@ -41,9 +41,10 @@ void serialize_db_value(biobuf& os, const db::basic_value<CharT, Alloc>& v) {
 
 template<typename CharT, typename Alloc>
 void deserialize_db_value(bibuf& is, db::basic_value<CharT, Alloc>& v) {
+    using value_type = db::basic_value<CharT, Alloc>;
     auto type = db::dtype::null;
     if (!(is >> type)) { return; }
-    v = db::basic_value<CharT, Alloc>(type, [&is](auto type, auto& x) {
+    v = value_type(type, [&is](auto type, auto& x) {
         if constexpr (std::is_same_v<decltype(type), db::string_tag_t>) {
             std::uint64_t sz = 0;
             if (!(is >> sz)) { return; }
@@ -55,7 +56,7 @@ void deserialize_db_value(bibuf& is, db::basic_value<CharT, Alloc>& v) {
             std::uint64_t sz = 0;
             if (!(is >> sz)) { return; }
             x.reserve(db::array_tag, static_cast<std::size_t>(sz));
-            for (; sz && is; --sz) { deserialize_db_value(is, x.emplace_back(x.get_allocator())); }
+            for (; sz && is; --sz) { deserialize_db_value(is, x.push_back(value_type(x.get_allocator()))); }
         } else if constexpr (std::is_same_v<decltype(type), db::object_tag_t>) {
             std::uint64_t sz = 0;
             if (!(is >> sz)) { return; }
@@ -63,14 +64,14 @@ void deserialize_db_value(bibuf& is, db::basic_value<CharT, Alloc>& v) {
             for (; sz; --sz) {
                 std::uint64_t key_sz = 0;
                 if (!(is >> key_sz)) { return; }
-                const auto it = x.emplace_fill_key(
+                const auto it = x.insert_fill_key(
                     key_sz,
                     [&is](est::span<CharT> s) {
                         return is.read_with_endian(
                             est::as_span(reinterpret_cast<std::uint8_t*>(s.data()), s.size() * sizeof(CharT)),
                             sizeof(CharT));
                     },
-                    x.get_allocator());
+                    value_type(x.get_allocator()));
                 deserialize_db_value(is, (*it).value());
             }
         } else {
