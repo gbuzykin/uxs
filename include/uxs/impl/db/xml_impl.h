@@ -304,7 +304,7 @@ auto parser<InCharT>::next_impl() -> std::pair<token_t, string_view_type> {
             attrs_.clear();
 
             const auto parse_attribute = [this, &str_cache_idx](string_view_type lval) {
-                auto& item = (*attrs_.emplace(lval)).value();
+                auto& item = (*attrs_.insert(lval, basic_value<InCharT>())).value();
 
                 if (lexer_.lex(lval) != detail::lex_token_t::eq) { detail::report_error(lexer_.ln, "expected `=`"); }
                 if (lexer_.lex(lval) != detail::lex_token_t::string) {
@@ -314,7 +314,7 @@ auto parser<InCharT>::next_impl() -> std::pair<token_t, string_view_type> {
                 if (str_cache_idx < str_cache_.size()) {
                     str_cache_[str_cache_idx] = lval;
                 } else {
-                    str_cache_.emplace_back(lval);
+                    str_cache_.push_back(lval);
                 }
                 item = str_cache_[str_cache_idx++];
             };
@@ -415,7 +415,9 @@ value_class parser<InCharT>::classify_value(const string_view_type& sval) noexce
 template<typename InCharT>
 template<typename CharT, typename Alloc>
 basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, const Alloc& al) {
-    static const auto text_to_value = [](string_view_type sval, const Alloc& al) -> basic_value<CharT, Alloc> {
+    using value_type = basic_value<CharT, Alloc>;
+
+    static const auto text_to_value = [](string_view_type sval, const Alloc& al) -> value_type {
         switch (classify_value(sval)) {
             case value_class::empty:
             case value_class::null_value: return {nullptr, al};
@@ -460,7 +462,7 @@ basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, 
                 return {from_string<double>(sval), al};
             } break;
             case value_class::floating_point_number: return {from_string<double>(sval), al};
-            case value_class::ws_with_nl: return basic_value<CharT, Alloc>(object_tag, al);
+            case value_class::ws_with_nl: return value_type(object_tag, al);
             case value_class::other: {
                 return {string_tag, utf_string_adapter<CharT>{}.count(sval.begin(), sval.end()),
                         [sval](est::span<CharT> s) {
@@ -477,9 +479,9 @@ basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, 
     if (eof()) { detail::report_error(lexer_.ln, "no such element"); }
 
     basic_inline_dynbuffer<InCharT> txt;
-    inline_dynarray<std::pair<basic_value<CharT, Alloc>*, std::basic_string<InCharT>>, 64> stack;
+    inline_dynarray<std::pair<value_type*, std::basic_string<InCharT>>, 64> stack;
 
-    basic_value<CharT, Alloc> val(al);
+    value_type val(al);
     stack.emplace_back(&val, root_element);
 
     tt = next();
@@ -495,13 +497,13 @@ basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, 
             } break;
             case token_t::start_element: {
                 txt.clear();
-                auto result = top.first->emplace_unique(utf_string_adapter<CharT>{}(name()), al);
+                auto result = top.first->try_insert_unique(utf_string_adapter<CharT>{}(name()), al);
                 auto& val = (*result.first).value();
                 stack.emplace_back(&val, name());
-                if (!result.second) { stack.back().first = &val.emplace_back(al); }
+                if (!result.second) { stack.back().first = &val.push_back(value_type(al)); }
                 for (const auto& attr : attributes()) {
-                    stack.back().first->emplace_unique(utf_string_adapter<CharT>{}(attr.key()),
-                                                       text_to_value(attr.value().as_string_view(), al));
+                    stack.back().first->try_insert_unique(utf_string_adapter<CharT>{}(attr.key()),
+                                                          text_to_value(attr.value().as_string_view(), al));
                 }
             } break;
             case token_t::end_element: {
