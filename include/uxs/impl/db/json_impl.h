@@ -243,9 +243,10 @@ token_t lexer<CharT>::lex(string_view_type& lval) {
 
 template<typename CharT, typename Alloc, typename InCharT>
 basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
+    using value_type = basic_value<CharT, Alloc>;
     using string_view_type = std::basic_string_view<InCharT>;
-    static const auto token_to_value = [](token_t tt, string_view_type sval,
-                                          const Alloc& al) -> basic_value<CharT, Alloc> {
+
+    static const auto token_to_value = [](token_t tt, string_view_type sval, const Alloc& al) -> value_type {
         switch (tt) {
             case token_t::null_value: return {nullptr, al};
             case token_t::true_value: return {true, al};
@@ -300,9 +301,9 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
         }
     };
 
-    inline_dynarray<basic_value<CharT, Alloc>*, 64> stack;
+    inline_dynarray<value_type*, 64> stack;
 
-    basic_value<CharT, Alloc> val(al);
+    value_type val(al);
     auto* item = &val;
 
     parse(
@@ -311,21 +312,21 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
             if (tt >= token_t::null_value) {
                 *item = token_to_value(tt, sval, item->get_allocator());
             } else {
-                *item = tt == token_t::array ? basic_value<CharT, Alloc>(array_tag, item->get_allocator()) :
-                                               basic_value<CharT, Alloc>(object_tag, item->get_allocator());
+                *item = tt == token_t::array ? value_type(array_tag, item->get_allocator()) :
+                                               value_type(object_tag, item->get_allocator());
                 stack.push_back(item);
             }
             return parse_step::into;
         },
-        [&stack, &item]() { item = &stack.back()->emplace_back(item->get_allocator()); },
+        [&stack, &item]() { item = &stack.back()->push_back(value_type(item->get_allocator())); },
         [&stack, &item](string_view_type key) {
-            const auto it = stack.back()->emplace_fill_key(
+            const auto it = stack.back()->insert_fill_key(
                 utf_string_adapter<CharT>{}.count(key.begin(), key.end()),
                 [key](est::span<CharT> s) {
                     utf_string_adapter<CharT>{}.transform(key.begin(), key.end(), s.data());
                     return s.size();
                 },
-                item->get_allocator());
+                value_type(item->get_allocator()));
             item = &(*it).value();
         },
         [&stack] { stack.pop_back(); });
