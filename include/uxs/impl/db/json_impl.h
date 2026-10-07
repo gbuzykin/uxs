@@ -327,7 +327,7 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
                     return s.size();
                 },
                 value_type(item->get_allocator()));
-            item = &(*stack.back()->insert(std::move(node))).value();
+            item = &(*stack.back()->append_new(std::move(node))).value();
         },
         [&stack] { stack.pop_back(); });
 
