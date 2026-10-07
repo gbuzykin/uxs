@@ -2,7 +2,6 @@
 
 #include "uxs/chars.h"
 #include "uxs/db/xml.h"
-#include "uxs/dynarray.h"
 #include "uxs/string_conv.h"
 
 namespace uxs {
@@ -291,7 +290,7 @@ template<typename InCharT>
 auto parser<InCharT>::next_impl() -> std::pair<token_t, string_view_type> {
     if (is_end_element_pending_) {
         is_end_element_pending_ = false;
-        return {token_t::end_element, str_cache_[0].as_string_view()};
+        return {token_t::end_element, element_name_};
     }
 
     while (lexer_.in.peek() != ibuf::traits_type::eof()) {
@@ -299,38 +298,43 @@ auto parser<InCharT>::next_impl() -> std::pair<token_t, string_view_type> {
         const InCharT* curr0 = lexer_.in.curr();
 
         if (*curr0 == '<') {
-            std::size_t str_cache_idx = 1;
+            for (auto it = attrs_.cbegin(); it != attrs_.cend();) {
+                auto result = attrs_.extract(it);
+                attr_cache_.emplace_back(std::move(result.first));
+                it = result.second;
+            }
 
-            attrs_.clear();
+            const auto add_attribute = [this](string_view_type lval) {
+                if (attr_cache_.empty()) { return attrs_.append_new(lval, {}); }
+                auto node = std::move(attr_cache_.back());
+                attr_cache_.pop_back();
+                node.set_key(lval);
+                return attrs_.append_new(std::move(node));
+            };
 
-            const auto parse_attribute = [this, &str_cache_idx](string_view_type lval) {
-                auto& item = (*attrs_.append_new(lval, basic_value<InCharT>())).value();
+            const auto parse_attribute = [this, add_attribute](string_view_type lval) {
+                const auto it = add_attribute(lval);
 
                 if (lexer_.lex(lval) != detail::lex_token_t::eq) { detail::report_error(lexer_.ln, "expected `=`"); }
                 if (lexer_.lex(lval) != detail::lex_token_t::string) {
                     detail::report_error(lexer_.ln, "expected valid attribute value");
                 }
 
-                if (str_cache_idx < str_cache_.size()) {
-                    str_cache_[str_cache_idx] = lval;
-                } else {
-                    str_cache_.push_back(lval);
-                }
-                item = str_cache_[str_cache_idx++];
+                (*it).value() = lval;
             };
 
             switch (lexer_.lex(lval)) {
                 case detail::lex_token_t::start_element_open: {  // <name n1=v1 n2=v2...> or <name n1=v1 n2=v2.../>
-                    str_cache_[0] = lval;
+                    element_name_.assign(lval.data(), lval.size());
                     while (true) {
                         auto tt = lexer_.lex(lval);
                         if (tt == detail::lex_token_t::name) {
                             parse_attribute(lval);
                         } else if (tt == detail::lex_token_t::close) {
-                            return {token_t::start_element, str_cache_[0].as_string_view()};
+                            return {token_t::start_element, element_name_};
                         } else if (tt == detail::lex_token_t::end_element_close) {
                             is_end_element_pending_ = true;
-                            return {token_t::start_element, str_cache_[0].as_string_view()};
+                            return {token_t::start_element, element_name_};
                         } else {
                             detail::report_error(lexer_.ln, "expected name, `>` or `/>`");
                         }
@@ -348,13 +352,13 @@ auto parser<InCharT>::next_impl() -> std::pair<token_t, string_view_type> {
                     if (!detail::is_equal_to_string_nocase(lval, string_literal<InCharT, 'x', 'm', 'l'>{}())) {
                         detail::report_error(lexer_.ln, "invalid document declaration");
                     }
-                    str_cache_[0] = lval;
+                    element_name_.assign(lval.data(), lval.size());
                     while (true) {
                         auto tt = lexer_.lex(lval);
                         if (tt == detail::lex_token_t::name) {
                             parse_attribute(lval);
                         } else if (tt == detail::lex_token_t::pi_close) {
-                            return {token_t::preamble, str_cache_[0].as_string_view()};
+                            return {token_t::preamble, element_name_};
                         } else {
                             detail::report_error(lexer_.ln, "expected name or `?>`");
                         }
