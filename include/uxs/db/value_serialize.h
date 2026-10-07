@@ -64,7 +64,7 @@ void deserialize_db_value(bibuf& is, db::basic_value<CharT, Alloc>& v) {
             for (; sz; --sz) {
                 std::uint64_t key_sz = 0;
                 if (!(is >> key_sz)) { return; }
-                const auto it = x.insert_fill_key(
+                auto node = x.make_node(
                     key_sz,
                     [&is](est::span<CharT> s) {
                         return is.read_with_endian(
@@ -72,7 +72,7 @@ void deserialize_db_value(bibuf& is, db::basic_value<CharT, Alloc>& v) {
                             sizeof(CharT));
                     },
                     value_type(x.get_allocator()));
-                deserialize_db_value(is, (*it).value());
+                deserialize_db_value(is, (*x.insert(std::move(node))).value());
             }
         } else {
             is >> x;
