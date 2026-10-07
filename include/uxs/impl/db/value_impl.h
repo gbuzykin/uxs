@@ -198,7 +198,7 @@ auto object_item<CharT, Alloc>::alloc(alloc_type& al, key_type key) -> object_it
                             offsetof(object_item, key_chars_buf_)) /
                            sizeof(char_type);
     node->key_sz_ = key.size();
-    std::copy_n(key.data(), key.size(), node->key_chars());
+    std::memcpy(node->key_chars(), key.data(), key.size() * sizeof(CharT));
     node->key_chars()[node->key_sz_] = '\0';
     return node;
 }
@@ -238,28 +238,27 @@ template<typename CharT, typename Alloc>
 void object_t<CharT, Alloc>::construct_copy(alloc_type& al, object_t other, std::size_t extra) {
     construct_empty(al, other.size() + extra);
     initialize_constructed(al, [this, &al, other]() {
-        for (list_links_t* node = other.p_->head.next; node != &other.p_->head; node = node->next) {
+        for (list_links_t* node = other.cbegin(); node != other.cend(); node = node->next) {
             const auto& v = *node_t::from_links(node);
-            node_t* new_node = node_t::construct(al, v.key(), mapped_type(v.value()));
-            insert_node(new_node, &v.hash_code_);
+            insert_node(node_t::construct(al, v.key(), value_type(v.value())), &v.hash_code_);
         }
     });
 }
 
 template<typename CharT, typename Alloc>
-void object_t<CharT, Alloc>::construct_from_common_initializer(alloc_type& al, std::initializer_list<mapped_type> init) {
+void object_t<CharT, Alloc>::construct_from_common_initializer(alloc_type& al, std::initializer_list<value_type> init) {
     construct_empty(al, init.size());
     initialize_constructed(al, [this, &al, init]() { insert_initializer_no_realloc(al, init); });
 }
 
 template<typename CharT, typename Alloc>
 void object_t<CharT, Alloc>::construct_from_initializer(alloc_type& al,
-                                                        std::initializer_list<std::pair<key_type, mapped_type>> init) {
+                                                        std::initializer_list<std::pair<key_type, value_type>> init) {
     construct_from_range(al, init.begin(), init.end());
 }
 
 template<typename CharT, typename Alloc>
-void object_t<CharT, Alloc>::assign_initializer(alloc_type& al, std::initializer_list<mapped_type> init) {
+void object_t<CharT, Alloc>::assign_initializer(alloc_type& al, std::initializer_list<value_type> init) {
     if (p_->ref_count == 1 && init.size() <= p_->bucket_count) {
         destruct_items(al);
         p_->init();
@@ -283,8 +282,7 @@ void object_t<CharT, Alloc>::reserve(alloc_type& al, std::size_t size) {
 
 template<typename CharT, typename Alloc>
 void object_t<CharT, Alloc>::destruct_items(alloc_type& al) noexcept {
-    list_links_t* node = p_->head.next;
-    while (node != &p_->head) {
+    for (list_links_t* node = cbegin(); node != cend();) {
         list_links_t* next = node->next;
         node_t::destroy(al, node_t::from_links(node));
         node = next;
@@ -301,6 +299,7 @@ void object_t<CharT, Alloc>::add_to_hash(node_t* node) noexcept {
 
 template<typename CharT, typename Alloc>
 void object_t<CharT, Alloc>::insert_node(node_t* node, const std::size_t* p_hash_code) noexcept {
+    assert(node);
     node->hash_code_ = p_hash_code ? *p_hash_code : hasher_t{}(node->key());
     add_to_hash(node);
     dllist_insert_before(&p_->head, &node->links_);
@@ -308,11 +307,10 @@ void object_t<CharT, Alloc>::insert_node(node_t* node, const std::size_t* p_hash
 }
 
 template<typename CharT, typename Alloc>
-void object_t<CharT, Alloc>::insert_initializer_no_realloc(alloc_type& al, std::initializer_list<mapped_type> init) {
+void object_t<CharT, Alloc>::insert_initializer_no_realloc(alloc_type& al, std::initializer_list<value_type> init) {
     for (auto first = init.begin(); first != init.end(); ++first) {
         const auto key = (*first).value_.arr[0].value_.str.cview();
-        node_t* node = node_t::construct(al, key, mapped_type((*first).value_.arr[1]));
-        insert_node(node, nullptr);
+        insert_node(node_t::construct(al, key, value_type((*first).value_.arr[1])), nullptr);
     }
 }
 
@@ -328,9 +326,7 @@ void object_t<CharT, Alloc>::rehash(alloc_type& al, std::size_t extra) {
     p_new->init_from(*this);
     dealloc(al, p_);
     p_ = p_new;
-    for (list_links_t* node = p_->head.next; node != &p_->head; node = node->next) {
-        add_to_hash(node_t::from_links(node));
-    }
+    for (list_links_t* node = cbegin(); node != cend(); node = node->next) { add_to_hash(node_t::from_links(node)); }
 }
 
 template<typename CharT, typename Alloc>
@@ -360,7 +356,7 @@ list_links_t* object_t<CharT, Alloc>::find_impl(key_type key, std::size_t* p_has
         if (v.hash_code_ == hash_code && v.key() == key) { return next_bucket; }
         next_bucket = v.next_bucket_;
     }
-    return &p_->head;
+    return cend();
 }
 
 template<typename CharT, typename Alloc>
@@ -378,16 +374,14 @@ std::size_t object_t<CharT, Alloc>::count(key_type key) const noexcept {
 
 template<typename CharT, typename Alloc>
 list_links_t* object_t<CharT, Alloc>::map_node(object_t other, list_links_t* node_to_map) noexcept {
-    list_links_t* mapped_node = other.p_->head.next;
-    for (list_links_t* node = p_->head.next; node != node_to_map; node = node->next) {
-        mapped_node = mapped_node->next;
-    }
+    list_links_t* mapped_node = other.cbegin();
+    for (list_links_t* node = cbegin(); node != node_to_map; node = node->next) { mapped_node = mapped_node->next; }
     return mapped_node;
 }
 
 template<typename CharT, typename Alloc>
-list_links_t* object_t<CharT, Alloc>::erase(alloc_type& al, list_links_t* node) {
-    assert(node != &p_->head);
+auto object_t<CharT, Alloc>::extract_impl(alloc_type& al, list_links_t* node) -> std::pair<node_t*, list_links_t*> {
+    assert(node != cend());
     if (p_->ref_count > 1) {
         object_t new_obj;
         new_obj.construct_copy(al, *this, 0);
@@ -399,9 +393,7 @@ list_links_t* object_t<CharT, Alloc>::erase(alloc_type& al, list_links_t* node) 
     while (*p_next_bucket != node) { p_next_bucket = &node_t::from_links(*p_next_bucket)->next_bucket_; }
     *p_next_bucket = v.next_bucket_;
     --p_->size;
-    list_links_t* next = dllist_remove(node);
-    node_t::destroy(al, &v);
-    return next;
+    return {&v, dllist_remove(node)};
 }
 
 template<typename CharT, typename Alloc>
@@ -487,36 +479,6 @@ void basic_value<CharT, Alloc>::insert(size_type pos, std::initializer_list<valu
 template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::insert(std::initializer_list<std::pair<key_type, value_type>> init) {
     insert(init.begin(), init.end());
-}
-
-// --------------------------
-
-template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::erase(size_type pos) {
-    if (type_ != dtype::array) { report_not_an_array_error(); }
-    assert(pos < value_.arr.size());
-    value_.arr.erase(*this, pos);
-}
-
-template<typename CharT, typename Alloc>
-auto basic_value<CharT, Alloc>::erase(const_iterator it) -> iterator {
-    if (it.is_object()) {
-        if (type_ != dtype::object) { report_not_an_object_error(); }
-        detail::list_links_t* node = static_cast<detail::list_links_t*>(it.ptr_);
-        uxs_iterator_assert(object_t::node_traits::get_head(node) == value_.obj.cend());
-        return iterator(value_.obj.erase(*this, node));
-    }
-    if (type_ != dtype::array) { report_not_an_array_error(); }
-    uxs_iterator_assert(it.begin_ == value_.arr.cbegin() && it.end_ == value_.arr.cend());
-    const std::size_t pos = static_cast<value_type*>(it.ptr_) - static_cast<const value_type*>(it.begin_);
-    value_type* next = value_.arr.erase(*this, pos);
-    return iterator(next, value_.arr.cbegin(), value_.arr.cend());
-}
-
-template<typename CharT, typename Alloc>
-auto basic_value<CharT, Alloc>::erase(key_type key) -> size_type {
-    if (type_ != dtype::object) { report_not_an_object_error(); }
-    return value_.obj.erase(*this, key);
 }
 
 // --------------------------

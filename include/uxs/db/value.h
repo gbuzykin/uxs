@@ -189,7 +189,7 @@ class flexarray_t {
     UXS_EXPORT void reserve(alloc_type& al, std::size_t size);
     UXS_EXPORT void resize(alloc_type& al, std::size_t size, const Ty& v);
 
-    Ty* erase(alloc_type& al, std::size_t pos);
+    UXS_EXPORT Ty* erase(alloc_type& al, std::size_t pos);
 
     void ref() noexcept {
         if (p_) { ++p_->ref_count; }
@@ -464,6 +464,9 @@ template<typename CharT, typename Alloc>
 class object_t;
 
 template<typename CharT, typename Alloc>
+class object_node_handle;
+
+template<typename CharT, typename Alloc>
 class object_item {
  public:
     using char_type = CharT;
@@ -491,6 +494,7 @@ class object_item {
 
  private:
     friend class object_t<CharT, Alloc>;
+    friend class object_node_handle<CharT, Alloc>;
 
     list_links_t links_;
     list_links_t* next_bucket_;
@@ -527,6 +531,28 @@ class object_item {
             return node;
         } catch (...) {
             dealloc(al, node);
+            throw;
+        }
+    }
+
+    bool set_key(key_type key) {
+        if (key.size() + 1 > key_chars_cap_) { return false; }
+        key_sz_ = key.size();
+        std::memcpy(key_chars(), key.data(), key.size() * sizeof(CharT));
+        key_chars()[key_sz_] = '\0';
+        return true;
+    }
+
+    template<typename FillFn>
+    bool set_key(std::size_t max_key_length, FillFn&& fill_key_fn) {
+        if (max_key_length + 1 > key_chars_cap_) { return false; }
+        try {
+            key_sz_ = fill_key_fn(est::as_span(key_chars(), max_key_length));
+            key_chars()[key_sz_] = '\0';
+            return true;
+        } catch (...) {
+            key_sz_ = 0;
+            key_chars()[key_sz_] = '\0';
             throw;
         }
     }
@@ -573,6 +599,113 @@ auto get(object_item<CharT, Alloc>&& v) noexcept -> decltype(std::move(v).value(
     return std::move(v).value();
 }
 
+template<typename Alloc>
+using object_node_allocator_t = std::conditional_t<
+    std::is_empty<Alloc>::value && std::is_nothrow_default_constructible<Alloc>::value, Alloc, est::optional<Alloc>>;
+
+template<typename CharT, typename Alloc>
+class object_node_handle
+    : protected object_node_allocator_t<typename std::allocator_traits<Alloc>::template rebind_alloc<std::uintptr_t>> {
+ private:
+    using node_t = object_item<CharT, Alloc>;
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<std::uintptr_t>;
+    using super = object_node_allocator_t<alloc_type>;
+    using alloc_traits = std::allocator_traits<alloc_type>;
+
+ public:
+    using char_type = CharT;
+    using allocator_type = Alloc;
+    using key_type = std::basic_string_view<char_type>;
+    using value_type = basic_value<CharT, Alloc>;
+    using size_type = std::size_t;
+
+    object_node_handle() noexcept = default;
+    object_node_handle(object_node_handle&& other) noexcept : super(std::move(other)), node_(other.node_) {
+        other.node_ = nullptr;
+    }
+    ~object_node_handle() {
+        if (node_) { node_t::destroy(get_allocator(), node_); }
+    }
+
+    object_node_handle& operator=(const object_node_handle&) = delete;
+
+    explicit operator bool() const noexcept { return node_; }
+
+    void set_key(key_type key) {
+        assert(node_);
+        if (node_->set_key(key)) { return; }
+        node_t* node = node_t::construct(get_allocator(), key, std::move(node_->value()));
+        node_t::destroy(get_allocator(), node_);
+        node_ = node;
+    }
+
+    template<typename FillFn>
+    void set_key(size_type max_key_length, FillFn&& fill_key_fn) {
+        assert(node_);
+        if (node_->set_key(max_key_length, std::forward<FillFn>(fill_key_fn))) { return; }
+        node_t* node = node_t::construct(get_allocator(), max_key_length, std::forward<FillFn>(fill_key_fn),
+                                         std::move(node_->value()));
+        node_t::destroy(get_allocator(), node_);
+        node_ = node;
+    }
+
+    const node_t& operator*() const {
+        assert(node_);
+        return *node_;
+    }
+
+    node_t& operator*() {
+        assert(node_);
+        return *node_;
+    }
+
+    const node_t* operator->() const noexcept { return std::addressof(**this); }
+    node_t* operator->() noexcept { return std::addressof(**this); }
+
+ private:
+    friend class object_t<CharT, Alloc>;
+    friend class basic_value<CharT, Alloc>;
+
+    alloc_type& get_allocator() { return get_allocator_dispatch(std::is_same<super, alloc_type>()); }
+
+    template<typename Alloc_ = Alloc>
+    alloc_type& get_allocator_dispatch(std::true_type) {
+        return *this;
+    }
+
+    template<typename Alloc_ = Alloc>
+    alloc_type& get_allocator_dispatch(std::false_type) {
+        return *static_cast<super&>(*this);
+    }
+
+    object_node_handle(const alloc_type& al, node_t* node) noexcept : super(al), node_(node) {}
+
+    object_node_handle(const alloc_type& al, key_type key, value_type&& v)
+        : super(al), node_(node_t::construct(get_allocator(), key, std::move(v))) {}
+
+    template<typename FillFn>
+    object_node_handle(const alloc_type& al, size_type max_key_length, FillFn&& fill_key_fn, value_type&& v)
+        : super(al),
+          node_(node_t::construct(get_allocator(), max_key_length, std::forward<FillFn>(fill_key_fn), std::move(v))) {}
+
+    node_t* release(const alloc_type& al) && noexcept {
+        check_allocator_dispatch(al, typename alloc_traits::is_always_equal());
+        node_t* node = node_;
+        node_ = nullptr;
+        return node;
+    }
+
+    template<typename CharT_ = CharT>
+    void check_allocator_dispatch(const alloc_type& /*al*/, std::true_type /* always equal allocators */) const {}
+
+    template<typename CharT_ = CharT>
+    void check_allocator_dispatch(const alloc_type& al, std::false_type /* always equal allocators */) const {
+        if (*static_cast<const super&>(*this) != al) { throw database_error("incompatible allocators"); }
+    }
+
+    node_t* node_ = nullptr;
+};
+
 template<typename CharT, typename Alloc>
 struct object_node_traits {
     using iterator_node_t = list_links_t;
@@ -589,22 +722,11 @@ struct object_node_traits {
     static object_item<CharT, Alloc>& get_value(list_links_t* node) { return *node_t::from_links(node); }
 };
 
-template<typename Iter>
-class object_range {
- public:
-    using iterator = Iter;
-    using size_type = std::size_t;
-
-    object_range(size_type size, Iter from, Iter to) noexcept : size_(size), from_(from), to_(to) {}
-
-    Iter begin() const noexcept { return from_; }
-    Iter end() const noexcept { return to_; }
-    size_type size() const noexcept { return size_; }
-    bool empty() const noexcept { return size_ == 0; }
-
- private:
-    size_type size_;
-    Iter from_, to_;
+template<typename Iter, typename ValueType>
+struct insert_return_type {
+    Iter position;
+    bool inserted;
+    ValueType value;
 };
 
 template<typename CharT, typename Alloc>
@@ -623,14 +745,8 @@ class object_t {
 
  public:
     using key_type = std::basic_string_view<CharT>;
-    using mapped_type = basic_value<CharT, Alloc>;
-    using value_type = object_item<CharT, Alloc>;
-    using size_type = std::size_t;
-    using difference_type = std::ptrdiff_t;
-    using pointer = value_type*;
-    using const_pointer = const value_type*;
-    using reference = value_type&;
-    using const_reference = const value_type&;
+    using value_type = basic_value<CharT, Alloc>;
+    using node_handle = object_node_handle<CharT, Alloc>;
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<std::uintptr_t>;
     using alloc_traits = std::allocator_traits<alloc_type>;
     using node_traits = object_node_traits<CharT, Alloc>;
@@ -649,40 +765,16 @@ class object_t {
     using iterator = est::list_iterator<iterator_traits, false>;
     using const_iterator = est::list_iterator<iterator_traits, true>;
 
-    size_type size() const noexcept { return p_->size; }
+    std::size_t size() const noexcept { return p_->size; }
     list_links_t* cbegin() const noexcept { return p_->head.next; }
     list_links_t* cend() const noexcept { return &p_->head; }
     list_links_t* cfind(key_type key) const noexcept { return find_impl(key, nullptr); }
-    UXS_EXPORT size_type count(key_type key) const noexcept;
-
-    object_range<const_iterator> crange() const noexcept {
-        return object_range<const_iterator>(size(), const_iterator(cbegin()), const_iterator(cend()));
-    }
+    UXS_EXPORT std::size_t count(key_type key) const noexcept;
 
     bool is_equal_to(object_t other) const noexcept {
         if (p_ == other.p_) { return true; }
         return size() == other.size() &&
                std::equal(const_iterator(cbegin()), const_iterator(cend()), const_iterator(other.cbegin()));
-    }
-
-    list_links_t* begin(alloc_type& al) noexcept {
-        ensure_unique(al);
-        return cbegin();
-    }
-
-    list_links_t* end(alloc_type& al) noexcept {
-        ensure_unique(al);
-        return cend();
-    }
-
-    list_links_t* find(alloc_type& al, key_type key) noexcept {
-        ensure_unique(al);
-        return cfind(key);
-    }
-
-    object_range<iterator> range(alloc_type& al) {
-        ensure_unique(al);
-        return object_range<iterator>(size(), iterator(cbegin()), iterator(cend()));
     }
 
     void construct_empty(alloc_type& al) {
@@ -697,16 +789,16 @@ class object_t {
     }
 
     UXS_EXPORT void construct_copy(alloc_type& al, object_t other, std::size_t extra);
-    void construct_from_common_initializer(alloc_type& al, std::initializer_list<mapped_type> init);
+    void construct_from_common_initializer(alloc_type& al, std::initializer_list<value_type> init);
     UXS_EXPORT void construct_from_initializer(alloc_type& al,
-                                               std::initializer_list<std::pair<key_type, mapped_type>> init);
+                                               std::initializer_list<std::pair<key_type, value_type>> init);
 
     template<typename InputIt>
     void construct_from_range(alloc_type& al, InputIt first, InputIt last) {
         construct_dispatch(al, first, last, est::is_random_access_iterator<InputIt>());
     }
 
-    void assign_initializer(alloc_type& al, std::initializer_list<mapped_type> init);
+    void assign_initializer(alloc_type& al, std::initializer_list<value_type> init);
 
     template<typename InputIt>
     void assign_range(alloc_type& al, InputIt first, InputIt last) {
@@ -719,36 +811,66 @@ class object_t {
         insert_dispatch(al, first, last, est::is_random_access_iterator<InputIt>());
     }
 
-    list_links_t* insert(alloc_type& al, key_type key, mapped_type&& v) {
+    list_links_t* insert(alloc_type& al, key_type key, value_type&& v) {
         if (p_->ref_count > 1 || p_->size == p_->bucket_count) { reserve(al, p_->size + 1); }
         node_t* node = node_t::construct(al, key, std::move(v));
         insert_node(node, nullptr);
         return &node->links_;
     }
 
-    template<typename FillFn>
-    list_links_t* insert_fill_key(alloc_type& al, std::size_t max_key_length, FillFn&& fill_key_fn, mapped_type&& v) {
+    list_links_t* insert(alloc_type& al, node_handle&& h) {
         if (p_->ref_count > 1 || p_->size == p_->bucket_count) { reserve(al, p_->size + 1); }
-        node_t* node = node_t::construct(al, max_key_length, std::forward<FillFn>(fill_key_fn), std::move(v));
+        node_t* node = std::move(h).release(al);
         insert_node(node, nullptr);
         return &node->links_;
+    }
+
+    insert_return_type<list_links_t*, value_type> insert_unique(alloc_type& al, key_type key, value_type&& v) {
+        if (p_->ref_count > 1 || p_->size == p_->bucket_count) { reserve(al, p_->size + 1); }
+        std::size_t hash_code = 0;
+        list_links_t* found_node = find_impl(key, &hash_code);
+        if (found_node != cend()) { return {found_node, false, std::move(v)}; }
+        node_t* node = node_t::construct(al, key, std::move(v));
+        insert_node(node, &hash_code);
+        return {&node->links_, true, {}};
+    }
+
+    insert_return_type<list_links_t*, node_handle> insert_unique(alloc_type& al, node_handle&& h) {
+        if (!h.node_) { return {cend(), false, {}}; }
+        if (p_->ref_count > 1 || p_->size == p_->bucket_count) { reserve(al, p_->size + 1); }
+        std::size_t hash_code = 0;
+        list_links_t* found_node = find_impl(h.node_->key(), &hash_code);
+        if (found_node != cend()) { return {found_node, false, std::move(h)}; }
+        node_t* node = std::move(h).release(al);
+        insert_node(node, &hash_code);
+        return {&node->links_, true, {}};
     }
 
     template<typename... Args>
     std::pair<list_links_t*, bool> try_insert_unique(alloc_type& al, key_type key, Args&&... args) {
         if (p_->ref_count > 1 || p_->size == p_->bucket_count) { reserve(al, p_->size + 1); }
         std::size_t hash_code = 0;
-        list_links_t* node = find_impl(key, &hash_code);
-        if (node != &p_->head) { return std::make_pair(node, false); }
-        node_t* new_node = node_t::construct(al, key, mapped_type(std::forward<Args>(args)...));
-        insert_node(new_node, &hash_code);
-        return std::make_pair(&new_node->links_, true);
+        list_links_t* found_node = find_impl(key, &hash_code);
+        if (found_node != cend()) { return {found_node, false}; }
+        node_t* node = node_t::construct(al, key, value_type(std::forward<Args>(args)...));
+        insert_node(node, &hash_code);
+        return {&node->links_, true};
     }
 
     UXS_EXPORT void clear(alloc_type& al);
     UXS_EXPORT void reserve(alloc_type& al, std::size_t size);
-    list_links_t* erase(alloc_type& al, list_links_t* node);
-    std::size_t erase(alloc_type& al, key_type key);
+    UXS_EXPORT std::size_t erase(alloc_type& al, key_type key);
+
+    list_links_t* erase(alloc_type& al, list_links_t* node) {
+        const auto result = extract_impl(al, node);
+        node_t::destroy(al, result.first);
+        return result.second;
+    }
+
+    std::pair<node_handle, list_links_t*> extract(alloc_type& al, list_links_t* node) {
+        const auto result = extract_impl(al, node);
+        return {node_handle(al, result.first), result.second};
+    }
 
     void ref() noexcept { ++p_->ref_count; }
 
@@ -787,10 +909,22 @@ class object_t {
     void assign_dispatch(alloc_type& al, InputIt first, InputIt last, std::false_type /* random access iterator */);
 
     template<typename InputIt>
-    void insert_no_realloc(alloc_type& al, InputIt first, InputIt last);
-    void insert_initializer_no_realloc(alloc_type& al, std::initializer_list<mapped_type> init);
+    void insert_no_realloc(alloc_type& al, InputIt first, InputIt last) {
+        insert_no_realloc_dispatch(al, first, last, std::is_same<est::array_element_t<InputIt>, node_handle>());
+    }
     template<typename InputIt>
-    void insert_one_by_one(alloc_type& al, InputIt first, InputIt last);
+    void insert_no_realloc_dispatch(alloc_type& al, InputIt first, InputIt last, std::true_type /* node handles */);
+    template<typename InputIt>
+    void insert_no_realloc_dispatch(alloc_type& al, InputIt first, InputIt last, std::false_type /* node handles */);
+    void insert_common_initializer_no_realloc(alloc_type& al, std::initializer_list<value_type> init);
+    template<typename InputIt>
+    void insert_one_by_one(alloc_type& al, InputIt first, InputIt last) {
+        insert_one_by_one_dispatch(al, first, last, std::is_same<est::array_element_t<InputIt>, node_handle>());
+    }
+    template<typename InputIt>
+    void insert_one_by_one_dispatch(alloc_type& al, InputIt first, InputIt last, std::true_type /* node handles */);
+    template<typename InputIt>
+    void insert_one_by_one_dispatch(alloc_type& al, InputIt first, InputIt last, std::false_type /* node handles */);
     template<typename InputIt>
     void insert_dispatch(alloc_type& al, InputIt first, InputIt last, std::true_type /* random access iterator */);
     template<typename InputIt>
@@ -809,6 +943,8 @@ class object_t {
     }
 
     list_links_t* map_node(object_t other, list_links_t* node_to_map) noexcept;
+
+    UXS_EXPORT std::pair<node_t*, list_links_t*> extract_impl(alloc_type& al, list_links_t* node);
 
     static std::size_t max_size(const alloc_type& al) noexcept {
         return (std::allocator_traits<alloc_type>::max_size(al) * sizeof(typename alloc_traits::value_type) -
@@ -877,22 +1013,39 @@ void object_t<Ty, Alloc>::assign_dispatch(alloc_type& al, InputIt first, InputIt
 
 template<typename CharT, typename Alloc>
 template<typename InputIt>
-void object_t<CharT, Alloc>::insert_no_realloc(alloc_type& al, InputIt first, InputIt last) {
+void object_t<CharT, Alloc>::insert_no_realloc_dispatch(alloc_type& al, InputIt first, InputIt last,
+                                                        std::true_type /* node handles */) {
+    for (; first != last; ++first) { insert_node((*first).release(al), nullptr); }
+}
+
+template<typename CharT, typename Alloc>
+template<typename InputIt>
+void object_t<CharT, Alloc>::insert_no_realloc_dispatch(alloc_type& al, InputIt first, InputIt last,
+                                                        std::false_type /* node handles */) {
     for (; first != last; ++first) {
         const auto key = std::get<0>(*first);
-        node_t* node = node_t::construct(al, key, mapped_type(std::get<1>(*first)));
-        insert_node(node, nullptr);
+        insert_node(node_t::construct(al, key, value_type(std::get<1>(*first))), nullptr);
     }
 }
 
 template<typename CharT, typename Alloc>
 template<typename InputIt>
-void object_t<CharT, Alloc>::insert_one_by_one(alloc_type& al, InputIt first, InputIt last) {
+void object_t<CharT, Alloc>::insert_one_by_one_dispatch(alloc_type& al, InputIt first, InputIt last,
+                                                        std::true_type /* node handles */) {
+    for (; first != last; ++first) {
+        if (p_->size == p_->bucket_count) { rehash(al, 1); }
+        insert_node((*first).release(al), nullptr);
+    }
+}
+
+template<typename CharT, typename Alloc>
+template<typename InputIt>
+void object_t<CharT, Alloc>::insert_one_by_one_dispatch(alloc_type& al, InputIt first, InputIt last,
+                                                        std::false_type /* node handles */) {
     for (; first != last; ++first) {
         if (p_->size == p_->bucket_count) { rehash(al, 1); }
         const auto key = std::get<0>(*first);
-        node_t* node = node_t::construct(al, key, mapped_type(std::get<1>(*first)));
-        insert_node(node, nullptr);
+        insert_node(node_t::construct(al, key, value_type(std::get<1>(*first))), nullptr);
     }
 }
 
@@ -1084,10 +1237,14 @@ namespace detail {
 
 template<typename CharT, typename Alloc, typename Ty, typename = void>
 struct is_object_item : std::false_type {};
-template<typename CharT, typename Alloc, typename FirstTy, typename SecondTy>
-struct is_object_item<CharT, Alloc, std::pair<FirstTy, SecondTy>,
-                      std::enable_if_t<std::is_convertible<FirstTy, typename object_t<CharT, Alloc>::key_type>::value &&
-                                       std::is_convertible<SecondTy, basic_value<CharT, Alloc>>::value>>
+template<typename CharT, typename Alloc>
+struct is_object_item<CharT, Alloc, object_node_handle<CharT, Alloc>> : std::true_type {};
+template<typename CharT, typename Alloc, typename Ty>
+struct is_object_item<
+    CharT, Alloc, Ty,
+    std::enable_if_t<
+        std::is_convertible<typename std::tuple_element<0, Ty>::type, typename object_t<CharT, Alloc>::key_type>::value &&
+        std::is_convertible<typename std::tuple_element<1, Ty>::type, basic_value<CharT, Alloc>>::value>>
     : std::true_type {};
 
 template<typename CharT, typename Alloc, typename InputIt>
@@ -1107,6 +1264,26 @@ const Ty* get_optional_value(const Ty* opt) {
     return opt;
 }
 
+template<typename Iter>
+class object_range {
+ public:
+    using iterator = Iter;
+    using size_type = std::size_t;
+
+    template<typename CharT, typename Alloc>
+    explicit object_range(const object_t<CharT, Alloc>& obj) noexcept
+        : size_(obj.size()), from_(obj.cbegin()), to_(obj.cend()) {}
+
+    Iter begin() const noexcept { return from_; }
+    Iter end() const noexcept { return to_; }
+    size_type size() const noexcept { return size_; }
+    bool empty() const noexcept { return size_ == 0; }
+
+ private:
+    size_type size_;
+    Iter from_, to_;
+};
+
 }  // namespace detail
 
 template<typename CharT, typename Alloc = std::allocator<CharT>>
@@ -1124,9 +1301,11 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
  public:
     using char_type = CharT;
-    using key_type = typename object_t::key_type;
-    using value_type = basic_value<CharT, Alloc>;
     using allocator_type = Alloc;
+    using key_type = typename object_t::key_type;
+    using mapped_type = basic_value<CharT, Alloc>;
+    using value_type = basic_value<CharT, Alloc>;
+    using node_handle = typename object_t::node_handle;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
     using iterator = detail::value_iterator<CharT, Alloc, false>;
@@ -1141,9 +1320,13 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     using const_object_range = detail::object_range<const_object_iterator>;
 
     basic_value() noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
-        : alloc_type(), type_(dtype::null) {}
+        : alloc_type(), type_(dtype::null) {
+        value_.null = nullptr;
+    }
     basic_value(std::nullptr_t) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
-        : alloc_type(), type_(dtype::null) {}
+        : alloc_type(), type_(dtype::null) {
+        value_.null = nullptr;
+    }
     basic_value(string_tag_t) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
         : alloc_type(), type_(dtype::string) {
         value_.str.construct_empty();
@@ -1154,8 +1337,10 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
     basic_value(object_tag_t) : alloc_type(), type_(dtype::object) { value_.obj.construct_empty(*this); }
 
-    explicit basic_value(const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) {}
-    basic_value(std::nullptr_t, const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) {}
+    explicit basic_value(const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) { value_.null = nullptr; }
+    basic_value(std::nullptr_t, const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) {
+        value_.null = nullptr;
+    }
     basic_value(string_tag_t, const Alloc& al) noexcept : alloc_type(al), type_(dtype::string) {
         value_.str.construct_empty();
     }
@@ -1195,8 +1380,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         : alloc_type(al), type_(dtype::array) {
         value_.arr.construct_from_range(*this, first, last);
     }
-    template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value &&
-                                                           detail::is_object_iterator<CharT, Alloc, InputIt>::value>>
+    template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value>>
     basic_value(object_tag_t, InputIt first, InputIt last, const Alloc& al = Alloc())
         : alloc_type(al), type_(dtype::object) {
         value_.obj.construct_from_range(*this, first, last);
@@ -1255,6 +1439,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     basic_value(basic_value&& other) noexcept : alloc_type(std::move(other)), type_(other.type_), value_(other.value_) {
         other.type_ = dtype::null;
+        other.value_.null = nullptr;
     }
     basic_value(basic_value&& other, const Alloc& al) noexcept : alloc_type(al), type_(other.type_) {
         move_construct_dispatch(std::move(other), typename alloc_traits::is_always_equal());
@@ -1266,6 +1451,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         type_ = other.type_;
         value_ = other.value_;
         other.type_ = dtype::null;
+        other.value_.null = nullptr;
         return *this;
     }
 
@@ -1279,6 +1465,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     basic_value& operator=(std::nullptr_t) noexcept {
         destroy();
         type_ = dtype::null;
+        value_.null = nullptr;
         return *this;
     }
 
@@ -1340,8 +1527,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
     template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value>>
     void assign(array_tag_t, InputIt first, InputIt last);
-    template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value &&
-                                                           detail::is_object_iterator<CharT, Alloc, InputIt>::value>>
+    template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value>>
     void assign(object_tag_t, InputIt first, InputIt last);
 
     UXS_EXPORT void assign(std::initializer_list<value_type> init);
@@ -1352,8 +1538,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     void insert(size_type pos, InputIt first, InputIt last);
     UXS_EXPORT void insert(size_type pos, std::initializer_list<value_type> init);
 
-    template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value &&
-                                                           detail::is_object_iterator<CharT, Alloc, InputIt>::value>>
+    template<typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value>>
     void insert(InputIt first, InputIt last);
     UXS_EXPORT void insert(std::initializer_list<std::pair<key_type, value_type>> init);
 
@@ -1541,7 +1726,10 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     iterator begin() {
-        if (type_ == dtype::object) { return iterator(value_.obj.begin(*this)); }
+        if (type_ == dtype::object) {
+            value_.obj.ensure_unique(*this);
+            return iterator(value_.obj.cbegin());
+        }
         const auto range = as_array();
         return iterator(range.data(), range.data(), range.data() + range.size());
     }
@@ -1555,7 +1743,10 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     const_iterator cbegin() const noexcept { return begin(); }
 
     iterator end() {
-        if (type_ == dtype::object) { return iterator(value_.obj.end(*this)); }
+        if (type_ == dtype::object) {
+            value_.obj.ensure_unique(*this);
+            return iterator(value_.obj.cend());
+        }
         const auto range = as_array();
         return iterator(range.data() + range.size(), range.data(), range.data() + range.size());
     }
@@ -1589,12 +1780,13 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     const_object_range as_object() const {
         if (type_ != dtype::object) { report_not_an_object_error(); }
-        return value_.obj.crange();
+        return const_object_range(value_.obj);
     }
 
     object_range as_object() {
         if (type_ != dtype::object) { report_not_an_object_error(); }
-        return value_.obj.range(*this);
+        value_.obj.ensure_unique(*this);
+        return object_range(value_.obj);
     }
 
     const value_type& operator[](size_type i) const { return as_array()[i]; }
@@ -1640,7 +1832,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
             case dtype::double_precision: return fn(value_.dbl);
             case dtype::string: return fn(value_.str.cview());
             case dtype::array: return fn(value_.arr.cview());
-            case dtype::object: return fn(value_.obj.crange());
+            case dtype::object: return fn(const_object_range(value_.obj));
             default: UXS_UNREACHABLE_CODE;
         }
     }
@@ -1651,7 +1843,8 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     iterator find(key_type key) {
         if (type_ != dtype::object) { return end(); }
-        return iterator(value_.obj.find(*this, key));
+        value_.obj.ensure_unique(*this);
+        return iterator(value_.obj.cfind(key));
     }
 
     bool contains(key_type key) const noexcept { return find(key) != end(); }
@@ -1680,25 +1873,45 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         return iterator(value_.obj.insert(*this, key, std::move(v)));
     }
 
-    template<typename FillFn>
-    iterator insert_fill_key(size_type max_key_length, FillFn&& fill_key_fn, value_type v) {
+    iterator insert(node_handle&& h) {
         if (type_ != dtype::object) { init_as_object(); }
-        return iterator(
-            value_.obj.insert_fill_key(*this, max_key_length, std::forward<FillFn>(fill_key_fn), std::move(v)));
+        return iterator(value_.obj.insert(*this, std::move(h)));
+    }
+
+    detail::insert_return_type<iterator, value_type> insert_unique(key_type key, value_type v) {
+        if (type_ != dtype::object) { init_as_object(); }
+        auto result = value_.obj.insert_unique(*this, key, std::move(v));
+        return {iterator(result.position), result.inserted, std::move(result.value)};
+    }
+
+    detail::insert_return_type<iterator, node_handle> insert_unique(node_handle&& h) {
+        if (type_ != dtype::object) { init_as_object(); }
+        auto result = value_.obj.insert_unique(*this, std::move(h));
+        return {iterator(result.position), result.inserted, std::move(result.value)};
     }
 
     template<typename... Args>
     std::pair<iterator, bool> try_insert_unique(key_type key, Args&&... args) {
         if (type_ != dtype::object) { init_as_object(); }
         const auto result = value_.obj.try_insert_unique(*this, key, std::forward<Args>(args)...);
-        return std::make_pair(iterator(result.first), result.second);
+        return {iterator(result.first), result.second};
     }
 
     // --------------------------
 
-    UXS_EXPORT void erase(size_type pos);
-    UXS_EXPORT iterator erase(const_iterator it);
-    UXS_EXPORT size_type erase(key_type key);
+    void erase(size_type pos);
+    iterator erase(const_iterator it);
+    std::pair<node_handle, iterator> extract(const_iterator it);
+    size_type erase(key_type key);
+
+    // --------------------------
+
+    node_handle make_node(key_type key, value_type v) const { return node_handle(*this, key, std::move(v)); }
+
+    template<typename FillFn>
+    node_handle make_node(std::size_t max_key_length, FillFn&& fill_key_fn, value_type v) const {
+        return node_handle(*this, max_key_length, std::forward<FillFn>(fill_key_fn), std::move(v));
+    }
 
  private:
     friend class detail::object_t<CharT, Alloc>;
@@ -1715,6 +1928,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         char_array_t str;
         value_array_t arr;
         object_t obj;
+        std::nullptr_t null;
     } value_;
 
     [[noreturn]] static void report_not_a_string_error() { throw database_error("not a string"); }
@@ -1768,6 +1982,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         type_ = other.type_;
         value_ = other.value_;
         other.type_ = dtype::null;
+        other.value_.null = nullptr;
     }
 
     template<typename CharT_ = CharT>
@@ -1776,6 +1991,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
             type_ = other.type_;
             value_ = other.value_;
             other.type_ = dtype::null;
+            other.value_.null = nullptr;
         } else {
             init_from(other);
         }
@@ -1890,6 +2106,45 @@ void basic_value<CharT, Alloc>::insert(InputIt first, InputIt last) {
         value_.obj.construct_from_range(*this, first, last);
         type_ = dtype::object;
     }
+}
+
+// --------------------------
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::erase(size_type pos) {
+    if (type_ != dtype::array) { report_not_an_array_error(); }
+    assert(pos < value_.arr.size());
+    value_.arr.erase(*this, pos);
+}
+
+template<typename CharT, typename Alloc>
+auto basic_value<CharT, Alloc>::erase(const_iterator it) -> iterator {
+    if (it.is_object()) {
+        if (type_ != dtype::object) { report_not_an_object_error(); }
+        detail::list_links_t* node = static_cast<detail::list_links_t*>(it.ptr_);
+        uxs_iterator_assert(object_t::node_traits::get_head(node) == value_.obj.cend());
+        return iterator(value_.obj.erase(*this, node));
+    }
+    if (type_ != dtype::array) { report_not_an_array_error(); }
+    uxs_iterator_assert(it.begin_ == value_.arr.cbegin() && it.end_ == value_.arr.cend());
+    const std::size_t pos = static_cast<value_type*>(it.ptr_) - static_cast<const value_type*>(it.begin_);
+    value_type* next = value_.arr.erase(*this, pos);
+    return iterator(next, value_.arr.cbegin(), value_.arr.cend());
+}
+
+template<typename CharT, typename Alloc>
+auto basic_value<CharT, Alloc>::extract(const_iterator it) -> std::pair<node_handle, iterator> {
+    if (!it.is_object() || type_ != dtype::object) { report_not_an_object_error(); }
+    detail::list_links_t* node = static_cast<detail::list_links_t*>(it.ptr_);
+    uxs_iterator_assert(object_t::node_traits::get_head(node) == value_.obj.cend());
+    auto result = value_.obj.extract(*this, node);
+    return {std::move(result.first), iterator(result.second)};
+}
+
+template<typename CharT, typename Alloc>
+auto basic_value<CharT, Alloc>::erase(key_type key) -> size_type {
+    if (type_ != dtype::object) { report_not_an_object_error(); }
+    return value_.obj.erase(*this, key);
 }
 
 // --------------------------

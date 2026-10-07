@@ -320,14 +320,14 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
         },
         [&stack, &item]() { item = &stack.back()->push_back(value_type(item->get_allocator())); },
         [&stack, &item](string_view_type key) {
-            const auto it = stack.back()->insert_fill_key(
+            auto node = stack.back()->make_node(
                 utf_string_adapter<CharT>{}.count(key.begin(), key.end()),
                 [key](est::span<CharT> s) {
                     utf_string_adapter<CharT>{}.transform(key.begin(), key.end(), s.data());
                     return s.size();
                 },
                 value_type(item->get_allocator()));
-            item = &(*it).value();
+            item = &(*stack.back()->insert(std::move(node))).value();
         },
         [&stack] { stack.pop_back(); });
 
