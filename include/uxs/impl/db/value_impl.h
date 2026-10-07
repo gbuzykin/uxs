@@ -240,7 +240,7 @@ void object_t<CharT, Alloc>::construct_copy(alloc_type& al, object_t other, std:
     initialize_constructed(al, [this, &al, other]() {
         for (list_links_t* node = other.cbegin(); node != other.cend(); node = node->next) {
             const auto& v = *node_t::from_links(node);
-            insert_node(node_t::construct(al, v.key(), value_type(v.value())), &v.hash_code_);
+            append_node(node_t::construct(al, v.key(), value_type(v.value())), &v.hash_code_);
         }
     });
 }
@@ -248,7 +248,7 @@ void object_t<CharT, Alloc>::construct_copy(alloc_type& al, object_t other, std:
 template<typename CharT, typename Alloc>
 void object_t<CharT, Alloc>::construct_from_common_initializer(alloc_type& al, std::initializer_list<value_type> init) {
     construct_empty(al, init.size());
-    initialize_constructed(al, [this, &al, init]() { insert_initializer_no_realloc(al, init); });
+    initialize_constructed(al, [this, &al, init]() { append_common_initializer_no_realloc(al, init); });
 }
 
 template<typename CharT, typename Alloc>
@@ -258,15 +258,21 @@ void object_t<CharT, Alloc>::construct_from_initializer(alloc_type& al,
 }
 
 template<typename CharT, typename Alloc>
-void object_t<CharT, Alloc>::assign_initializer(alloc_type& al, std::initializer_list<value_type> init) {
+void object_t<CharT, Alloc>::assign_common_initializer(alloc_type& al, std::initializer_list<value_type> init) {
     if (p_->ref_count == 1 && init.size() <= p_->bucket_count) {
         destruct_items(al);
         p_->init();
-        return insert_initializer_no_realloc(al, init);
+        return append_common_initializer_no_realloc(al, init);
     }
     object_t new_obj;
     new_obj.construct_from_common_initializer(al, init);
     reset(al, new_obj);
+}
+
+template<typename CharT, typename Alloc>
+void object_t<CharT, Alloc>::append_common_initializer(alloc_type& al, std::initializer_list<value_type> init) {
+    reserve(al, p_->size + init.size());
+    append_common_initializer_no_realloc(al, init);
 }
 
 template<typename CharT, typename Alloc>
@@ -298,7 +304,7 @@ void object_t<CharT, Alloc>::add_to_hash(node_t* node) noexcept {
 }
 
 template<typename CharT, typename Alloc>
-void object_t<CharT, Alloc>::insert_node(node_t* node, const std::size_t* p_hash_code) noexcept {
+void object_t<CharT, Alloc>::append_node(node_t* node, const std::size_t* p_hash_code) noexcept {
     assert(node);
     node->hash_code_ = p_hash_code ? *p_hash_code : hasher_t{}(node->key());
     add_to_hash(node);
@@ -307,10 +313,11 @@ void object_t<CharT, Alloc>::insert_node(node_t* node, const std::size_t* p_hash
 }
 
 template<typename CharT, typename Alloc>
-void object_t<CharT, Alloc>::insert_initializer_no_realloc(alloc_type& al, std::initializer_list<value_type> init) {
+void object_t<CharT, Alloc>::append_common_initializer_no_realloc(alloc_type& al,
+                                                                  std::initializer_list<value_type> init) {
     for (auto first = init.begin(); first != init.end(); ++first) {
         const auto key = (*first).value_.arr[0].value_.str.cview();
-        insert_node(node_t::construct(al, key, value_type((*first).value_.arr[1])), nullptr);
+        append_node(node_t::construct(al, key, value_type((*first).value_.arr[1])), nullptr);
     }
 }
 
@@ -443,7 +450,7 @@ template<typename CharT, typename Alloc>
 void basic_value<CharT, Alloc>::assign(std::initializer_list<value_type> init) {
     if (!detail::is_object(init)) { return assign(array_tag, init); }
     if (type_ == dtype::object) {
-        value_.obj.assign_initializer(*this, init);
+        value_.obj.assign_common_initializer(*this, init);
     } else {
         object_t new_obj;
         new_obj.construct_from_common_initializer(*this, init);
@@ -477,8 +484,25 @@ void basic_value<CharT, Alloc>::insert(size_type pos, std::initializer_list<valu
 }
 
 template<typename CharT, typename Alloc>
-void basic_value<CharT, Alloc>::insert(std::initializer_list<std::pair<key_type, value_type>> init) {
-    insert(init.begin(), init.end());
+void basic_value<CharT, Alloc>::append(std::initializer_list<value_type> init) {
+    if (!detail::is_object(init)) { return append(array_tag, init); }
+    if (type_ == dtype::object) {
+        value_.obj.append_common_initializer(*this, init);
+    } else {
+        if (type_ != dtype::null) { report_not_an_object_error(); }
+        value_.obj.construct_from_common_initializer(*this, init);
+        type_ = dtype::object;
+    }
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::append(array_tag_t, std::initializer_list<value_type> init) {
+    append(array_tag, init.begin(), init.end());
+}
+
+template<typename CharT, typename Alloc>
+void basic_value<CharT, Alloc>::append(object_tag_t, std::initializer_list<std::pair<key_type, value_type>> init) {
+    append(object_tag, init.begin(), init.end());
 }
 
 // --------------------------

@@ -72,7 +72,7 @@ void deserialize_db_value(bibuf& is, db::basic_value<CharT, Alloc>& v) {
                             sizeof(CharT));
                     },
                     value_type(x.get_allocator()));
-                deserialize_db_value(is, (*x.insert(std::move(node))).value());
+                deserialize_db_value(is, (*x.append_new(std::move(node))).value());
             }
         } else {
             is >> x;
