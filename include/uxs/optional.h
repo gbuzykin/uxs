@@ -35,7 +35,7 @@ class optional {
         if (valid_) { ::new (&data_) value_type(other.val()); }
     }
 
-    optional(optional&& other) noexcept : valid_(other.valid_) {
+    optional(optional&& other) noexcept(std::is_nothrow_move_constructible<Ty>::value) : valid_(other.valid_) {
         if (valid_) { ::new (&data_) value_type(std::move(other.val())); }
     }
 
@@ -44,14 +44,15 @@ class optional {
     }
 
     template<typename... Args>
-    explicit optional(in_place_t, Args&&... args) : valid_(true) {
+    explicit optional(in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible<Ty, Args...>::value)
+        : valid_(true) {
         ::new (&data_) value_type(std::forward<Args>(args)...);
     }
 
     template<typename U, typename = std::enable_if_t<
                              std::is_constructible<Ty, U&&>::value && !std::is_same<std::decay_t<U>, in_place_t>::value &&
                              !decltype(test_for_optional(std::declval<const std::decay_t<U>&>()))::value>>
-    optional(U&& v) : valid_(true) {
+    optional(U&& v) noexcept(std::is_nothrow_constructible<Ty, U>::value) : valid_(true) {
         ::new (&data_) value_type(std::forward<U>(v));
     }
 
@@ -61,12 +62,11 @@ class optional {
     }
 
     template<typename U>
-    optional(optional<U>&& other) : valid_(other.valid_) {
+    optional(optional<U>&& other) noexcept(std::is_nothrow_constructible<Ty, U&&>::value) : valid_(other.valid_) {
         if (valid_) { ::new (&data_) value_type(std::move(other.val())); }
     }
 
     optional& operator=(const optional&) = delete;
-    optional& operator=(optional&&) = delete;
 
     bool has_value() const noexcept { return valid_; }
     explicit operator bool() const noexcept { return valid_; }
@@ -77,13 +77,13 @@ class optional {
     }
 
     const value_type& value() const {
-        if (valid_) { return val(); }
-        throw bad_optional_access();
+        if (!valid_) { throw bad_optional_access(); }
+        return val();
     }
 
     value_type& value() {
-        if (valid_) { return val(); }
-        throw bad_optional_access();
+        if (!valid_) { throw bad_optional_access(); }
+        return val();
     }
 
     template<typename U>
@@ -108,8 +108,8 @@ class optional {
     bool valid_ = false;
     alignas(std::alignment_of<value_type>::value) std::uint8_t data_[sizeof(value_type)];
 
-    const value_type& val() const { return *reinterpret_cast<const value_type*>(&data_); }
-    value_type& val() { return *reinterpret_cast<value_type*>(&data_); }
+    const value_type& val() const noexcept { return *reinterpret_cast<const value_type*>(&data_); }
+    value_type& val() noexcept { return *reinterpret_cast<value_type*>(&data_); }
 };
 
 template<typename Ty>
