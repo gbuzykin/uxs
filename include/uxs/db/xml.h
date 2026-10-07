@@ -2,6 +2,7 @@
 
 #include "value.h"
 
+#include "uxs/dynarray.h"
 #include "uxs/io/iomembuffer.h"
 
 namespace uxs {
@@ -107,7 +108,7 @@ class parser {
     using string_view_type = std::basic_string_view<char_type>;
     using iterator = parser_iterator<InCharT>;
 
-    explicit parser(basic_ibuf<InCharT>& input) : lexer_(input), str_cache_(array_tag, 16) {}
+    explicit parser(basic_ibuf<InCharT>& input) : lexer_(input) {}
     parser(const parser&) = delete;
     parser& operator=(const parser&) = delete;
 
@@ -138,10 +139,11 @@ class parser {
  private:
     detail::lexer<InCharT> lexer_;
     bool is_end_element_pending_ = false;
-    basic_value<char_type> str_cache_;
     token_t token_type_ = token_t::none;
     string_view_type lexeme_;
+    std::basic_string<char_type> element_name_;
     basic_value<char_type> attrs_;
+    inline_dynarray<typename basic_value<char_type>::node_handle> attr_cache_;
 
     UXS_EXPORT std::pair<token_t, string_view_type> next_impl();
 };
