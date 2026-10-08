@@ -298,10 +298,13 @@ auto parser<InCharT>::next_impl() -> std::pair<token_t, string_view_type> {
         const InCharT* curr0 = lexer_.in.curr();
 
         if (*curr0 == '<') {
-            for (auto it = attrs_.cbegin(); it != attrs_.cend();) {
-                auto result = attrs_.extract(it);
-                attr_cache_.emplace_back(std::move(result.first));
-                it = result.second;
+            if (attrs_.is_object()) {
+                const auto attrs = attrs_.as_const_object();
+                for (auto it = attrs.begin(); it != attrs.end();) {
+                    auto result = attrs_.extract(it);
+                    attr_cache_.emplace_back(std::move(result.first));
+                    it = result.second;
+                }
             }
 
             const auto add_attribute = [this](string_view_type lval) {

@@ -1156,7 +1156,36 @@ class value_iterator
         return *this;
     }
 #endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
+
     explicit value_iterator(list_links_t* node) noexcept : ptr_(node) {}
+    value_iterator(const est::list_iterator<typename object_t<CharT, Alloc>::iterator_traits, Const>& other) noexcept
+        : ptr_(other.node()) {}
+    value_iterator& operator=(
+        const est::list_iterator<typename object_t<CharT, Alloc>::iterator_traits, Const>& other) noexcept {
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
+        ptr_ = other.node(), begin_ = nullptr, end_ = nullptr;
+#else   // UXS_ITERATOR_DEBUG_LEVEL != 0
+        ptr_ = other.node(), begin_ = nullptr;
+#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
+        return *this;
+    }
+
+    template<bool Const_ = Const>
+    value_iterator(
+        const std::enable_if_t<Const_, est::list_iterator<typename object_t<CharT, Alloc>::iterator_traits, false>>&
+            other) noexcept
+        : ptr_(other.node()) {}
+    template<bool Const_ = Const>
+    value_iterator& operator=(
+        const std::enable_if_t<Const_, est::list_iterator<typename object_t<CharT, Alloc>::iterator_traits, false>>&
+            other) noexcept {
+#if UXS_ITERATOR_DEBUG_LEVEL != 0
+        ptr_ = other.node(), begin_ = nullptr, end_ = nullptr;
+#else   // UXS_ITERATOR_DEBUG_LEVEL != 0
+        ptr_ = other.node(), begin_ = nullptr;
+#endif  // UXS_ITERATOR_DEBUG_LEVEL != 0
+        return *this;
+    }
 
     void increment() noexcept {
         assert(ptr_);
@@ -1646,9 +1675,9 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     template<typename Ty, typename U>
     Ty value_or(key_type key, U&& default_value) const {
-        const auto it = find(key);
-        if (it != end()) {
-            auto result = (*it).value().template get<Ty>();
+        const auto it = find_optional(key);
+        if (it) {
+            auto result = (**it).value().template get<Ty>();
             if (result) { return detail::get_optional_value(std::move(result)); }
         }
         return Ty(std::forward<U>(default_value));
@@ -1675,8 +1704,8 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     value_type value(key_type key) const {
-        const auto it = find(key);
-        return it != end() ? (*it).value() : value_type();
+        const auto it = find_optional(key);
+        return it ? (**it).value() : value_type();
     }
 
     bool is_null() const noexcept { return type_ == dtype::null; }
@@ -1735,6 +1764,12 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         }
     }
 
+    const_iterator begin() const noexcept {
+        if (type_ == dtype::object) { return const_iterator(value_.obj.cbegin()); }
+        const auto range = as_array();
+        return const_iterator(const_cast<value_type*>(range.data()), range.data(), range.data() + range.size());
+    }
+
     iterator begin() {
         if (type_ == dtype::object) {
             value_.obj.ensure_unique(*this);
@@ -1744,13 +1779,14 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         return iterator(range.data(), range.data(), range.data() + range.size());
     }
 
-    const_iterator begin() const noexcept {
-        if (type_ == dtype::object) { return const_iterator(value_.obj.cbegin()); }
-        const auto range = as_array();
-        return const_iterator(const_cast<value_type*>(range.data()), range.data(), range.data() + range.size());
-    }
-
     const_iterator cbegin() const noexcept { return begin(); }
+
+    const_iterator end() const noexcept {
+        if (type_ == dtype::object) { return const_iterator(value_.obj.cend()); }
+        const auto range = as_array();
+        return const_iterator(const_cast<value_type*>(range.data()) + range.size(), range.data(),
+                              range.data() + range.size());
+    }
 
     iterator end() {
         if (type_ == dtype::object) {
@@ -1760,22 +1796,14 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         const auto range = as_array();
         return iterator(range.data() + range.size(), range.data(), range.data() + range.size());
     }
-
-    const_iterator end() const noexcept {
-        if (type_ == dtype::object) { return const_iterator(value_.obj.cend()); }
-        const auto range = as_array();
-        return const_iterator(const_cast<value_type*>(range.data()) + range.size(), range.data(),
-                              range.data() + range.size());
-    }
-
     const_iterator cend() const noexcept { return end(); }
 
-    reverse_iterator rbegin() { return reverse_iterator(end()); }
     const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
+    reverse_iterator rbegin() { return reverse_iterator(end()); }
     const_reverse_iterator crbegin() const noexcept { return rbegin(); }
 
-    reverse_iterator rend() { return reverse_iterator(begin()); }
     const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
+    reverse_iterator rend() { return reverse_iterator(begin()); }
     const_reverse_iterator crend() const noexcept { return rend(); }
 
     const_array_range as_array() const noexcept {
@@ -1788,6 +1816,11 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         return value_.arr.view(*this);
     }
 
+    const_array_range as_const_array() const noexcept { return as_array(); }
+
+    const value_type& operator[](size_type i) const { return as_array()[i]; }
+    value_type& operator[](size_type i) { return as_array()[i]; }
+
     const_object_range as_object() const {
         if (type_ != dtype::object) { report_not_an_object_error(); }
         return const_object_range(value_.obj);
@@ -1799,8 +1832,39 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         return object_range(value_.obj);
     }
 
-    const value_type& operator[](size_type i) const { return as_array()[i]; }
-    value_type& operator[](size_type i) { return as_array()[i]; }
+    const_object_range as_const_object() const { return as_object(); }
+
+    est::optional<const_object_iterator> find_optional(key_type key) const noexcept {
+        if (type_ != dtype::object) { return est::nullopt; }
+        auto* node = value_.obj.cfind(key);
+        if (node == value_.obj.cend()) { return est::nullopt; }
+        return const_object_iterator(node);
+    }
+
+    est::optional<object_iterator> find_optional(key_type key) {
+        if (type_ != dtype::object) { return est::nullopt; }
+        value_.obj.ensure_unique(*this);
+        auto* node = value_.obj.cfind(key);
+        if (node == value_.obj.cend()) { return est::nullopt; }
+        return object_iterator(node);
+    }
+
+    est::optional<const_object_iterator> cfind_optional(key_type key) const noexcept { return find_optional(key); }
+
+    const_iterator find(key_type key) const noexcept {
+        const auto it = find_optional(key);
+        return it ? *it : end();
+    }
+
+    iterator find(key_type key) {
+        const auto it = find_optional(key);
+        return it ? *it : end();
+    }
+
+    const_iterator cfind(key_type key) const noexcept { return find(key); }
+
+    bool contains(key_type key) const noexcept { return !!find_optional(key); }
+    size_type count(key_type key) const noexcept { return type_ == dtype::object ? value_.obj.count(key) : 0; }
 
     const value_type& at(size_type i) const {
         const auto range = as_array();
@@ -1815,15 +1879,15 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     const value_type& at(key_type key) const {
-        const auto it = find(key);
-        if (it == end()) { report_invalid_key_error(); }
-        return (*it).value();
+        const auto it = find_optional(key);
+        if (!it) { report_invalid_key_error(); }
+        return (**it).value();
     }
 
     value_type& at(key_type key) {
-        const auto it = find(key);
-        if (it == std::as_const(*this).end()) { report_invalid_key_error(); }
-        return (*it).value();
+        const auto it = find_optional(key);
+        if (!it) { report_invalid_key_error(); }
+        return (**it).value();
     }
 
     value_type& operator[](key_type key) {
@@ -1847,19 +1911,6 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         }
     }
 
-    const_iterator find(key_type key) const noexcept {
-        return type_ == dtype::object ? const_iterator(value_.obj.cfind(key)) : end();
-    }
-
-    iterator find(key_type key) {
-        if (type_ != dtype::object) { return end(); }
-        value_.obj.ensure_unique(*this);
-        return iterator(value_.obj.cfind(key));
-    }
-
-    bool contains(key_type key) const noexcept { return find(key) != end(); }
-    size_type count(key_type key) const noexcept { return type_ == dtype::object ? value_.obj.count(key) : 0; }
-
     // --------------------------
 
     value_type& push_back(value_type v) {
@@ -1878,40 +1929,40 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         return iterator(&item, value_.arr.cbegin(), value_.arr.cend());
     }
 
-    iterator append_new(key_type key, value_type v) {
+    object_iterator append_new(key_type key, value_type v) {
         if (type_ != dtype::object) { init_as_object(); }
-        return iterator(value_.obj.append_new(*this, key, std::move(v)));
+        return object_iterator(value_.obj.append_new(*this, key, std::move(v)));
     }
 
-    iterator append_new(node_handle&& h) {
+    object_iterator append_new(node_handle&& h) {
         if (type_ != dtype::object) { init_as_object(); }
-        return iterator(value_.obj.append_new(*this, std::move(h)));
+        return object_iterator(value_.obj.append_new(*this, std::move(h)));
     }
 
-    detail::append_return_type<iterator, value_type> append_unique(key_type key, value_type v) {
+    detail::append_return_type<object_iterator, value_type> append_unique(key_type key, value_type v) {
         if (type_ != dtype::object) { init_as_object(); }
         auto result = value_.obj.append_unique(*this, key, std::move(v));
-        return {iterator(result.position), result.appended, std::move(result.value)};
+        return {object_iterator(result.position), result.appended, std::move(result.value)};
     }
 
-    detail::append_return_type<iterator, node_handle> append_unique(node_handle&& h) {
+    detail::append_return_type<object_iterator, node_handle> append_unique(node_handle&& h) {
         if (type_ != dtype::object) { init_as_object(); }
         auto result = value_.obj.append_unique(*this, std::move(h));
-        return {iterator(result.position), result.appended, std::move(result.value)};
+        return {object_iterator(result.position), result.appended, std::move(result.value)};
     }
 
     template<typename... Args>
-    std::pair<iterator, bool> try_append_unique(key_type key, Args&&... args) {
+    std::pair<object_iterator, bool> try_append_unique(key_type key, Args&&... args) {
         if (type_ != dtype::object) { init_as_object(); }
         const auto result = value_.obj.try_append_unique(*this, key, std::forward<Args>(args)...);
-        return {iterator(result.first), result.second};
+        return {object_iterator(result.first), result.second};
     }
 
     // --------------------------
 
     void erase(size_type pos);
     iterator erase(const_iterator it);
-    std::pair<node_handle, iterator> extract(const_iterator it);
+    std::pair<node_handle, object_iterator> extract(const_iterator it);
     size_type erase(key_type key);
 
     // --------------------------
@@ -2149,18 +2200,18 @@ auto basic_value<CharT, Alloc>::erase(const_iterator it) -> iterator {
     }
     if (type_ != dtype::array) { report_not_an_array_error(); }
     uxs_iterator_assert(it.begin_ == value_.arr.cbegin() && it.end_ == value_.arr.cend());
-    const std::size_t pos = static_cast<value_type*>(it.ptr_) - static_cast<const value_type*>(it.begin_);
+    const size_type pos = static_cast<value_type*>(it.ptr_) - static_cast<const value_type*>(it.begin_);
     value_type* next = value_.arr.erase(*this, pos);
     return iterator(next, value_.arr.cbegin(), value_.arr.cend());
 }
 
 template<typename CharT, typename Alloc>
-auto basic_value<CharT, Alloc>::extract(const_iterator it) -> std::pair<node_handle, iterator> {
+auto basic_value<CharT, Alloc>::extract(const_iterator it) -> std::pair<node_handle, object_iterator> {
     if (!it.is_object() || type_ != dtype::object) { report_not_an_object_error(); }
     detail::list_links_t* node = static_cast<detail::list_links_t*>(it.ptr_);
     uxs_iterator_assert(object_t::node_traits::get_head(node) == value_.obj.cend());
     auto result = value_.obj.extract(*this, node);
-    return {std::move(result.first), iterator(result.second)};
+    return {std::move(result.first), object_iterator(result.second)};
 }
 
 template<typename CharT, typename Alloc>
