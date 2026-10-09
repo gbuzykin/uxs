@@ -48,7 +48,7 @@ void deserialize_db_value(bibuf& is, db::basic_value<CharT, Alloc>& v) {
         if constexpr (std::is_same_v<decltype(type), db::string_tag_t>) {
             std::uint64_t sz = 0;
             if (!(is >> sz)) { return; }
-            x.append_string(static_cast<std::size_t>(sz), [&is](est::span<CharT> s) {
+            x.append(db::string_tag, static_cast<std::size_t>(sz), [&is](est::span<CharT> s) {
                 return is.read_with_endian(
                     est::as_span(reinterpret_cast<std::uint8_t*>(s.data()), s.size() * sizeof(CharT)), sizeof(CharT));
             });

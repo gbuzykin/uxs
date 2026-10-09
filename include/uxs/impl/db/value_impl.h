@@ -454,7 +454,7 @@ void basic_value<CharT, Alloc>::assign(std::initializer_list<value_type> init) {
     } else {
         object_t new_obj;
         new_obj.construct_from_common_initializer(*this, init);
-        destroy();
+        if (type_ != dtype::null) { destroy(); }
         type_ = dtype::object;
         value_.obj = new_obj;
     }
@@ -467,7 +467,7 @@ void basic_value<CharT, Alloc>::assign(array_tag_t, std::initializer_list<value_
     } else {
         value_array_t new_arr;
         new_arr.construct_from_initializer(*this, init);
-        destroy();
+        if (type_ != dtype::null) { destroy(); }
         type_ = dtype::array;
         value_.arr = new_arr;
     }

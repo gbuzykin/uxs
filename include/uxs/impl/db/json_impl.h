@@ -246,62 +246,76 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
     using value_type = basic_value<CharT, Alloc>;
     using string_view_type = std::basic_string_view<InCharT>;
 
-    static const auto token_to_value = [](token_t tt, string_view_type sval, const Alloc& al) -> value_type {
+    static const auto token_to_value = [](token_t tt, string_view_type sval, value_type& val) {
         switch (tt) {
-            case token_t::null_value: return {nullptr, al};
-            case token_t::true_value: return {true, al};
-            case token_t::false_value: return {false, al};
+            case token_t::null_value: val = nullptr; break;
+            case token_t::true_value: val = true; break;
+            case token_t::false_value: val = false; break;
             case token_t::integer_number: {
                 if (sval.size() <= 9) {
-                    const std::uint32_t val = detail::parse_uint32(sval.data(), sval.data() + sval.size());
-                    return {static_cast<std::int32_t>(val), al};
+                    val = detail::parse_uint32(sval.data(), sval.data() + sval.size());
+                    break;
                 }
                 const auto result = detail::parse_uint64(sval.data(), sval.data() + sval.size());
                 if (result.second) {
                     if (result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max())) {
-                        return {static_cast<std::int32_t>(result.first), al};
+                        val = static_cast<std::int32_t>(result.first);
+                    } else if (result.first <= std::numeric_limits<std::uint32_t>::max()) {
+                        val = static_cast<std::uint32_t>(result.first);
+                    } else if (result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+                        val = static_cast<std::int64_t>(result.first);
+                    } else {
+                        val = result.first;
                     }
-                    if (result.first <= std::numeric_limits<std::uint32_t>::max()) {
-                        return {static_cast<std::uint32_t>(result.first), al};
-                    }
-                    if (result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
-                        return {static_cast<std::int64_t>(result.first), al};
-                    }
-                    return {result.first, al};
+                    break;
                 }
                 // too big integer - treat as double
-                return {from_string<double>(sval), al};
+                val = from_string<double>(sval);
             } break;
             case token_t::negative_integer_number: {
                 if (sval.size() <= 10) {
-                    const std::uint32_t val = detail::parse_uint32(sval.data() + 1, sval.data() + sval.size());
-                    return {static_cast<std::int32_t>(~val + 1), al};
+                    val = ~detail::parse_uint32(sval.data() + 1, sval.data() + sval.size()) + 1;
+                    break;
                 }
                 const auto result = detail::parse_uint64(sval.data() + 1, sval.data() + sval.size());
                 if (result.second) {
                     if (result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max()) + 1) {
-                        return {static_cast<std::int32_t>(~result.first + 1), al};
+                        val = static_cast<std::int32_t>(~result.first + 1);
+                        break;
                     }
                     if (result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) + 1) {
-                        return {static_cast<std::int64_t>(~result.first + 1), al};
+                        val = static_cast<std::int64_t>(~result.first + 1);
+                        break;
                     }
                 }
                 // too big integer - treat as double
-                return {from_string<double>(sval), al};
+                val = from_string<double>(sval);
             } break;
-            case token_t::floating_point_number: return {from_string<double>(sval), al};
+            case token_t::floating_point_number: val = from_string<double>(sval); break;
             case token_t::string: {
-                return {string_tag, utf_string_adapter<CharT>{}.count(sval.begin(), sval.end()),
-                        [sval](est::span<CharT> s) {
-                            utf_string_adapter<CharT>{}.transform(sval.begin(), sval.end(), s.data());
-                            return s.size();
-                        }};
+                val.append(string_tag, utf_string_adapter<CharT>{}.count(sval.begin(), sval.end()),
+                           [sval](est::span<CharT> s) {
+                               utf_string_adapter<CharT>{}.transform(sval.begin(), sval.end(), s.data());
+                               return s.size();
+                           });
             } break;
             default: UXS_UNREACHABLE_CODE;
         }
     };
 
-    inline_dynarray<value_type*, 64> stack;
+    struct stack_item_t {
+        token_t type;
+        value_type* parent;
+        std::size_t count;
+    };
+
+    inline_dynarray<stack_item_t, 64> stack;
+
+    dynarray<value_type> val_stack;
+    dynarray<typename value_type::node_handle> node_stack;
+
+    val_stack.reserve(128);
+    node_stack.reserve(128);
 
     value_type val(al);
     auto* item = &val;
@@ -310,26 +324,39 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
         in,
         [&stack, &item](token_t tt, string_view_type sval) {
             if (tt >= token_t::null_value) {
-                *item = token_to_value(tt, sval, item->get_allocator());
+                token_to_value(tt, sval, *item);
             } else {
-                *item = tt == token_t::array ? value_type(array_tag, item->get_allocator()) :
-                                               value_type(object_tag, item->get_allocator());
-                stack.push_back(item);
+                stack.emplace_back(stack_item_t{tt, item, 0});
             }
             return parse_step::into;
         },
-        [&stack, &item]() { item = &stack.back()->push_back(value_type(item->get_allocator())); },
-        [&stack, &item](string_view_type key) {
-            auto node = stack.back()->make_node(
+        [&stack, &val_stack, &al, &item]() {
+            item = &val_stack.emplace_back(al);
+            ++stack.back().count;
+        },
+        [&stack, &node_stack, &al, &item](string_view_type key) {
+            auto node = stack.back().parent->make_node(
                 utf_string_adapter<CharT>{}.count(key.begin(), key.end()),
                 [key](est::span<CharT> s) {
                     utf_string_adapter<CharT>{}.transform(key.begin(), key.end(), s.data());
                     return s.size();
                 },
-                value_type(item->get_allocator()));
-            item = &(*stack.back()->append_new(std::move(node))).value();
+                value_type(al));
+            item = &node_stack.emplace_back(std::move(node))->value();
+            ++stack.back().count;
         },
-        [&stack] { stack.pop_back(); });
+        [&stack, &val_stack, &node_stack] {
+            if (stack.back().type == token_t::array) {
+                stack.back().parent->append(array_tag, std::make_move_iterator(val_stack.end() - stack.back().count),
+                                            std::make_move_iterator(val_stack.end()));
+                val_stack.resize(val_stack.size() - stack.back().count);
+            } else {
+                stack.back().parent->append(object_tag, std::make_move_iterator(node_stack.end() - stack.back().count),
+                                            std::make_move_iterator(node_stack.end()));
+                node_stack.resize(node_stack.size() - stack.back().count);
+            }
+            stack.pop_back();
+        });
 
     return val;
 }

@@ -1452,7 +1452,9 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         }
     }
 
-    ~basic_value() { destroy(); }
+    ~basic_value() {
+        if (type_ != dtype::null) { destroy(); }
+    }
 
     basic_value(const basic_value& other) noexcept : alloc_type(other), type_(other.type_) { init_from(other); }
     basic_value(const basic_value& other, const Alloc& al) noexcept : alloc_type(al), type_(other.type_) {
@@ -1460,7 +1462,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
     basic_value& operator=(const basic_value& other) noexcept {
         if (&other == this) { return *this; }
-        destroy();
+        if (type_ != dtype::null) { destroy(); }
         alloc_type::operator=(other);
         type_ = other.type_;
         init_from(other);
@@ -1476,7 +1478,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
     basic_value& operator=(basic_value&& other) noexcept {
         if (&other == this) { return *this; }
-        destroy();
+        if (type_ != dtype::null) { destroy(); }
         alloc_type::operator=(std::move(other));
         type_ = other.type_;
         value_ = other.value_;
@@ -1493,7 +1495,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     basic_value& operator=(std::nullptr_t) noexcept {
-        destroy();
+        if (type_ != dtype::null) { destroy(); }
         type_ = dtype::null;
         value_.null = nullptr;
         return *this;
@@ -1507,7 +1509,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         value_.field = static_cast<decltype(value_.field)>(v); \
     } \
     basic_value& operator=(ty v) noexcept { \
-        destroy(); \
+        if (type_ != dtype::null) { destroy(); } \
         type_ = id; \
         value_.field = static_cast<decltype(value_.field)>(v); \
         return *this; \
@@ -1541,10 +1543,10 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     template<typename StrLikeTy,
              typename = std::enable_if_t<std::is_convertible<const StrLikeTy&, std::basic_string_view<char_type>>::value>>
-    basic_value& append_string(const StrLikeTy& s);
+    basic_value& append(string_tag_t, const StrLikeTy& s);
 
     template<typename FillFn>
-    basic_value& append_string(size_type max_length, FillFn&& fn);
+    basic_value& append(string_tag_t, size_type max_length, FillFn&& fn);
 
     basic_value& operator=(std::initializer_list<value_type> init) {
         assign(init);
@@ -2069,7 +2071,7 @@ auto basic_value<CharT, Alloc>::operator=(const StrLikeTy& s) -> basic_value& {
     } else {
         char_array_t new_str;
         new_str.construct_from_view(*this, to_string_view(s), 0);
-        destroy();
+        if (type_ != dtype::null) { destroy(); }
         type_ = dtype::string;
         value_.str = new_str;
     }
@@ -2085,7 +2087,7 @@ void basic_value<CharT, Alloc>::assign(string_tag_t, size_type max_length, FillF
     } else {
         char_array_t new_str;
         new_str.construct_fill(*this, max_length, std::forward<FillFn>(fn));
-        destroy();
+        if (type_ != dtype::null) { destroy(); }
         type_ = dtype::string;
         value_.str = new_str;
     }
@@ -2093,7 +2095,7 @@ void basic_value<CharT, Alloc>::assign(string_tag_t, size_type max_length, FillF
 
 template<typename CharT, typename Alloc>
 template<typename StrLikeTy, typename>
-auto basic_value<CharT, Alloc>::append_string(const StrLikeTy& s) -> basic_value& {
+auto basic_value<CharT, Alloc>::append(string_tag_t, const StrLikeTy& s) -> basic_value& {
     if (type_ == dtype::string) {
         value_.str.append_view(*this, to_string_view(s));
     } else {
@@ -2106,7 +2108,7 @@ auto basic_value<CharT, Alloc>::append_string(const StrLikeTy& s) -> basic_value
 
 template<typename CharT, typename Alloc>
 template<typename FillFn>
-auto basic_value<CharT, Alloc>::append_string(size_type max_length, FillFn&& fn) -> basic_value& {
+auto basic_value<CharT, Alloc>::append(string_tag_t, size_type max_length, FillFn&& fn) -> basic_value& {
     if (type_ == dtype::string) {
         value_.str.append_fill(*this, max_length, std::forward<FillFn>(fn));
     } else {
@@ -2125,7 +2127,7 @@ void basic_value<CharT, Alloc>::assign(array_tag_t, InputIt first, InputIt last)
     } else {
         value_array_t new_arr;
         new_arr.construct_from_range(*this, first, last);
-        destroy();
+        if (type_ != dtype::null) { destroy(); }
         type_ = dtype::array;
         value_.arr = new_arr;
     }
@@ -2139,7 +2141,7 @@ void basic_value<CharT, Alloc>::assign(object_tag_t, InputIt first, InputIt last
     } else {
         object_t new_obj;
         new_obj.construct_from_range(*this, first, last);
-        destroy();
+        if (type_ != dtype::null) { destroy(); }
         type_ = dtype::object;
         value_.obj = new_obj;
     }
