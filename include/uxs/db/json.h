@@ -108,10 +108,11 @@ loop:
         }
     }
 
-    while (!stack.empty()) {
+    while (true) {
+        pop_fn();
+        if (stack.empty()) { return; }
         current = token_t(stack.back());
         stack.pop_back();
-        pop_fn();
         const auto close_tt = current == token_t('[') ? token_t(']') : token_t('}');
         if ((tt = lexer.lex(lval)) != close_tt) {
             if (tt != token_t(',')) { detail::report_error(lexer.ln, "expected `,`, `]`, or `}`"); }
