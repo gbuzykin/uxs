@@ -34,9 +34,6 @@ Additional functionality:
 - dynamic *variant* object implementation `uxs::variant`, which can hold data of various types known at runtime and
   implicitly convert one to another (not a template with predefined set of types); it easily integrates with mentioned
   string parsers and formatters for to- and from- string conversion
-- insert, erase and find algorithm implementations for *bidirectional lists* and *red-black trees* (as functions to make
-  it possible to implement either universal containers or intrusive data structures)
-- intrusive bidirectional list implementation
 - Python-like *zip iterator* `uxs::zip_iterator<>` implementation
 - *COW* pointer `uxs::cow_ptr<>` implementation
 - *CRC32* calculator
@@ -45,7 +42,6 @@ Additional functionality:
 Byproduct features:
 
 - *iterator* helper classes and functions
-- *algorithm* and *functional* extensions
 - *C++20*-like `est::span<>` template type for *С++11*
 - *C++17*-like `est::optional<>` template type for *С++11*
 - standard `std::basic_string_view<>` implementation for *C++11*
