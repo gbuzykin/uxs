@@ -1,6 +1,7 @@
 #pragma once
 
-#include "format_base.h"
+#include "chars.h"
+#include "format_common.h"
 #include "string_conv.h"
 
 #if __cplusplus < 202002L || !UXS_HAS_INCLUDE(<chrono>)
@@ -869,7 +870,7 @@ struct chrono_formatter {
         }
         if (specs.opts.width == 0) { return format_impl(ctx, val, specs); }
         basic_inline_dynbuffer<CharT> buf;
-        basic_format_context<CharT> buf_ctx(buf, ctx);
+        auto buf_ctx = ctx.rebind(buf);
         format_impl(buf_ctx, val, specs);
         const unsigned len = static_cast<unsigned>(buf.size());
         const auto fn = [&buf](typename FmtCtx::output_type& out) { out.append(buf.data(), buf.size()); };

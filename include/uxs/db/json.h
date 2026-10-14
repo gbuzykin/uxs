@@ -2,9 +2,9 @@
 
 #include "value.h"
 
+#include "uxs/format_common.h"
 #include "uxs/io/iflatbuf.h"
 #include "uxs/io/iomembuffer.h"
-#include "uxs/string_conv_base.h"
 
 namespace uxs {
 namespace db {

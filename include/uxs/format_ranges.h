@@ -1,6 +1,6 @@
 #pragma once
 
-#include "format_base.h"
+#include "format_common.h"
 
 #include <tuple>
 
@@ -171,7 +171,7 @@ struct formatter<Ty, CharT, std::void_t<typename detail::tuple_formatter<Ty, Cha
         }
         if (opts.width == 0) { return format_impl(ctx, val); }
         basic_inline_dynbuffer<CharT> buf;
-        basic_format_context<CharT> buf_ctx(buf, ctx);
+        auto buf_ctx = ctx.rebind(buf);
         format_impl(buf_ctx, val);
         const std::size_t width = eval_string_printable_width<CharT>(buf.begin(), buf.end());
         const auto fn = [&buf](typename FmtCtx::output_type& out) { out.append(buf.data(), buf.size()); };
@@ -308,7 +308,7 @@ struct range_formatter {
         if (format_as_string_) { return format_as_string(ctx.out(), val, opts, est::is_character<Ty>()); }
         if (opts.width == 0) { return format_impl(ctx, val); }
         basic_inline_dynbuffer<CharT> buf;
-        basic_format_context<CharT> buf_ctx(buf, ctx);
+        auto buf_ctx = ctx.rebind(buf);
         format_impl(buf_ctx, val);
         const std::size_t width = eval_string_printable_width<CharT>(buf.begin(), buf.end());
         const auto fn = [&buf](typename FmtCtx::output_type& out) { out.append(buf.data(), buf.size()); };

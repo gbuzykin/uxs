@@ -275,14 +275,6 @@ chars_to_n_result<CharT> to_chars_n(CharT* p, std::size_t n, const std::locale& 
 
 // --------------------------
 
-enum class range_format { disabled = 0, sequence, set, map, string };
-
-template<typename Ty, typename CharT = char, typename = void>
-struct formatter;
-
-template<typename Range, typename CharT = char>
-struct format_kind;
-
 template<typename StrTy, typename PrintFn>
 void append_adjusted(StrTy& out, PrintFn&& fn, unsigned len, fmt_opts fmt, bool prefer_right = false) {
     unsigned left = fmt.width - len;
@@ -299,6 +291,35 @@ void append_adjusted(StrTy& out, PrintFn&& fn, unsigned len, fmt_opts fmt, bool 
     out.append(left, fmt.fill);
     fn(out);
     out.append(right, fmt.fill);
+}
+
+template<typename StrTy, typename Range>
+void append_formatted_string(StrTy& out, const Range& s, fmt_opts fmt) {
+    using char_type = typename StrTy::value_type;
+    const std::size_t max_width = fmt.prec >= 0 ? fmt.prec : std::numeric_limits<std::size_t>::max();
+    if (!(fmt.flags & fmt_flags::debug_format)) {
+        std::size_t width = 0;
+        auto first = std::begin(s);
+        auto last = std::end(s);
+        if (fmt.prec >= 0 || fmt.width > 0) {
+            auto limit = first;
+            while (limit != last) {
+                std::uint32_t code = 0;
+                const auto next = utf_codec<est::range_element_t<Range>>{}.decode(limit, last, code).iter;
+                const unsigned w = get_utf_printable_width(code);
+                if (max_width - width < w) { break; }
+                width += w, limit = next;
+            }
+            last = limit;
+        }
+        const auto fn = [first, last](StrTy& out) { utf_string_adapter<char_type>{}.append(out, first, last); };
+        return fmt.width > width ? append_adjusted(out, fn, static_cast<unsigned>(width), fmt) : fn(out);
+    }
+    if (fmt.width == 0) { return (void)append_escaped_string(out, std::begin(s), std::end(s), '\"', max_width); }
+    basic_inline_dynbuffer<char_type> buf;
+    const std::size_t width = append_escaped_string(buf, std::begin(s), std::end(s), '\"', max_width);
+    const auto fn = [&buf](StrTy& out) { out.append(buf.data(), buf.size()); };
+    return fmt.width > width ? append_adjusted(out, fn, static_cast<unsigned>(width), fmt) : fn(out);
 }
 
 }  // namespace uxs

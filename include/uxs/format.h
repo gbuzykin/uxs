@@ -1,5 +1,6 @@
 #pragma once
 
+#include "format_engine.h"  // NOLINT
 #include "format_ranges.h"  // NOLINT
 #include "string_conv.h"
 

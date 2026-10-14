@@ -1,6 +1,6 @@
 #pragma once
 
-#include "string_conv.h"
+#include "format_common.h"
 
 #if __cplusplus < 201703L || !UXS_HAS_INCLUDE(<filesystem>)
 #    error Header file `format_fs.h` requires C++17 and <filesystem> header
