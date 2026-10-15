@@ -1,5 +1,6 @@
 #pragma once
 
+#include "format_engine.h"  // NOLINT
 #include "format_ranges.h"  // NOLINT
 #include "string_conv.h"
 
@@ -31,6 +32,7 @@ struct formatter<bool, CharT> {
         }
         return type == ParseCtx::type_spec::none ? it : it + 1;
     }
+
     template<typename FmtCtx>
     void format(FmtCtx& ctx, bool val) const {
         fmt_opts opts = opts_;
@@ -49,6 +51,7 @@ struct formatter<char32_t, CharT> {
 
  public:
     UXS_CONSTEXPR void set_debug_format() { opts_.flags |= fmt_flags::debug_format; }
+
     template<typename ParseCtx>
     UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) {
         auto it = ctx.begin();
@@ -68,6 +71,7 @@ struct formatter<char32_t, CharT> {
         }
         return type == ParseCtx::type_spec::none ? it : it + 1;
     }
+
     template<typename FmtCtx>
     void format(FmtCtx& ctx, char32_t val) const {
         fmt_opts opts = opts_;
@@ -105,6 +109,7 @@ struct formatter<char32_t, CharT> {
             } \
             return type == ParseCtx::type_spec::none ? it : it + 1; \
         } \
+\
         template<typename FmtCtx> \
         void format(FmtCtx& ctx, ty val) const { \
             fmt_opts opts = opts_; \
@@ -140,6 +145,7 @@ UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::uint64_t);
             } \
             return type == ParseCtx::type_spec::none ? it : it + 1; \
         } \
+\
         template<typename FmtCtx> \
         void format(FmtCtx& ctx, ty val) const { \
             fmt_opts opts = opts_; \
@@ -180,6 +186,7 @@ struct formatter<const void*, CharT> {
         }
         return type == ParseCtx::type_spec::none ? it : it + 1;
     }
+
     template<typename FmtCtx>
     void format(FmtCtx& ctx, const void* val) const {
         fmt_opts opts = opts_;
@@ -200,6 +207,7 @@ struct formatter<std::basic_string_view<CharT>, CharT> {
 
  public:
     UXS_CONSTEXPR void set_debug_format() { opts_.flags |= fmt_flags::debug_format; }
+
     template<typename ParseCtx>
     UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) {
         auto it = ctx.begin();
@@ -217,6 +225,7 @@ struct formatter<std::basic_string_view<CharT>, CharT> {
         }
         return type == ParseCtx::type_spec::none ? it : it + 1;
     }
+
     template<typename FmtCtx>
     void format(FmtCtx& ctx, std::basic_string_view<CharT> val) const {
         fmt_opts opts = opts_;

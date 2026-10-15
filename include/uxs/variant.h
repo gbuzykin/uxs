@@ -2,8 +2,8 @@
 
 #include "cow_ptr.h"
 #include "optional.h"
-#include "serialize.h"         // NOLINT
-#include "string_conv_base.h"  // NOLINT
+#include "serialize.h"           // NOLINT
+#include "string_conv_common.h"  // NOLINT
 #include "type_traits.h"
 
 #define UXS_DECLARE_VARIANT_TYPE(ty, id) \

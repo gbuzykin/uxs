@@ -1,12 +1,11 @@
 #pragma once
 
 #include "uxs/memory.h"
-#include "uxs/string_view.h"
+#include "uxs/string_conv_common.h"
 
 #include <functional>
 #include <initializer_list>
 #include <map>
-#include <string>
 #include <vector>
 
 namespace uxs {

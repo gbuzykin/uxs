@@ -4,7 +4,7 @@
 
 #include "uxs/io/iflatbuf.h"
 #include "uxs/io/iomembuffer.h"
-#include "uxs/string_conv_base.h"
+#include "uxs/string_conv_common.h"
 
 namespace uxs {
 namespace db {

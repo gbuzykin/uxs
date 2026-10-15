@@ -1,7 +1,7 @@
 #include "uxs/io/sysfile.h"
 
 #include "uxs/membuffer.h"
-#include "uxs/string_util.h"
+#include "uxs/string_utf.h"
 
 #include <windows.h>
 

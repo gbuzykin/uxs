@@ -1,7 +1,7 @@
 #include "uxs/io/zipfile.h"
 
 #include "uxs/membuffer.h"
-#include "uxs/string_util.h"
+#include "uxs/string_utf.h"
 
 #if UXS_USE_LIBZIP != 0
 

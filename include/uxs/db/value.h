@@ -4,8 +4,8 @@
 
 #include "uxs/optional.h"
 #include "uxs/span.h"
-#include "uxs/string_util.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cstring>
 #include <functional>
