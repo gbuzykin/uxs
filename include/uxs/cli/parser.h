@@ -532,6 +532,11 @@ basic_value_wrapper<char> value(std::string name, Ty& v) {
     return basic_value_wrapper<char>(std::move(name), [&v](std::string_view arg) { return !!from_string_v(arg, v); });
 }
 
+template<typename Ty, typename ConvFn>
+basic_value_wrapper<char> value(std::string name, Ty& v, ConvFn&& fn) {
+    return basic_value_wrapper<char>(std::move(name), [&v, &fn](std::string_view arg) { return fn(arg, v); });
+}
+
 inline basic_value_wrapper<char> values(std::string name, std::vector<std::string>& vec) {
     return basic_value_wrapper<char>(std::move(name),
                                      [&vec](std::string_view arg) {
@@ -547,6 +552,18 @@ basic_value_wrapper<char> values(std::string name, std::vector<Ty>& vec) {
                                      [&vec](std::string_view arg) {
                                          Ty v;
                                          if (!from_string_v(arg, v)) { return false; }
+                                         vec.emplace_back(v);
+                                         return true;
+                                     })
+        .multiple();
+}
+
+template<typename Ty, typename ConvFn>
+basic_value_wrapper<char> values(std::string name, std::vector<Ty>& vec, ConvFn&& fn) {
+    return basic_value_wrapper<char>(std::move(name),
+                                     [&vec, &fn](std::string_view arg) {
+                                         Ty v;
+                                         if (!fn(arg, v)) { return false; }
                                          vec.emplace_back(v);
                                          return true;
                                      })
@@ -579,6 +596,11 @@ basic_value_wrapper<wchar_t> value(std::wstring name, Ty& v) {
                                         [&v](std::wstring_view arg) { return !!from_string_v(arg, v); });
 }
 
+template<typename Ty, typename ConvFn>
+basic_value_wrapper<wchar_t> value(std::wstring name, Ty& v, ConvFn&& fn) {
+    return basic_value_wrapper<wchar_t>(std::move(name), [&v, &fn](std::wstring_view arg) { return fn(arg, v); });
+}
+
 inline basic_value_wrapper<wchar_t> values(std::wstring name, std::vector<std::wstring>& vec) {
     return basic_value_wrapper<wchar_t>(std::move(name),
                                         [&vec](std::wstring_view arg) {
@@ -594,6 +616,18 @@ basic_value_wrapper<wchar_t> values(std::wstring name, std::vector<Ty>& vec) {
                                         [&vec](std::wstring_view arg) {
                                             Ty v;
                                             if (!from_string_v(arg, v)) { return false; }
+                                            vec.emplace_back(v);
+                                            return true;
+                                        })
+        .multiple();
+}
+
+template<typename Ty, typename ConvFn>
+basic_value_wrapper<wchar_t> values(std::wstring name, std::vector<Ty>& vec, ConvFn&& fn) {
+    return basic_value_wrapper<wchar_t>(std::move(name),
+                                        [&vec, &fn](std::wstring_view arg) {
+                                            Ty v;
+                                            if (!fn(arg, v)) { return false; }
                                             vec.emplace_back(v);
                                             return true;
                                         })
