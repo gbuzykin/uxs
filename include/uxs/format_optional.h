@@ -16,7 +16,10 @@ struct formatter<std::optional<Ty>, CharT, std::enable_if_t<is_formattable<Ty, C
     formatter_t<Ty, CharT> underlying_;
 
  public:
-    constexpr void set_debug_format() { underlying_.set_debug_format(); }
+    template<typename Formatter_ = formatter_t<Ty, CharT>>
+    constexpr std::void_t<decltype(std::declval<Formatter_&>().set_debug_format())> set_debug_format() {
+        underlying_.set_debug_format();
+    }
 
     template<typename ParseCtx>
     constexpr typename ParseCtx::iterator parse(ParseCtx& ctx) {

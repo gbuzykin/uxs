@@ -413,6 +413,16 @@ struct parse_context_utils {
         }
     }
 
+    template<typename Formatter, typename = std::void_t<decltype(std::declval<Formatter&>().set_debug_format())>>
+    static UXS_CONSTEXPR void set_debug_format(Formatter& f) {
+        f.set_debug_format();
+    }
+
+    template<typename Formatter, typename... Dummy>
+    static UXS_CONSTEXPR void set_debug_format(Formatter&, Dummy&&...) {
+        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
+    }
+
 #if defined(UXS_HAS_CONSTEVAL)
     template<typename ParseCtx, typename Ty>
     static constexpr typename ParseCtx::iterator parse_arg(ParseCtx& ctx) {

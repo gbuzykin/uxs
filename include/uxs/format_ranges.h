@@ -79,16 +79,6 @@ struct formatter<Ty, CharT, std::void_t<typename detail::tuple_formatter<Ty, Cha
     std::basic_string_view<CharT> opening_bracket_;
     std::basic_string_view<CharT> closing_bracket_;
 
-    template<typename Formatter, typename = std::void_t<decltype(std::declval<Formatter&>().set_debug_format())>>
-    static UXS_CONSTEXPR void call_set_debug_format(Formatter& f) {
-        f.set_debug_format();
-    }
-
-    template<typename Formatter, typename... Dummy>
-    static UXS_CONSTEXPR void call_set_debug_format(Formatter&, Dummy&&...) {
-        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
-    }
-
     template<typename Ty_ = Ty>
     UXS_CONSTEXPR void switch_to_map_style(std::true_type /* is pair-like */) noexcept {
         set_separator(string_literal<CharT, ':', ' '>{});
@@ -106,7 +96,7 @@ struct formatter<Ty, CharT, std::void_t<typename detail::tuple_formatter<Ty, Cha
 
     template<typename ParseCtx, std::size_t I>
     UXS_CONSTEXPR typename ParseCtx::iterator parse_element(ParseCtx& ctx, std::integral_constant<std::size_t, I>) {
-        if (ctx.begin() == ctx.end() || *ctx.begin() != ':') { call_set_debug_format(std::get<I>(underlying_)); }
+        if (ctx.begin() == ctx.end() || *ctx.begin() != ':') { ParseCtx::set_debug_format(std::get<I>(underlying_)); }
         ctx.advance_to(std::get<I>(underlying_).parse(ctx));
         return parse_element(ctx, std::integral_constant<std::size_t, I + 1>());
     }
@@ -193,16 +183,6 @@ struct range_formatter {
     std::basic_string_view<CharT> separator_;
     std::basic_string_view<CharT> opening_bracket_;
     std::basic_string_view<CharT> closing_bracket_;
-
-    template<typename Formatter, typename = std::void_t<decltype(std::declval<Formatter&>().set_debug_format())>>
-    static UXS_CONSTEXPR void call_set_debug_format(Formatter& f) {
-        f.set_debug_format();
-    }
-
-    template<typename Formatter, typename... Dummy>
-    static UXS_CONSTEXPR void call_set_debug_format(Formatter&, Dummy&&...) {
-        static_assert(sizeof...(Dummy) == 0, "invalid function argument count");
-    }
 
     template<typename Ty_ = Ty>
     UXS_CONSTEXPR void switch_to_map_style(std::true_type /* range of pair-like elements */) noexcept {
@@ -291,7 +271,7 @@ struct range_formatter {
             }
             ctx.advance_to(it);
         }
-        if (ctx.begin() == ctx.end() || *ctx.begin() != ':') { call_set_debug_format(underlying_); }
+        if (ctx.begin() == ctx.end() || *ctx.begin() != ':') { ParseCtx::set_debug_format(underlying_); }
         return underlying_.parse(ctx);
     }
 

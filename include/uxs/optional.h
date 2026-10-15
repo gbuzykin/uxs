@@ -131,7 +131,10 @@ struct formatter<est::optional<Ty>, CharT, std::enable_if_t<is_formattable<Ty, C
     formatter_t<Ty, CharT> underlying_;
 
  public:
-    UXS_CONSTEXPR void set_debug_format() { underlying_.set_debug_format(); }
+    template<typename Formatter_ = formatter_t<Ty, CharT>>
+    UXS_CONSTEXPR std::void_t<decltype(std::declval<Formatter_&>().set_debug_format())> set_debug_format() {
+        underlying_.set_debug_format();
+    }
 
     template<typename ParseCtx>
     UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) {
