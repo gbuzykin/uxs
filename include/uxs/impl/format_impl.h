@@ -22,7 +22,7 @@ void format_impl(FmtCtx ctx, typename FmtCtx::parse_context parse_ctx) {
     fmt::parse_format(
         parse_ctx, [&ctx](iterator first, iterator last) { ctx.out() += to_string_view(first, last); },
         [&ctx](typename FmtCtx::parse_context& parse_ctx, std::size_t id) {
-            return ctx.arg(id).visit(arg_visitor<FmtCtx>{ctx, parse_ctx});
+            return parse_ctx.arg(id).visit(arg_visitor<FmtCtx>{ctx, parse_ctx});
         });
 }
 

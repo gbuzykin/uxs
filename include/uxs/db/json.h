@@ -128,7 +128,7 @@ UXS_EXPORT basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc&
 template<typename CharT = char, typename Alloc = std::allocator<CharT>, typename StrLikeTy,
          typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
 basic_value<CharT, Alloc> parse(const StrLikeTy& s, const Alloc& al = Alloc()) {
-    basic_iflatbuf<typename string_char_traits_t<StrLikeTy>::char_type> in(to_string_view(s));
+    basic_iflatbuf<string_char_type<StrLikeTy>> in(to_string_view(s));
     return parse<CharT, Alloc>(in, al);
 }
 
@@ -207,25 +207,25 @@ template<typename CharT, typename Alloc, typename OutCharT>
 struct formatter<db::basic_value<CharT, Alloc>, OutCharT> {
  private:
     db::json::json_fmt_opts opts_;
-    std::size_t indent_size_arg_id_ = est::unspecified_size;
     bool use_condensed_ = false;
 
  public:
     template<typename ParseCtx>
     UXS_CONSTEXPR typename ParseCtx::iterator parse(ParseCtx& ctx) {
         auto it = ctx.begin();
-        if (it == ctx.end() || *it != ':') { return it; }
+        if (*it != ':') { return it; }
         if (++it == ctx.end()) { return it; }
         if (*it == '.') {
-            const auto result = ParseCtx::parse_integral_parameter(ctx, it + 1, opts_.indent_size, indent_size_arg_id_);
+            const auto result = ParseCtx::parse_integral_parameter(ctx, it + 1, opts_.indent_size);
             if (!result.second) { return it; }
             it = result.first;
             if (it == ctx.end()) { return it; }
         }
         switch (*it) {
             case 't': {
+                if (it + 1 == ctx.end() || (*(it + 1) != 'a' && *(it + 1) != 'A')) { return it; }
+                ++it;
                 opts_.indent_char = '\t';
-                if (++it == ctx.end() || (*it != 'a' && *it != 'A')) { ParseCtx::report_syntax_error(); }
                 opts_.object_ws_char = '\n';
                 if (*it == 'A') { opts_.array_ws_char = '\n'; }
             } break;
@@ -239,10 +239,6 @@ struct formatter<db::basic_value<CharT, Alloc>, OutCharT> {
 
     template<typename FmtCtx>
     void format(FmtCtx& ctx, const db::basic_value<CharT, Alloc>& val) const {
-        unsigned indent_size = opts_.indent_size;
-        if (indent_size_arg_id_ != est::unspecified_size) {
-            indent_size = ctx.arg(indent_size_arg_id_).template get_unsigned<decltype(indent_size)>();
-        }
         return use_condensed_ ? db::json::detail::write_impl(ctx.out(), val) :
                                 db::json::detail::write_formatted_impl(ctx.out(), val, opts_, 0);
     }
