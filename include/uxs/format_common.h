@@ -38,7 +38,7 @@ struct reduce_type<Ty, CharT, std::enable_if_t<est::is_character<Ty>::value>> {
 };
 template<typename Ty, typename CharT>
 struct reduce_type<Ty, CharT, std::enable_if_t<is_string_like<Ty>::value>> {
-    using type = std::basic_string_view<typename string_char_traits_t<Ty>::char_type>;
+    using type = std::basic_string_view<string_char_type<Ty>>;
 };
 template<typename Ty, typename CharT>
 struct reduce_type<Ty*, CharT, std::enable_if_t<!est::is_character<Ty>::value>> {
@@ -61,20 +61,20 @@ using reduce_type_t = typename reduce_type<std::remove_cv_t<Ty>, CharT>::type;
 // --------------------------
 
 namespace detail {
-template<typename Ty, typename FmtCtx>
+template<typename Ty, typename CharT>
 struct formattable_impl {
     template<typename U>
-    static auto test(U* ctx, typename FmtCtx::parse_context* parse_ctx) -> est::always_true<
+    static auto test(U* ctx, typename U::parse_context* parse_ctx) -> est::always_true<
         decltype(parse_ctx->advance_to(std::declval<formatter<Ty, typename U::char_type>&>().parse(*parse_ctx))),
         decltype(std::declval<const formatter<Ty, typename U::char_type>&>().format(*ctx, std::declval<const Ty&>()))>;
     template<typename U>
     static std::false_type test(...);
-    using type = decltype(test<FmtCtx>(nullptr, nullptr));
+    using type = decltype(test<basic_format_context<CharT>>(nullptr, nullptr));
 };
 }  // namespace detail
 
 template<typename Ty, typename CharT = char>
-struct is_formattable : detail::formattable_impl<fmt::reduce_type_t<Ty, CharT>, basic_format_context<CharT>>::type {};
+struct is_formattable : detail::formattable_impl<fmt::reduce_type_t<Ty, CharT>, CharT>::type {};
 #if __cplusplus >= 201402L
 template<typename Ty, typename CharT = char>
 constexpr bool is_formattable_v = is_formattable<Ty, CharT>::value;

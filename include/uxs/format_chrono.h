@@ -1,5 +1,4 @@
 #pragma once
-
 #include "chars.h"
 #include "format_common.h"
 #include "string_conv.h"
@@ -290,49 +289,49 @@ inline bool is_locale_classic(locale_ref loc, fmt_opts opts) noexcept {
     return !(opts.flags & fmt_flags::localize) || *loc == std::locale::classic();
 }
 
-template<typename FmtCtx>
-void append_2digs(FmtCtx& ctx, int v) {
+template<typename StrTy>
+void append_2digs(StrTy& out, int v) {
     assert(v >= 0 && v < 100);
     const char* digs = uxs::detail::char_tbl_t::digs100(v);
-    if constexpr (std::is_same_v<typename FmtCtx::char_type, char>) {
-        ctx.out().append(digs, 2);
+    if constexpr (std::is_same_v<typename StrTy::value_type, char>) {
+        out.append(digs, 2);
     } else {
-        ctx.out() += digs[0];
-        ctx.out() += digs[1];
+        out += digs[0];
+        out += digs[1];
     }
 }
 
 // --- year ---
 
-template<typename FmtCtx>
-void format_century(FmtCtx& ctx, std::chrono::year y) {
+template<typename StrTy>
+void format_century(StrTy& out, std::chrono::year y) {
     const int year = std::min(std::max(static_cast<int>(y), -9900), 9999);
     int century = (year >= 0 ? year : year - 99) / 100;
-    if (century < 0) { ctx.out() += '-', century = -century; }
-    append_2digs(ctx, century);
+    if (century < 0) { out += '-', century = -century; }
+    append_2digs(out, century);
 }
 
-template<typename FmtCtx>
-void format_year_yy(FmtCtx& ctx, std::chrono::year y) {
+template<typename StrTy>
+void format_year_yy(StrTy& out, std::chrono::year y) {
     const int year = static_cast<int>(y) % 100;
-    append_2digs(ctx, year >= 0 ? year : year + 100);
+    append_2digs(out, year >= 0 ? year : year + 100);
 }
 
-template<typename FmtCtx>
-void format_year_yyyy(FmtCtx& ctx, std::chrono::year y) {
+template<typename StrTy>
+void format_year_yyyy(StrTy& out, std::chrono::year y) {
     int year = std::min(std::max(static_cast<int>(y), -9999), 9999);
-    if (year < 0) { ctx.out() += '-', year = -year; }
-    append_2digs(ctx, year / 100);
-    append_2digs(ctx, year % 100);
+    if (year < 0) { out += '-', year = -year; }
+    append_2digs(out, year / 100);
+    append_2digs(out, year % 100);
 }
 
 template<typename FmtCtx>
 void format_year(FmtCtx& ctx, std::chrono::year y, const chrono_specs& specs) {
     if (!specs.modifier) {
         switch (specs.spec) {
-            case chrono_specifier::century: return format_century(ctx, y);
-            case chrono_specifier::year_yy: return format_year_yy(ctx, y);
-            case chrono_specifier::year_yyyy: return format_year_yyyy(ctx, y);
+            case chrono_specifier::century: return format_century(ctx.out(), y);
+            case chrono_specifier::year_yy: return format_year_yy(ctx.out(), y);
+            case chrono_specifier::year_yyyy: return format_year_yyyy(ctx.out(), y);
             default: break;
         }
     }
@@ -344,9 +343,9 @@ void format_year(FmtCtx& ctx, std::chrono::year y, const chrono_specs& specs) {
 
 // --- month ---
 
-template<typename FmtCtx>
-void format_month_brief(FmtCtx& ctx, std::chrono::month m) {
-    using char_type = typename FmtCtx::char_type;
+template<typename StrTy>
+void format_month_brief(StrTy& out, std::chrono::month m) {
+    using char_type = typename StrTy::value_type;
     const unsigned month = static_cast<unsigned>(m);
     assert(month >= 1 && month <= 12);
     static constexpr std::basic_string_view<char_type> brief_name_list[] = {
@@ -357,12 +356,12 @@ void format_month_brief(FmtCtx& ctx, std::chrono::month m) {
         string_literal<char_type, 'S', 'e', 'p'>{}(), string_literal<char_type, 'O', 'c', 't'>{}(),
         string_literal<char_type, 'N', 'o', 'v'>{}(), string_literal<char_type, 'D', 'e', 'c'>{}(),
     };
-    ctx.out() += brief_name_list[month - 1];
+    out += brief_name_list[month - 1];
 }
 
-template<typename FmtCtx>
-void format_month_full(FmtCtx& ctx, std::chrono::month m) {
-    using char_type = typename FmtCtx::char_type;
+template<typename StrTy>
+void format_month_full(StrTy& out, std::chrono::month m) {
+    using char_type = typename StrTy::value_type;
     const unsigned month = static_cast<unsigned>(m);
     assert(month >= 1 && month <= 12);
     static constexpr std::basic_string_view<char_type> full_name_list[] = {
@@ -379,13 +378,13 @@ void format_month_full(FmtCtx& ctx, std::chrono::month m) {
         string_literal<char_type, 'N', 'o', 'v', 'e', 'm', 'b', 'e', 'r'>{}(),
         string_literal<char_type, 'D', 'e', 'c', 'e', 'm', 'b', 'e', 'r'>{}(),
     };
-    ctx.out() += full_name_list[month - 1];
+    out += full_name_list[month - 1];
 }
 
-template<typename FmtCtx>
-void format_month_mm(FmtCtx& ctx, std::chrono::month m) {
+template<typename StrTy>
+void format_month_mm(StrTy& out, std::chrono::month m) {
     const unsigned month = std::min(static_cast<unsigned>(m), 99U);
-    append_2digs(ctx, month);
+    append_2digs(out, month);
 }
 
 template<typename FmtCtx>
@@ -396,16 +395,16 @@ void format_month(FmtCtx& ctx, std::chrono::month m, const chrono_specs& specs) 
             case chrono_specifier::month_brief: {
                 if (is_classic) {
                     if (!m.ok()) { report_out_of_bounds_error(); }
-                    return format_month_brief(ctx, m);
+                    return format_month_brief(ctx.out(), m);
                 }
             } break;
             case chrono_specifier::month_full: {
                 if (is_classic) {
                     if (!m.ok()) { report_out_of_bounds_error(); }
-                    return format_month_full(ctx, m);
+                    return format_month_full(ctx.out(), m);
                 }
             } break;
-            case chrono_specifier::month_mm: return format_month_mm(ctx, m);
+            case chrono_specifier::month_mm: return format_month_mm(ctx.out(), m);
             default: break;
         }
     }
@@ -417,25 +416,25 @@ void format_month(FmtCtx& ctx, std::chrono::month m, const chrono_specs& specs) 
 
 // --- day ---
 
-template<typename FmtCtx>
-void format_day_dd(FmtCtx& ctx, std::chrono::day d) {
-    append_2digs(ctx, std::min(static_cast<unsigned>(d), 99U));
+template<typename StrTy>
+void format_day_dd(StrTy& out, std::chrono::day d) {
+    append_2digs(out, std::min(static_cast<unsigned>(d), 99U));
 }
 
-template<typename FmtCtx>
-void format_day_dd_space(FmtCtx& ctx, std::chrono::day d) {
+template<typename StrTy>
+void format_day_dd_space(StrTy& out, std::chrono::day d) {
     const unsigned day = std::min(static_cast<unsigned>(d), 99U);
-    if (day >= 10) { return append_2digs(ctx, day); }
-    ctx.out() += ' ';
-    ctx.out() += '0' + day;
+    if (day >= 10) { return append_2digs(out, day); }
+    out += ' ';
+    out += '0' + day;
 }
 
 template<typename FmtCtx>
 void format_day(FmtCtx& ctx, std::chrono::day d, const chrono_specs& specs) {
     if (!specs.modifier) {
         switch (specs.spec) {
-            case chrono_specifier::day_zero: return format_day_dd(ctx, d);
-            case chrono_specifier::day_space: return format_day_dd_space(ctx, d);
+            case chrono_specifier::day_zero: return format_day_dd(ctx.out(), d);
+            case chrono_specifier::day_space: return format_day_dd_space(ctx.out(), d);
             default: break;
         }
     }
@@ -455,9 +454,9 @@ void format_month_day_last(FmtCtx& ctx, std::chrono::month m, const chrono_specs
 
 // --- day of the week ---
 
-template<typename FmtCtx>
-void format_weekday_brief(FmtCtx& ctx, std::chrono::weekday wd) {
-    using char_type = typename FmtCtx::char_type;
+template<typename StrTy>
+void format_weekday_brief(StrTy& out, std::chrono::weekday wd) {
+    using char_type = typename StrTy::value_type;
     assert(wd.c_encoding() <= 6);
     static constexpr std::basic_string_view<char_type> brief_name_list[] = {
         string_literal<char_type, 'S', 'u', 'n'>{}(), string_literal<char_type, 'M', 'o', 'n'>{}(),
@@ -465,12 +464,12 @@ void format_weekday_brief(FmtCtx& ctx, std::chrono::weekday wd) {
         string_literal<char_type, 'T', 'h', 'u'>{}(), string_literal<char_type, 'F', 'r', 'i'>{}(),
         string_literal<char_type, 'S', 'a', 't'>{}(),
     };
-    ctx.out() += brief_name_list[wd.c_encoding()];
+    out += brief_name_list[wd.c_encoding()];
 }
 
-template<typename FmtCtx>
-void format_weekday_full(FmtCtx& ctx, std::chrono::weekday wd) {
-    using char_type = typename FmtCtx::char_type;
+template<typename StrTy>
+void format_weekday_full(StrTy& out, std::chrono::weekday wd) {
+    using char_type = typename StrTy::value_type;
     assert(wd.c_encoding() <= 6);
     static constexpr std::basic_string_view<char_type> full_name_list[] = {
         string_literal<char_type, 'S', 'u', 'n', 'd', 'a', 'y'>{}(),
@@ -481,7 +480,7 @@ void format_weekday_full(FmtCtx& ctx, std::chrono::weekday wd) {
         string_literal<char_type, 'F', 'r', 'i', 'd', 'a', 'y'>{}(),
         string_literal<char_type, 'S', 'a', 't', 'u', 'r', 'd', 'a', 'y'>{}(),
     };
-    ctx.out() += full_name_list[wd.c_encoding()];
+    out += full_name_list[wd.c_encoding()];
 }
 
 template<typename FmtCtx>
@@ -491,10 +490,10 @@ void format_weekday(FmtCtx& ctx, std::chrono::weekday wd, const chrono_specs& sp
         const bool is_classic = is_locale_classic(ctx.locale(), specs.opts);
         switch (specs.spec) {
             case chrono_specifier::weekday_brief: {
-                if (is_classic) { return format_weekday_brief(ctx, wd); }
+                if (is_classic) { return format_weekday_brief(ctx.out(), wd); }
             } break;
             case chrono_specifier::weekday_full: {
-                if (is_classic) { return format_weekday_full(ctx, wd); }
+                if (is_classic) { return format_weekday_full(ctx.out(), wd); }
             } break;
             case chrono_specifier::weekday_1_7: {
                 ctx.out() += '0' + wd.iso_encoding();
@@ -514,30 +513,30 @@ void format_weekday(FmtCtx& ctx, std::chrono::weekday wd, const chrono_specs& sp
 
 // --- date ---
 
-template<typename FmtCtx>
-void format_yyyy_mm_dd(FmtCtx& ctx, std::chrono::year_month_day ymd) {
-    format_year_yyyy(ctx, ymd.year());
-    ctx.out() += '-';
-    format_month_mm(ctx, ymd.month());
-    ctx.out() += '-';
-    format_day_dd(ctx, ymd.day());
+template<typename StrTy>
+void format_yyyy_mm_dd(StrTy& out, std::chrono::year_month_day ymd) {
+    format_year_yyyy(out, ymd.year());
+    out += '-';
+    format_month_mm(out, ymd.month());
+    out += '-';
+    format_day_dd(out, ymd.day());
 }
 
-template<typename FmtCtx>
-void format_mm_dd_yy(FmtCtx& ctx, std::chrono::year_month_day ymd) {
-    format_month_mm(ctx, ymd.month());
-    ctx.out() += '/';
-    format_day_dd(ctx, ymd.day());
-    ctx.out() += '/';
-    format_year_yy(ctx, ymd.year());
+template<typename StrTy>
+void format_mm_dd_yy(StrTy& out, std::chrono::year_month_day ymd) {
+    format_month_mm(out, ymd.month());
+    out += '/';
+    format_day_dd(out, ymd.day());
+    out += '/';
+    format_year_yy(out, ymd.year());
 }
 
-template<typename FmtCtx>
-void format_day_of_the_year(FmtCtx& ctx, std::chrono::year_month_day ymd) {
+template<typename StrTy>
+void format_day_of_the_year(StrTy& out, std::chrono::year_month_day ymd) {
     const std::chrono::sys_days days{ymd};
     const int yday = (days - std::chrono::sys_days{ymd.year() / std::chrono::January / 0}).count();
-    ctx.out() += '0' + yday / 100;
-    append_2digs(ctx, yday % 100);
+    out += '0' + yday / 100;
+    append_2digs(out, yday % 100);
 }
 
 inline void make_tm_for_date(std::tm& tm, std::chrono::year_month_day ymd) {
@@ -569,10 +568,10 @@ void format_date(FmtCtx& ctx, std::chrono::year_month_day ymd, const chrono_spec
         case chrono_specifier::weekday_1_7:
         case chrono_specifier::weekday_0_6: return format_weekday(ctx, std::chrono::weekday{ymd}, specs);
         // --- day/week of the year ---
-        case chrono_specifier::day_of_the_year: return format_day_of_the_year(ctx, ymd);
+        case chrono_specifier::day_of_the_year: return format_day_of_the_year(ctx.out(), ymd);
         // --- date ---
-        case chrono_specifier::year_month_day: return format_yyyy_mm_dd(ctx, ymd);
-        case chrono_specifier::month_day_year: return format_mm_dd_yy(ctx, ymd);
+        case chrono_specifier::year_month_day: return format_yyyy_mm_dd(ctx.out(), ymd);
+        case chrono_specifier::month_day_year: return format_mm_dd_yy(ctx.out(), ymd);
         default: break;
     }
     std::tm tm{};
@@ -582,42 +581,42 @@ void format_date(FmtCtx& ctx, std::chrono::year_month_day ymd, const chrono_spec
 
 // --- time of day ---
 
-template<typename FmtCtx>
-void format_hours(FmtCtx& ctx, std::chrono::hours h) {
+template<typename StrTy>
+void format_hours(StrTy& out, std::chrono::hours h) {
     const auto hours = h.count();
     assert(hours >= 0);
-    if (hours >= 100) { sconv::fmt_integer(ctx.out(), hours / 100); }
-    append_2digs(ctx, hours % 100);
+    if (hours >= 100) { sconv::fmt_integer(out, hours / 100); }
+    append_2digs(out, hours % 100);
 }
 
-template<typename FmtCtx>
-void format_hours_12(FmtCtx& ctx, std::chrono::hours h) {
+template<typename StrTy>
+void format_hours_12(StrTy& out, std::chrono::hours h) {
     const int hours = static_cast<int>(h.count() % 24);
     assert(hours >= 0);
     const int hours_12 = hours > 0 ? (hours <= 12 ? hours : hours - 12) : 12;
-    append_2digs(ctx, hours_12);
+    append_2digs(out, hours_12);
 }
 
-template<typename FmtCtx>
-void format_am_pm(FmtCtx& ctx, std::chrono::hours h) {
-    using char_type = typename FmtCtx::char_type;
+template<typename StrTy>
+void format_am_pm(StrTy& out, std::chrono::hours h) {
+    using char_type = typename StrTy::value_type;
     const int hours = static_cast<int>(h.count() % 24);
     assert(hours >= 0);
-    ctx.out() += hours < 12 ? string_literal<char_type, 'A', 'M'>{}() : string_literal<char_type, 'P', 'M'>{}();
+    out += hours < 12 ? string_literal<char_type, 'A', 'M'>{}() : string_literal<char_type, 'P', 'M'>{}();
 }
 
-template<typename FmtCtx>
-void format_minutes(FmtCtx& ctx, std::chrono::minutes m) {
+template<typename StrTy>
+void format_minutes(StrTy& out, std::chrono::minutes m) {
     const auto minutes = m.count();
     assert(minutes >= 0 && minutes < 60);
-    append_2digs(ctx, static_cast<int>(minutes));
+    append_2digs(out, static_cast<int>(minutes));
 }
 
 template<typename FmtCtx, typename Duration>
 void format_seconds(FmtCtx& ctx, std::chrono::hh_mm_ss<Duration> hms, fmt_opts opts) {
     const auto seconds = hms.seconds().count();
     assert(seconds >= 0 && seconds < 60);
-    append_2digs(ctx, static_cast<int>(seconds));
+    append_2digs(ctx.out(), static_cast<int>(seconds));
     if constexpr (std::chrono::hh_mm_ss<Duration>::fractional_width != 0) {
         const auto subsecs = static_cast<long long>(hms.subseconds().count());
         using char_type = typename FmtCtx::char_type;
@@ -630,18 +629,18 @@ void format_seconds(FmtCtx& ctx, std::chrono::hh_mm_ss<Duration> hms, fmt_opts o
     }
 }
 
-template<typename FmtCtx, typename Duration>
-void format_hh_mm(FmtCtx& ctx, std::chrono::hh_mm_ss<Duration> hms) {
-    format_hours(ctx, hms.hours());
-    ctx.out() += ':';
-    format_minutes(ctx, hms.minutes());
+template<typename StrTy, typename Duration>
+void format_hh_mm(StrTy& out, std::chrono::hh_mm_ss<Duration> hms) {
+    format_hours(out, hms.hours());
+    out += ':';
+    format_minutes(out, hms.minutes());
 }
 
 template<typename FmtCtx, typename Duration>
 void format_hh_mm_ss(FmtCtx& ctx, std::chrono::hh_mm_ss<Duration> hms, fmt_opts opts) {
-    format_hours(ctx, hms.hours());
+    format_hours(ctx.out(), hms.hours());
     ctx.out() += ':';
-    format_minutes(ctx, hms.minutes());
+    format_minutes(ctx.out(), hms.minutes());
     ctx.out() += ':';
     format_seconds(ctx, hms, opts);
 }
@@ -659,14 +658,14 @@ void format_time(FmtCtx& ctx, std::chrono::hh_mm_ss<Duration> hms, const chrono_
     if (!specs.modifier) {
         const bool is_classic = is_locale_classic(ctx.locale(), specs.opts);
         switch (specs.spec) {
-            case chrono_specifier::hours: return format_hours(ctx, hms.hours());
-            case chrono_specifier::hours_12: return format_hours_12(ctx, hms.hours());
-            case chrono_specifier::minutes: return format_minutes(ctx, hms.minutes());
+            case chrono_specifier::hours: return format_hours(ctx.out(), hms.hours());
+            case chrono_specifier::hours_12: return format_hours_12(ctx.out(), hms.hours());
+            case chrono_specifier::minutes: return format_minutes(ctx.out(), hms.minutes());
             case chrono_specifier::seconds: return format_seconds(ctx, hms, specs.opts);
             case chrono_specifier::hours_am_pm: {
-                if (is_classic) { return format_am_pm(ctx, hms.hours()); }
+                if (is_classic) { return format_am_pm(ctx.out(), hms.hours()); }
             } break;
-            case chrono_specifier::hours_minutes: return format_hh_mm(ctx, hms);
+            case chrono_specifier::hours_minutes: return format_hh_mm(ctx.out(), hms);
             case chrono_specifier::hours_minutes_seconds: return format_hh_mm_ss(ctx, hms, specs.opts);
             default: break;
         }
@@ -696,33 +695,33 @@ void format_date_time(FmtCtx& ctx, std::chrono::sys_time<Duration> t, const chro
 template<typename FmtCtx, typename Duration>
 void format_yyyy_mm_dd_hh_mm_ss(FmtCtx& ctx, std::chrono::sys_time<Duration> t, fmt_opts opts) {
     const auto days = std::chrono::floor<std::chrono::days>(t);
-    format_yyyy_mm_dd(ctx, std::chrono::year_month_day{days});
+    format_yyyy_mm_dd(ctx.out(), std::chrono::year_month_day{days});
     ctx.out() += ' ';
     format_hh_mm_ss(ctx, std::chrono::hh_mm_ss{t - days}, opts);
 }
 
-template<typename FmtCtx>
-void format_time_zone(FmtCtx& ctx, std::chrono::seconds offset, const chrono_specs& specs) {
+template<typename StrTy>
+void format_time_zone(StrTy& out, std::chrono::seconds offset, const chrono_specs& specs) {
     std::chrono::hh_mm_ss hms{offset};
-    ctx.out() += hms.is_negative() ? '-' : '+';
-    fmt_chrono::append_2digs(ctx, static_cast<int>(hms.hours().count() % 100));
-    if (specs.modifier) { ctx.out() += ':'; }
-    fmt_chrono::append_2digs(ctx, static_cast<int>(hms.minutes().count()));
+    out += hms.is_negative() ? '-' : '+';
+    fmt_chrono::append_2digs(out, static_cast<int>(hms.hours().count() % 100));
+    if (specs.modifier) { out += ':'; }
+    fmt_chrono::append_2digs(out, static_cast<int>(hms.minutes().count()));
 }
 
-template<typename FmtCtx>
-void format_tz_abbrev_dispatch(FmtCtx& ctx, std::string_view abbrev, std::true_type /* same char type */) {
-    ctx.out() += abbrev;
+template<typename StrTy>
+void format_tz_abbrev_dispatch(StrTy& out, std::string_view abbrev, std::true_type /* same char type */) {
+    out += abbrev;
 }
 
-template<typename FmtCtx>
-void format_tz_abbrev_dispatch(FmtCtx& ctx, std::string_view abbrev, std::false_type /* same char type */) {
-    for (const std::uint8_t ch : abbrev) { ctx.out() += static_cast<typename FmtCtx::output_type::value_type>(ch); }
+template<typename StrTy>
+void format_tz_abbrev_dispatch(StrTy& out, std::string_view abbrev, std::false_type /* same char type */) {
+    for (const std::uint8_t ch : abbrev) { out += static_cast<typename StrTy::value_type>(ch); }
 }
 
-template<typename FmtCtx>
-void format_tz_abbrev(FmtCtx& ctx, std::string_view abbrev) {
-    format_tz_abbrev_dispatch(ctx, abbrev, std::is_same<typename FmtCtx::output_type::value_type, char>());
+template<typename StrTy>
+void format_tz_abbrev(StrTy& out, std::string_view abbrev) {
+    format_tz_abbrev_dispatch(out, abbrev, std::is_same<typename StrTy::value_type, char>());
 }
 
 // --------------------------
@@ -735,32 +734,32 @@ struct is_floating_point_duration<std::chrono::duration<Rep, Period>,
 
 template<typename Period, typename = void>
 struct duration_suffix_writer {
-    template<typename FmtCtx>
-    void operator()(FmtCtx& ctx) const {
-        ctx.out() += '[';
-        sconv::fmt_integer(ctx.out(), Period::type::num);
-        ctx.out() += '/';
-        sconv::fmt_integer(ctx.out(), Period::type::den);
-        ctx.out() += string_literal<typename FmtCtx::char_type, ']', 's'>{}();
+    template<typename StrTy>
+    void operator()(StrTy& out) const {
+        out += '[';
+        sconv::fmt_integer(out, Period::type::num);
+        out += '/';
+        sconv::fmt_integer(out, Period::type::den);
+        out += string_literal<typename StrTy::value_type, ']', 's'>{}();
     }
 };
 
 template<typename Period>
 struct duration_suffix_writer<Period, std::enable_if_t<Period::type::den == 1>> {
-    template<typename FmtCtx>
-    void operator()(FmtCtx& ctx) const {
-        ctx.out() += '[';
-        sconv::fmt_integer(ctx.out(), Period::type::num);
-        ctx.out() += string_literal<typename FmtCtx::char_type, ']', 's'>{}();
+    template<typename StrTy>
+    void operator()(StrTy& out) const {
+        out += '[';
+        sconv::fmt_integer(out, Period::type::num);
+        out += string_literal<typename StrTy::value_type, ']', 's'>{}();
     }
 };
 
 #define UXS_FMT_IMPLEMENT_CHRONO_DURATION_SUFFIX(ratio, ...) \
     template<> \
     struct duration_suffix_writer<ratio> { \
-        template<typename FmtCtx> \
-        void operator()(FmtCtx& ctx) const { \
-            ctx.out() += string_literal<typename FmtCtx::char_type, __VA_ARGS__>{}(); \
+        template<typename StrTy> \
+        void operator()(StrTy& out) const { \
+            out += string_literal<typename StrTy::value_type, __VA_ARGS__>{}(); \
         } \
     }
 UXS_FMT_IMPLEMENT_CHRONO_DURATION_SUFFIX(std::atto, 'a', 's');
@@ -788,7 +787,7 @@ UXS_FMT_IMPLEMENT_CHRONO_DURATION_SUFFIX(std::ratio<86400>, 'd');
 template<typename FmtCtx, typename Rep, typename Period>
 void write_duration_default(FmtCtx& ctx, std::chrono::duration<Rep, Period> d, fmt_opts opts) {
     to_string_append(ctx.out(), *ctx.locale(), d.count(), fmt_opts(opts.flags, opts.prec));
-    fmt_chrono::duration_suffix_writer<typename Period::type>{}(ctx);
+    fmt_chrono::duration_suffix_writer<typename Period::type>{}(ctx.out());
 }
 
 // --------------------------
@@ -797,17 +796,16 @@ template<typename DerivedFormatterTy, typename Ty, typename CharT>
 struct chrono_formatter {
  private:
     fmt_opts opts_;
-    std::size_t width_arg_id_ = est::unspecified_size;
-    std::size_t prec_arg_id_ = est::unspecified_size;
     std::basic_string_view<CharT> fmt_;
 
     template<typename FmtCtx>
-    void format_impl(FmtCtx& ctx, const Ty& val, chrono_specs& specs) const {
-        if (fmt_.empty()) { return DerivedFormatterTy::template write_value_default<FmtCtx>(ctx, val, specs.opts); }
+    void format_impl(FmtCtx& ctx, const Ty& val) const {
+        if (fmt_.empty()) { return DerivedFormatterTy::template write_value_default<FmtCtx>(ctx, val, opts_); }
         auto it0 = fmt_.begin();
         auto it = it0;
         while (true) {
-            const auto result = parse_format_spec(it, fmt_.end(), specs.modifier);
+            char modifier = '\0';
+            const auto result = parse_format_spec(it, fmt_.end(), modifier);
             if (result.second == chrono_specifier::end_of_format) { break; }
             if (result.second != chrono_specifier::ordinary_char) {
                 ctx.out() += to_string_view(it0, it);
@@ -817,8 +815,8 @@ struct chrono_formatter {
                     case chrono_specifier::new_line: ctx.out() += '\n'; break;
                     case chrono_specifier::tab: ctx.out() += '\t'; break;
                     default: {
-                        specs.spec = result.second;
-                        specs.spec_char = static_cast<char>(*(result.first - 1));
+                        const char spec_char = static_cast<char>(*(result.first - 1));
+                        const chrono_specs specs{result.second, spec_char, modifier, opts_};
                         DerivedFormatterTy::template write_value<FmtCtx>(ctx, val, specs);
                     } break;
                 }
@@ -832,8 +830,8 @@ struct chrono_formatter {
     template<typename ParseCtx>
     constexpr typename ParseCtx::iterator parse(ParseCtx& ctx) {
         auto it = ctx.begin();
-        if (it == ctx.end() || *it != ':') { return it; }
-        it = ParseCtx::parse_standard(ctx, it + 1, opts_, width_arg_id_, prec_arg_id_);
+        if (*it != ':') { return it; }
+        it = ParseCtx::parse_standard(ctx, it + 1, opts_);
         if ((!is_floating_point_duration<Ty>::value && opts_.prec >= 0) ||
             !!(opts_.flags & ~(fmt_flags::adjust_field | fmt_flags::localize))) {
             ParseCtx::report_syntax_error();
@@ -860,21 +858,13 @@ struct chrono_formatter {
 
     template<typename FmtCtx>
     void format(FmtCtx& ctx, const Ty& val) const {
-        chrono_specs specs;
-        specs.opts = opts_;
-        if (width_arg_id_ != est::unspecified_size) {
-            specs.opts.width = ctx.arg(width_arg_id_).template get_unsigned<decltype(specs.opts.width)>();
-        }
-        if (prec_arg_id_ != est::unspecified_size) {
-            specs.opts.prec = ctx.arg(prec_arg_id_).template get_unsigned<decltype(specs.opts.prec)>();
-        }
-        if (specs.opts.width == 0) { return format_impl(ctx, val, specs); }
+        if (opts_.width == 0) { return format_impl(ctx, val); }
         basic_inline_dynbuffer<CharT> buf;
         auto buf_ctx = ctx.rebind(buf);
-        format_impl(buf_ctx, val, specs);
+        format_impl(buf_ctx, val);
         const unsigned len = static_cast<unsigned>(buf.size());
         const auto fn = [&buf](typename FmtCtx::output_type& out) { out.append(buf.data(), buf.size()); };
-        return specs.opts.width > len ? append_adjusted(ctx.out(), fn, len, specs.opts) : fn(ctx.out());
+        return opts_.width > len ? append_adjusted(ctx.out(), fn, len, opts_) : fn(ctx.out());
     }
 };
 
@@ -897,7 +887,7 @@ struct formatter<std::chrono::duration<Rep, Period>, CharT>
         if (specs.spec == fmt_chrono::chrono_specifier::ticks) {
             to_string_append(ctx.out(), *ctx.locale(), d.count(), fmt_opts(specs.opts.flags, specs.opts.prec));
         } else if (specs.spec == fmt_chrono::chrono_specifier::unit_suffix) {
-            fmt_chrono::duration_suffix_writer<typename Period::type>{}(ctx);
+            fmt_chrono::duration_suffix_writer<typename Period::type>{}(ctx.out());
         } else {
             fmt_chrono::format_time(ctx, std::chrono::hh_mm_ss{d}, specs);
         }
@@ -931,7 +921,7 @@ struct formatter<std::chrono::year, CharT>
 
     template<typename FmtCtx>
     static void write_value_default(FmtCtx& ctx, value_type y, fmt_opts) {
-        fmt_chrono::format_year_yyyy(ctx, y);
+        fmt_chrono::format_year_yyyy(ctx.out(), y);
         if (y.ok()) { return; }
         ctx.out() += string_literal<CharT, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v', 'a', 'l', 'i', 'd',
                                     ' ', 'y', 'e', 'a', 'r'>{}();
@@ -964,7 +954,9 @@ struct formatter<std::chrono::month, CharT>
     template<typename FmtCtx>
     static void write_value_default(FmtCtx& ctx, value_type m, fmt_opts opts) {
         if (m.ok()) {
-            if (fmt_chrono::is_locale_classic(ctx.locale(), opts)) { return fmt_chrono::format_month_brief(ctx, m); }
+            if (fmt_chrono::is_locale_classic(ctx.locale(), opts)) {
+                return fmt_chrono::format_month_brief(ctx.out(), m);
+            }
             std::tm tm{};
             tm.tm_mon = static_cast<unsigned>(m) - 1;
             return fmt_chrono::format_locale(ctx, tm, 'b', '\0', opts);
@@ -994,7 +986,7 @@ struct formatter<std::chrono::day, CharT>
 
     template<typename FmtCtx>
     static void write_value_default(FmtCtx& ctx, value_type d, fmt_opts) {
-        fmt_chrono::format_day_dd(ctx, d);
+        fmt_chrono::format_day_dd(ctx.out(), d);
         if (d.ok()) { return; }
         ctx.out() += string_literal<CharT, ' ', 'i', 's', ' ', 'n', 'o', 't', ' ', 'a', ' ', 'v', 'a', 'l', 'i', 'd',
                                     ' ', 'd', 'a', 'y'>{}();
@@ -1022,7 +1014,9 @@ struct formatter<std::chrono::weekday, CharT>
     template<typename FmtCtx>
     static void write_value_default(FmtCtx& ctx, value_type wd, fmt_opts opts) {
         if (wd.ok()) {
-            if (fmt_chrono::is_locale_classic(ctx.locale(), opts)) { return fmt_chrono::format_weekday_brief(ctx, wd); }
+            if (fmt_chrono::is_locale_classic(ctx.locale(), opts)) {
+                return fmt_chrono::format_weekday_brief(ctx.out(), wd);
+            }
             std::tm tm{};
             tm.tm_wday = wd.c_encoding();
             return fmt_chrono::format_locale(ctx, tm, 'a', '\0', opts);
@@ -1387,9 +1381,9 @@ struct formatter<fmt_chrono::local_time_format_t<Duration, PrintZoneByDefault>, 
     template<typename FmtCtx>
     static void write_value(FmtCtx& ctx, value_type t, const fmt_chrono::chrono_specs& specs) {
         if (specs.spec == fmt_chrono::chrono_specifier::time_zone) {
-            fmt_chrono::format_time_zone(ctx, t.tz_offset, specs);
+            fmt_chrono::format_time_zone(ctx.out(), t.tz_offset, specs);
         } else if (specs.spec == fmt_chrono::chrono_specifier::time_zone_abbreviation) {
-            fmt_chrono::format_tz_abbrev(ctx, t.tz_abbrev);
+            fmt_chrono::format_tz_abbrev(ctx.out(), t.tz_abbrev);
         } else {
             fmt_chrono::format_date_time(ctx, t.time, specs);
         }
@@ -1400,7 +1394,7 @@ struct formatter<fmt_chrono::local_time_format_t<Duration, PrintZoneByDefault>, 
         fmt_chrono::format_yyyy_mm_dd_hh_mm_ss(ctx, t.time, opts);
         if constexpr (PrintZoneByDefault) {
             ctx.out() += ' ';
-            fmt_chrono::format_tz_abbrev(ctx, t.tz_abbrev);
+            fmt_chrono::format_tz_abbrev(ctx.out(), t.tz_abbrev);
         }
     }
 };
@@ -1507,9 +1501,9 @@ struct formatter<std::chrono::sys_info, CharT>
     template<typename FmtCtx>
     static void write_value(FmtCtx& ctx, value_type si, const fmt_chrono::chrono_specs& specs) {
         if (specs.spec == fmt_chrono::chrono_specifier::time_zone) {
-            fmt_chrono::format_time_zone(ctx, si.offset, specs);
+            fmt_chrono::format_time_zone(ctx.out(), si.offset, specs);
         } else {
-            fmt_chrono::format_tz_abbrev(ctx, si.abbrev);
+            fmt_chrono::format_tz_abbrev(ctx.out(), si.abbrev);
         }
     }
 
@@ -1524,7 +1518,7 @@ struct formatter<std::chrono::sys_info, CharT>
         ctx.out() += string_literal<CharT, ',', ' ', 's', 'a', 'v', 'e', ':', ' '>{}();
         fmt_chrono::write_duration_default(ctx, si.save, opts);
         ctx.out() += string_literal<CharT, ',', ' ', 'a', 'b', 'b', 'r', 'e', 'v', ':', ' '>{}();
-        fmt_chrono::format_tz_abbrev(ctx, si.abbrev);
+        fmt_chrono::format_tz_abbrev(ctx.out(), si.abbrev);
     }
 };
 
@@ -1546,9 +1540,9 @@ struct formatter<std::chrono::local_info, CharT>
             fmt_chrono::report_cannot_print_non_unique_local_info_error();
         }
         if (specs.spec == fmt_chrono::chrono_specifier::time_zone) {
-            fmt_chrono::format_time_zone(ctx, li.first.offset, specs);
+            fmt_chrono::format_time_zone(ctx.out(), li.first.offset, specs);
         } else {
-            fmt_chrono::format_tz_abbrev(ctx, li.first.abbrev);
+            fmt_chrono::format_tz_abbrev(ctx.out(), li.first.abbrev);
         }
     }
 

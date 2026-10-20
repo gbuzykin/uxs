@@ -11,8 +11,7 @@ template<typename CharT>
 class utf_string_adapter {
  public:
     template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>,
-             typename = std::enable_if_t<
-                 std::is_same<typename string_char_traits_t<std::remove_cvref_t<StrLikeTy>>::char_type, CharT>::value>>
+             typename = std::enable_if_t<std::is_same<string_char_type<std::remove_cvref_t<StrLikeTy>>, CharT>::value>>
     auto operator()(StrLikeTy&& s) const -> decltype(std::forward<StrLikeTy>(s)) {
         return std::forward<StrLikeTy>(s);
     }
