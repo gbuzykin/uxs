@@ -334,9 +334,9 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
             item = &val_stack.emplace_back(al);
             ++stack.back().count;
         },
-        [&stack, &val_stack, &node_stack, &al, &item](string_view_type key) {
-            auto node = val_stack[0].make_node(
-                utf_string_adapter<CharT>{}.count(key.begin(), key.end()),
+        [&stack, &node_stack, &al, &item](string_view_type key) {
+            typename value_type::node_handle node(
+                al, utf_string_adapter<CharT>{}.count(key.begin(), key.end()),
                 [key](est::span<CharT> s) {
                     utf_string_adapter<CharT>{}.transform(key.begin(), key.end(), s.data());
                     return s.size();
@@ -348,17 +348,17 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
         [&stack, &val_stack, &node_stack] {
             const bool is_object_parent = stack[stack.size() - 2].is_object;
             if (stack.back().is_object) {
-                const std::size_t new_size = node_stack.size() - stack.back().count;
-                auto& parent = is_object_parent ? node_stack[new_size - 1]->value() : val_stack.back();
+                const std::size_t top = node_stack.size() - stack.back().count;
+                auto& parent = is_object_parent ? node_stack[top - 1]->value() : val_stack.back();
                 parent.append(object_tag, std::make_move_iterator(node_stack.end() - stack.back().count),
                               std::make_move_iterator(node_stack.end()));
-                node_stack.resize(new_size);
+                node_stack.resize(top);
             } else {
-                const std::size_t new_size = val_stack.size() - stack.back().count;
-                auto& parent = is_object_parent ? node_stack.back()->value() : val_stack[new_size - 1];
+                const std::size_t top = val_stack.size() - stack.back().count;
+                auto& parent = is_object_parent ? node_stack.back()->value() : val_stack[top - 1];
                 parent.append(array_tag, std::make_move_iterator(val_stack.end() - stack.back().count),
                               std::make_move_iterator(val_stack.end()));
-                val_stack.resize(new_size);
+                val_stack.resize(top);
             }
             stack.pop_back();
         });

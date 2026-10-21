@@ -15,8 +15,8 @@ namespace detail {
 
 template<typename Ty, typename Alloc>
 auto flexarray_t<Ty, Alloc>::alloc(alloc_type& al, std::size_t size, std::size_t cap) -> data_t* {
-    constexpr std::size_t min_capacity = std::is_integral<Ty>::value ? 2 * sizeof(std::uintptr_t) / sizeof(Ty) : 4;
-    const std::size_t alloc_sz = get_alloc_sz(std::max(cap, min_capacity));
+    assert(cap);
+    const std::size_t alloc_sz = get_alloc_sz(cap);
     data_t* p = reinterpret_cast<data_t*>(alloc_traits::allocate(al, alloc_sz));
     ::new (&p->ref_count) std::atomic<std::size_t>{1};
     p->size = size;
@@ -36,7 +36,8 @@ void flexarray_t<Ty, Alloc>::grow(alloc_type& al, std::size_t extra) {
         if (extra > max_sz - p_->size) { report_too_much_to_allocate_error(); }
         delta_sz = std::max(extra, (max_sz - p_->size) >> 1);
     }
-    data_t* p_new = alloc(al, p_->size, p_->size + delta_sz);
+    constexpr std::size_t min_capacity = std::is_integral<Ty>::value ? 2 * sizeof(std::uintptr_t) / sizeof(Ty) : 4;
+    data_t* p_new = alloc(al, p_->size, std::max(p_->size + delta_sz, min_capacity));
     init_items_copy<false>(p_new->data(), p_new->data() + p_->size, std::make_move_iterator(p_->data()));
     destruct(al);
     p_ = p_new;
@@ -60,11 +61,8 @@ void flexarray_t<Ty, Alloc>::destruct(alloc_type& al) noexcept {
 template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::construct_from_view(alloc_type& al, const_view_type view, std::size_t extra) {
     if (view.size() + extra) {
-        p_ = alloc_checked(al, view.size() + extra + tail_zero);
-        initialize_constructed(al, [this, view]() {
-            init_items_copy(p_->data(), p_->data() + view.size(), view.data());
-            p_->size = view.size();
-        });
+        p_ = alloc_checked(al, view.size(), view.size() + extra + tail_zero);
+        init_items_copy(p_->data(), p_->data() + view.size(), view.data());
     } else {
         p_ = nullptr;
     }
@@ -73,11 +71,8 @@ void flexarray_t<Ty, Alloc>::construct_from_view(alloc_type& al, const_view_type
 template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::construct_fill_value(alloc_type& al, std::size_t count, const Ty& v) {
     if (count) {
-        p_ = alloc_checked(al, count + tail_zero);
-        initialize_constructed(al, [this, count, &v]() {
-            init_items_fill(p_->data(), p_->data() + count, v);
-            p_->size = count;
-        });
+        p_ = alloc_checked(al, count, count + tail_zero);
+        init_items_fill(p_->data(), p_->data() + count, v);
     } else {
         p_ = nullptr;
     }
@@ -99,22 +94,10 @@ void flexarray_t<Ty, Alloc>::append_view(alloc_type& al, const_view_type view) {
 }
 
 template<typename Ty, typename Alloc>
-void flexarray_t<Ty, Alloc>::clear(alloc_type& al) noexcept {
-    if (!p_) { return; }
-    if (p_->ref_count > 1) {
-        flexarray_t new_arr;
-        new_arr.construct_empty();
-        return reset(al, new_arr);
-    }
-    destruct_items(p_->data(), p_->data() + p_->size);
-    p_->size = 0;
-}
-
-template<typename Ty, typename Alloc>
 void flexarray_t<Ty, Alloc>::reserve(alloc_type& al, std::size_t size) {
     if (!p_) {
         if (!size) { return; }
-        p_ = alloc_checked(al, size + tail_zero);
+        p_ = alloc_checked(al, 0, size + tail_zero);
         put_tail_zero(p_->data());
     } else if (p_->ref_count > 1) {
         flexarray_t new_arr;
@@ -158,24 +141,21 @@ Ty* flexarray_t<Ty, Alloc>::erase(alloc_type& al, std::size_t pos) {
 namespace detail {
 
 template<typename CharT, typename Alloc>
-auto object_item<CharT, Alloc>::alloc(alloc_type& al, key_type key) -> object_item* {
-    if (key.size() + 1 > max_name_alloc_cap(al)) { report_too_much_to_allocate_error(); }
-    const std::size_t alloc_sz = get_alloc_sz(std::max<std::size_t>(key.size() + 1, min_char_count));
+auto object_item<CharT, Alloc>::alloc(alloc_type& al, std::size_t key_length) -> object_item* {
+    if (key_length + 1 > max_name_alloc_cap(al)) { report_too_much_to_allocate_error(); }
+    const std::size_t alloc_sz = get_alloc_sz(key_length + 1);
     object_item* node = reinterpret_cast<object_item*>(alloc_traits::allocate(al, alloc_sz));
-    node->key_chars_cap_ = (alloc_sz * sizeof(typename alloc_traits::value_type) -
-                            offsetof(object_item, key_chars_buf_)) /
-                           sizeof(char_type);
-    node->key_sz_ = key.size();
-    std::memcpy(node->key_chars(), key.data(), key.size() * sizeof(CharT));
-    node->key_chars()[node->key_sz_] = '\0';
+    node->key_capacity_ = (alloc_sz * sizeof(typename alloc_traits::value_type) -
+                           offsetof(object_item, key_chars_buf_)) /
+                          sizeof(char_type);
     return node;
 }
 
 template<typename CharT, typename Alloc>
 void object_t<CharT, Alloc>::data_t::init() noexcept {
-    dllist_make_cycle(&head);
-    size = 0;
+    head.next = head.prev = &head;
     node_traits::set_head(&head, &head);
+    size = 0;
     std::fill_n(hashtbl(), bucket_count, nullptr);
 }
 
@@ -185,15 +165,15 @@ void object_t<CharT, Alloc>::data_t::init_from(object_t other) noexcept {
     head = other.p_->head;
     head.next->prev = &head;
     head.prev->next = &head;
-    size = other.p_->size;
     node_traits::set_head(&head, &head);
+    size = other.p_->size;
     std::fill_n(hashtbl(), bucket_count, nullptr);
 }
 
 template<typename CharT, typename Alloc>
 auto object_t<CharT, Alloc>::alloc(alloc_type& al, std::size_t bucket_count) -> data_t* {
-    constexpr std::size_t min_bucket_count = 4;
-    const std::size_t alloc_sz = get_alloc_sz(std::max(bucket_count, min_bucket_count));
+    assert(bucket_count);
+    const std::size_t alloc_sz = get_alloc_sz(bucket_count);
     data_t* p = reinterpret_cast<data_t*>(alloc_traits::allocate(al, alloc_sz));
     ::new (&p->ref_count) std::atomic<std::size_t>{1};
     p->bucket_count = (alloc_sz * sizeof(typename alloc_traits::value_type) - offsetof(data_t, data_buf)) /
@@ -228,7 +208,7 @@ void object_t<CharT, Alloc>::construct_from_initializer(alloc_type& al,
 template<typename CharT, typename Alloc>
 void object_t<CharT, Alloc>::assign_common_initializer(alloc_type& al, std::initializer_list<value_type> init) {
     if (p_->ref_count == 1 && init.size() <= p_->bucket_count) {
-        destruct_items(al);
+        destroy_nodes(al);
         p_->init();
         return append_common_initializer_no_realloc(al, init);
     }
@@ -255,7 +235,7 @@ void object_t<CharT, Alloc>::reserve(alloc_type& al, std::size_t size) {
 }
 
 template<typename CharT, typename Alloc>
-void object_t<CharT, Alloc>::destruct_items(alloc_type& al) noexcept {
+void object_t<CharT, Alloc>::destroy_nodes(alloc_type& al) noexcept {
     for (list_links_t* node = cbegin(); node != cend();) {
         list_links_t* next = node->next;
         node_t::destroy(al, node_t::from_links(node));
@@ -297,7 +277,8 @@ void object_t<CharT, Alloc>::rehash(alloc_type& al, std::size_t extra) {
         if (extra > max_count - p_->size) { report_too_much_to_allocate_error(); }
         delta_count = std::max(extra, (max_count - p_->size) >> 1);
     }
-    data_t* p_new = alloc(al, p_->size + delta_count);
+    constexpr std::size_t min_bucket_count = 4;
+    data_t* p_new = alloc(al, std::max(p_->size + delta_count, min_bucket_count));
     p_new->init_from(*this);
     dealloc(al, p_);
     p_ = p_new;
@@ -305,19 +286,8 @@ void object_t<CharT, Alloc>::rehash(alloc_type& al, std::size_t extra) {
 }
 
 template<typename CharT, typename Alloc>
-void object_t<CharT, Alloc>::clear(alloc_type& al) {
-    if (p_->ref_count > 1) {
-        object_t new_obj;
-        new_obj.construct_empty(al);
-        return reset(al, new_obj);
-    }
-    destruct_items(al);
-    p_->init();
-}
-
-template<typename CharT, typename Alloc>
 void object_t<CharT, Alloc>::destruct(alloc_type& al) noexcept {
-    destruct_items(al);
+    destroy_nodes(al);
     dealloc(al, p_);
 }
 

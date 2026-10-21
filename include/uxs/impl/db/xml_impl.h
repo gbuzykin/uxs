@@ -507,7 +507,10 @@ basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, 
                 auto result = top.first->try_append_unique(utf_string_adapter<CharT>{}(name()), al);
                 auto& val = (*result.first).value();
                 stack.emplace_back(&val, name());
-                if (!result.second) { stack.back().first = &val.push_back(value_type(al)); }
+                if (!result.second) {
+                    if (!val.is_array()) { val = value_type(array_tag, {val}); }
+                    stack.back().first = &val.push_back(value_type(al));
+                }
                 for (const auto& attr : attributes()) {
                     stack.back().first->try_append_unique(utf_string_adapter<CharT>{}(attr.key()),
                                                           text_to_value(attr.value().as_string_view(), al));
