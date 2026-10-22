@@ -2,6 +2,7 @@
 
 #include "database_error.h"
 
+#include "uxs/dllist.h"
 #include "uxs/optional.h"
 #include "uxs/span.h"
 
@@ -499,6 +500,9 @@ template<typename CharT, typename Alloc>
 class object_node_handle;
 
 template<typename CharT, typename Alloc>
+class object_node_chain;
+
+template<typename CharT, typename Alloc>
 class object_t;
 
 struct list_links_t {
@@ -553,6 +557,7 @@ class object_item {
  private:
     friend struct object_node_traits<CharT, Alloc>;
     friend class object_node_handle<CharT, Alloc>;
+    friend class object_node_chain<CharT, Alloc>;
     friend class object_t<CharT, Alloc>;
 
     list_links_t links_;
@@ -732,6 +737,7 @@ class object_node_handle
     node_t* operator->() noexcept { return std::addressof(**this); }
 
  private:
+    friend class object_node_chain<CharT, Alloc>;
     friend class object_t<CharT, Alloc>;
     friend class basic_value<CharT, Alloc>;
 
@@ -771,6 +777,75 @@ class object_node_handle
     }
 };
 
+template<typename CharT, typename Alloc>
+class object_node_chain : protected std::allocator_traits<Alloc>::template rebind_alloc<std::uintptr_t> {
+ private:
+    using node_t = object_item<CharT, Alloc>;
+    using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<std::uintptr_t>;
+    using alloc_traits = std::allocator_traits<alloc_type>;
+
+ public:
+    using char_type = CharT;
+    using allocator_type = Alloc;
+    using node_handle = object_node_handle<CharT, Alloc>;
+    using size_type = std::size_t;
+
+    explicit object_node_chain(const alloc_type& al) noexcept : alloc_type(al), head_{&head_, &head_}, size_(0) {}
+    object_node_chain(object_node_chain&& other) noexcept
+        : alloc_type(std::move(other)), head_(other.head_), size_(other.size_) {
+        if (size_) { head_.next->prev = head_.prev->next = &head_; }
+        other.head_.next = other.head_.prev = &other.head_;
+        other.size_ = 0;
+    }
+    ~object_node_chain() {
+        for (list_links_t* node = head_.next; node != &head_;) {
+            list_links_t* next = node->next;
+            node_t::destroy(*this, node_t::from_links(node));
+            node = next;
+        }
+    }
+
+    object_node_chain& operator=(const object_node_chain&) = delete;
+
+    size_type size() noexcept { return size_; }
+    bool empty() noexcept { return size_ == 0; }
+
+    void push_back(node_handle&& h) {
+        node_t* node = std::move(h).release(*this);
+        assert(node);
+        dllist_insert_before(&head_, &node->links);
+        ++size_;
+    }
+
+    node_handle pop_front() noexcept {
+        assert(size_);
+        node_t* node = node_t::from_links(head_.next);
+        dllist_remove(head_.next);
+        --size_;
+        return node_handle(*this, node);
+    }
+
+ private:
+    friend class object_t<CharT, Alloc>;
+
+    list_links_t head_;
+    size_type size_;
+
+    void check_allocator(const alloc_type& al) {
+        check_allocator_dispatch(al, typename alloc_traits::is_always_equal());
+    }
+
+    template<typename CharT_ = CharT>
+    void check_allocator_dispatch(const alloc_type& /*al*/, std::true_type /* always equal allocators */) const {}
+
+    template<typename CharT_ = CharT>
+    void check_allocator_dispatch(const alloc_type& al, std::false_type /* always equal allocators */) const {
+        if (static_cast<const alloc_type&>(*this) != al) { throw database_error("incompatible allocators"); }
+    }
+};
+
+// --------------------------
+
 template<typename Iter, typename ValueType>
 struct append_return_type {
     Iter position;
@@ -796,6 +871,7 @@ class object_t {
     using key_type = std::basic_string_view<CharT>;
     using value_type = basic_value<CharT, Alloc>;
     using node_handle = object_node_handle<CharT, Alloc>;
+    using node_chain = object_node_chain<CharT, Alloc>;
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<std::uintptr_t>;
     using alloc_traits = std::allocator_traits<alloc_type>;
     using node_traits = object_node_traits<CharT, Alloc>;
@@ -921,6 +997,8 @@ class object_t {
         const auto result = extract_impl(al, node);
         return {node_handle(al, result.first), result.second};
     }
+
+    UXS_EXPORT void extract_all(alloc_type& al, node_chain& chain);
 
     void ref() noexcept { ++p_->ref_count; }
 
@@ -1407,6 +1485,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     using mapped_type = basic_value<CharT, Alloc>;
     using value_type = basic_value<CharT, Alloc>;
     using node_handle = typename object_t::node_handle;
+    using node_chain = typename object_t::node_chain;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
     using iterator = detail::value_iterator<CharT, Alloc, false>;
@@ -2013,6 +2092,20 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     iterator erase(const_iterator it);
+
+    void extract_all(node_chain& chain) {
+        if (type_ != dtype::object) { report_not_an_object_error(); }
+        return value_.obj.extract_all(*this, chain);
+    }
+
+    // --------------------------
+
+    template<typename... Args>
+    static node_handle make_node(const Alloc& al, Args&&... args) {
+        return node_handle(al, std::forward<Args>(args)...);
+    }
+
+    static node_chain make_node_chain(const Alloc& al) noexcept { return node_chain(al); }
 
  private:
     friend class detail::object_t<CharT, Alloc>;
