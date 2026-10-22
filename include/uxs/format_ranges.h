@@ -211,10 +211,11 @@ struct range_formatter {
 
     template<typename FmtCtx, typename Range>
     void format_impl(FmtCtx& ctx, const Range& val) const {
-        ctx.out() += opening_bracket_;
-        for (auto it = std::begin(val); it != std::end(val); ++it) {
-            if (it != std::begin(val)) { ctx.out() += separator_; }
-            underlying_.format(ctx, *it);
+        bool is_first_element = true;
+        for (const auto& element : val) {
+            ctx.out() += is_first_element ? opening_bracket_ : separator_;
+            underlying_.format(ctx, element);
+            is_first_element = false;
         }
         ctx.out() += closing_bracket_;
     }

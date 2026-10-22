@@ -372,32 +372,30 @@ namespace detail {
 
 template<typename ValueTy>
 struct writer_stack_item_t {
- public:
     using array_iterator = typename ValueTy::const_array_range::iterator;
     using object_iterator = typename ValueTy::const_object_range::iterator;
 
-    writer_stack_item_t(array_iterator first, array_iterator last) noexcept : is_object_(false), arr_{first, last} {}
-    writer_stack_item_t(object_iterator first, object_iterator last) noexcept : is_object_(true), obj_{first, last} {}
+    writer_stack_item_t(array_iterator first, array_iterator last) noexcept : is_object(false), arr{first, last} {}
+    writer_stack_item_t(object_iterator first, object_iterator last) noexcept : is_object(true), obj{first, last} {}
 
-    bool is_object() const noexcept { return is_object_; }
-    bool empty() const noexcept { return is_object_ ? obj_.first == obj_.last : arr_.first == arr_.last; }
-    typename ValueTy::key_type key() const noexcept { return obj_.first->key(); }
-    const ValueTy& get_and_advance() noexcept { return is_object_ ? (obj_.first++)->value() : *arr_.first++; }
-
- private:
     struct array_range_t {
         array_iterator first;
         array_iterator last;
+        bool empty() const noexcept { return first == last; }
+        const ValueTy& get_and_advance() noexcept { return *first++; }
     };
     struct object_range_t {
         object_iterator first;
         object_iterator last;
+        bool empty() const noexcept { return first == last; }
+        typename ValueTy::key_type key() const noexcept { return first->key(); }
+        const ValueTy& get_and_advance() noexcept { return (first++)->value(); }
     };
 
-    bool is_object_;
+    bool is_object;
     union {
-        array_range_t arr_;
-        object_range_t obj_;
+        array_range_t arr;
+        object_range_t obj;
     };
 };
 
@@ -512,12 +510,12 @@ void write_impl(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>&
 loop:
     auto& top = stack.back();
 
-    if (top.is_object()) {
-        while (!top.empty()) {
+    if (top.is_object) {
+        while (!top.obj.empty()) {
             out += is_first_element ? '{' : ',';
-            detail::write_text<OutCharT>(out, top.key());
+            detail::write_text<OutCharT>(out, top.obj.key());
             out += ':';
-            if (top.get_and_advance().visit(visitor)) {
+            if (top.obj.get_and_advance().visit(visitor)) {
                 is_first_element = true;
                 goto loop;
             }
@@ -525,9 +523,9 @@ loop:
         }
         out += '}';
     } else {
-        while (!top.empty()) {
+        while (!top.arr.empty()) {
             out += is_first_element ? '[' : ',';
-            if (top.get_and_advance().visit(visitor)) {
+            if (top.arr.get_and_advance().visit(visitor)) {
                 is_first_element = true;
                 goto loop;
             }
@@ -554,11 +552,10 @@ void write_formatted_impl(basic_membuffer<OutCharT>& out, const basic_value<Char
 
 loop:
     auto& top = stack.back();
-    const OutCharT ws_char = top.is_object() ? opts.object_ws_char : opts.array_ws_char;
 
-    while (!top.empty()) {
+    const auto write_before_item = [&out, &opts, &indent, &is_first_element](OutCharT open_char, OutCharT ws_char) {
         if (is_first_element) {
-            out += top.is_object() ? '{' : '[';
+            out += open_char;
             if (ws_char == '\n') {
                 out += '\n';
                 indent += opts.indent_size;
@@ -569,23 +566,40 @@ loop:
             out += ws_char;
             if (ws_char == '\n') { out.append(indent, opts.indent_char); }
         }
-        if (top.is_object()) {
-            detail::write_text<OutCharT>(out, top.key());
-            out += string_literal<OutCharT, ':', ' '>{}();
-        }
-        if (top.get_and_advance().visit(visitor)) {
-            is_first_element = true;
-            goto loop;
-        }
-        is_first_element = false;
-    }
+    };
 
-    if (ws_char == '\n') {
-        out += '\n';
-        indent -= opts.indent_size;
-        out.append(indent, opts.indent_char);
+    const auto write_close = [&out, &opts, &indent](OutCharT close_char, OutCharT ws_char) {
+        if (ws_char == '\n') {
+            out += '\n';
+            indent -= opts.indent_size;
+            out.append(indent, opts.indent_char);
+        }
+        out += close_char;
+    };
+
+    if (top.is_object) {
+        while (!top.obj.empty()) {
+            write_before_item('{', opts.object_ws_char);
+            detail::write_text<OutCharT>(out, top.obj.key());
+            out += string_literal<OutCharT, ':', ' '>{}();
+            if (top.obj.get_and_advance().visit(visitor)) {
+                is_first_element = true;
+                goto loop;
+            }
+            is_first_element = false;
+        }
+        write_close('}', opts.object_ws_char);
+    } else {
+        while (!top.arr.empty()) {
+            write_before_item('[', opts.array_ws_char);
+            if (top.arr.get_and_advance().visit(visitor)) {
+                is_first_element = true;
+                goto loop;
+            }
+            is_first_element = false;
+        }
+        write_close(']', opts.array_ws_char);
     }
-    out += top.is_object() ? '}' : ']';
 
     stack.pop_back();
     if (!stack.empty()) { goto loop; }

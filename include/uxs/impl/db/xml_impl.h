@@ -529,26 +529,18 @@ namespace detail {
 
 template<typename ValueTy>
 struct writer_stack_item_t {
- public:
     using array_iterator = typename ValueTy::const_array_range::iterator;
     using object_iterator = typename ValueTy::const_object_range::iterator;
     using string_view_type = std::basic_string_view<typename ValueTy::char_type>;
 
-    writer_stack_item_t(array_iterator first, array_iterator last) noexcept : is_object_(false), arr_{first, last} {}
-    writer_stack_item_t(object_iterator first, object_iterator last) noexcept : is_object_(true), obj_{first, last} {}
+    writer_stack_item_t(array_iterator first, array_iterator last) noexcept : is_object(false), arr{first, last} {}
+    writer_stack_item_t(object_iterator first, object_iterator last) noexcept : is_object(true), obj{first, last} {}
 
-    string_view_type element() const noexcept { return element_; }
-    void set_element(string_view_type element) noexcept { element_ = element; }
+    bool empty() const noexcept { return is_object ? obj.first == obj.last : arr.first == arr.last; }
+    typename ValueTy::key_type key() const noexcept { return obj.first->key(); }
+    const ValueTy& get_and_advance() noexcept { return is_object ? (obj.first++)->value() : *arr.first++; }
+    const ValueTy& prev() const noexcept { return is_object ? std::prev(obj.first)->value() : *std::prev(arr.first); }
 
-    bool is_object() const noexcept { return is_object_; }
-    bool empty() const noexcept { return is_object_ ? obj_.first == obj_.last : arr_.first == arr_.last; }
-    typename ValueTy::key_type key() const noexcept { return obj_.first->key(); }
-    const ValueTy& get_and_advance() noexcept { return is_object_ ? (obj_.first++)->value() : *arr_.first++; }
-    const ValueTy& prev() const noexcept {
-        return is_object_ ? std::prev(obj_.first)->value() : *std::prev(arr_.first);
-    }
-
- private:
     struct array_range_t {
         array_iterator first;
         array_iterator last;
@@ -558,11 +550,11 @@ struct writer_stack_item_t {
         object_iterator last;
     };
 
-    string_view_type element_;
-    bool is_object_;
+    string_view_type element;
+    bool is_object;
     union {
-        array_range_t arr_;
-        object_range_t obj_;
+        array_range_t arr;
+        object_range_t obj;
     };
 };
 
@@ -664,12 +656,12 @@ void write_impl(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>&
     }
 
     bool is_first_element = true;
-    stack.back().set_element(element);
+    stack.back().element = element;
 
 loop:
     auto& top = stack.back();
 
-    if (is_first_element && top.is_object()) { indent += opts.indent_size; }
+    if (is_first_element && top.is_object) { indent += opts.indent_size; }
 
     while (true) {
         if (!is_first_element && !top.prev().is_array()) {
@@ -678,7 +670,7 @@ loop:
             out += '>';
         }
         if (top.empty()) { break; }
-        if (top.is_object()) { element = top.key(); }
+        if (top.is_object) { element = top.key(); }
         const auto& value = top.get_and_advance();
         if (!value.is_array()) {
             out += '\n';
@@ -689,20 +681,20 @@ loop:
         }
         if (value.visit(visitor)) {
             is_first_element = true;
-            stack.back().set_element(element);
+            stack.back().element = element;
             goto loop;
         }
         is_first_element = false;
     }
 
-    if (top.is_object()) {
+    if (top.is_object) {
         indent -= opts.indent_size;
         out += '\n';
         out.append(indent, opts.indent_char);
     }
 
     is_first_element = false;
-    element = top.element();
+    element = top.element;
     stack.pop_back();
     if (!stack.empty()) { goto loop; }
 
