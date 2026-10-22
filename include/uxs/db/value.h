@@ -1312,6 +1312,9 @@ auto get(const value_iterator_proxy<CharT, Alloc, Const>& v) noexcept -> decltyp
 //-----------------------------------------------------------------------------
 // uxs::basic_value<> implementation
 
+struct null_tag_t {
+    explicit constexpr null_tag_t(int) {}
+};
 struct scalar_tag_t {
     explicit constexpr scalar_tag_t(int) {}
 };
@@ -1325,6 +1328,7 @@ struct object_tag_t {
     explicit constexpr object_tag_t(int) {}
 };
 
+constexpr null_tag_t null_tag{0};
 constexpr scalar_tag_t scalar_tag{0};
 constexpr string_tag_t string_tag{0};
 constexpr array_tag_t array_tag{0};
@@ -1420,7 +1424,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         : alloc_type(), type_(dtype::null) {
         value_.null = nullptr;
     }
-    basic_value(std::nullptr_t) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
+    basic_value(null_tag_t) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
         : alloc_type(), type_(dtype::null) {
         value_.null = nullptr;
     }
@@ -1434,9 +1438,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     explicit basic_value(const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) { value_.null = nullptr; }
-    basic_value(std::nullptr_t, const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) {
-        value_.null = nullptr;
-    }
+    basic_value(null_tag_t, const Alloc& al) noexcept : alloc_type(al), type_(dtype::null) { value_.null = nullptr; }
     basic_value(string_tag_t, const Alloc& al) noexcept : alloc_type(al), type_(dtype::string) {
         value_.str.construct_empty();
     }
@@ -1452,6 +1454,8 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     basic_value(object_tag_t, const Alloc& al = Alloc()) : alloc_type(al), type_(dtype::object) {
         value_.obj.construct_empty(*this);
     }
+
+    explicit basic_value(dtype type, const Alloc& al = Alloc());
 
     template<typename FillFn>
     basic_value(string_tag_t, size_type max_length, FillFn&& fn, const Alloc& al = Alloc())
@@ -1490,32 +1494,6 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     basic_value(object_tag_t, std::initializer_list<std::pair<key_type, value_type>> init, const Alloc& al = Alloc())
         : alloc_type(al), type_(dtype::object) {
         value_.obj.construct_from_initializer(*this, init);
-    }
-
-    template<typename Func>
-    basic_value(dtype type, Func&& fn, const Alloc& al = Alloc()) : alloc_type(al), type_(type) {
-        switch (type_) {
-            case dtype::null: break;
-            case dtype::boolean: fn(scalar_tag, value_.b); break;
-            case dtype::integer: fn(scalar_tag, value_.i); break;
-            case dtype::unsigned_integer: fn(scalar_tag, value_.u); break;
-            case dtype::long_integer: fn(scalar_tag, value_.i64); break;
-            case dtype::unsigned_long_integer: fn(scalar_tag, value_.u64); break;
-            case dtype::double_precision: fn(scalar_tag, value_.dbl); break;
-            case dtype::string: {
-                value_.str.construct_empty();
-                fn(string_tag, *this);
-            } break;
-            case dtype::array: {
-                value_.arr.construct_empty();
-                fn(array_tag, *this);
-            } break;
-            case dtype::object: {
-                value_.obj.construct_empty(*this);
-                fn(object_tag, *this);
-            } break;
-            default: UXS_UNREACHABLE_CODE;
-        }
     }
 
     ~basic_value() {
@@ -1560,7 +1538,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         std::swap(type_, other.type_);
     }
 
-    basic_value& operator=(std::nullptr_t) noexcept {
+    basic_value& operator=(null_tag_t) noexcept {
         if (type_ != dtype::null) { destroy(); }
         type_ = dtype::null;
         value_.null = nullptr;
@@ -1961,21 +1939,10 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     template<typename Func>
-    auto visit(Func&& fn) const -> decltype(fn(nullptr)) {
-        switch (type_) {
-            case dtype::null: return fn(nullptr);
-            case dtype::boolean: return fn(value_.b);
-            case dtype::integer: return fn(value_.i);
-            case dtype::unsigned_integer: return fn(value_.u);
-            case dtype::long_integer: return fn(value_.i64);
-            case dtype::unsigned_long_integer: return fn(value_.u64);
-            case dtype::double_precision: return fn(value_.dbl);
-            case dtype::string: return fn(value_.str.cview());
-            case dtype::array: return fn(value_.arr.cview());
-            case dtype::object: return fn(const_object_range(value_.obj));
-            default: UXS_UNREACHABLE_CODE;
-        }
-    }
+    auto visit(Func&& fn) -> decltype(fn(null_tag, *this));
+
+    template<typename Func>
+    auto visit(Func&& fn) const -> decltype(fn(null_tag, *this));
 
     // --------------------------
 
@@ -2125,6 +2092,59 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 };
 
 // --------------------------
+
+template<typename CharT, typename Alloc>
+basic_value<CharT, Alloc>::basic_value(dtype type, const Alloc& al) : alloc_type(al), type_(type) {
+    switch (type_) {
+        case dtype::null: value_.null = nullptr; break;
+        case dtype::boolean: value_.b = false; break;
+        case dtype::integer: value_.i = 0; break;
+        case dtype::unsigned_integer: value_.u = 0; break;
+        case dtype::long_integer: value_.i64 = 0; break;
+        case dtype::unsigned_long_integer: value_.u64 = 0; break;
+        case dtype::double_precision: value_.dbl = 0; break;
+        case dtype::string: value_.str.construct_empty(); break;
+        case dtype::array: value_.arr.construct_empty(); break;
+        case dtype::object: value_.obj.construct_empty(*this); break;
+        default: UXS_UNREACHABLE_CODE;
+    }
+}
+
+template<typename CharT, typename Alloc>
+template<typename Func>
+auto basic_value<CharT, Alloc>::visit(Func&& fn) -> decltype(fn(null_tag, *this)) {
+    switch (type_) {
+        case dtype::null: return fn(null_tag, *this);
+        case dtype::boolean: return fn(scalar_tag, value_.b);
+        case dtype::integer: return fn(scalar_tag, value_.i);
+        case dtype::unsigned_integer: return fn(scalar_tag, value_.u);
+        case dtype::long_integer: return fn(scalar_tag, value_.i64);
+        case dtype::unsigned_long_integer: return fn(scalar_tag, value_.u64);
+        case dtype::double_precision: return fn(scalar_tag, value_.dbl);
+        case dtype::string: return fn(string_tag, *this);
+        case dtype::array: return fn(array_tag, *this);
+        case dtype::object: return fn(object_tag, *this);
+        default: UXS_UNREACHABLE_CODE;
+    }
+}
+
+template<typename CharT, typename Alloc>
+template<typename Func>
+auto basic_value<CharT, Alloc>::visit(Func&& fn) const -> decltype(fn(null_tag, *this)) {
+    switch (type_) {
+        case dtype::null: return fn(null_tag, *this);
+        case dtype::boolean: return fn(scalar_tag, value_.b);
+        case dtype::integer: return fn(scalar_tag, value_.i);
+        case dtype::unsigned_integer: return fn(scalar_tag, value_.u);
+        case dtype::long_integer: return fn(scalar_tag, value_.i64);
+        case dtype::unsigned_long_integer: return fn(scalar_tag, value_.u64);
+        case dtype::double_precision: return fn(scalar_tag, value_.dbl);
+        case dtype::string: return fn(string_tag, *this);
+        case dtype::array: return fn(array_tag, *this);
+        case dtype::object: return fn(object_tag, *this);
+        default: UXS_UNREACHABLE_CODE;
+    }
+}
 
 template<typename CharT, typename Alloc>
 template<typename StrLikeTy, typename>
