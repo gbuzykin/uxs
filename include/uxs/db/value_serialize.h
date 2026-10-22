@@ -14,26 +14,28 @@ namespace detail {
 
 template<typename CharT, typename Alloc>
 void serialize_db_value(biobuf& os, const db::basic_value<CharT, Alloc>& v) {
-    using value_ty = const db::basic_value<CharT, Alloc>;
     os << v.type();
-    v.visit([&os](auto x) {
-        if constexpr (std::is_same_v<decltype(x), decltype(std::declval<value_ty>().as_string_view())>) {
-            os << static_cast<std::uint64_t>(x.size());
+    v.visit([&os](auto tag, const auto& x) {
+        if constexpr (std::is_same_v<decltype(tag), db::string_tag_t>) {
+            const auto s = x.as_string_view();
+            os << static_cast<std::uint64_t>(s.size());
             os.write_with_endian(
-                est::as_span(reinterpret_cast<const std::uint8_t*>(x.data()), x.size() * sizeof(CharT)), sizeof(CharT));
-        } else if constexpr (std::is_same_v<decltype(x), decltype(std::declval<value_ty>().as_array())>) {
-            os << static_cast<std::uint64_t>(x.size());
-            for (const auto& el : x) { serialize_db_value(os, el); }
-        } else if constexpr (std::is_same_v<decltype(x), decltype(std::declval<value_ty>().as_object())>) {
-            os << static_cast<std::uint64_t>(x.size());
-            for (const auto& [key, value] : x) {
+                est::as_span(reinterpret_cast<const std::uint8_t*>(s.data()), s.size() * sizeof(CharT)), sizeof(CharT));
+        } else if constexpr (std::is_same_v<decltype(tag), db::array_tag_t>) {
+            const auto r = x.as_array();
+            os << static_cast<std::uint64_t>(r.size());
+            for (const auto& el : r) { serialize_db_value(os, el); }
+        } else if constexpr (std::is_same_v<decltype(tag), db::object_tag_t>) {
+            const auto r = x.as_object();
+            os << static_cast<std::uint64_t>(r.size());
+            for (const auto& [key, value] : r) {
                 os << static_cast<std::uint64_t>(key.size());
                 os.write_with_endian(
                     est::as_span(reinterpret_cast<const std::uint8_t*>(key.data()), key.size() * sizeof(CharT)),
                     sizeof(CharT));
                 serialize_db_value(os, value);
             }
-        } else if constexpr (!std::is_same_v<decltype(x), std::nullptr_t>) {
+        } else if constexpr (!std::is_same_v<decltype(tag), db::null_tag_t>) {
             os << x;
         }
     });
@@ -42,27 +44,27 @@ void serialize_db_value(biobuf& os, const db::basic_value<CharT, Alloc>& v) {
 template<typename CharT, typename Alloc>
 void deserialize_db_value(bibuf& is, db::basic_value<CharT, Alloc>& v) {
     using value_type = db::basic_value<CharT, Alloc>;
+    auto al = v.get_allocator();
     auto type = db::dtype::null;
     if (!(is >> type)) { return; }
-    v = value_type(type, [&is](auto type, auto& x) {
-        if constexpr (std::is_same_v<decltype(type), db::string_tag_t>) {
+    if (v.type() != type) { v = value_type(type, al); }
+    v.visit([&is, &al](auto tag, auto& x) {
+        if constexpr (std::is_same_v<decltype(tag), db::string_tag_t>) {
             std::uint64_t sz = 0;
             if (!(is >> sz)) { return; }
             x.assign(db::string_tag, static_cast<std::size_t>(sz), [&is](est::span<CharT> s) {
                 return is.read_with_endian(
                     est::as_span(reinterpret_cast<std::uint8_t*>(s.data()), s.size() * sizeof(CharT)), sizeof(CharT));
             });
-        } else if constexpr (std::is_same_v<decltype(type), db::array_tag_t>) {
+        } else if constexpr (std::is_same_v<decltype(tag), db::array_tag_t>) {
             std::uint64_t sz = 0;
             if (!(is >> sz)) { return; }
             x.reserve(db::array_tag, static_cast<std::size_t>(sz));
-            auto al = x.get_allocator();
             for (; sz && is; --sz) { deserialize_db_value(is, x.push_back(value_type(al))); }
-        } else if constexpr (std::is_same_v<decltype(type), db::object_tag_t>) {
+        } else if constexpr (std::is_same_v<decltype(tag), db::object_tag_t>) {
             std::uint64_t sz = 0;
             if (!(is >> sz)) { return; }
             x.reserve(db::object_tag, static_cast<std::size_t>(sz));
-            auto al = x.get_allocator();
             for (; sz; --sz) {
                 std::uint64_t key_sz = 0;
                 if (!(is >> key_sz)) { return; }
@@ -76,7 +78,7 @@ void deserialize_db_value(bibuf& is, db::basic_value<CharT, Alloc>& v) {
                     value_type(al));
                 deserialize_db_value(is, (*x.append_new(std::move(node))).value());
             }
-        } else {
+        } else if constexpr (!std::is_same_v<decltype(tag), db::null_tag_t>) {
             is >> x;
         }
     });

@@ -427,7 +427,7 @@ basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, 
     static const auto text_to_value = [](string_view_type sval, const Alloc& al) -> value_type {
         switch (classify_value(sval)) {
             case value_class::empty:
-            case value_class::null_value: return {nullptr, al};
+            case value_class::null_value: return {null_tag, al};
             case value_class::true_value: return {true, al};
             case value_class::false_value: return {false, al};
             case value_class::integer_number: {
@@ -593,7 +593,7 @@ void write_text(basic_membuffer<OutCharT>& out, std::basic_string_view<CharT> te
     utf_string_adapter<OutCharT>{}.append(out, to_string_view(it0, text.end()));
 }
 
-template<typename ValueTy, typename StrTy, typename StackTy>
+template<typename StrTy, typename StackTy>
 struct value_visitor {
     using char_type = typename StrTy::value_type;
 
@@ -603,54 +603,62 @@ struct value_visitor {
     value_visitor(StrTy& out, StackTy& stack) : out(out), stack(stack) {}
 
     template<typename Ty>
-    bool operator()(Ty v) const {
-        sconv::fmt_integer(out, v);
-        return false;
-    }
-
-    bool operator()(double f) const {
-        sconv::fmt_float(out, f, fmt_flags::mandatory_frac | fmt_flags::throw_on_inf_or_nan);
-        return false;
-    }
-
-    bool operator()(std::nullptr_t) const {
+    bool operator()(null_tag_t, const Ty&) const {
         out += string_literal<char_type, 'n', 'u', 'l', 'l'>{}();
         return false;
     }
 
-    bool operator()(bool b) const {
+    bool operator()(scalar_tag_t, bool b) const {
         out += b ? string_literal<char_type, 't', 'r', 'u', 'e'>{}() :
                    string_literal<char_type, 'f', 'a', 'l', 's', 'e'>{}();
         return false;
     }
 
-    bool operator()(decltype(std::declval<ValueTy>().as_string_view()) s) const {
-        detail::write_text<char_type>(out, s);
+    template<typename Ty>
+    bool operator()(scalar_tag_t, Ty v) const {
+        sconv::fmt_integer(out, v);
         return false;
     }
 
-    bool operator()(decltype(std::declval<ValueTy>().as_array()) r) const {
+    bool operator()(scalar_tag_t, double f) const {
+        sconv::fmt_float(out, f, fmt_flags::mandatory_frac | fmt_flags::throw_on_inf_or_nan);
+        return false;
+    }
+
+    template<typename Ty>
+    bool operator()(string_tag_t, const Ty& v) const {
+        detail::write_text<char_type>(out, v.as_string_view());
+        return false;
+    }
+
+    template<typename Ty>
+    bool operator()(array_tag_t, const Ty& v) const {
+        const auto r = v.as_array();
         stack.emplace_back(r.begin(), r.end());
         return true;
     }
 
-    bool operator()(decltype(std::declval<ValueTy>().as_object()) r) const {
+    template<typename Ty>
+    bool operator()(object_tag_t, const Ty& v) const {
+        const auto r = v.as_object();
         stack.emplace_back(r.begin(), r.end());
         return true;
     }
 };
 
-template<typename CharT, typename Alloc, typename StrTy, typename StackTy>
-value_visitor<const basic_value<CharT, Alloc>, StrTy, StackTy> make_value_visitor(StrTy& out, StackTy& stack) {
+template<typename StrTy, typename StackTy>
+value_visitor<StrTy, StackTy> make_value_visitor(StrTy& out, StackTy& stack) {
     return {out, stack};
 }
 
 template<typename OutCharT, typename CharT, typename Alloc>
 void write_impl(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v,
                 std::basic_string_view<CharT> element, xml_fmt_opts opts, unsigned indent) {
-    inline_dynarray<detail::writer_stack_item_t<basic_value<CharT, Alloc>>, 64> stack;
+    using value_type = basic_value<CharT, Alloc>;
 
-    const auto visitor = detail::make_value_visitor<CharT, Alloc>(out, stack);
+    inline_dynarray<detail::writer_stack_item_t<value_type>, 64> stack;
+
+    const auto visitor = detail::make_value_visitor(out, stack);
 
     out += '<';
     utf_string_adapter<OutCharT>{}.append(out, element);
