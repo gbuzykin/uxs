@@ -2,6 +2,7 @@
 
 #include "uxs/chars.h"
 #include "uxs/db/xml.h"
+#include "uxs/dynarray.h"
 #include "uxs/string_conv.h"
 
 namespace uxs {
@@ -298,24 +299,16 @@ auto parser<InCharT>::next_impl() -> std::pair<token_t, string_view_type> {
         const InCharT* curr0 = lexer_.in.curr();
 
         if (*curr0 == '<') {
-            if (attrs_.is_object()) {
-                const auto attrs = attrs_.as_const_object();
-                for (auto it = attrs.begin(); it != attrs.end();) {
-                    auto result = attrs_.extract(it);
-                    attr_cache_.emplace_back(std::move(result.first));
-                    it = result.second;
-                }
-            }
+            if (attrs_.is_object()) { attrs_.extract_all(attr_cache_); }
 
             const auto add_attribute = [this](string_view_type lval) {
                 if (attr_cache_.empty()) { return attrs_.append_new(lval, {}); }
-                auto node = std::move(attr_cache_.back());
-                attr_cache_.pop_back();
+                auto node = attr_cache_.pop_front();
                 node.set_key(lval);
                 return attrs_.append_new(std::move(node));
             };
 
-            const auto parse_attribute = [this, add_attribute](string_view_type lval) {
+            const auto parse_attribute = [this, &add_attribute](string_view_type lval) {
                 const auto it = add_attribute(lval);
 
                 if (lexer_.lex(lval) != detail::lex_token_t::eq) { detail::report_error(lexer_.ln, "expected `=`"); }

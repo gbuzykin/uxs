@@ -1,7 +1,6 @@
 #pragma once
 
 #include "uxs/db/value.h"
-#include "uxs/dllist.h"
 #include "uxs/string_conv.h"
 
 #include <cmath>
@@ -339,6 +338,25 @@ auto object_t<CharT, Alloc>::extract_impl(alloc_type& al, list_links_t* node) ->
     *p_next_bucket = v.next_bucket_;
     --p_->size;
     return {&v, dllist_remove(node)};
+}
+
+template<typename CharT, typename Alloc>
+void object_t<CharT, Alloc>::extract_all(alloc_type& al, node_chain& chain) {
+    chain.check_allocator(al);
+    if (p_->ref_count > 1) {
+        for (list_links_t* node = cbegin(); node != cend(); node = node->next) {
+            const auto& v = *node_t::from_links(node);
+            dllist_insert_before(&chain.head_, &node_t::construct(al, v.key(), value_type(v.value()))->links_);
+            ++chain.size_;
+        }
+        object_t new_obj;
+        new_obj.construct_empty(al);
+        reset(al, new_obj);
+    } else if (p_->size) {
+        dllist_insert_before(&chain.head_, p_->head.next, p_->head.prev);
+        chain.size_ += p_->size;
+        p_->init();
+    }
 }
 
 template<typename CharT, typename Alloc>

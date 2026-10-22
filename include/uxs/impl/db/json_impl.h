@@ -335,7 +335,7 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
             ++stack.back().count;
         },
         [&stack, &node_stack, &al, &item](string_view_type key) {
-            typename value_type::node_handle node(
+            auto node = value_type::make_node(
                 al, utf_string_adapter<CharT>{}.count(key.begin(), key.end()),
                 [key](est::span<CharT> s) {
                     utf_string_adapter<CharT>{}.transform(key.begin(), key.end(), s.data());
