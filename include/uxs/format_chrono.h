@@ -1,4 +1,5 @@
 #pragma once
+
 #include "chars.h"
 #include "format_common.h"
 #include "string_conv.h"

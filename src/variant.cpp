@@ -30,18 +30,15 @@ variant::variant(variant_id_t type, const variant& v) : vtable_(get_vtable(type)
         void* tgt = vtable_->construct_default(&data_);
         if (!v.vtable_) { return; }
         assert(vtable_ && v.vtable_);
-        try {
-            if (vtable_->type > v.vtable_->type) {
-                if (vtable_->convert_from) {
-                    vtable_->convert_from(v.vtable_->type, tgt, v.vtable_->get_value_const_ptr(&v.data_));
-                }
-            } else if (v.vtable_->convert_to) {
-                v.vtable_->convert_to(vtable_->type, tgt, v.vtable_->get_value_const_ptr(&v.data_));
+        std::unique_ptr<void, void (*)(void*)> destroy_guard(&data_, vtable_->destroy);
+        if (vtable_->type > v.vtable_->type) {
+            if (vtable_->convert_from) {
+                vtable_->convert_from(v.vtable_->type, tgt, v.vtable_->get_value_const_ptr(&v.data_));
             }
-        } catch (...) {
-            vtable_->destroy(&data_);
-            throw;
+        } else if (v.vtable_->convert_to) {
+            v.vtable_->convert_to(vtable_->type, tgt, v.vtable_->get_value_const_ptr(&v.data_));
         }
+        destroy_guard.release();
     }
 }
 
@@ -57,8 +54,8 @@ variant& variant::operator=(const variant& v) {
             assert(vtable_);
             vtable_->destroy(&data_);
         } else {
-            detail::variant_storage_t tmp;
             assert(vtable_ && v.vtable_);
+            detail::variant_storage_t tmp;
             v.vtable_->construct_copy(&tmp, &v.data_);
             vtable_->destroy(&data_);
             v.vtable_->construct_move(&data_, &tmp);
@@ -90,30 +87,23 @@ bool variant::convert(variant_id_t type) {
         if (!vtable_) {
             tgt_vtable->construct_default(&data_);
         } else {
-            detail::variant_storage_t tmp;
             assert(vtable_ && tgt_vtable);
+            detail::variant_storage_t tmp;
             void* tgt = tgt_vtable->construct_default(&tmp);
-            try {
-                if (vtable_->type > tgt_vtable->type) {
-                    if (!vtable_->convert_to ||
-                        !vtable_->convert_to(tgt_vtable->type, tgt, vtable_->get_value_const_ptr(&data_))) {
-                        tgt_vtable->destroy(&tmp);
-                        return false;
-                    }
-                } else {
-                    if (!tgt_vtable->convert_from ||
-                        !tgt_vtable->convert_from(vtable_->type, tgt, vtable_->get_value_const_ptr(&data_))) {
-                        tgt_vtable->destroy(&tmp);
-                        return false;
-                    }
+            std::unique_ptr<void, void (*)(void*)> destroy_guard(&tmp, tgt_vtable->destroy);
+            if (vtable_->type > tgt_vtable->type) {
+                if (!vtable_->convert_to ||
+                    !vtable_->convert_to(tgt_vtable->type, tgt, vtable_->get_value_const_ptr(&data_))) {
+                    return false;
                 }
-            } catch (...) {
-                tgt_vtable->destroy(&tmp);
-                throw;
+            } else {
+                if (!tgt_vtable->convert_from ||
+                    !tgt_vtable->convert_from(vtable_->type, tgt, vtable_->get_value_const_ptr(&data_))) {
+                    return false;
+                }
             }
             vtable_->destroy(&data_);
             tgt_vtable->construct_move(&data_, &tmp);
-            tgt_vtable->destroy(&tmp);
         }
     }
     vtable_ = tgt_vtable;
@@ -123,34 +113,23 @@ bool variant::convert(variant_id_t type) {
 bool variant::is_equal_to(const variant& v) const {
     if (vtable_ == v.vtable_) { return !vtable_ || vtable_->is_equal(&data_, &v.data_); }
     if (!vtable_ || !v.vtable_) { return false; }
-    detail::variant_storage_t tmp;
-    bool result = false;
     assert(vtable_ && v.vtable_);
+    detail::variant_storage_t tmp;
     // Two variant are compared as values of type with greater identifier
     if (vtable_->type > v.vtable_->type) {
         if (vtable_->convert_from) {
             void* tgt = vtable_->construct_default(&tmp);
-            try {
-                result = vtable_->convert_from(v.vtable_->type, tgt, v.vtable_->get_value_const_ptr(&v.data_)) &&
-                         vtable_->is_equal(&tmp, &data_);
-            } catch (...) {
-                vtable_->destroy(&tmp);
-                throw;
-            }
-            vtable_->destroy(&tmp);
+            std::unique_ptr<void, void (*)(void*)> destroy_guard(&tmp, vtable_->destroy);
+            return vtable_->convert_from(v.vtable_->type, tgt, v.vtable_->get_value_const_ptr(&v.data_)) &&
+                   vtable_->is_equal(&tmp, &data_);
         }
     } else if (v.vtable_->convert_from) {
         void* tgt = v.vtable_->construct_default(&tmp);
-        try {
-            result = v.vtable_->convert_from(vtable_->type, tgt, vtable_->get_value_const_ptr(&data_)) &&
-                     v.vtable_->is_equal(&tmp, &v.data_);
-        } catch (...) {
-            v.vtable_->destroy(&tmp);
-            throw;
-        }
-        v.vtable_->destroy(&tmp);
+        std::unique_ptr<void, void (*)(void*)> destroy_guard(&tmp, v.vtable_->destroy);
+        return v.vtable_->convert_from(vtable_->type, tgt, vtable_->get_value_const_ptr(&data_)) &&
+               v.vtable_->is_equal(&tmp, &v.data_);
     }
-    return result;
+    return false;
 }
 
 namespace uxs {
