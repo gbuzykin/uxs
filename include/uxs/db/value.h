@@ -289,7 +289,9 @@ class flexarray_t {
 
     template<bool PutTailZero = true>
     static void destruct_items(Ty* first, Ty* last) noexcept {
-        destruct_items_dispatch(first, last, std::is_trivially_destructible<Ty>());
+        destruct_items_dispatch(first, last,
+                                std::bool_constant<std::is_trivially_destructible<Ty>::value &&
+                                                   std::is_same<alloc_type, std::allocator<std::uintptr_t>>::value>());
         put_tail_zero<PutTailZero>(first);
     }
 
@@ -807,8 +809,8 @@ class object_node_chain : protected std::allocator_traits<Alloc>::template rebin
 
     object_node_chain& operator=(const object_node_chain&) = delete;
 
-    size_type size() noexcept { return size_; }
     bool empty() noexcept { return size_ == 0; }
+    size_type size() noexcept { return size_; }
 
     void push_back(node_handle&& h) {
         node_t* node = std::move(h).release(*this);
@@ -1453,10 +1455,10 @@ class object_range {
     explicit object_range(const object_t<CharT, Alloc>& obj) noexcept
         : from_(obj.cbegin()), to_(obj.cend()), size_(obj.size()) {}
 
+    bool empty() const noexcept { return size_ == 0; }
+    size_type size() const noexcept { return size_; }
     Iter begin() const noexcept { return from_; }
     Iter end() const noexcept { return to_; }
-    size_type size() const noexcept { return size_; }
-    bool empty() const noexcept { return size_ == 0; }
 
  private:
     Iter from_, to_;

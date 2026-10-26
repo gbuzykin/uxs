@@ -55,9 +55,9 @@ class basic_string_view {
     basic_string_view(const std::basic_string<CharT, Traits, Alloc>& s) noexcept
         : basic_string_view(s.data(), s.size()) {}
 
+    bool empty() const noexcept { return size_ == 0; }
     size_type size() const noexcept { return size_; }
     size_type length() const noexcept { return size_; }
-    bool empty() const noexcept { return size_ == 0; }
 
     explicit operator std::basic_string<CharT, Traits>() const { return basic_string<CharT, Traits>(begin_, size_); }
 
@@ -82,11 +82,11 @@ class basic_string_view {
         return begin_[pos];
     }
     const_reference front() const {
-        assert(size_ > 0);
+        assert(size_);
         return begin_[0];
     }
     const_reference back() const {
-        assert(size_ > 0);
+        assert(size_);
         return *(begin_ + size_ - 1);
     }
     const_pointer data() const noexcept { return begin_; }

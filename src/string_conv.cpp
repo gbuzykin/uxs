@@ -174,7 +174,7 @@ UXS_FORCE_INLINE std::uint64_t udiv128(uint128_t x, std::uint64_t y) {
 
 // Is used by `accum_mantissa<>` template
 std::uint64_t sconv::bignum_mul32(std::uint64_t* x, unsigned sz, std::uint32_t mul, std::uint32_t bias) {
-    assert(sz > 0);
+    assert(sz);
     std::uint64_t higher = bias;
     std::uint64_t* x0 = x;
     x += sz;
@@ -185,7 +185,7 @@ std::uint64_t sconv::bignum_mul32(std::uint64_t* x, unsigned sz, std::uint32_t m
 namespace {
 
 inline std::uint64_t bignum_mul(std::uint64_t* x, unsigned sz, std::uint64_t mul) {
-    assert(sz > 0);
+    assert(sz);
     std::uint64_t higher = 0;
     std::uint64_t* x0 = x;
     x += sz - 1;
@@ -195,7 +195,7 @@ inline std::uint64_t bignum_mul(std::uint64_t* x, unsigned sz, std::uint64_t mul
 }
 
 inline std::uint64_t bignum_mul(std::uint64_t* x, const std::uint64_t* y, unsigned sz, std::uint64_t mul) {
-    assert(sz > 0);
+    assert(sz);
     std::uint64_t higher = 0;
     std::uint64_t* x0 = x;
     x += sz - 1, y += sz - 1;
@@ -205,7 +205,7 @@ inline std::uint64_t bignum_mul(std::uint64_t* x, const std::uint64_t* y, unsign
 }
 
 inline std::uint64_t bignum_addmul(std::uint64_t* x, const std::uint64_t* y, unsigned sz, std::uint64_t mul) {
-    assert(sz > 0);
+    assert(sz);
     std::uint64_t higher = 0;
     std::uint64_t* x0 = x;
     x += sz - 1, y += sz;
@@ -222,14 +222,14 @@ inline void bignum_mul_vec(std::uint64_t* x, const std::uint64_t* y, unsigned sz
 }
 
 inline unsigned bignum_trim_unused(const std::uint64_t* x, unsigned sz) {
-    while (sz > 0 && !x[sz - 1]) { --sz; }
+    while (sz && !x[sz - 1]) { --sz; }
     return sz;
 }
 
 inline std::uint64_t bignum_submul(std::uint64_t* x, const std::uint64_t* y, unsigned sz_x, unsigned sz,
                                    std::uint64_t mul) {
     // returns: x[0]...x[sz_x-1]000... - mul * y[0]...y[sz-1], MSB of y[0] is 1
-    assert(sz > 0);
+    assert(sz);
     one_bit_t borrow = 0;
     std::uint64_t* x0 = x;
     x += sz - 1, y += sz - 1;
@@ -247,7 +247,7 @@ inline std::uint64_t bignum_submul(std::uint64_t* x, const std::uint64_t* y, uns
 }
 
 inline one_bit_t bignum_add(std::uint64_t* x, const std::uint64_t* y, unsigned sz) {
-    assert(sz > 0);
+    assert(sz);
     std::uint64_t* x0 = x;
     x += sz - 1, y += sz - 1;
     one_bit_t carry = add64_carry(*x, *y, *x);
@@ -259,7 +259,7 @@ inline std::uint64_t bignum_divmod(std::uint64_t integral, std::uint64_t* x, con
                                    unsigned sz) {
     // integral.x[0]...x[sz_x-1]000... / 0.y[0]...y[sz-1], MSB of y[0] is 1
     // returns: quotient, 0.x[0]...x[sz-1] - remainder
-    assert(sz > 0);
+    assert(sz);
     uint128_t num128{integral, sz_x ? x[0] : 0};
     if (sz_x > 1) { num128.hi += add64_carry(num128.lo, 1, num128.lo); }
     // Calculate quotient upper estimation.
@@ -275,7 +275,7 @@ inline std::uint64_t bignum_divmod(std::uint64_t integral, std::uint64_t* x, con
 }
 
 inline std::uint64_t bignum_shift_left(std::uint64_t* x, unsigned sz, unsigned shift) {
-    assert(sz > 0);
+    assert(sz);
     std::uint64_t* x0 = x + sz - 1;
     const std::uint64_t higher = *x >> (64 - shift);
     while (x != x0) { *x = shl128(*x, *(x + 1), shift), ++x; }
@@ -284,7 +284,7 @@ inline std::uint64_t bignum_shift_left(std::uint64_t* x, unsigned sz, unsigned s
 }
 
 inline std::uint64_t bignum_shift_right(std::uint64_t higher, std::uint64_t* x, unsigned sz, unsigned shift) {
-    assert(sz > 0);
+    assert(sz);
     std::uint64_t* x0 = x;
     x += sz - 1;
     const std::uint64_t lower = *x << (64 - shift);

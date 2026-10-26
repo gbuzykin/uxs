@@ -113,12 +113,12 @@ class zip_iterator
 };
 
 template<typename... Iters>
-zip_iterator<Iters...> make_zip_iterator(Iters... its) {
+UXS_CONSTEXPR zip_iterator<Iters...> make_zip_iterator(Iters... its) {
     return zip_iterator<Iters...>(its...);
 }
 
 template<typename... Range>
-auto zip(Range&&... r) -> iterator_range<zip_iterator<decltype(std::end(r))...>> {
+UXS_CONSTEXPR auto zip(Range&&... r) -> iterator_range<zip_iterator<decltype(std::end(r))...>> {
     return {make_zip_iterator(std::begin(r)...), make_zip_iterator(std::end(r)...)};
 }
 

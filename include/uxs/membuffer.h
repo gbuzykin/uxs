@@ -75,20 +75,20 @@ class basic_membuffer {
     }
 
     reference front() {
-        assert(size_ != 0);
+        assert(size_);
         return data_[0];
     }
     const_reference front() const {
-        assert(size_ != 0);
+        assert(size_);
         return data_[0];
     }
 
     reference back() {
-        assert(size_ != 0);
+        assert(size_);
         return data_[size_ - 1];
     }
     const_reference back() const {
-        assert(size_ != 0);
+        assert(size_);
         return data_[size_ - 1];
     }
 
@@ -139,7 +139,7 @@ class basic_membuffer {
     }
 
     void pop_back() noexcept {
-        assert(size_ != 0);
+        assert(size_);
         --size_;
     }
 
