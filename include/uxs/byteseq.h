@@ -71,8 +71,8 @@ class basic_byteseq : protected std::allocator_traits<Alloc>::template rebind_al
         return *this;
     }
 
-    std::size_t size() const noexcept { return size_; }
     bool empty() const noexcept { return size_ == 0; }
+    std::size_t size() const noexcept { return size_; }
     allocator_type get_allocator() const noexcept { return allocator_type(*this); }
 
     UXS_EXPORT void clear() noexcept;

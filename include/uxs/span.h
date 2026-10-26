@@ -48,8 +48,8 @@ class span {
     UXS_CONSTEXPR span(Range&& r) noexcept : begin_(std::data(r)), size_(std::size(r)) {}
 #endif  // __cplusplus < 201703L
 
-    UXS_CONSTEXPR size_type size() const noexcept { return size_; }
     UXS_CONSTEXPR bool empty() const noexcept { return size_ == 0; }
+    UXS_CONSTEXPR size_type size() const noexcept { return size_; }
     UXS_CONSTEXPR pointer data() const noexcept { return begin_; }
 
     UXS_CONSTEXPR iterator begin() const noexcept { return iterator(begin_, begin_, begin_ + size_); }
@@ -62,16 +62,16 @@ class span {
         assert(pos < size_);
         return begin_[pos];
     }
-    reference at(size_type pos) const {
-        if (pos < size_) { return begin_[pos]; }
-        uxs::report_index_out_of_range_error();
+    UXS_CONSTEXPR reference at(size_type pos) const {
+        if (pos >= size_) { uxs::report_index_out_of_range_error(); }
+        return begin_[pos];
     }
     UXS_CONSTEXPR reference front() const {
-        assert(size_ > 0);
+        assert(size_);
         return begin_[0];
     }
     UXS_CONSTEXPR reference back() const {
-        assert(size_ > 0);
+        assert(size_);
         return *(begin_ + size_ - 1);
     }
 

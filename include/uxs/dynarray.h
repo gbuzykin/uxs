@@ -87,20 +87,20 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
     }
 
     reference front() {
-        assert(size_ != 0);
+        assert(size_);
         return data_[0];
     }
     const_reference front() const {
-        assert(size_ != 0);
+        assert(size_);
         return data_[0];
     }
 
     reference back() {
-        assert(size_ != 0);
+        assert(size_);
         return data_[size_ - 1];
     }
     const_reference back() const {
-        assert(size_ != 0);
+        assert(size_);
         return data_[size_ - 1];
     }
 
@@ -152,7 +152,7 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
     iterator insert(const_iterator pos, value_type&& val) { return emplace(pos, std::move(val)); }
 
     void pop_back() noexcept {
-        assert(size_ != 0);
+        assert(size_);
         --size_;
         alloc_traits::destroy(*this, data_ + size_);
     }
@@ -185,7 +185,9 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
     size_type eval_new_capacity(size_type extra) const;
 
     void destruct_items(Ty* first, Ty* last) noexcept {
-        destruct_items_dispatch(first, last, std::is_trivially_destructible<Ty>());
+        destruct_items_dispatch(first, last,
+                                std::bool_constant<std::is_trivially_destructible<Ty>::value &&
+                                                   std::is_same<alloc_type, std::allocator<Ty>>::value>());
     }
 
     template<typename Ty_>
