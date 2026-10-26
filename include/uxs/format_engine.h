@@ -732,9 +732,9 @@ class compile_parse_context : public fmt::parse_context_utils {
     }
 
     template<typename Ty>
-    constexpr iterator parse_arg() {
+    static constexpr iterator parse_arg(compile_parse_context& ctx) {
         formatter_t<Ty, char_type> f;
-        return f.parse(*this);
+        return f.parse(ctx);
     }
 
  private:
@@ -804,10 +804,10 @@ class basic_format_string {
 #if defined(UXS_HAS_CONSTEVAL)
         using parse_context = compile_parse_context<char_type>;
         constexpr std::array<fmt::index_t, sizeof...(Args)> arg_types{fmt::arg_type_index<Args, char_type>::value...};
-        constexpr std::array<typename parse_context::iterator (parse_context::*)(), sizeof...(Args)> parsers{
-            &parse_context::template parse_arg<Args>...};
+        constexpr std::array<typename parse_context::iterator (*)(parse_context&), sizeof...(Args)> parsers{
+            parse_context::template parse_arg<Args>...};
         parse_context ctx(fmt_.begin(), fmt_.end(), arg_types);
-        fmt::parse_format(ctx, [](auto&&...) {}, [&parsers](auto& ctx, std::size_t id) { return (ctx.*parsers[id])(); });
+        fmt::parse_format(ctx, [](auto&&...) {}, [&parsers](auto& ctx, std::size_t id) { return parsers[id](ctx); });
 #endif  // defined(UXS_HAS_CONSTEVAL)
     }
     basic_format_string(basic_runtime_format<char_type> fmt) noexcept : fmt_(fmt.str) {}
