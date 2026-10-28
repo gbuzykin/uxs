@@ -30,10 +30,10 @@ void flexarray_t<Ty, Alloc>::grow(alloc_type& al, std::size_t extra) {
     static_assert(std::is_nothrow_copy_constructible<Ty>::value, "Ty must not be nothrow copy constructible");
     assert(p_);
     std::size_t delta_sz = std::max(extra, p_->size >> 1);
-    const std::size_t max_sz = max_size(al);
-    if (delta_sz > max_sz - p_->size) {
-        if (extra > max_sz - p_->size) { report_too_much_to_allocate_error(); }
-        delta_sz = std::max(extra, (max_sz - p_->size) >> 1);
+    const std::size_t max_avail = max_size(al) - p_->size;
+    if (delta_sz > max_avail) {
+        if (extra > max_avail) { report_too_much_to_allocate_error(); }
+        delta_sz = std::max(extra, max_avail >> 1);
     }
     constexpr std::size_t min_capacity = std::is_integral<Ty>::value ? 2 * sizeof(std::uintptr_t) / sizeof(Ty) : 4;
     data_t* p_new = alloc(al, p_->size, std::max(p_->size + delta_sz, min_capacity));
@@ -141,7 +141,7 @@ namespace detail {
 
 template<typename CharT, typename Alloc>
 auto object_item<CharT, Alloc>::alloc(alloc_type& al, std::size_t key_length) -> object_item* {
-    if (key_length + 1 > max_name_alloc_cap(al)) { report_too_much_to_allocate_error(); }
+    if (key_length + 1 > max_capacity(al)) { report_too_much_to_allocate_error(); }
     const std::size_t alloc_sz = get_alloc_sz(key_length + 1);
     object_item* node = reinterpret_cast<object_item*>(alloc_traits::allocate(al, alloc_sz));
     node->key_capacity_ = (alloc_sz * sizeof(typename alloc_traits::value_type) -
@@ -271,10 +271,10 @@ void object_t<CharT, Alloc>::append_common_initializer_no_realloc(alloc_type& al
 template<typename CharT, typename Alloc>
 void object_t<CharT, Alloc>::rehash(alloc_type& al, std::size_t extra) {
     std::size_t delta_count = std::max(extra, p_->size >> 1);
-    const std::size_t max_count = max_size(al);
-    if (delta_count > max_count - p_->size) {
-        if (extra > max_count - p_->size) { report_too_much_to_allocate_error(); }
-        delta_count = std::max(extra, (max_count - p_->size) >> 1);
+    const std::size_t max_avail = max_size(al) - p_->size;
+    if (delta_count > max_avail) {
+        if (extra > max_avail) { report_too_much_to_allocate_error(); }
+        delta_count = std::max(extra, max_avail >> 1);
     }
     constexpr std::size_t min_bucket_count = 4;
     data_t* p_new = alloc(al, std::max(p_->size + delta_count, min_bucket_count));

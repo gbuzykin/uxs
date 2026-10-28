@@ -472,7 +472,7 @@ struct parse_context_utils {
             case 'a': opts.flags |= fmt_flags::hex; return type_spec::floating_point;
             case 'P': opts.flags |= fmt_flags::uppercase; return type_spec::pointer;
             case 'p': return type_spec::pointer;
-            case 'c': opts.flags |= fmt_flags::character; return type_spec::character;
+            case 'c': return type_spec::character;
             case 's': return type_spec::string;
             case '?': return type_spec::debug_string;
             default: return type_spec::none;
@@ -783,6 +783,8 @@ class basic_format_context {
     typename parse_context::iterator format_arg(parse_context& parse_ctx, const custom_arg_handle& h) {
         return h.format(*this, parse_ctx);
     }
+
+    [[noreturn]] static void report_bad_character_code_error() { throw format_error("bad character code"); }
 
  private:
     output_type& out_;

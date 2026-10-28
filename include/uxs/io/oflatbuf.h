@@ -26,10 +26,10 @@ class basic_oflatbuf : protected std::allocator_traits<Alloc>::template rebind_a
     UXS_EXPORT basic_oflatbuf& operator=(basic_oflatbuf&& other) noexcept;
 
     const char_type* data() const noexcept { return this->first(); }
-    size_type size() const noexcept { return std::max(top_, this->pos()); }
+    size_type size() const noexcept { return std::max(size_, this->pos()); }
     est::span<const char_type> view() const noexcept { return est::as_span(this->first(), size()); }
     allocator_type get_allocator() const noexcept { return allocator_type(*this); }
-
+    size_type max_size() const noexcept { return std::allocator_traits<alloc_type>::max_size(*this); }
     UXS_EXPORT void reserve(size_type size);
 
  protected:
@@ -47,7 +47,7 @@ class basic_oflatbuf : protected std::allocator_traits<Alloc>::template rebind_a
 #endif  // UXS_DEBUG_REDUCED_BUFFERS != 0
     };
 
-    size_type top_ = 0;
+    size_type size_ = 0;
 
     UXS_EXPORT void grow(size_type extra);
 };

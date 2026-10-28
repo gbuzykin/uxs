@@ -55,7 +55,7 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
     bool empty() const noexcept { return size_ == 0; }
     size_type size() const noexcept { return size_; }
     size_type capacity() const noexcept { return capacity_; }
-    size_type max_size() const noexcept { return alloc_traits::max_size(*this); }
+    size_type max_size() const noexcept { return ((alloc_traits::max_size(*this) - 1) & ~size_type(1)) + 1; }
     allocator_type get_allocator() const noexcept { return allocator_type(*this); }
 
     iterator begin() noexcept { return iterator(data_, data_, data_ + size_); }
@@ -245,6 +245,7 @@ template<typename Ty, typename Alloc>
 template<typename... Args>
 void dynarray<Ty, Alloc>::init(size_type count, Args&&... args) {
     if (count > capacity_) {
+        if (count > max_size()) { report_too_much_to_allocate_error(); }
         capacity_ = (count & ~size_type(1)) + 1;  // Make new dynamic odd capacity
         data_ = alloc_traits::allocate(*this, capacity_);
     }
@@ -289,13 +290,13 @@ void dynarray<Ty, Alloc>::resize_impl(size_type size, Args&&... args) {
 template<typename Ty, typename Alloc>
 auto dynarray<Ty, Alloc>::eval_new_capacity(size_type extra) const -> size_type {
     const size_type size = size_;
-    size_type delta_sz = std::max(++extra, size >> 1);
-    const size_type max_avail = std::allocator_traits<alloc_type>::max_size(*this) - size;
+    size_type delta_sz = std::max(extra, size >> 1);
+    const size_type max_avail = max_size() - size;
     if (delta_sz > max_avail) {
         if (extra > max_avail) { report_too_much_to_allocate_error(); }
         delta_sz = std::max(extra, max_avail >> 1);
     }
-    return ((size + delta_sz - 1) & ~size_type(1)) + 1;  // Make new dynamic odd capacity
+    return ((size + delta_sz) & ~size_type(1)) + 1;  // Make new dynamic odd capacity
 }
 
 template<typename Ty, typename Alloc>
@@ -400,7 +401,7 @@ class inline_dynarray : public dynarray<Ty, Alloc> {
 #if UXS_DEBUG_REDUCED_BUFFERS != 0
         inline_buf_size = 2,
 #else   // UXS_DEBUG_REDUCED_BUFFERS != 0
-        inline_buf_size = InlineBufSize != 0 ? ((InlineBufSize + 1) & ~1U) : 16,
+        inline_buf_size = InlineBufSize != 0 ? ((InlineBufSize + 1) & ~size_type(1)) : 16,
 #endif  // UXS_DEBUG_REDUCED_BUFFERS != 0
     };
 

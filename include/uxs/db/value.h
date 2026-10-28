@@ -1,7 +1,5 @@
 #pragma once
 
-#include "database_error.h"
-
 #include "uxs/dllist.h"
 #include "uxs/optional.h"
 #include "uxs/span.h"
@@ -31,6 +29,13 @@ enum class dtype {
 
 template<typename CharT, typename Alloc>
 class basic_value;
+
+class UXS_EXPORT_ALL_STUFF_FOR_GNUC bad_value_access : public std::runtime_error {
+ public:
+    UXS_EXPORT explicit bad_value_access(const char* message);
+    UXS_EXPORT explicit bad_value_access(const std::string& message);
+    UXS_EXPORT const char* what() const noexcept override;
+};
 
 //-----------------------------------------------------------------------------
 // Flexible array implementation
@@ -74,9 +79,9 @@ class flexarray_t {
         return p_->data() + p_->size;
     }
 
-    const Ty& operator[](std::size_t i) const noexcept {
-        assert(p_ && i < p_->size);
-        return *(p_->data() + i);
+    const Ty& operator[](std::size_t pos) const noexcept {
+        assert(p_ && pos < p_->size);
+        return *(p_->data() + pos);
     }
 
     bool is_equal_to(flexarray_t other) const noexcept {
@@ -628,7 +633,7 @@ class object_item {
         dealloc(al, node);
     }
 
-    static std::size_t max_name_alloc_cap(const alloc_type& al) noexcept {
+    static std::size_t max_capacity(const alloc_type& al) noexcept {
         return (std::allocator_traits<alloc_type>::max_size(al) * sizeof(typename alloc_traits::value_type) -
                 offsetof(object_item, key_chars_buf_)) /
                sizeof(char_type);
@@ -766,7 +771,7 @@ class object_node_handle
 
     template<typename CharT_ = CharT>
     void check_allocator_dispatch(const alloc_type& al, std::false_type /* always equal allocators */) const {
-        if (*static_cast<const super&>(*this) != al) { throw database_error("incompatible allocators"); }
+        if (*static_cast<const super&>(*this) != al) { report_incompatible_allocators_error(); }
     }
 
     object_node_handle(const alloc_type& al, node_t* node) noexcept : super(al), node_(node) {}
@@ -842,7 +847,7 @@ class object_node_chain : protected std::allocator_traits<Alloc>::template rebin
 
     template<typename CharT_ = CharT>
     void check_allocator_dispatch(const alloc_type& al, std::false_type /* always equal allocators */) const {
-        if (static_cast<const alloc_type&>(*this) != al) { throw database_error("incompatible allocators"); }
+        if (static_cast<const alloc_type&>(*this) != al) { report_incompatible_allocators_error(); }
     }
 };
 
@@ -1789,10 +1794,10 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     template<typename Ty, typename U>
-    Ty value_or(size_type i, U&& default_value) const {
+    Ty value_or(size_type pos, U&& default_value) const {
         const auto range = as_array();
-        if (i < range.size()) {
-            auto result = range[i].template get<Ty>();
+        if (pos < range.size()) {
+            auto result = range[pos].template get<Ty>();
             if (result) { return detail::move_optional_value(std::move(result)); }
         }
         return Ty(std::forward<U>(default_value));
@@ -1814,8 +1819,8 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     template<typename Ty>
-    Ty value(size_type i) const {
-        return value_or<Ty>(i, Ty());
+    Ty value(size_type pos) const {
+        return value_or<Ty>(pos, Ty());
     }
 
     template<typename Ty>
@@ -1823,9 +1828,9 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         return value_or<Ty>(key, Ty());
     }
 
-    value_type value(size_type i) const {
+    value_type value(size_type pos) const {
         const auto range = as_array();
-        return i < range.size() ? range[i] : value_type();
+        return pos < range.size() ? range[pos] : value_type();
     }
 
     value_type value(key_type key) const {
@@ -1855,12 +1860,12 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     std::basic_string<char_type> as_string() const;
 
     std::basic_string_view<char_type> as_string_view() const {
-        if (type_ != dtype::string) { report_value_conversion_error(); }
+        if (type_ != dtype::string) { report_bad_value_access_error(); }
         return value_.str.cview();
     }
 
     const char_type* as_c_string() const {
-        if (type_ != dtype::string) { report_value_conversion_error(); }
+        if (type_ != dtype::string) { report_bad_value_access_error(); }
         return value_.str.c_str();
     }
 
@@ -1943,8 +1948,8 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     const_array_range as_const_array() const noexcept { return as_array(); }
 
-    const value_type& operator[](size_type i) const { return as_array()[i]; }
-    value_type& operator[](size_type i) { return as_array()[i]; }
+    const value_type& operator[](size_type pos) const { return as_array()[pos]; }
+    value_type& operator[](size_type pos) { return as_array()[pos]; }
 
     const_object_range as_object() const {
         if (type_ != dtype::object) { report_not_an_object_error(); }
@@ -1991,27 +1996,27 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     bool contains(key_type key) const noexcept { return !!try_find(key); }
     size_type count(key_type key) const noexcept { return type_ == dtype::object ? value_.obj.count(key) : 0; }
 
-    const value_type& at(size_type i) const {
+    const value_type& at(size_type pos) const {
         const auto range = as_array();
-        if (i >= range.size()) { report_index_out_of_range_error(); }
-        return range[i];
+        if (pos >= range.size()) { report_value_index_out_of_range_error(); }
+        return range[pos];
     }
 
-    value_type& at(size_type i) {
+    value_type& at(size_type pos) {
         const auto range = as_array();
-        if (i >= range.size()) { report_index_out_of_range_error(); }
-        return range[i];
+        if (pos >= range.size()) { report_value_index_out_of_range_error(); }
+        return range[pos];
     }
 
     const value_type& at(key_type key) const {
         const auto it = try_find(key);
-        if (!it) { report_invalid_key_error(); }
+        if (!it) { report_value_key_not_found_error(); }
         return (**it).value();
     }
 
     value_type& at(key_type key) {
         const auto it = try_find(key);
-        if (!it) { report_invalid_key_error(); }
+        if (!it) { report_value_key_not_found_error(); }
         return (**it).value();
     }
 
@@ -2127,12 +2132,12 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         std::nullptr_t null;
     } value_;
 
-    [[noreturn]] static void report_not_a_string_error() { throw database_error("not a string"); }
-    [[noreturn]] static void report_not_an_array_error() { throw database_error("not an array"); }
-    [[noreturn]] static void report_not_an_object_error() { throw database_error("not an object"); }
-    [[noreturn]] static void report_index_out_of_range_error() { throw database_error("index out of range"); }
-    [[noreturn]] static void report_invalid_key_error() { throw database_error("invalid key"); }
-    [[noreturn]] static void report_value_conversion_error() { throw database_error("bad value conversion"); }
+    [[noreturn]] static void report_not_a_string_error() { throw bad_value_access("not a string"); }
+    [[noreturn]] static void report_not_an_array_error() { throw bad_value_access("not an array"); }
+    [[noreturn]] static void report_not_an_object_error() { throw bad_value_access("not an object"); }
+    [[noreturn]] static void report_bad_value_access_error() { throw bad_value_access("bad value access"); }
+    [[noreturn]] static void report_value_index_out_of_range_error() { throw bad_value_access("index out of range"); }
+    [[noreturn]] static void report_value_key_not_found_error() { throw bad_value_access("key not found"); }
 
     void init_from(const basic_value& other) noexcept {
         value_ = other.value_;
@@ -2383,7 +2388,7 @@ auto basic_value<CharT, Alloc>::erase(const_iterator it) -> iterator {
     template<typename CharT, typename Alloc> \
     ty basic_value<CharT, Alloc>::as##func() const { \
         const auto result = get##func(); \
-        if (!result) { report_value_conversion_error(); } \
+        if (!result) { report_bad_value_access_error(); } \
         return *result; \
     } \
     static_assert(true, "")

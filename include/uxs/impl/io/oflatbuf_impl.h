@@ -11,7 +11,7 @@ basic_oflatbuf<CharT, Alloc>::~basic_oflatbuf() {
 
 template<typename CharT, typename Alloc>
 basic_oflatbuf<CharT, Alloc>::basic_oflatbuf(basic_oflatbuf&& other) noexcept
-    : alloc_type(std::move(other)), basic_iobuf<CharT>(std::move(other)), top_(other.top_) {}
+    : alloc_type(std::move(other)), basic_iobuf<CharT>(std::move(other)), size_(other.size_) {}
 
 template<typename CharT, typename Alloc>
 basic_oflatbuf<CharT, Alloc>& basic_oflatbuf<CharT, Alloc>::operator=(basic_oflatbuf&& other) noexcept {
@@ -19,19 +19,19 @@ basic_oflatbuf<CharT, Alloc>& basic_oflatbuf<CharT, Alloc>::operator=(basic_ofla
     if (this->first() != nullptr) { alloc_traits::deallocate(*this, this->first(), this->capacity()); }
     alloc_type::operator=(std::move(other));
     basic_iobuf<CharT>::operator=(std::move(other));
-    top_ = other.top_;
+    size_ = other.size_;
     return *this;
 }
 
 template<typename CharT, typename Alloc>
 void basic_oflatbuf<CharT, Alloc>::reserve(size_type size) {
-    top_ = this->size();
-    if (size > this->capacity()) { grow(size - top_); }
+    size_ = this->size();
+    if (size > this->capacity()) { grow(size - size_); }
 }
 
 template<typename CharT, typename Alloc>
 int basic_oflatbuf<CharT, Alloc>::overflow() {
-    top_ = size();
+    size_ = size();
     grow(1);
     return 0;
 }
@@ -43,13 +43,13 @@ int basic_oflatbuf<CharT, Alloc>::sync() {
 
 template<typename CharT, typename Alloc>
 int basic_oflatbuf<CharT, Alloc>::truncate_impl() {
-    top_ = this->pos();
+    size_ = this->pos();
     return 0;
 }
 
 template<typename CharT, typename Alloc>
 auto basic_oflatbuf<CharT, Alloc>::seek_impl(off_type off, seekdir dir) -> pos_type {
-    top_ = size();
+    size_ = size();
     size_type pos = this->pos();
     switch (dir) {
         case seekdir::beg: {
@@ -60,27 +60,27 @@ auto basic_oflatbuf<CharT, Alloc>::seek_impl(off_type off, seekdir dir) -> pos_t
             pos = off > 0 || -off < static_cast<off_type>(pos) ? static_cast<size_type>(pos + off) : size_type(0);
         } break;
         case seekdir::end: {
-            pos = off > 0 || -off < static_cast<off_type>(top_) ? static_cast<size_type>(top_ + off) : size_type(0);
+            pos = off > 0 || -off < static_cast<off_type>(size_) ? static_cast<size_type>(size_ + off) : size_type(0);
         } break;
     }
-    if (pos > this->capacity()) { grow(pos - top_); }
-    if (pos > top_) { std::fill_n(this->first() + top_, pos - top_, '\0'); }
+    if (pos > this->capacity()) { grow(pos - size_); }
+    if (pos > size_) { std::fill_n(this->first() + size_, pos - size_, '\0'); }
     this->setpos(pos);
     return static_cast<pos_type>(pos);
 }
 
 template<typename CharT, typename Alloc>
 void basic_oflatbuf<CharT, Alloc>::grow(size_type extra) {
-    size_type delta_sz = std::max(extra, top_ >> 1);
-    const size_type max_avail = std::allocator_traits<alloc_type>::max_size(*this) - top_;
+    size_type delta_sz = std::max(extra, size_ >> 1);
+    const size_type max_avail = max_size() - size_;
     if (delta_sz > max_avail) {
         if (extra > max_avail) { report_too_much_to_allocate_error(); }
         delta_sz = std::max(extra, max_avail >> 1);
     }
-    const size_type sz = std::max<size_type>(top_ + delta_sz, min_buf_size);
+    const size_type sz = std::max<size_type>(size_ + delta_sz, min_buf_size);
     char_type* first = alloc_traits::allocate(*this, sz);
     if (this->first() != nullptr) {
-        std::copy_n(this->first(), top_, first);
+        std::copy_n(this->first(), size_, first);
         alloc_traits::deallocate(*this, this->first(), this->capacity());
     }
     this->reset(first, this->pos(), sz);

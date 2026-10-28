@@ -206,7 +206,7 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
     }
 
     allocator_type get_allocator() const noexcept { return allocator_type(*this); }
-    size_type max_size() const noexcept { return alloc_traits::max_size(*this); }
+    size_type max_size() const noexcept { return ((alloc_traits::max_size(*this) - 1) & ~size_type(1)) + 1; }
 
     void reserve(size_type size) {
         if (size > this->capacity()) { this->try_grow(size - this->size()); }
@@ -228,14 +228,14 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
 
     static size_type try_grow_impl(basic_membuffer<CharT>& buf, size_type extra, bool /*track_size*/) {
         const size_type size = buf.size();
-        size_type delta_sz = std::max(++extra, size >> 1);
+        size_type delta_sz = std::max(extra, size >> 1);
         auto& dynbuf = static_cast<basic_dynbuffer&>(buf);
-        const size_type max_avail = std::allocator_traits<alloc_type>::max_size(dynbuf) - size;
+        const size_type max_avail = dynbuf.max_size() - size;
         if (delta_sz > max_avail) {
             if (extra > max_avail) { report_too_much_to_allocate_error(); }
             delta_sz = std::max(extra, max_avail >> 1);
         }
-        const size_type capacity = ((size + delta_sz - 1) & ~size_type(1)) + 1;  // Make new dynamic odd capacity
+        const size_type capacity = ((size + delta_sz) & ~size_type(1)) + 1;  // Make new dynamic odd capacity
         CharT* data = alloc_traits::allocate(dynbuf, capacity);
         if (size) { std::memcpy(data, buf.data(), size * sizeof(CharT)); }
         if (buf.capacity() & 1) { alloc_traits::deallocate(dynbuf, buf.data(), buf.capacity()); }
@@ -247,6 +247,8 @@ class basic_dynbuffer : protected std::allocator_traits<Alloc>::template rebind_
 template<typename CharT, std::size_t InlineBufSize = 0, typename Alloc = std::allocator<CharT>>
 class basic_inline_dynbuffer : public basic_dynbuffer<CharT, Alloc> {
  public:
+    using size_type = typename basic_membuffer<CharT>::size_type;
+
     basic_inline_dynbuffer() noexcept(std::is_nothrow_default_constructible<basic_dynbuffer<CharT, Alloc>>::value)
         : basic_dynbuffer<CharT, Alloc>(reinterpret_cast<CharT*>(buf_), inline_buf_size) {}
     explicit basic_inline_dynbuffer(const Alloc& al) noexcept
@@ -257,7 +259,7 @@ class basic_inline_dynbuffer : public basic_dynbuffer<CharT, Alloc> {
 #if UXS_DEBUG_REDUCED_BUFFERS != 0
         inline_buf_size = 8,
 #else   // UXS_DEBUG_REDUCED_BUFFERS != 0
-        inline_buf_size = ((InlineBufSize != 0 ? InlineBufSize : 256 / sizeof(CharT)) + 1) & ~1U,
+        inline_buf_size = ((InlineBufSize != 0 ? InlineBufSize : 256 / sizeof(CharT)) + 1) & ~size_type(1),
 #endif  // UXS_DEBUG_REDUCED_BUFFERS != 0
     };
 

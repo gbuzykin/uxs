@@ -5,6 +5,8 @@
 #include "uxs/dynarray.h"
 #include "uxs/string_conv.h"
 
+#include <cmath>
+
 namespace uxs {
 namespace db {
 namespace json {
@@ -17,6 +19,8 @@ extern int accept[];
 }  // namespace lex_detail
 
 namespace detail {
+
+[[noreturn]] inline void report_inf_of_nan_error() { throw json_error("floating point number is inf of nan"); }
 
 template<typename CharT>
 std::uint32_t parse_uint32(const CharT* p, const CharT* end) noexcept {
@@ -458,7 +462,8 @@ struct value_visitor {
     }
 
     bool operator()(scalar_tag_t, double f) const {
-        sconv::fmt_float(out, f, fmt_flags::mandatory_frac | fmt_flags::throw_on_inf_or_nan);
+        if (!std::isfinite(f)) { report_inf_of_nan_error(); }
+        sconv::fmt_float(out, f, fmt_flags::mandatory_frac);
         return false;
     }
 

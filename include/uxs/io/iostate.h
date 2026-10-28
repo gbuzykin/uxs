@@ -65,7 +65,8 @@ class iostate {
     bool operator!() const noexcept { return fail(); }
 
     void setstate(iostate_bits bits) { clear(state_ | bits); }
-    void clear(iostate_bits bits = iostate_bits::good) {
+    void clear() { reset_state(iostate_bits::good); }
+    void clear(iostate_bits bits) {
         if (!!(bits & except_mask_)) { throw iobuf_error("iobuf error"); }
         state_ = bits;
     }

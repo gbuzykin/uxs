@@ -75,6 +75,7 @@ struct formatter<char32_t, CharT> {
     struct formatter<ty, CharT> { \
      private: \
         fmt_opts opts_; \
+        bool format_as_character_ = false; \
 \
      public: \
         template<typename ParseCtx> \
@@ -90,6 +91,7 @@ struct formatter<char32_t, CharT> {
                     ParseCtx::report_unexpected_leading_zeroes_error(); \
                 } \
                 if (!!(opts_.flags & fmt_flags::alternate)) { ParseCtx::report_unexpected_alternate_error(); } \
+                format_as_character_ = true; \
             } else if (type != ParseCtx::type_spec::none && type != ParseCtx::type_spec::integer) { \
                 ParseCtx::report_type_error(); \
             } \
@@ -98,7 +100,9 @@ struct formatter<char32_t, CharT> {
 \
         template<typename FmtCtx> \
         void format(FmtCtx& ctx, ty val) const { \
-            sconv::fmt_integer(ctx.out(), val, opts_, ctx.locale()); \
+            if (!format_as_character_) { return sconv::fmt_integer(ctx.out(), val, opts_, ctx.locale()); } \
+            if (!is_utf_wellformed(val)) { FmtCtx::report_bad_character_code_error(); } \
+            sconv::fmt_character(ctx.out(), static_cast<char32_t>(val), opts_, ctx.locale()); \
         } \
     }
 UXS_FMT_IMPLEMENT_STANDARD_FORMATTER(std::int32_t);

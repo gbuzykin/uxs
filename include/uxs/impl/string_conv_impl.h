@@ -20,9 +20,6 @@ using uint128 = __uint128_t;
 namespace uxs {
 namespace sconv {
 
-[[noreturn]] inline void report_bad_character_code_error() { throw format_error("bad character code"); }
-[[noreturn]] inline void report_inf_of_nan_error() { throw format_error("floating point number is inf of nan"); }
-
 template<typename CharT>
 struct default_numpunct {
     UXS_CONSTEXPR CharT decimal_point() const { return '.'; }
@@ -673,15 +670,6 @@ void fmt_integer_common(basic_membuffer<CharT>& out, Ty val, bool is_signed, fmt
         case fmt_flags::bin: return fmt_bin(out, val, is_signed, fmt, loc);
         case fmt_flags::oct: return fmt_oct(out, val, is_signed, fmt, loc);
         case fmt_flags::hex: return fmt_hex(out, val, is_signed, fmt, loc);
-        case fmt_flags::character: {
-            const std::uint32_t code = static_cast<std::uint32_t>(val);
-            if (!is_utf_wellformed(code)) { report_bad_character_code_error(); }
-            const auto fn = [code](basic_membuffer<CharT>& out) {
-                utf_codec<CharT>{}.encode(code, std::back_inserter(out));
-            };
-            const unsigned width = get_utf_printable_width(code);
-            return fmt.width > width ? append_adjusted(out, fn, width, fmt) : fn(out);
-        } break;
         default: return fmt_dec(out, val, is_signed, fmt, loc);
     }
 }
@@ -1017,8 +1005,6 @@ void fmt_float_common(basic_membuffer<CharT>& out, std::uint64_t u64, unsigned b
     const bool uppercase = !!(flags & fmt_flags::uppercase);
     const fp_m64_t fp2{u64 & ((1ULL << bpm) - 1), static_cast<int>((u64 >> bpm) & exp_max)};
     if (fp2.exp == exp_max) {
-        if (!!(flags & fmt_flags::throw_on_inf_or_nan)) { report_inf_of_nan_error(); }
-
         // Print infinity or NaN
         const auto sval = fp2.m == 0 ? default_numpunct<CharT>().infname(uppercase) :
                                        default_numpunct<CharT>().nanname(uppercase);
@@ -1062,8 +1048,6 @@ void fmt_float_common(basic_membuffer<CharT>& out, std::uint64_t u64, unsigned b
     const bool uppercase = !!(fmt.flags & fmt_flags::uppercase);
     const fp_m64_t fp2{u64 & ((1ULL << bpm) - 1), static_cast<int>((u64 >> bpm) & exp_max)};
     if (fp2.exp == exp_max) {
-        if (!!(fmt.flags & fmt_flags::throw_on_inf_or_nan)) { report_inf_of_nan_error(); }
-
         // Print infinity or NaN
         const auto sval = fp2.m == 0 ? default_numpunct<CharT>().infname(uppercase) :
                                        default_numpunct<CharT>().nanname(uppercase);

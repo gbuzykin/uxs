@@ -2,10 +2,6 @@
 
 using namespace uxs;
 
-format_error::format_error(const char* message) : std::runtime_error(message) {}
-format_error::format_error(const std::string& message) : std::runtime_error(message) {}
-const char* format_error::what() const noexcept { return std::runtime_error::what(); }
-
 namespace {
 
 UXS_CONSTEXPR_DATA std::uint64_t msb64 = 1ULL << 63;

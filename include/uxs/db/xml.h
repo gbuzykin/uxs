@@ -35,6 +35,13 @@ struct xml_fmt_opts {
     unsigned indent_size = 2;
 };
 
+class UXS_EXPORT_ALL_STUFF_FOR_GNUC xml_error : public std::runtime_error {
+ public:
+    UXS_EXPORT explicit xml_error(const char* message);
+    UXS_EXPORT explicit xml_error(const std::string& message);
+    UXS_EXPORT const char* what() const noexcept override;
+};
+
 namespace detail {
 enum class lex_token_t : int {
     eof = 0,

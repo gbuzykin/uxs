@@ -46,7 +46,6 @@ enum class fmt_flags : unsigned {
     bin,
     oct,
     hex,
-    character,
     base_field = est::genmask(2, 0),
     uppercase = est::bit(3),
     fixed = 1 * est::bit(4),
@@ -66,7 +65,6 @@ enum class fmt_flags : unsigned {
     localize = est::bit(12),
     debug_format = est::bit(13),
     mandatory_frac = est::bit(14),
-    throw_on_inf_or_nan = est::bit(15),
 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(fmt_flags);
 
@@ -78,13 +76,6 @@ struct fmt_opts {
     int prec = -1;
     unsigned width = 0;
     std::uint8_t fill = ' ';
-};
-
-class UXS_EXPORT_ALL_STUFF_FOR_GNUC format_error : public std::runtime_error {
- public:
-    UXS_EXPORT explicit format_error(const char* message);
-    UXS_EXPORT explicit format_error(const std::string& message);
-    UXS_EXPORT const char* what() const noexcept override;
 };
 
 class locale_ref {
