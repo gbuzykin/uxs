@@ -4,6 +4,8 @@
 
 using namespace uxs;
 
+const char* bad_variant_access::what() const noexcept { return "bad variant access"; }
+
 UXS_IMPLEMENT_VARIANT_TYPE(std::string, nullptr, nullptr);
 UXS_IMPLEMENT_VARIANT_TYPE_WITH_STRING_CONVERTER(bool);
 UXS_IMPLEMENT_VARIANT_TYPE(std::int32_t, convert_from, convert_to);
@@ -11,14 +13,6 @@ UXS_IMPLEMENT_VARIANT_TYPE(std::uint32_t, convert_from, convert_to);
 UXS_IMPLEMENT_VARIANT_TYPE(std::int64_t, convert_from, convert_to);
 UXS_IMPLEMENT_VARIANT_TYPE(std::uint64_t, convert_from, convert_to);
 UXS_IMPLEMENT_VARIANT_TYPE(double, convert_from, convert_to);
-
-variant_error::variant_error(const char* message) : std::runtime_error(message) {}
-variant_error::variant_error(const std::string& message) : std::runtime_error(message) {}
-const char* variant_error::what() const noexcept { return std::runtime_error::what(); }
-const char* est::bad_optional_access::what() const noexcept { return "bad optional access"; }
-
-//---------------------------------------------------------------------------------
-// Variant type implementation
 
 detail::variant_vtable_t* variant::vtables_[static_cast<unsigned>(variant_id::max_type_id)] = {};
 
@@ -154,7 +148,7 @@ biobuf& operator<<(biobuf& os, const variant& v) {
 }
 }  // namespace uxs
 
-//---------------------------------------------------------------------------------
+// --------------------------
 // Basic type convertors
 
 bool variant_type_impl<std::int32_t>::convert_from(variant_id_t type, void* to, const void* from) {

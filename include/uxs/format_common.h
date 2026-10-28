@@ -2,6 +2,8 @@
 
 #include "string_util.h"
 
+#include <stdexcept>
+
 namespace uxs {
 
 enum class range_format { disabled = 0, sequence, set, map, string };
@@ -14,6 +16,13 @@ struct format_kind;
 
 template<typename CharT>
 class basic_format_context;
+
+class UXS_EXPORT_ALL_STUFF_FOR_GNUC format_error : public std::runtime_error {
+ public:
+    UXS_EXPORT explicit format_error(const char* message);
+    UXS_EXPORT explicit format_error(const std::string& message);
+    UXS_EXPORT const char* what() const noexcept override;
+};
 
 namespace fmt {
 template<typename Ty, typename CharT, typename = void>

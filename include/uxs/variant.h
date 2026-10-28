@@ -74,10 +74,8 @@ constexpr variant_id_t custom = variant_id_t::custom;
 constexpr variant_id_t max_type_id = static_cast<variant_id_t>(255);
 }  // namespace variant_id
 
-class UXS_EXPORT_ALL_STUFF_FOR_GNUC variant_error : public std::runtime_error {
+class UXS_EXPORT_ALL_STUFF_FOR_GNUC bad_variant_access : public std::exception {
  public:
-    UXS_EXPORT explicit variant_error(const char* message);
-    UXS_EXPORT explicit variant_error(const std::string& message);
     UXS_EXPORT const char* what() const noexcept override;
 };
 
@@ -339,9 +337,6 @@ class variant {
 #undef UXS_VARIANT_IMPLEMENT_SCALAR_INIT_AND_COMPARE
 
  private:
-    [[noreturn]] static void report_bad_conversion_error() { throw variant_error("bad value conversion"); }
-    [[noreturn]] static void report_invalid_value_type_error() { throw variant_error("invalid value type"); }
-
     template<typename U, typename Ty = std::decay_t<U>, typename = std::enable_if_t<is_variant_compatible<Ty>::value>>
     void assign_impl(U&& val);
 
@@ -469,7 +464,7 @@ struct variant::getters_specializer {
     template<typename Ty_ = Ty, typename = std::enable_if_t<is_variant_compatible<Ty_>::value>>
     static Ty_ as(const variant& v) {
         auto result = v.get_impl<Ty>();
-        if (!result) { report_bad_conversion_error(); }
+        if (!result) { throw bad_variant_access(); }
         return *result;
     }
 };
@@ -480,14 +475,14 @@ struct variant::getters_specializer<U, Ty, std::enable_if_t<std::is_reference<U>
     static U_ as(const variant& v) {
         auto* val_vtable = get_vtable(variant_type_impl<Ty>::type_id);
         assert(val_vtable);
-        if (v.vtable_ != val_vtable) { report_invalid_value_type_error(); }
+        if (v.vtable_ != val_vtable) { throw bad_variant_access(); }
         return *static_cast<const Ty*>(val_vtable->get_value_const_ptr(&v.data_));
     }
     template<typename U_ = U, typename = std::enable_if_t<!std::is_const<std::remove_reference_t<U_>>::value>>
     static U_ as(variant& v) {
         auto* val_vtable = get_vtable(variant_type_impl<Ty>::type_id);
         assert(val_vtable);
-        if (v.vtable_ != val_vtable) { report_invalid_value_type_error(); }
+        if (v.vtable_ != val_vtable) { throw bad_variant_access(); }
         return std::forward<U>(*static_cast<Ty*>(val_vtable->get_value_ptr(&v.data_)));
     }
 };

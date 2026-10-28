@@ -4,8 +4,12 @@
 #define LEXEGEN_DATA_DECLARATOR(type, name) type uxs::db::json::lex_detail::name
 #include "json_lex_analyzer.inl"
 
+uxs::db::json::json_error::json_error(const char* message) : std::runtime_error(message) {}
+uxs::db::json::json_error::json_error(const std::string& message) : std::runtime_error(message) {}
+const char* uxs::db::json::json_error::what() const noexcept { return std::runtime_error::what(); }
+
 [[noreturn]] void uxs::db::json::detail::report_error(unsigned ln, const char* message) {
-    throw uxs::db::database_error(uxs::format("{}: {}", ln, message));
+    throw uxs::db::json::json_error(uxs::format("{}: {}", ln, message));
 }
 
 UXS_DB_JSON_INSTANTIATE_LEXER_IMPLEMENTATION(char);

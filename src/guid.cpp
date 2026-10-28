@@ -6,9 +6,6 @@
 
 using namespace uxs;
 
-//---------------------------------------------------------------------------------
-// Guid implementation
-
 namespace {
 
 class spin_mutex {

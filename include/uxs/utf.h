@@ -28,9 +28,14 @@ struct to_utf_result {
 constexpr bool is_utf_surrogate(std::uint32_t code) { return (code & ~0x7ff) == 0xd800; }
 constexpr bool is_utf_lower_surrogate(std::uint32_t code) { return (code & ~0x3ff) == 0xd800; }
 constexpr bool is_utf_upper_surrogate(std::uint32_t code) { return (code & ~0x3ff) == 0xdc00; }
-constexpr bool is_utf_wellformed(std::uint32_t code) { return code < 0x110000 && !is_utf_surrogate(code); }
 constexpr std::uint32_t combine_utf_surrogate_code(std::uint32_t lower, std::uint32_t upper) {
     return 0x10000 + (((lower & 0x3ff) << 10) | (upper & 0x3ff));
+}
+
+template<typename Ty, typename = std::enable_if_t<std::is_integral<Ty>::value>>
+bool is_utf_wellformed(Ty code) {
+    return static_cast<typename std::make_unsigned<Ty>::type>(code) < 0x110000 &&
+           !is_utf_surrogate(static_cast<std::uint32_t>(code));
 }
 
 constexpr unsigned count_utf8(std::uint32_t code) {

@@ -32,6 +32,13 @@ struct json_fmt_opts {
     unsigned indent_size = 2;
 };
 
+class UXS_EXPORT_ALL_STUFF_FOR_GNUC json_error : public std::runtime_error {
+ public:
+    UXS_EXPORT explicit json_error(const char* message);
+    UXS_EXPORT explicit json_error(const std::string& message);
+    UXS_EXPORT const char* what() const noexcept override;
+};
+
 namespace detail {
 template<typename CharT>
 struct lexer {
@@ -181,7 +188,7 @@ struct from_string_impl<db::basic_value<CharT, Alloc>, InCharT> {
         try {
             val = db::json::parse<CharT, Alloc>(in);
             return {in.curr(), sconv_errc::ok};
-        } catch (const db::database_error&) { return {first, sconv_errc::invalid}; }
+        } catch (const uxs::db::json::json_error&) { return {first, sconv_errc::invalid}; }
     }
 };
 
