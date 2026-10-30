@@ -5,12 +5,6 @@
 
 namespace est {
 
-#if __cplusplus < 201703L
-constexpr std::size_t dynamic_extent = ~std::size_t(0);
-#else   // __cplusplus < 201703L
-constexpr std::size_t dynamic_extent = std::numeric_limits<std::size_t>::max();
-#endif  // __cplusplus < 201703L
-
 template<typename Ty>
 class span {
  private:
