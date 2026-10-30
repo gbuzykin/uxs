@@ -84,7 +84,7 @@ struct formatter<Ty, CharT, std::void_t<typename detail::tuple_formatter<Ty, Cha
     }
 
     template<typename Ty_ = Ty>
-    [[noreturn]] void switch_to_map_style(std::false_type /* is pair-like */) {
+    [[noreturn]] UXS_CONSTEXPR void switch_to_map_style(std::false_type /* is pair-like */) {
         throw format_error("`m` specifier requires a pair-like type");
     }
 
@@ -187,7 +187,7 @@ struct range_formatter {
     }
 
     template<typename Ty_ = Ty>
-    [[noreturn]] void switch_to_map_style(std::false_type /* range of pair-like elements */) {
+    [[noreturn]] UXS_CONSTEXPR void switch_to_map_style(std::false_type /* range of pair-like elements */) {
         throw format_error("`m` specifier requires a range of pairs-like items");
     }
 
@@ -197,7 +197,7 @@ struct range_formatter {
     }
 
     template<typename Ty_ = Ty>
-    [[noreturn]] void switch_to_string_style(std::false_type /* range of chars */) {
+    [[noreturn]] UXS_CONSTEXPR void switch_to_string_style(std::false_type /* range of chars */) {
         throw format_error("`s` specifier requires a range of characters");
     }
 

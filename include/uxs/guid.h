@@ -76,7 +76,7 @@ UXS_CONSTEXPR sconv_errc from_hex(const CharT* p, std::uint8_t& b) {
     return sconv_errc::ok;
 }
 template<typename CharT>
-UXS_CONSTEXPR void to_hex(std::uint8_t b, CharT* p, const char* digs) {
+void to_hex(std::uint8_t b, CharT* p, const char* digs) {
     p[0] = digs[(b >> 4) & 0xf];
     p[1] = digs[b & 0xf];
 }

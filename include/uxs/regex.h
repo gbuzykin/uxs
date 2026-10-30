@@ -13,11 +13,11 @@ struct regex_finder {
     using is_finder = int;
     using char_type = typename CharTraits::char_type;
     using iterator = typename std::basic_string_view<char_type, CharTraits>::const_iterator;
-    const std::basic_regex<char_type, RegexTraits>& regex;
-    explicit regex_finder(const std::basic_regex<char_type, RegexTraits>& tgt) : regex(tgt) {}
+    const std::basic_regex<char_type, RegexTraits>& re;
+    explicit regex_finder(const std::basic_regex<char_type, RegexTraits>& re) : re(re) {}
     std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         std::match_results<iterator> m;
-        if (std::regex_search(begin, end, m, regex)) { return m[0]; }
+        if (std::regex_search(begin, end, m, re)) { return m[0]; }
         return std::make_pair(end, end);
     }
 };
