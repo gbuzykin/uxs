@@ -5,8 +5,6 @@
 
 #include <windows.h>
 
-#include <cstring>
-
 using namespace uxs;
 
 sysfile::sysfile() noexcept : fd_(INVALID_HANDLE_VALUE) {}
