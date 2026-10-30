@@ -15,7 +15,7 @@ struct char_finder {
     using char_type = typename CharTraits::char_type;
     using iterator = typename std::basic_string_view<char_type, CharTraits>::const_iterator;
     char_type ch;
-    explicit UXS_CONSTEXPR char_finder(char_type tgt) : ch(tgt) {}
+    explicit UXS_CONSTEXPR char_finder(char_type ch) : ch(ch) {}
     UXS_CONSTEXPR std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         for (; begin != end; ++begin) {
             if (CharTraits::eq(*begin, '\\')) {
@@ -34,7 +34,7 @@ struct reverse_char_finder {
     using char_type = typename CharTraits::char_type;
     using iterator = typename std::basic_string_view<char_type, CharTraits>::const_iterator;
     char_type ch;
-    explicit UXS_CONSTEXPR reverse_char_finder(char_type tgt) : ch(tgt) {}
+    explicit UXS_CONSTEXPR reverse_char_finder(char_type ch) : ch(ch) {}
     UXS_CONSTEXPR std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         while (begin != end) {
             --end;
@@ -53,7 +53,7 @@ struct string_finder {
     using char_type = typename CharTraits::char_type;
     using iterator = typename std::basic_string_view<char_type, CharTraits>::const_iterator;
     std::basic_string_view<char_type, CharTraits> s;
-    explicit UXS_CONSTEXPR string_finder(std::basic_string_view<char_type, CharTraits> tgt) : s(tgt) {}
+    explicit UXS_CONSTEXPR string_finder(std::basic_string_view<char_type, CharTraits> s) : s(s) {}
     UXS_CONSTEXPR std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         if (static_cast<std::size_t>(end - begin) < s.size()) { return std::make_pair(end, end); }
         if (!s.size()) { return std::make_pair(begin, begin); }
@@ -72,7 +72,7 @@ struct reverse_string_finder {
     using char_type = typename CharTraits::char_type;
     using iterator = typename std::basic_string_view<char_type, CharTraits>::const_iterator;
     std::basic_string_view<char_type, CharTraits> s;
-    explicit UXS_CONSTEXPR reverse_string_finder(std::basic_string_view<char_type, CharTraits> tgt) : s(tgt) {}
+    explicit UXS_CONSTEXPR reverse_string_finder(std::basic_string_view<char_type, CharTraits> s) : s(s) {}
     UXS_CONSTEXPR std::pair<iterator, iterator> operator()(iterator begin, iterator end) const {
         if (static_cast<std::size_t>(end - begin) < s.size()) { return std::make_pair(begin, begin); }
         if (!s.size()) { return std::make_pair(end, end); }
@@ -89,23 +89,23 @@ struct reverse_string_finder {
 
 template<typename CharT, typename Traits = std::char_traits<CharT>,
          typename = std::enable_if_t<est::is_character<CharT>::value>>
-detail::char_finder<Traits> sfinder(CharT ch) {
+UXS_CONSTEXPR detail::char_finder<Traits> sfinder(CharT ch) {
     return detail::char_finder<Traits>(ch);
 }
 
 template<typename CharT, typename Traits = std::char_traits<CharT>,
          typename = std::enable_if_t<est::is_character<CharT>::value>>
-detail::reverse_char_finder<Traits> rsfinder(CharT ch) {
+UXS_CONSTEXPR detail::reverse_char_finder<Traits> rsfinder(CharT ch) {
     return detail::reverse_char_finder<Traits>(ch);
 }
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-detail::string_finder<string_char_traits_t<StrLikeTy>> sfinder(const StrLikeTy& s) {
+UXS_CONSTEXPR detail::string_finder<string_char_traits_t<StrLikeTy>> sfinder(const StrLikeTy& s) {
     return detail::string_finder<string_char_traits_t<StrLikeTy>>(to_string_view(s));
 }
 
 template<typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
-detail::reverse_string_finder<string_char_traits_t<StrLikeTy>> rsfinder(const StrLikeTy& s) {
+UXS_CONSTEXPR detail::reverse_string_finder<string_char_traits_t<StrLikeTy>> rsfinder(const StrLikeTy& s) {
     return detail::reverse_string_finder<string_char_traits_t<StrLikeTy>>(to_string_view(s));
 }
 
