@@ -214,7 +214,7 @@ template<typename CharT, typename Alloc, typename OutCharT>
 struct formatter<db::basic_value<CharT, Alloc>, OutCharT> {
  private:
     db::json::json_fmt_opts opts_;
-    bool use_condensed_ = false;
+    bool condensed_ = false;
 
  public:
     template<typename ParseCtx>
@@ -230,15 +230,15 @@ struct formatter<db::basic_value<CharT, Alloc>, OutCharT> {
         }
         switch (*it) {
             case 't': {
-                if (it + 1 == ctx.end() || (*(it + 1) != 'a' && *(it + 1) != 'A')) { return it; }
+                if (it + 1 == ctx.end() || (*(it + 1) != 'p' && *(it + 1) != 'P')) { return it; }
                 ++it;
                 opts_.indent_char = '\t';
                 opts_.object_ws_char = '\n';
-                if (*it == 'A') { opts_.array_ws_char = '\n'; }
+                if (*it == 'P') { opts_.array_ws_char = '\n'; }
             } break;
-            case 'c': use_condensed_ = true; break;
-            case 'a': opts_.object_ws_char = '\n'; break;
-            case 'A': opts_.object_ws_char = opts_.array_ws_char = '\n'; break;
+            case 'c': condensed_ = true; break;
+            case 'p': opts_.object_ws_char = '\n'; break;
+            case 'P': opts_.object_ws_char = opts_.array_ws_char = '\n'; break;
             default: return it;
         }
         return it + 1;
@@ -246,8 +246,8 @@ struct formatter<db::basic_value<CharT, Alloc>, OutCharT> {
 
     template<typename FmtCtx>
     void format(FmtCtx& ctx, const db::basic_value<CharT, Alloc>& val) const {
-        return use_condensed_ ? db::json::detail::write_impl(ctx.out(), val) :
-                                db::json::detail::write_formatted_impl(ctx.out(), val, opts_, 0);
+        return condensed_ ? db::json::detail::write_impl(ctx.out(), val) :
+                            db::json::detail::write_formatted_impl(ctx.out(), val, opts_, 0);
     }
 };
 
