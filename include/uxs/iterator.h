@@ -25,9 +25,9 @@ std::reverse_iterator<Iter> make_reverse_iterator(Iter it) {
 namespace est {
 
 #if __cplusplus < 201703L
-constexpr std::size_t unspecified_size = ~std::size_t(0);
+constexpr std::size_t dynamic_extent = ~std::size_t(0);
 #else   // __cplusplus < 201703L
-constexpr std::size_t unspecified_size = std::numeric_limits<std::size_t>::max();
+constexpr std::size_t dynamic_extent = std::numeric_limits<std::size_t>::max();
 #endif  // __cplusplus < 201703L
 
 //-----------------------------------------------------------------------------
@@ -158,14 +158,14 @@ UXS_CONSTEXPR auto make_reverse_range(Range&& r) -> iterator_range<std::reverse_
 
 template<typename Iter, typename = std::enable_if_t<is_random_access_iterator<Iter>::value>>
 UXS_CONSTEXPR iterator_range<Iter> make_subrange(const std::pair<Iter, Iter>& p, std::size_t offset,
-                                                 std::size_t count = est::unspecified_size) {
+                                                 std::size_t count = dynamic_extent) {
     std::size_t sz = p.second - p.first;
     if (offset > sz) { offset = sz; }
     return {p.first + offset, p.first + (count < sz - offset ? offset + count : sz)};
 }
 
 template<typename Range>
-UXS_CONSTEXPR auto make_subrange(Range&& r, std::size_t offset, std::size_t count = est::unspecified_size)
+UXS_CONSTEXPR auto make_subrange(Range&& r, std::size_t offset, std::size_t count = dynamic_extent)
     -> std::enable_if_t<is_random_access_iterator<decltype(std::end(r))>::value, iterator_range<decltype(std::end(r))>> {
     const std::size_t sz = std::end(r) - std::begin(r);
     if (offset > sz) { offset = sz; }

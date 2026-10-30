@@ -672,15 +672,15 @@ class basic_format_parse_context : public fmt::parse_context_utils {
     void advance_to(iterator it) noexcept { first_ = it; }
 
     UXS_NODISCARD std::size_t next_arg_id() {
-        if (next_id_ == est::unspecified_size) { report_automatic_argument_indexing_error(); }
+        if (next_id_ == est::dynamic_extent) { report_automatic_argument_indexing_error(); }
         if (next_id_ >= args_.size()) { report_out_of_argument_list_error(); }
         return next_id_++;
     }
 
     void check_arg_id(std::size_t id) {
-        if (next_id_ != est::unspecified_size && next_id_ > 0) { report_manual_argument_indexing_error(); }
+        if (next_id_ != est::dynamic_extent && next_id_ > 0) { report_manual_argument_indexing_error(); }
         if (id >= args_.size()) { report_out_of_argument_list_error(); }
-        next_id_ = est::unspecified_size;
+        next_id_ = est::dynamic_extent;
     }
 
     template<typename Ty, typename = std::enable_if_t<std::is_integral<Ty>::value>>
@@ -715,15 +715,15 @@ class compile_parse_context : public fmt::parse_context_utils {
     constexpr void advance_to(iterator it) noexcept { first_ = it; }
 
     [[nodiscard]] constexpr std::size_t next_arg_id() {
-        if (next_id_ == est::unspecified_size) { report_automatic_argument_indexing_error(); }
+        if (next_id_ == est::dynamic_extent) { report_automatic_argument_indexing_error(); }
         if (next_id_ >= arg_types_.size()) { report_out_of_argument_list_error(); }
         return next_id_++;
     }
 
     constexpr void check_arg_id(std::size_t id) {
-        if (next_id_ != est::unspecified_size && next_id_ > 0) { report_manual_argument_indexing_error(); }
+        if (next_id_ != est::dynamic_extent && next_id_ > 0) { report_manual_argument_indexing_error(); }
         if (id >= arg_types_.size()) { report_out_of_argument_list_error(); }
-        next_id_ = est::unspecified_size;
+        next_id_ = est::dynamic_extent;
     }
 
     template<typename Ty, typename = std::enable_if_t<std::is_integral<Ty>::value>>
