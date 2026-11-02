@@ -1,7 +1,7 @@
 #pragma once
 
 #include "uxs/memory.h"
-#include "uxs/string_conv_common.h"
+#include "uxs/string_conv.h"
 
 #include <functional>
 #include <initializer_list>

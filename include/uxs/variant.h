@@ -2,8 +2,8 @@
 
 #include "cow_ptr.h"
 #include "optional.h"
-#include "serialize.h"           // NOLINT
-#include "string_conv_common.h"  // NOLINT
+#include "serialize.h"    // IWYU pragma: keep
+#include "string_conv.h"  // IWYU pragma: keep
 #include "type_traits.h"
 
 #define UXS_DECLARE_VARIANT_TYPE(ty, id) \

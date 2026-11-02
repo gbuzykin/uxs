@@ -1,6 +1,6 @@
 #pragma once
 
-#include "string_conv_common.h"
+#include "string_conv_common.h"  // IWYU pragma: export
 
 namespace uxs {
 
@@ -128,6 +128,34 @@ UXS_SCONV_IMPLEMENT_STANDARD_FROM_STRING_CONVERTER(long double, sconv::parse_flo
 
 // --------------------------
 
+template<typename CharT, typename Ty, typename = std::enable_if_t<is_from_string_convertible<Ty, CharT>::value>>
+UXS_CONSTEXPR from_chars_result<CharT> from_chars(const CharT* first, const CharT* last, Ty& val) {
+    return from_string_impl<Ty, CharT>{}(first, last, val);
+}
+
+template<typename StrLikeTy, typename Ty, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>>
+UXS_CONSTEXPR from_string_result from_string_v(const StrLikeTy& s, Ty& val) {
+    const auto sv = to_string_view(s);
+    const auto result = from_chars(sv.data(), sv.data() + sv.size(), val);
+    return {static_cast<std::size_t>(result.ptr - sv.data()), result.ec};
+}
+
+template<typename Ty, typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>, typename... Args>
+UXS_CONSTEXPR Ty from_string(const StrLikeTy& s, Args&&... args) {
+    Ty val(std::forward<Args>(args)...);
+    from_string_v(s, val);
+    return val;
+}
+
+template<typename Ty, typename StrLikeTy, typename = std::enable_if_t<is_string_like<StrLikeTy>::value>, typename... Args>
+UXS_CONSTEXPR Ty from_string_errc(const StrLikeTy& s, sconv_errc& ec, Args&&... args) {
+    Ty val(std::forward<Args>(args)...);
+    ec = from_string_v(s, val).ec;
+    return val;
+}
+
+// --------------------------
+
 namespace sconv {
 
 template<typename CharT>
@@ -205,5 +233,104 @@ UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(float, sconv::fmt_float);
 UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(double, sconv::fmt_float);
 UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER(long double, sconv::fmt_float);
 #undef UXS_SCONV_IMPLEMENT_STANDARD_TO_STRING_CONVERTER
+
+// ---- to_string_append
+
+template<typename StrTy, typename Ty,
+         typename = std::enable_if_t<is_to_string_convertible<Ty, typename StrTy::value_type>::value>>
+void to_string_append(StrTy& out, const Ty& val) {
+    to_string_impl<Ty, typename StrTy::value_type>{}(out, val);
+}
+
+template<typename StrTy, typename Ty,
+         typename = std::enable_if_t<is_to_string_convertible<Ty, typename StrTy::value_type, fmt_opts>::value>>
+void to_string_append(StrTy& out, const Ty& val, fmt_opts fmt) {
+    to_string_impl<Ty, typename StrTy::value_type>{}(out, val, fmt);
+}
+
+template<
+    typename StrTy, typename Ty,
+    typename = std::enable_if_t<is_to_string_convertible<Ty, typename StrTy::value_type, fmt_opts, locale_ref>::value>>
+void to_string_append(StrTy& out, const std::locale& loc, const Ty& val, fmt_opts fmt) {
+    to_string_impl<Ty, typename StrTy::value_type>{}(out, val, fmt, locale_ref(loc));
+}
+
+// ---- to_string
+
+template<typename CharT = char, typename Ty>
+std::basic_string<CharT> to_string(const Ty& val) {
+    basic_inline_dynbuffer<CharT> buf;
+    to_string_append(buf, val);
+    return std::basic_string<CharT>(buf.data(), buf.size());
+}
+
+template<typename CharT = char, typename Ty>
+std::basic_string<CharT> to_string(const Ty& val, fmt_opts fmt) {
+    basic_inline_dynbuffer<CharT> buf;
+    to_string_append(buf, val, fmt);
+    return std::basic_string<CharT>(buf.data(), buf.size());
+}
+
+template<typename CharT = char, typename Ty>
+std::basic_string<CharT> to_string(const std::locale& loc, const Ty& val, fmt_opts fmt) {
+    basic_inline_dynbuffer<CharT> buf;
+    to_string_append(buf, loc, val, fmt);
+    return std::basic_string<CharT>(buf.data(), buf.size());
+}
+
+// ---- to_chars
+
+template<typename CharT, typename Ty>
+CharT* to_chars(CharT* p, const Ty& val) {
+    basic_membuffer<CharT> buf(p);
+    to_string_append(buf, val);
+    return buf.endp();
+}
+
+template<typename CharT, typename Ty>
+CharT* to_chars(CharT* p, const Ty& val, fmt_opts fmt) {
+    basic_membuffer<CharT> buf(p);
+    to_string_append(buf, val, fmt);
+    return buf.endp();
+}
+
+template<typename CharT, typename Ty>
+CharT* to_chars(CharT* p, const std::locale& loc, const Ty& val, fmt_opts fmt) {
+    basic_membuffer<CharT> buf(p);
+    to_string_append(buf, loc, val, fmt);
+    return buf.endp();
+}
+
+// ---- to_chars_n
+
+template<typename CharT>
+struct chars_to_n_result {
+#if __cplusplus < 201703L
+    chars_to_n_result(CharT* out, std::size_t size) noexcept : out(out), size(size) {}
+#endif  // __cplusplus < 201703L
+    CharT* out;
+    std::size_t size;
+};
+
+template<typename CharT, typename Ty>
+chars_to_n_result<CharT> to_chars_n(CharT* p, std::size_t n, const Ty& val) {
+    basic_membuffer_with_size_tracker<CharT> buf(p, n);
+    to_string_append(buf, val);
+    return {buf.endp(), buf.tracked_size()};
+}
+
+template<typename CharT, typename Ty>
+chars_to_n_result<CharT> to_chars_n(CharT* p, std::size_t n, const Ty& val, fmt_opts fmt) {
+    basic_membuffer_with_size_tracker<CharT> buf(p, n);
+    to_string_append(buf, val, fmt);
+    return {buf.endp(), buf.tracked_size()};
+}
+
+template<typename CharT, typename Ty>
+chars_to_n_result<CharT> to_chars_n(CharT* p, std::size_t n, const std::locale& loc, const Ty& val, fmt_opts fmt) {
+    basic_membuffer_with_size_tracker<CharT> buf(p, n);
+    to_string_append(buf, loc, val, fmt);
+    return {buf.endp(), buf.tracked_size()};
+}
 
 }  // namespace uxs

@@ -3,7 +3,7 @@
 #include "common.h"
 
 #if (__cplusplus >= 201703L || defined(_LIBCPP_VERSION)) && UXS_HAS_INCLUDE(<string_view>)
-#    include <string_view>  // NOLINT
+#    include <string_view>  // IWYU pragma: export
 #else                       // string view
 
 #    include "except.h"
