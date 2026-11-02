@@ -1,7 +1,5 @@
 #include "uxs/variant.h"
 
-#include "uxs/string_conv.h"  // NOLINT
-
 using namespace uxs;
 
 const char* bad_variant_access::what() const noexcept { return "bad variant access"; }

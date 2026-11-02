@@ -2,7 +2,7 @@
 
 #include "utility.h"
 
-#include <cassert>  // NOLINT
+#include <cassert>  // IWYU pragma: keep
 #include <iterator>
 #include <limits>
 #include <memory>

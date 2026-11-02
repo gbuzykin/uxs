@@ -1,6 +1,6 @@
 #pragma once
 
-#include "uxs/format.h"  // NOLINT
+#include "uxs/format.h"  // IWYU pragma: keep
 
 namespace uxs {
 namespace fmt {

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "format_engine.h"  // NOLINT
-#include "format_ranges.h"  // NOLINT
+#include "format_engine.h"  // IWYU pragma: export
+#include "format_ranges.h"  // IWYU pragma: export
 #include "string_conv.h"
 
 #include "io/iomembuffer.h"
@@ -203,6 +203,33 @@ struct formatter<std::basic_string_view<CharT>, CharT> {
         sconv::fmt_string<CharT>(ctx.out(), val, opts_, ctx.locale());
     }
 };
+
+// ---- vformat_append
+
+template<typename StrTy>
+void vformat_append(StrTy& out, std::basic_string_view<typename StrTy::value_type> fmt,
+                    format_args_t<typename StrTy::value_type> args) {
+    detail::vformat_append_impl(out, locale_ref(), fmt, args);
+}
+
+template<typename StrTy>
+void vformat_append(StrTy& out, const std::locale& loc, std::basic_string_view<typename StrTy::value_type> fmt,
+                    format_args_t<typename StrTy::value_type> args) {
+    detail::vformat_append_impl(out, locale_ref(loc), fmt, args);
+}
+
+// ---- format_append
+
+template<typename StrTy, typename... Args>
+void format_append(StrTy& out, format_string_t<typename StrTy::value_type, Args...> fmt, const Args&... args) {
+    vformat_append(out, fmt.get(), format_args_t<typename StrTy::value_type>::make(args...));
+}
+
+template<typename StrTy, typename... Args>
+void format_append(StrTy& out, const std::locale& loc, format_string_t<typename StrTy::value_type, Args...> fmt,
+                   const Args&... args) {
+    vformat_append(out, loc, fmt.get(), format_args_t<typename StrTy::value_type>::make(args...));
+}
 
 // ---- vformat
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "chars.h"
-#include "format_common.h"
+#include "format_common.h"  // IWYU pragma: export
 #include "span.h"
 #include "string_conv_common.h"
 #include "type_traits.h"
@@ -843,28 +843,5 @@ void vformat_append_impl(StrTy& out, locale_ref loc, std::basic_string_view<type
     out.append(buf.data(), buf.size());
 }
 }  // namespace detail
-
-template<typename StrTy>
-void vformat_append(StrTy& out, std::basic_string_view<typename StrTy::value_type> fmt,
-                    format_args_t<typename StrTy::value_type> args) {
-    detail::vformat_append_impl(out, locale_ref(), fmt, args);
-}
-
-template<typename StrTy>
-void vformat_append(StrTy& out, const std::locale& loc, std::basic_string_view<typename StrTy::value_type> fmt,
-                    format_args_t<typename StrTy::value_type> args) {
-    detail::vformat_append_impl(out, locale_ref(loc), fmt, args);
-}
-
-template<typename StrTy, typename... Args>
-void format_append(StrTy& out, format_string_t<typename StrTy::value_type, Args...> fmt, const Args&... args) {
-    vformat_append(out, fmt.get(), format_args_t<typename StrTy::value_type>::make(args...));
-}
-
-template<typename StrTy, typename... Args>
-void format_append(StrTy& out, const std::locale& loc, format_string_t<typename StrTy::value_type, Args...> fmt,
-                   const Args&... args) {
-    vformat_append(out, loc, fmt.get(), format_args_t<typename StrTy::value_type>::make(args...));
-}
 
 }  // namespace uxs
