@@ -951,6 +951,14 @@ class object_t {
         return &node->links_;
     }
 
+    template<typename FillFn>
+    list_links_t* append_new(alloc_type& al, std::size_t max_key_length, FillFn&& fill_key_fn, value_type&& v) {
+        if (p_->ref_count > 1 || p_->size == p_->bucket_count) { reserve(al, p_->size + 1); }
+        node_t* node = node_t::construct(al, max_key_length, std::forward<FillFn>(fill_key_fn), std::move(v));
+        append_node(node, nullptr);
+        return &node->links_;
+    }
+
     list_links_t* append_new(alloc_type& al, node_handle&& h) {
         if (p_->ref_count > 1 || p_->size == p_->bucket_count) { reserve(al, p_->size + 1); }
         node_t* node = std::move(h).release(al);
@@ -969,9 +977,9 @@ class object_t {
     }
 
     append_return_type<list_links_t*, node_handle> append_unique(alloc_type& al, node_handle&& h) {
-        if (!h.node_) { return {cend(), false, {}}; }
         if (p_->ref_count > 1 || p_->size == p_->bucket_count) { reserve(al, p_->size + 1); }
         std::size_t hash_code = 0;
+        assert(h.node_);
         list_links_t* found_node = find_impl(h.node_->key(), &hash_code);
         if (found_node != cend()) { return {found_node, false, std::move(h)}; }
         node_t* node = std::move(h).release(al);
@@ -2048,6 +2056,13 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     object_iterator append_new(key_type key, value_type v) {
         if (type_ != dtype::object) { init_as_object(); }
         return object_iterator(value_.obj.append_new(*this, key, std::move(v)));
+    }
+
+    template<typename FillFn>
+    object_iterator append_new(std::size_t max_key_length, FillFn&& fill_key_fn, value_type v) {
+        if (type_ != dtype::object) { init_as_object(); }
+        return object_iterator(
+            value_.obj.append_new(*this, max_key_length, std::forward<FillFn>(fill_key_fn), std::move(v)));
     }
 
     object_iterator append_new(node_handle&& h) {
