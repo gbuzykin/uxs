@@ -589,7 +589,7 @@ void sconv::fp_hex_fmt_t::format(unsigned bpm, int exp_bias) noexcept {
         return;
     }
 
-    // Align, so 4 left bits are an integer part:
+    // Align, so 4 left bits are an integral part:
     // 1 (or 2 after round) for normalized, 0 for denormalized
     significand_ <<= 60 - bpm;
     if (exp_ > 0) {

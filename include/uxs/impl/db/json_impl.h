@@ -197,11 +197,11 @@ token_t lexer<CharT>::lex(string_view_type& lval) {
             case lex_detail::pat_false: return token_t::false_value;
             case lex_detail::pat_decimal: {
                 lval = to_string_view(lexeme, llen);
-                return token_t::integer_number;
+                return token_t::integral_number;
             } break;
             case lex_detail::pat_neg_decimal: {
                 lval = to_string_view(lexeme, llen);
-                return token_t::negative_integer_number;
+                return token_t::negative_integral_number;
             } break;
             case lex_detail::pat_real: {
                 lval = to_string_view(lexeme, llen);
@@ -255,7 +255,7 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
             case token_t::null_value: val = null_tag; break;
             case token_t::true_value: val = true; break;
             case token_t::false_value: val = false; break;
-            case token_t::integer_number: {
+            case token_t::integral_number: {
                 if (sval.size() <= 9) {
                     val = detail::parse_uint32(sval.data(), sval.data() + sval.size());
                     break;
@@ -276,7 +276,7 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
                 // too big integer - treat as double
                 val = from_string<double>(sval);
             } break;
-            case token_t::negative_integer_number: {
+            case token_t::negative_integral_number: {
                 if (sval.size() <= 10) {
                     const std::uint32_t abs_val = detail::parse_uint32(sval.data() + 1, sval.data() + sval.size());
                     val = static_cast<std::int32_t>(~abs_val + 1);

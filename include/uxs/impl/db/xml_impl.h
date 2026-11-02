@@ -407,8 +407,8 @@ value_class parser<InCharT>::classify_value(const string_view_type& sval) noexce
         case lex_detail::pat_null: return value_class::null_value;
         case lex_detail::pat_true: return value_class::true_value;
         case lex_detail::pat_false: return value_class::false_value;
-        case lex_detail::pat_decimal: return value_class::integer_number;
-        case lex_detail::pat_neg_decimal: return value_class::negative_integer_number;
+        case lex_detail::pat_decimal: return value_class::integral_number;
+        case lex_detail::pat_neg_decimal: return value_class::negative_integral_number;
         case lex_detail::pat_real: return value_class::floating_point_number;
         case lex_detail::pat_ws_with_nl: return value_class::ws_with_nl;
         case lex_detail::pat_other_value: return value_class::other;
@@ -427,7 +427,7 @@ basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, 
             case value_class::null_value: return {null_tag, al};
             case value_class::true_value: return {true, al};
             case value_class::false_value: return {false, al};
-            case value_class::integer_number: {
+            case value_class::integral_number: {
                 if (sval.size() <= 9) {
                     const std::uint32_t val = detail::parse_uint32(sval.data(), sval.data() + sval.size());
                     return {static_cast<std::int32_t>(val), al};
@@ -448,7 +448,7 @@ basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, 
                 // too big integer - treat as double
                 return {from_string<double>(sval), al};
             } break;
-            case value_class::negative_integer_number: {
+            case value_class::negative_integral_number: {
                 if (sval.size() <= 10) {
                     const std::uint32_t abs_val = detail::parse_uint32(sval.data() + 1, sval.data() + sval.size());
                     return {static_cast<std::int32_t>(~abs_val + 1), al};
