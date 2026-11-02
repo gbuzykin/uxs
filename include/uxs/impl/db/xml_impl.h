@@ -421,58 +421,61 @@ template<typename CharT, typename Alloc>
 basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, const Alloc& al) {
     using value_type = basic_value<CharT, Alloc>;
 
-    static const auto text_to_value = [](string_view_type sval, const Alloc& al) -> value_type {
+    static const auto text_to_value = [&al](string_view_type sval, value_type& val) {
         switch (classify_value(sval)) {
             case value_class::empty:
-            case value_class::null_value: return {null_tag, al};
-            case value_class::true_value: return {true, al};
-            case value_class::false_value: return {false, al};
+            case value_class::null_value: val = null_tag; break;
+            case value_class::true_value: val = true; break;
+            case value_class::false_value: val = false; break;
             case value_class::integral_number: {
                 if (sval.size() <= 9) {
-                    const std::uint32_t val = detail::parse_uint32(sval.data(), sval.data() + sval.size());
-                    return {static_cast<std::int32_t>(val), al};
+                    val = detail::parse_uint32(sval.data(), sval.data() + sval.size());
+                    break;
                 }
                 const auto result = detail::parse_uint64(sval.data(), sval.data() + sval.size());
                 if (result.second) {
                     if (result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max())) {
-                        return {static_cast<std::int32_t>(result.first), al};
+                        val = static_cast<std::int32_t>(result.first);
+                    } else if (result.first <= std::numeric_limits<std::uint32_t>::max()) {
+                        val = static_cast<std::uint32_t>(result.first);
+                    } else if (result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+                        val = static_cast<std::int64_t>(result.first);
+                    } else {
+                        val = result.first;
                     }
-                    if (result.first <= std::numeric_limits<std::uint32_t>::max()) {
-                        return {static_cast<std::uint32_t>(result.first), al};
-                    }
-                    if (result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
-                        return {static_cast<std::int64_t>(result.first), al};
-                    }
-                    return {result.first, al};
+                    break;
                 }
                 // too big integer - treat as double
-                return {from_string<double>(sval), al};
+                val = from_string<double>(sval);
             } break;
             case value_class::negative_integral_number: {
                 if (sval.size() <= 10) {
                     const std::uint32_t abs_val = detail::parse_uint32(sval.data() + 1, sval.data() + sval.size());
-                    return {static_cast<std::int32_t>(~abs_val + 1), al};
+                    val = static_cast<std::int32_t>(~abs_val + 1);
+                    break;
                 }
                 const auto abs_result = detail::parse_uint64(sval.data() + 1, sval.data() + sval.size());
                 if (abs_result.second) {
                     if (abs_result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max()) + 1) {
-                        return {static_cast<std::int32_t>(~abs_result.first + 1), al};
+                        val = static_cast<std::int32_t>(~abs_result.first + 1);
+                        break;
                     }
                     if (abs_result.first <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) + 1) {
-                        return {static_cast<std::int64_t>(~abs_result.first + 1), al};
+                        val = static_cast<std::int64_t>(~abs_result.first + 1);
+                        break;
                     }
                 }
                 // too big integer - treat as double
-                return {from_string<double>(sval), al};
+                val = from_string<double>(sval);
             } break;
-            case value_class::floating_point_number: return {from_string<double>(sval), al};
-            case value_class::ws_with_nl: return value_type(object_tag, al);
+            case value_class::floating_point_number: val = from_string<double>(sval); break;
+            case value_class::ws_with_nl: val = value_type(object_tag, al); break;
             case value_class::other: {
-                return {string_tag, utf_string_adapter<CharT>{}.count(sval.begin(), sval.end()),
-                        [sval](est::span<CharT> s) {
-                            utf_string_adapter<CharT>{}.transform(sval.begin(), sval.end(), s.data());
-                            return s.size();
-                        }};
+                val.append(string_tag, utf_string_adapter<CharT>{}.count(sval.begin(), sval.end()),
+                           [sval](est::span<CharT> s) {
+                               utf_string_adapter<CharT>{}.transform(sval.begin(), sval.end(), s.data());
+                               return s.size();
+                           });
             } break;
             default: UXS_UNREACHABLE_CODE;
         }
@@ -502,25 +505,24 @@ basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, 
             case token_t::start_element: {
                 txt.clear();
 
-                const auto add_value = [](value_type& parent, typename value_type::key_type key,
-                                          value_type&& v) -> value_type& {
-                    auto result = parent.append_unique(key, std::move(v));
+                const auto add_value = [&al](value_type& parent, typename value_type::key_type key) -> value_type& {
+                    auto result = parent.append_unique(key, value_type(al));
                     auto& val = (*result.position).value();
                     if (result.appended) { return val; }
-                    if (!val.is_array()) { val = value_type(array_tag, {val}); }
+                    if (!val.is_array()) { val = value_type(array_tag, {val}, al); }
                     return val.push_back(std::move(result.value));
                 };
 
-                stack.emplace_back(&add_value(*top.first, utf_string_adapter<CharT>{}(name()), value_type(al)), name());
+                stack.emplace_back(&add_value(*top.first, utf_string_adapter<CharT>{}(name())), name());
                 for (const auto& attr : attributes()) {
-                    add_value(*stack.back().first, utf_string_adapter<CharT>{}(attr.key()),
-                              text_to_value(attr.value().as_string_view(), al));
+                    text_to_value(attr.value().as_string_view(),
+                                  add_value(*stack.back().first, utf_string_adapter<CharT>{}(attr.key())));
                 }
             } break;
             case token_t::end_element: {
                 if (top.second != name()) { detail::report_error(lexer_.ln, "unexpected end element"); }
                 if (!top.first->is_object() && !txt.empty()) {
-                    *(top.first) = text_to_value(string_view_type(txt.data(), txt.size()), al);
+                    text_to_value(string_view_type(txt.data(), txt.size()), *(top.first));
                 }
                 stack.pop_back();
                 if (stack.empty()) { return val; }
