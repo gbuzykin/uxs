@@ -979,17 +979,6 @@ class object_t {
         return {&node->links_, true, {}};
     }
 
-    template<typename... Args>
-    std::pair<list_links_t*, bool> try_append_unique(alloc_type& al, key_type key, Args&&... args) {
-        if (p_->ref_count > 1 || p_->size == p_->bucket_count) { reserve(al, p_->size + 1); }
-        std::size_t hash_code = 0;
-        list_links_t* found_node = find_impl(key, &hash_code);
-        if (found_node != cend()) { return {found_node, false}; }
-        node_t* node = node_t::construct(al, key, value_type(std::forward<Args>(args)...));
-        append_node(node, &hash_code);
-        return {&node->links_, true};
-    }
-
     void clear(alloc_type& al);
     UXS_EXPORT void reserve(alloc_type& al, std::size_t size);
     UXS_EXPORT std::size_t erase(alloc_type& al, key_type key);
@@ -1550,7 +1539,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
     basic_value(array_tag_t, size_type count, const Alloc& al = Alloc()) : alloc_type(al), type_(dtype::array) {
-        value_.arr.construct_fill_value(*this, count, value_type());
+        value_.arr.construct_fill_value(*this, count, value_type(al));
     }
 
     basic_value(array_tag_t, size_type count, const value_type& v, const Alloc& al = Alloc())
@@ -1761,7 +1750,17 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         }
     }
 
-    void resize(size_type size, const value_type& v = {}) {
+    void resize(size_type size) {
+        if (type_ == dtype::array) {
+            value_.arr.resize(*this, size, value_type(get_allocator()));
+        } else {
+            if (type_ != dtype::null) { report_not_an_array_error(); }
+            value_.arr.construct_fill_value(*this, size, value_type(get_allocator()));
+            type_ = dtype::array;
+        }
+    }
+
+    void resize(size_type size, const value_type& v) {
         if (type_ == dtype::array) {
             value_.arr.resize(*this, size, v);
         } else {
@@ -1830,12 +1829,12 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     value_type value(size_type pos) const {
         const auto range = as_array();
-        return pos < range.size() ? range[pos] : value_type();
+        return pos < range.size() ? range[pos] : value_type(get_allocator());
     }
 
     value_type value(key_type key) const {
         const auto it = try_find(key);
-        return it ? (**it).value() : value_type();
+        return it ? (**it).value() : value_type(get_allocator());
     }
 
     bool is_null() const noexcept { return type_ == dtype::null; }
@@ -2020,9 +2019,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         return (**it).value();
     }
 
-    value_type& operator[](key_type key) {
-        return (*try_append_unique(key, static_cast<const Alloc&>(*this)).first).value();
-    }
+    value_type& operator[](key_type key) { return (*append_unique(key, value_type(get_allocator())).position).value(); }
 
     template<typename Func>
     auto visit(Func&& fn) -> decltype(fn(null_tag, *this));
@@ -2068,13 +2065,6 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         if (type_ != dtype::object) { init_as_object(); }
         auto result = value_.obj.append_unique(*this, std::move(h));
         return {object_iterator(result.position), result.appended, std::move(result.value)};
-    }
-
-    template<typename... Args>
-    std::pair<object_iterator, bool> try_append_unique(key_type key, Args&&... args) {
-        if (type_ != dtype::object) { init_as_object(); }
-        const auto result = value_.obj.try_append_unique(*this, key, std::forward<Args>(args)...);
-        return {object_iterator(result.first), result.second};
     }
 
     // --------------------------

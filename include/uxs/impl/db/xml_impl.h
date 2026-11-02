@@ -501,16 +501,20 @@ basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, 
             } break;
             case token_t::start_element: {
                 txt.clear();
-                auto result = top.first->try_append_unique(utf_string_adapter<CharT>{}(name()), al);
-                auto& val = (*result.first).value();
-                stack.emplace_back(&val, name());
-                if (!result.second) {
+
+                const auto add_value = [](value_type& parent, typename value_type::key_type key,
+                                          value_type&& v) -> value_type& {
+                    auto result = parent.append_unique(key, std::move(v));
+                    auto& val = (*result.position).value();
+                    if (result.appended) { return val; }
                     if (!val.is_array()) { val = value_type(array_tag, {val}); }
-                    stack.back().first = &val.push_back(value_type(al));
-                }
+                    return val.push_back(std::move(result.value));
+                };
+
+                stack.emplace_back(&add_value(*top.first, utf_string_adapter<CharT>{}(name()), value_type(al)), name());
                 for (const auto& attr : attributes()) {
-                    stack.back().first->try_append_unique(utf_string_adapter<CharT>{}(attr.key()),
-                                                          text_to_value(attr.value().as_string_view(), al));
+                    add_value(*stack.back().first, utf_string_adapter<CharT>{}(attr.key()),
+                              text_to_value(attr.value().as_string_view(), al));
                 }
             } break;
             case token_t::end_element: {
