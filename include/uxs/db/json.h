@@ -17,8 +17,8 @@ enum class token_t : int {
     null_value = 256,
     true_value,
     false_value,
-    integer_number,
-    negative_integer_number,
+    integral_number,
+    negative_integral_number,
     floating_point_number,
     string,
 };
