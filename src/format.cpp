@@ -1,4 +1,4 @@
-#include "uxs/impl/format_impl.h"
+#include "uxs/impl/format_impl.h"  // IWYU pragma: keep
 
 uxs::format_error::format_error(const char* message) : std::runtime_error(message) {}
 uxs::format_error::format_error(const std::string& message) : std::runtime_error(message) {}

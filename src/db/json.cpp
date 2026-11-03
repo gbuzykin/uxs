@@ -1,5 +1,5 @@
 #include "uxs/format.h"
-#include "uxs/impl/db/json_impl.h"
+#include "uxs/impl/db/json_impl.h"  // IWYU pragma: keep
 
 #define LEXEGEN_DATA_DECLARATOR(type, name) type uxs::db::json::lex_detail::name
 #include "json_lex_analyzer.inl"

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "utility.h"
+#include "utility.h"  // IWYU pragma: keep
 
 #include <memory>
 

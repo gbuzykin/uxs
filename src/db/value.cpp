@@ -1,4 +1,4 @@
-#include "uxs/impl/db/value_impl.h"
+#include "uxs/impl/db/value_impl.h"  // IWYU pragma: keep
 
 uxs::db::bad_value_access::bad_value_access(const char* message) : std::runtime_error(message) {}
 uxs::db::bad_value_access::bad_value_access(const std::string& message) : std::runtime_error(message) {}
