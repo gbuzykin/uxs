@@ -29,7 +29,7 @@ struct formatter<std::optional<Ty>, CharT, std::enable_if_t<is_formattable<Ty, C
     template<typename FmtCtx>
     void format(FmtCtx& ctx, const std::optional<Ty>& val) const {
         if (val) { return underlying_.format(ctx, *val); }
-        ctx.out() += string_literal<CharT, 'n', 'u', 'l', 'l'>{}();
+        ctx.out() += string_literal<CharT, 'n', 'u', 'l', 'l', 'o', 'p', 't'>{}();
     }
 };
 
