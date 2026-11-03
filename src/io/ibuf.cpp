@@ -1,4 +1,4 @@
-#include "uxs/impl/io/ibuf_impl.h"
+#include "uxs/impl/io/ibuf_impl.h"  // IWYU pragma: keep
 
 uxs::iomode uxs::detail::iomode_from_str(const char* mode, iomode default_mode) noexcept {
     iomode result = default_mode;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "utility.h"
+#include "utility.h"  // IWYU pragma: keep
 
 #if __cplusplus < 201703L && !defined(__cpp_lib_logical_traits)
 namespace std {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "uxs/config.h"  // IWYU pragma: keep
+#include "uxs/config.h"  // IWYU pragma: export
 
 #include <climits>
 

@@ -1,4 +1,4 @@
-#include "uxs/impl/io/iflatbuf_impl.h"
+#include "uxs/impl/io/iflatbuf_impl.h"  // IWYU pragma: keep
 
 UXS_IO_IFLATBUF_INSTANTIATE_IMPLEMENTATION(char);
 #if UXS_USE_WCHAR_T != 0

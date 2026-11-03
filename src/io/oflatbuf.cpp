@@ -1,4 +1,4 @@
-#include "uxs/impl/io/oflatbuf_impl.h"
+#include "uxs/impl/io/oflatbuf_impl.h"  // IWYU pragma: keep
 
 UXS_IO_OFLATBUF_INSTANTIATE_IMPLEMENTATION(char, std::allocator<char>);
 #if UXS_USE_WCHAR_T != 0

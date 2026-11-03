@@ -2,6 +2,7 @@
 
 #include "format_common.h"
 #include "string_conv_common.h"
+#include "type_traits.h"  // IWYU pragma: keep
 
 #include <tuple>
 
