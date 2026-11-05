@@ -62,12 +62,13 @@ set(CONFIG_SUBDIR $<$<BOOL:${IS_MULTI_CONFIG}>:$<CONFIG>>)
 if((UXS_USE_ZLIB OR UXS_USE_LIBZIP) AND NOT ZLIB_LIBRARY)
   if(NOT ZLIB_SOURCE_DIR)
     set(ZLIB_GIT_REPOSITORY "https://github.com/madler/zlib.git")
-    set(ZLIB_GIT_TAG 71747d1d39168833e0cae8ed84b8ce77cb049699)
+    set(ZLIB_GIT_TAG 99623ef7097352da7993ba614161fd6a311e046e)
   endif()
   set(ZLIB_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/zlib/${CONFIG_SUBDIR})
   set(ZLIB_INCLUDE_DIR ${ZLIB_INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
   set(ZLIB_LIBRARY_NAME
-      $<IF:$<BOOL:${WIN32}>,zs$<$<CONFIG:Debug>:d>.lib,libz.a>)
+      $<IF:$<BOOL:${WIN32}>,libzs$<$<CONFIG:Debug>:d>,${CMAKE_STATIC_LIBRARY_PREFIX}z>${CMAKE_STATIC_LIBRARY_SUFFIX}
+  )
   set(ZLIB_LIBRARY
       ${ZLIB_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/${ZLIB_LIBRARY_NAME})
   set(UXS_ZLIB_DEP libz)
@@ -93,11 +94,12 @@ endif()
 if(UXS_USE_LIBZIP AND NOT LIBZIP_LIBRARY)
   if(NOT LIBZIP_SOURCE_DIR)
     set(LIBZIP_GIT_REPOSITORY "https://github.com/nih-at/libzip.git")
-    set(LIBZIP_GIT_TAG da9448dec74a14ed2d20815c15846be89fb713a0)
+    set(LIBZIP_GIT_TAG 92be0eb8298376d0776945eecb8211deb04652c2)
   endif()
   set(LIBZIP_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/libzip/${CONFIG_SUBDIR})
   set(LIBZIP_INCLUDE_DIR ${LIBZIP_INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR})
-  set(LIBZIP_LIBRARY_NAME $<IF:$<BOOL:${WIN32}>,zip.lib,libzip.a>)
+  set(LIBZIP_LIBRARY_NAME
+      ${CMAKE_STATIC_LIBRARY_PREFIX}zip${CMAKE_STATIC_LIBRARY_SUFFIX})
   set(LIBZIP_LIBRARY
       ${LIBZIP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/${LIBZIP_LIBRARY_NAME})
   set(UXS_LIBZIP_DEP libzip)
@@ -156,17 +158,19 @@ if(NOT UXS_BUILD_STATIC_ONLY)
     add_dependencies(uxs ${UXS_LIBZIP_DEP})
   endif()
 
-  if(UXS_USE_ZLIB)
+  if(UXS_USE_ZLIB AND ZLIB_INCLUDE_DIR)
     target_include_directories(uxs PRIVATE ${ZLIB_INCLUDE_DIR})
-  endif()
-
-  if(UXS_USE_LIBZIP)
-    target_include_directories(uxs PRIVATE ${LIBZIP_INCLUDE_DIR})
-    target_link_libraries(uxs PRIVATE ${LIBZIP_LIBRARY})
   endif()
 
   if(UXS_USE_ZLIB OR UXS_USE_LIBZIP)
     target_link_libraries(uxs PRIVATE ${ZLIB_LIBRARY})
+  endif()
+
+  if(UXS_USE_LIBZIP)
+    if(LIBZIP_INCLUDE_DIR)
+      target_include_directories(uxs PRIVATE ${LIBZIP_INCLUDE_DIR})
+    endif()
+    target_link_libraries(uxs PRIVATE ${LIBZIP_LIBRARY})
   endif()
 
   target_include_directories(uxs PUBLIC include ${PROJECT_BINARY_DIR}/generated)
@@ -189,17 +193,19 @@ if(UXS_BUILD_STATIC)
     add_dependencies(uxs-static ${UXS_LIBZIP_DEP})
   endif()
 
-  if(UXS_USE_ZLIB)
+  if(UXS_USE_ZLIB AND ZLIB_INCLUDE_DIR)
     target_include_directories(uxs-static PRIVATE ${ZLIB_INCLUDE_DIR})
-  endif()
-
-  if(UXS_USE_LIBZIP)
-    target_include_directories(uxs-static PRIVATE ${LIBZIP_INCLUDE_DIR})
-    target_link_libraries(uxs-static PRIVATE ${LIBZIP_LIBRARY})
   endif()
 
   if(UXS_USE_ZLIB OR UXS_USE_LIBZIP)
     target_link_libraries(uxs-static PRIVATE ${ZLIB_LIBRARY})
+  endif()
+
+  if(UXS_USE_LIBZIP)
+    if(LIBZIP_INCLUDE_DIR)
+      target_include_directories(uxs-static PRIVATE ${LIBZIP_INCLUDE_DIR})
+    endif()
+    target_link_libraries(uxs-static PRIVATE ${LIBZIP_LIBRARY})
   endif()
 
   target_include_directories(uxs-static PUBLIC include
