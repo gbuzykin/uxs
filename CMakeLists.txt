@@ -147,40 +147,6 @@ file(GLOB_RECURSE UXS_SOURCES src/*.h;src/*.cpp)
 file(GLOB_RECURSE UXS_PLATFORM_SOURCES
      ${UXS_PLATFORM_DIR}/src/*.h;${UXS_PLATFORM_DIR}/src/*.cpp)
 
-if(NOT UXS_BUILD_STATIC_ONLY)
-  add_library(uxs SHARED ${UXS_HEADERS} ${UXS_SOURCES} ${UXS_PLATFORM_SOURCES})
-
-  if(UXS_ZLIB_DEP)
-    add_dependencies(uxs ${UXS_ZLIB_DEP})
-  endif()
-
-  if(UXS_LIBZIP_DEP)
-    add_dependencies(uxs ${UXS_LIBZIP_DEP})
-  endif()
-
-  if(UXS_USE_ZLIB AND ZLIB_INCLUDE_DIR)
-    target_include_directories(uxs PRIVATE ${ZLIB_INCLUDE_DIR})
-  endif()
-
-  if(UXS_USE_ZLIB OR UXS_USE_LIBZIP)
-    target_link_libraries(uxs PRIVATE ${ZLIB_LIBRARY})
-  endif()
-
-  if(UXS_USE_LIBZIP)
-    if(LIBZIP_INCLUDE_DIR)
-      target_include_directories(uxs PRIVATE ${LIBZIP_INCLUDE_DIR})
-    endif()
-    target_link_libraries(uxs PRIVATE ${LIBZIP_LIBRARY})
-  endif()
-
-  target_include_directories(uxs PUBLIC include ${PROJECT_BINARY_DIR}/generated)
-
-  target_compile_options(uxs PUBLIC $<$<CXX_COMPILER_ID:MSVC>:/Zc:__cplusplus
-                                    /utf-8>)
-
-  add_library(UXS::UXS ALIAS uxs)
-endif()
-
 if(UXS_BUILD_STATIC)
   add_library(uxs-static STATIC ${UXS_HEADERS} ${UXS_SOURCES}
                                 ${UXS_PLATFORM_SOURCES})
@@ -220,6 +186,43 @@ if(UXS_BUILD_STATIC)
   add_library(UXS::UXS-static ALIAS uxs-static)
 endif()
 
+if(NOT UXS_BUILD_STATIC_ONLY)
+  add_library(uxs SHARED ${UXS_HEADERS} ${UXS_SOURCES} ${UXS_PLATFORM_SOURCES})
+
+  if(UXS_ZLIB_DEP)
+    add_dependencies(uxs ${UXS_ZLIB_DEP})
+  endif()
+
+  if(UXS_LIBZIP_DEP)
+    add_dependencies(uxs ${UXS_LIBZIP_DEP})
+  endif()
+
+  if(UXS_USE_ZLIB AND ZLIB_INCLUDE_DIR)
+    target_include_directories(uxs PRIVATE ${ZLIB_INCLUDE_DIR})
+  endif()
+
+  if(UXS_USE_ZLIB OR UXS_USE_LIBZIP)
+    target_link_libraries(uxs PRIVATE ${ZLIB_LIBRARY})
+  endif()
+
+  if(UXS_USE_LIBZIP)
+    if(LIBZIP_INCLUDE_DIR)
+      target_include_directories(uxs PRIVATE ${LIBZIP_INCLUDE_DIR})
+    endif()
+    target_link_libraries(uxs PRIVATE ${LIBZIP_LIBRARY})
+  endif()
+
+  target_include_directories(uxs PUBLIC include ${PROJECT_BINARY_DIR}/generated)
+
+  target_compile_options(uxs PUBLIC $<$<CXX_COMPILER_ID:MSVC>:/Zc:__cplusplus
+                                    /utf-8>)
+
+  add_library(UXS::UXS ALIAS uxs)
+else()
+  add_library(uxs ALIAS uxs-static)
+  add_library(UXS::UXS ALIAS uxs-static)
+endif()
+
 set(UXS_CUSTOM_CONFIG "\n")
 
 if(UXS_USE_ZLIB)
@@ -239,22 +242,9 @@ set(UXS_CUSTOM_CONFIG
 )
 set(UXS_CUSTOM_CONFIG "${UXS_CUSTOM_CONFIG}#endif\n")
 
-if(UXS_BUILD_STATIC_ONLY)
-  set(UXS_MAIN_TARGET uxs-static)
-else()
-  set(UXS_MAIN_TARGET uxs)
-endif()
-
 generate_export_header(
-  ${UXS_MAIN_TARGET}
-  BASE_NAME
-  uxs
-  EXPORT_FILE_NAME
-  ${PROJECT_BINARY_DIR}/generated/uxs/config.h
-  INCLUDE_GUARD_NAME
-  UXS_CONFIG_H
-  CUSTOM_CONTENT_FROM_VARIABLE
-  UXS_CUSTOM_CONFIG)
+  uxs EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/generated/uxs/config.h
+  CUSTOM_CONTENT_FROM_VARIABLE UXS_CUSTOM_CONFIG)
 
 # ##############################################################################
 # Setup `uxs` installation
@@ -299,5 +289,4 @@ endif()
 # ##############################################################################
 # Auxiliary
 
-add_compile_defs_and_include_dirs_targets(${UXS_MAIN_TARGET}
-                                          ${CMAKE_CURRENT_SOURCE_DIR})
+add_compile_defs_and_include_dirs_targets(uxs ${CMAKE_CURRENT_SOURCE_DIR})

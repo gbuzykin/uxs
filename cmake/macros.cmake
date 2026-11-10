@@ -13,20 +13,31 @@ endmacro()
 
 macro(add_compile_defs_and_include_dirs_targets TargetName ExportDir)
   if(OPTION_EXPORT_COMPILE_DEFS_AND_INCLUDE_DIRS)
-    string(MAKE_C_IDENTIFIER ${TargetName} TargetNameCIdentifier)
+    get_target_property(RealTargetName ${TargetName} ALIASED_TARGET)
+    if(NOT RealTargetName)
+      set(RealTargetName ${TargetName})
+    endif()
+    set(COMPILE_DEFS_LIST
+        $<TARGET_PROPERTY:${RealTargetName},COMPILE_DEFINITIONS>)
+    get_target_property(TargetType ${RealTargetName} TYPE)
+    if(TargetType STREQUAL "SHARED_LIBRARY")
+      string(MAKE_C_IDENTIFIER ${RealTargetName} TargetNameCIdentifier)
+      set(COMPILE_DEFS_LIST
+          $<LIST:APPEND,${COMPILE_DEFS_LIST},${TargetNameCIdentifier}_EXPORTS>)
+    endif()
     add_custom_target(
       ${TargetName}_compile_defs
       COMMAND
         ${CMAKE_COMMAND} -E echo
-        "\"$<JOIN:$<LIST:APPEND,$<TARGET_PROPERTY:${TargetName},COMPILE_DEFINITIONS>,${TargetNameCIdentifier}_EXPORTS>,;>\""
+        "\"$<STRING:REPLACE,$<JOIN:${COMPILE_DEFS_LIST},;>,\",\\\">\""
         >${ExportDir}/compile-defs.list)
     add_custom_target(
       ${TargetName}_include_dirs
       COMMAND
         ${CMAKE_COMMAND} -E echo
-        "\"$<JOIN:$<TARGET_PROPERTY:${TargetName},INCLUDE_DIRECTORIES>,;>\""
+        "\"$<STRING:REPLACE,$<JOIN:$<TARGET_PROPERTY:${RealTargetName},INCLUDE_DIRECTORIES>,;>,\",\\\">\""
         >${ExportDir}/include-dirs.list)
-    add_dependencies(${TargetName} ${TargetName}_compile_defs
+    add_dependencies(${RealTargetName} ${TargetName}_compile_defs
                      ${TargetName}_include_dirs)
   endif()
 endmacro()
