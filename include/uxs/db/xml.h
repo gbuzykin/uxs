@@ -8,7 +8,7 @@ namespace uxs {
 namespace db {
 namespace xml {
 
-enum class token_t : int {
+enum class token_t {
     eof = 0,
     none,
     plain_text,
@@ -18,7 +18,7 @@ enum class token_t : int {
     preamble,
 };
 
-enum class value_class : int {
+enum class value_class {
     empty = 0,
     null_value,
     true_value,
@@ -43,11 +43,12 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC xml_error : public std::runtime_error {
 };
 
 namespace detail {
-enum class lex_token_t : int {
-    eof = 0,
+enum class lex_token_t {
+    eof = '\0',
     eq = '=',
     close = '>',
-    name = 256,
+    wide_char = 256,
+    name,
     predef_entity,
     entity,
     string,

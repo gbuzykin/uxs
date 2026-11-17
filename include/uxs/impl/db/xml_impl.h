@@ -63,6 +63,22 @@ std::int8_t get_next_state(int state, CharT ch) noexcept {
 }
 
 template<typename CharT>
+lex_token_t char_to_token_dispatch(CharT ch, std::true_type /* one byte */) noexcept {
+    return static_cast<lex_token_t>(static_cast<std::uint8_t>(ch));
+}
+
+template<typename CharT>
+lex_token_t char_to_token_dispatch(CharT ch, std::false_type /* one byte */) noexcept {
+    if (ch & ~0xff) { return lex_token_t::wide_char; }
+    return static_cast<lex_token_t>(static_cast<std::uint8_t>(ch));
+}
+
+template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
+lex_token_t char_to_token(CharT ch) noexcept {
+    return char_to_token_dispatch(ch, std::bool_constant<sizeof(CharT) == 1>());
+}
+
+template<typename CharT>
 CharT* normalize_string(CharT* dst, const CharT* first, const CharT* last) {
     CharT* dst0 = dst;
     for (; first != last; ++dst) {
@@ -104,7 +120,7 @@ lex_token_t lexer<CharT>::lex(string_view_type& lval) {
             state = get_next_state(lex_detail::sc_initial, *curr);
             if (state < 0) {  // just process a single character if it can't be recognized with analyzer
                 in.advance(1);
-                if (*curr != '\"' && *curr != '\'') { return lex_token_t(*curr); }
+                if (*curr != '\"' && *curr != '\'') { return char_to_token(*curr); }
                 string_quot = *curr;
                 continue;
             }
