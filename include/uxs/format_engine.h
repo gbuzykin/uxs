@@ -837,7 +837,7 @@ template<typename StrTy, typename = std::enable_if_t<!std::is_convertible<
 void vformat_append_impl(StrTy& out, locale_ref loc, std::basic_string_view<typename StrTy::value_type> fmt,
                          format_args_t<typename StrTy::value_type> args) {
     using char_type = typename StrTy::value_type;
-    basic_inline_dynbuffer<char_type> buf;
+    basic_dynbuffer<char_type> buf;
     fmt::format_impl(basic_format_context<char_type>(buf, loc),
                      basic_format_parse_context<char_type>(fmt.begin(), fmt.end(), args));
     out.append(buf.data(), buf.size());

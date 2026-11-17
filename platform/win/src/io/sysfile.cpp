@@ -139,7 +139,7 @@ UXS_EXPORT bool sysfile::remove(const wchar_t* fname) {
 
 template<typename NameCharT>
 bool sysfile::open(const NameCharT* fname, iomode mode) {
-    inline_wdynbuffer fname_buf;
+    wdynbuffer fname_buf;
     utf_string_adapter<wchar_t>{}.append(fname_buf, fname);
     fname_buf += L'\0';
     return open(fname_buf.data(), mode);
@@ -147,7 +147,7 @@ bool sysfile::open(const NameCharT* fname, iomode mode) {
 
 template<typename NameCharT>
 bool sysfile::remove(const NameCharT* fname) {
-    inline_wdynbuffer fname_buf;
+    wdynbuffer fname_buf;
     utf_string_adapter<wchar_t>{}.append(fname_buf, fname);
     fname_buf += L'\0';
     return remove(fname_buf.data());

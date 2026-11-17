@@ -641,27 +641,27 @@ auto basic_value<CharT, Alloc>::get_string() const -> est::optional<std::basic_s
                            string_literal<char_type, 'f', 'a', 'l', 's', 'e'>{}());
         } break;
         case dtype::integer: {
-            basic_inline_dynbuffer<char_type> buf;
+            basic_dynbuffer<char_type> buf;
             sconv::fmt_integer(buf, value_.i);
             return est::make_optional<std::basic_string<char_type>>(buf.data(), buf.size());
         } break;
         case dtype::unsigned_integer: {
-            basic_inline_dynbuffer<char_type> buf;
+            basic_dynbuffer<char_type> buf;
             sconv::fmt_integer(buf, value_.u);
             return est::make_optional<std::basic_string<char_type>>(buf.data(), buf.size());
         } break;
         case dtype::long_integer: {
-            basic_inline_dynbuffer<char_type> buf;
+            basic_dynbuffer<char_type> buf;
             sconv::fmt_integer(buf, value_.i64);
             return est::make_optional<std::basic_string<char_type>>(buf.data(), buf.size());
         } break;
         case dtype::unsigned_long_integer: {
-            basic_inline_dynbuffer<char_type> buf;
+            basic_dynbuffer<char_type> buf;
             sconv::fmt_integer(buf, value_.u64);
             return est::make_optional<std::basic_string<char_type>>(buf.data(), buf.size());
         } break;
         case dtype::double_precision: {
-            basic_inline_dynbuffer<char_type> buf;
+            basic_dynbuffer<char_type> buf;
             sconv::fmt_float(buf, value_.dbl);
             return est::make_optional<std::basic_string<char_type>>(buf.data(), buf.size());
         } break;

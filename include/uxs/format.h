@@ -236,7 +236,7 @@ void format_append(StrTy& out, const std::locale& loc, format_string_t<typename 
 template<typename StrLikeTy, typename = std::enable_if_t<is_normal_string_like<StrLikeTy>::value>>
 std::basic_string<string_char_type<StrLikeTy>> vformat(const StrLikeTy& fmt,
                                                        format_args_t<string_char_type<StrLikeTy>> args) {
-    basic_inline_dynbuffer<string_char_type<StrLikeTy>> buf;
+    basic_dynbuffer<string_char_type<StrLikeTy>> buf;
     vformat_append(buf, fmt, args);
     return std::basic_string<string_char_type<StrLikeTy>>(buf.data(), buf.size());
 }
@@ -244,7 +244,7 @@ std::basic_string<string_char_type<StrLikeTy>> vformat(const StrLikeTy& fmt,
 template<typename StrLikeTy, typename = std::enable_if_t<is_normal_string_like<StrLikeTy>::value>>
 std::basic_string<string_char_type<StrLikeTy>> vformat(const std::locale& loc, const StrLikeTy& fmt,
                                                        format_args_t<string_char_type<StrLikeTy>> args) {
-    basic_inline_dynbuffer<string_char_type<StrLikeTy>> buf;
+    basic_dynbuffer<string_char_type<StrLikeTy>> buf;
     vformat_append(buf, loc, fmt, args);
     return std::basic_string<string_char_type<StrLikeTy>>(buf.data(), buf.size());
 }
@@ -263,7 +263,7 @@ template<typename OutputIt, typename StrLikeTy, typename = std::enable_if_t<is_n
          typename = std::enable_if_t<est::is_output_iterator<OutputIt, const string_char_type<StrLikeTy>&>::value &&
                                      !std::is_same<OutputIt, string_char_type<StrLikeTy>*>::value>>
 OutputIt vformat_to(OutputIt out, const StrLikeTy& fmt, format_args_t<string_char_type<StrLikeTy>> args) {
-    basic_inline_dynbuffer<string_char_type<StrLikeTy>> buf;
+    basic_dynbuffer<string_char_type<StrLikeTy>> buf;
     vformat_append(buf, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
@@ -281,7 +281,7 @@ template<typename OutputIt, typename StrLikeTy, typename = std::enable_if_t<is_n
                                      !std::is_same<OutputIt, string_char_type<StrLikeTy>*>::value>>
 OutputIt vformat_to(OutputIt out, const std::locale& loc, const StrLikeTy& fmt,
                     format_args_t<string_char_type<StrLikeTy>> args) {
-    basic_inline_dynbuffer<string_char_type<StrLikeTy>> buf;
+    basic_dynbuffer<string_char_type<StrLikeTy>> buf;
     vformat_append(buf, loc, fmt, args);
     return std::copy_n(buf.data(), buf.size(), std::move(out));
 }
@@ -311,7 +311,7 @@ template<typename OutputIt, typename StrLikeTy, typename = std::enable_if_t<is_n
                                      !std::is_same<OutputIt, string_char_type<StrLikeTy>*>::value>>
 format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, const StrLikeTy& fmt,
                                           format_args_t<string_char_type<StrLikeTy>> args) {
-    basic_inline_dynbuffer<string_char_type<StrLikeTy>> buf;
+    basic_dynbuffer<string_char_type<StrLikeTy>> buf;
     vformat_append(buf, fmt, args);
     return {std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out)), buf.size()};
 }
@@ -330,7 +330,7 @@ template<typename OutputIt, typename StrLikeTy, typename = std::enable_if_t<is_n
                                      !std::is_same<OutputIt, string_char_type<StrLikeTy>*>::value>>
 format_to_n_result<OutputIt> vformat_to_n(OutputIt out, std::size_t n, const std::locale& loc, const StrLikeTy& fmt,
                                           format_args_t<string_char_type<StrLikeTy>> args) {
-    basic_inline_dynbuffer<string_char_type<StrLikeTy>> buf;
+    basic_dynbuffer<string_char_type<StrLikeTy>> buf;
     vformat_append(buf, loc, fmt, args);
     return {std::copy_n(buf.data(), std::min(buf.size(), n), std::move(out)), buf.size()};
 }

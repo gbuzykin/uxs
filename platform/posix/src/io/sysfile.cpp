@@ -84,7 +84,7 @@ std::int64_t sysfile::seek(std::int64_t off, seekdir dir) {
 }
 
 int sysfile::ctrlesc_color(est::span<const std::uint8_t> v) {
-    inline_dynbuffer buf;
+    dynbuffer buf;
     buf += "\033[";
     join_strings_append(buf, v, ';', [](membuffer& out, std::uint8_t x) { sconv::fmt_integer(out, x); });
     buf += 'm';
@@ -106,7 +106,7 @@ UXS_EXPORT bool sysfile::remove(const char* fname) {
 
 template<typename NameCharT>
 bool sysfile::open(const NameCharT* fname, iomode mode) {
-    inline_dynbuffer fname_buf;
+    dynbuffer fname_buf;
     utf_string_adapter<char>{}.append(fname_buf, fname);
     fname_buf += '\0';
     return open(fname_buf.data(), mode);
@@ -114,7 +114,7 @@ bool sysfile::open(const NameCharT* fname, iomode mode) {
 
 template<typename NameCharT>
 bool sysfile::remove(const NameCharT* fname) {
-    inline_dynbuffer fname_buf;
+    dynbuffer fname_buf;
     utf_string_adapter<char>{}.append(fname_buf, fname);
     fname_buf += '\0';
     return remove(fname_buf.data());

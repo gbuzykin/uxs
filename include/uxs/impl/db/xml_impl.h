@@ -485,7 +485,7 @@ basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, 
     while (!eof() && !(tt == token_t::start_element && name() == root_element)) { tt = next(); }
     if (eof()) { detail::report_error(lexer_.ln, "no such element"); }
 
-    basic_inline_dynbuffer<InCharT> txt;
+    basic_dynbuffer<InCharT> txt;
     inline_dynarray<std::pair<value_type*, std::basic_string<InCharT>>, 64> stack;
 
     value_type val(al);

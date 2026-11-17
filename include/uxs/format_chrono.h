@@ -860,7 +860,7 @@ struct chrono_formatter {
     template<typename FmtCtx>
     void format(FmtCtx& ctx, const Ty& val) const {
         if (opts_.width == 0) { return format_impl(ctx, val); }
-        basic_inline_dynbuffer<CharT> buf;
+        basic_dynbuffer<CharT> buf;
         auto buf_ctx = ctx.rebind(buf);
         format_impl(buf_ctx, val);
         const unsigned len = static_cast<unsigned>(buf.size());

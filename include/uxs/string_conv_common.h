@@ -184,7 +184,7 @@ void append_formatted_string(StrTy& out, const Range& s, fmt_opts fmt) {
         return fmt.width > width ? append_adjusted(out, fn, static_cast<unsigned>(width), fmt) : fn(out);
     }
     if (fmt.width == 0) { return (void)append_escaped_string(out, std::begin(s), std::end(s), '\"', max_width); }
-    basic_inline_dynbuffer<char_type> buf;
+    basic_dynbuffer<char_type> buf;
     const std::size_t width = append_escaped_string(buf, std::begin(s), std::end(s), '\"', max_width);
     const auto fn = [&buf](StrTy& out) { out.append(buf.data(), buf.size()); };
     return fmt.width > width ? append_adjusted(out, fn, static_cast<unsigned>(width), fmt) : fn(out);

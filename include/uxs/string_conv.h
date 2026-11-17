@@ -213,7 +213,7 @@ UXS_EXPORT void fmt_string(basic_membuffer<CharT>& out, std::basic_string_view<C
                      !std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>, \
                  typename... Opts> \
         void operator()(StrTy& out, ty val, Opts&&... opts) const { \
-            basic_inline_dynbuffer<typename StrTy::value_type> buf; \
+            basic_dynbuffer<typename StrTy::value_type> buf; \
             func(buf, val, std::forward<Opts>(opts)...); \
             out.append(buf.data(), buf.size()); \
         } \
@@ -259,21 +259,21 @@ void to_string_append(StrTy& out, const std::locale& loc, const Ty& val, fmt_opt
 
 template<typename CharT = char, typename Ty>
 std::basic_string<CharT> to_string(const Ty& val) {
-    basic_inline_dynbuffer<CharT> buf;
+    basic_dynbuffer<CharT> buf;
     to_string_append(buf, val);
     return std::basic_string<CharT>(buf.data(), buf.size());
 }
 
 template<typename CharT = char, typename Ty>
 std::basic_string<CharT> to_string(const Ty& val, fmt_opts fmt) {
-    basic_inline_dynbuffer<CharT> buf;
+    basic_dynbuffer<CharT> buf;
     to_string_append(buf, val, fmt);
     return std::basic_string<CharT>(buf.data(), buf.size());
 }
 
 template<typename CharT = char, typename Ty>
 std::basic_string<CharT> to_string(const std::locale& loc, const Ty& val, fmt_opts fmt) {
-    basic_inline_dynbuffer<CharT> buf;
+    basic_dynbuffer<CharT> buf;
     to_string_append(buf, loc, val, fmt);
     return std::basic_string<CharT>(buf.data(), buf.size());
 }
