@@ -194,18 +194,15 @@ class flexarray_t {
 
     Ty& insert(alloc_type& al, std::size_t pos, Ty&& v) {
         push_back(al, std::move(v));
-        if (pos < p_->size - 1) {
-            rotate_back(pos);
-        } else {
-            pos = p_->size - 1;
-        }
+        if (pos >= p_->size - 1) { return *(p_->data() + p_->size - 1); }
+        rotate_back(pos);
         return *(p_->data() + pos);
     }
 
     void clear(alloc_type& al) noexcept;
+
     UXS_EXPORT void reserve(alloc_type& al, std::size_t size);
     UXS_EXPORT void resize(alloc_type& al, std::size_t size, const Ty& v);
-
     UXS_EXPORT Ty* erase(alloc_type& al, std::size_t pos);
 
     void ref() noexcept {
@@ -567,7 +564,7 @@ class object_item {
     friend class object_t<CharT, Alloc>;
 
     list_links_t links_;
-    list_links_t* next_bucket_;
+    list_links_t* bucket_next_;
     std::size_t hash_code_;
     alignas(std::alignment_of<value_type>::value) std::uint8_t x_[sizeof(value_type)];
     std::size_t key_sz_;
@@ -650,6 +647,8 @@ class object_item {
         alloc_traits::deallocate(al, reinterpret_cast<typename alloc_traits::value_type*>(node),
                                  get_alloc_sz(node->key_capacity_));
     }
+
+    UXS_EXPORT static void destroy_nodes(alloc_type& al, list_links_t* head) noexcept;
 };
 
 template<std::size_t I, typename CharT, typename Alloc, typename = std::enable_if_t<I == 0>>
@@ -700,14 +699,22 @@ class object_node_handle
         : super(al),
           node_(node_t::construct(get_allocator(), max_key_length, std::forward<FillFn>(fill_key_fn), std::move(v))) {}
 
-    object_node_handle(object_node_handle&& other) noexcept : super(std::move(other)), node_(other.node_) {
-        other.node_ = nullptr;
-    }
     ~object_node_handle() {
         if (node_) { node_t::destroy(get_allocator(), node_); }
     }
 
-    object_node_handle& operator=(const object_node_handle&) = delete;
+    object_node_handle(object_node_handle&& other) noexcept : super(std::move(other)), node_(other.node_) {
+        other.node_ = nullptr;
+    }
+
+    object_node_handle& operator=(object_node_handle&& other) noexcept {
+        if (&other == this) { return *this; }
+        if (node_) { node_t::destroy(get_allocator(), node_); }
+        alloc_type::operator=(std::move(other));
+        node_ = other.node_;
+        other.node_ = nullptr;
+        return *this;
+    }
 
     explicit operator bool() const noexcept { return node_; }
 
@@ -803,13 +810,7 @@ class object_node_chain : protected std::allocator_traits<Alloc>::template rebin
         other.head_.next = other.head_.prev = &other.head_;
         other.size_ = 0;
     }
-    ~object_node_chain() {
-        for (list_links_t* node = head_.next; node != &head_;) {
-            list_links_t* next = node->next;
-            node_t::destroy(*this, node_t::from_links(node));
-            node = next;
-        }
-    }
+    ~object_node_chain() { node_t::destroy_nodes(*this, &head_); }
 
     object_node_chain& operator=(const object_node_chain&) = delete;
 
@@ -896,10 +897,16 @@ class object_t {
     using iterator = est::list_iterator<iterator_traits, false>;
     using const_iterator = est::list_iterator<iterator_traits, true>;
 
+    struct hash_position_t {
+        list_links_t** p_bucket_next;
+        bool exists;
+        std::size_t hash_code;
+    };
+
     std::size_t size() const noexcept { return p_->size; }
     list_links_t* cbegin() const noexcept { return p_->head.next; }
     list_links_t* cend() const noexcept { return &p_->head; }
-    list_links_t* cfind(key_type key) const noexcept { return find_impl(key, nullptr); }
+    UXS_EXPORT list_links_t* cfind(key_type key) const noexcept;
     UXS_EXPORT std::size_t count(key_type key) const noexcept;
 
     bool is_equal_to(object_t other) const noexcept {
@@ -946,7 +953,7 @@ class object_t {
     list_links_t* append_new(alloc_type& al, key_type key, value_type&& v) {
         if (p_->ref_count > 1 || p_->size == p_->bucket_count) { reserve(al, p_->size + 1); }
         node_t* node = node_t::construct(al, key, std::move(v));
-        append_node(node, nullptr);
+        append_node(node);
         return &node->links_;
     }
 
@@ -954,54 +961,52 @@ class object_t {
     list_links_t* append_new(alloc_type& al, std::size_t max_key_length, FillFn&& fill_key_fn, value_type&& v) {
         if (p_->ref_count > 1 || p_->size == p_->bucket_count) { reserve(al, p_->size + 1); }
         node_t* node = node_t::construct(al, max_key_length, std::forward<FillFn>(fill_key_fn), std::move(v));
-        append_node(node, nullptr);
+        append_node(node);
         return &node->links_;
     }
 
     list_links_t* append_new(alloc_type& al, node_handle&& h) {
         if (p_->ref_count > 1 || p_->size == p_->bucket_count) { reserve(al, p_->size + 1); }
         node_t* node = std::move(h).release(al);
-        append_node(node, nullptr);
+        append_node(node);
         return &node->links_;
     }
 
     append_return_type<list_links_t*, value_type> append_unique(alloc_type& al, key_type key, value_type&& v) {
         if (p_->ref_count > 1 || p_->size == p_->bucket_count) { reserve(al, p_->size + 1); }
-        std::size_t hash_code = 0;
-        list_links_t* found_node = find_impl(key, &hash_code);
-        if (found_node != cend()) { return {found_node, false, std::move(v)}; }
+        const auto result = find_hash_position(key);
+        if (result.exists) { return {*result.p_bucket_next, false, std::move(v)}; }
         node_t* node = node_t::construct(al, key, std::move(v));
-        append_node(node, &hash_code);
+        append_node(node, result.p_bucket_next, result.hash_code);
         return {&node->links_, true, {}};
     }
 
     append_return_type<list_links_t*, node_handle> append_unique(alloc_type& al, node_handle&& h) {
         if (p_->ref_count > 1 || p_->size == p_->bucket_count) { reserve(al, p_->size + 1); }
-        std::size_t hash_code = 0;
         assert(h.node_);
-        list_links_t* found_node = find_impl(h.node_->key(), &hash_code);
-        if (found_node != cend()) { return {found_node, false, std::move(h)}; }
+        const auto result = find_hash_position(h.node_->key());
+        if (result.exists) { return {*result.p_bucket_next, false, std::move(h)}; }
         node_t* node = std::move(h).release(al);
-        append_node(node, &hash_code);
+        append_node(node, result.p_bucket_next, result.hash_code);
         return {&node->links_, true, {}};
     }
 
     void clear(alloc_type& al);
+
     UXS_EXPORT void reserve(alloc_type& al, std::size_t size);
     UXS_EXPORT std::size_t erase(alloc_type& al, key_type key);
+    UXS_EXPORT void extract_all(alloc_type& al, node_chain& chain);
 
-    list_links_t* erase(alloc_type& al, list_links_t* node) {
-        const auto result = extract_impl(al, node);
+    list_links_t* erase(alloc_type& al, list_links_t* pos) {
+        const auto result = extract_impl(al, pos);
         node_t::destroy(al, result.first);
         return result.second;
     }
 
-    std::pair<node_handle, list_links_t*> extract(alloc_type& al, list_links_t* node) {
-        const auto result = extract_impl(al, node);
+    std::pair<node_handle, list_links_t*> extract(alloc_type& al, list_links_t* pos) {
+        const auto result = extract_impl(al, pos);
         return {node_handle(al, result.first), result.second};
     }
-
-    UXS_EXPORT void extract_all(alloc_type& al, node_chain& chain);
 
     void ref() noexcept { ++p_->ref_count; }
 
@@ -1061,21 +1066,29 @@ class object_t {
     template<typename InputIt>
     void append_dispatch(alloc_type& al, InputIt first, InputIt last, std::false_type /* random access iterator */);
 
-    UXS_EXPORT void destroy_nodes(alloc_type& al) noexcept;
-    void add_to_hash(node_t* node) noexcept;
-    UXS_EXPORT void append_node(node_t* node, const std::size_t* p_hash_code) noexcept;
     UXS_EXPORT void rehash(alloc_type& al, std::size_t extra);
     UXS_EXPORT void destruct(alloc_type& al) noexcept;
-    UXS_EXPORT list_links_t* find_impl(key_type key, std::size_t* p_hash_code) const noexcept;
+    UXS_EXPORT void append_node(node_t* node) noexcept;
+    UXS_EXPORT std::pair<node_t*, list_links_t*> extract_impl(alloc_type& al, list_links_t* pos);
+
+    list_links_t* map_position(object_t other, list_links_t* pos) noexcept;
+    list_links_t** find_hash_position(key_type key, std::size_t hash_code) const noexcept;
+    UXS_EXPORT hash_position_t find_hash_position(key_type key) const noexcept;
+
+    void append_node(node_t* node, list_links_t** p_bucket_next, std::size_t hash_code) noexcept {
+        assert(node);
+        node->hash_code_ = hash_code;
+        node_traits::set_head(&node->links_, &p_->head);
+        node->bucket_next_ = *p_bucket_next;
+        *p_bucket_next = &node->links_;
+        dllist_insert_before(&p_->head, &node->links_);
+        ++p_->size;
+    }
 
     void reset(alloc_type& al, object_t other) noexcept {
         unref(al);
         p_ = other.p_;
     }
-
-    list_links_t* map_node(object_t other, list_links_t* node_to_map) noexcept;
-
-    UXS_EXPORT std::pair<node_t*, list_links_t*> extract_impl(alloc_type& al, list_links_t* node);
 
     static std::size_t max_size(const alloc_type& al) noexcept {
         return (alloc_traits::max_size(al) * sizeof(typename alloc_traits::value_type) - offsetof(data_t, data_buf)) /
@@ -1103,7 +1116,7 @@ void object_t<CharT, Alloc>::clear(alloc_type& al) {
         new_obj.construct_empty(al);
         reset(al, new_obj);
     } else {
-        destroy_nodes(al);
+        node_t::destroy_nodes(al, &p_->head);
         p_->init();
     }
 }
@@ -1130,7 +1143,7 @@ void object_t<Ty, Alloc>::assign_dispatch(alloc_type& al, InputIt first, InputIt
                                           std::true_type /* random access iterator */) {
     const std::size_t count = static_cast<std::size_t>(last - first);
     if (p_->ref_count == 1 && count <= p_->bucket_count) {
-        destroy_nodes(al);
+        node_t::destroy_nodes(al, &p_->head);
         p_->init();
         return append_no_realloc(al, first, last);
     }
@@ -1144,7 +1157,7 @@ template<typename InputIt>
 void object_t<Ty, Alloc>::assign_dispatch(alloc_type& al, InputIt first, InputIt last,
                                           std::false_type /* random access iterator */) {
     if (p_->ref_count == 1) {
-        destroy_nodes(al);
+        node_t::destroy_nodes(al, &p_->head);
         p_->init();
         return append_one_by_one(al, first, last);
     }
@@ -1157,7 +1170,7 @@ template<typename CharT, typename Alloc>
 template<typename InputIt>
 void object_t<CharT, Alloc>::append_no_realloc_dispatch(alloc_type& al, InputIt first, InputIt last,
                                                         std::true_type /* node handles */) {
-    for (; first != last; ++first) { append_node((*first).release(al), nullptr); }
+    for (; first != last; ++first) { append_node((*first).release(al)); }
 }
 
 template<typename CharT, typename Alloc>
@@ -1166,7 +1179,7 @@ void object_t<CharT, Alloc>::append_no_realloc_dispatch(alloc_type& al, InputIt 
                                                         std::false_type /* node handles */) {
     for (; first != last; ++first) {
         const auto key = std::get<0>(*first);
-        append_node(node_t::construct(al, key, value_type(std::get<1>(*first))), nullptr);
+        append_node(node_t::construct(al, key, value_type(std::get<1>(*first))));
     }
 }
 
@@ -1176,7 +1189,7 @@ void object_t<CharT, Alloc>::append_one_by_one_dispatch(alloc_type& al, InputIt 
                                                         std::true_type /* node handles */) {
     for (; first != last; ++first) {
         if (p_->size == p_->bucket_count) { rehash(al, 1); }
-        append_node((*first).release(al), nullptr);
+        append_node((*first).release(al));
     }
 }
 
@@ -1187,7 +1200,7 @@ void object_t<CharT, Alloc>::append_one_by_one_dispatch(alloc_type& al, InputIt 
     for (; first != last; ++first) {
         if (p_->size == p_->bucket_count) { rehash(al, 1); }
         const auto key = std::get<0>(*first);
-        append_node(node_t::construct(al, key, value_type(std::get<1>(*first))), nullptr);
+        append_node(node_t::construct(al, key, value_type(std::get<1>(*first))));
     }
 }
 
@@ -2083,7 +2096,6 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
 
     void erase(size_type pos) {
         if (type_ != dtype::array) { report_not_an_array_error(); }
-        assert(pos < value_.arr.size());
         value_.arr.erase(*this, pos);
     }
 
@@ -2092,15 +2104,15 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
         return value_.obj.erase(*this, key);
     }
 
-    std::pair<node_handle, object_iterator> extract(const_iterator it) {
-        if (!it.is_object() || type_ != dtype::object) { report_not_an_object_error(); }
-        detail::list_links_t* node = static_cast<detail::list_links_t*>(it.ptr_);
+    std::pair<node_handle, object_iterator> extract(const_iterator pos) {
+        if (!pos.is_object() || type_ != dtype::object) { report_not_an_object_error(); }
+        detail::list_links_t* node = static_cast<detail::list_links_t*>(pos.ptr_);
         uxs_iterator_assert(object_t::node_traits::get_head(node) == value_.obj.cend());
         auto result = value_.obj.extract(*this, node);
         return {std::move(result.first), object_iterator(result.second)};
     }
 
-    iterator erase(const_iterator it);
+    iterator erase(const_iterator pos);
 
     void extract_all(node_chain& chain) {
         if (type_ != dtype::object) { report_not_an_object_error(); }
@@ -2370,17 +2382,19 @@ void basic_value<CharT, Alloc>::insert(size_type pos, InputIt first, InputIt las
 // --------------------------
 
 template<typename CharT, typename Alloc>
-auto basic_value<CharT, Alloc>::erase(const_iterator it) -> iterator {
-    if (it.is_object()) {
+auto basic_value<CharT, Alloc>::erase(const_iterator pos) -> iterator {
+    if (pos.is_object()) {
         if (type_ != dtype::object) { report_not_an_object_error(); }
-        detail::list_links_t* node = static_cast<detail::list_links_t*>(it.ptr_);
+        detail::list_links_t* node = static_cast<detail::list_links_t*>(pos.ptr_);
         uxs_iterator_assert(object_t::node_traits::get_head(node) == value_.obj.cend());
         return iterator(value_.obj.erase(*this, node));
     }
     if (type_ != dtype::array) { report_not_an_array_error(); }
-    uxs_iterator_assert(it.begin_ == value_.arr.cbegin() && it.end_ == value_.arr.cend());
-    const size_type pos = static_cast<value_type*>(it.ptr_) - static_cast<const value_type*>(it.begin_);
-    value_type* next = value_.arr.erase(*this, pos);
+    uxs_iterator_assert(pos.begin_ == value_.arr.cbegin() && pos.end_ == value_.arr.cend());
+    assert(value_.arr.cbegin() <= static_cast<value_type*>(pos.ptr_) &&
+           static_cast<value_type*>(pos.ptr_) < value_.arr.cend());
+    const size_type n_pos = static_cast<value_type*>(pos.ptr_) - value_.arr.cbegin();
+    value_type* next = value_.arr.erase(*this, n_pos);
     return iterator(next, value_.arr.cbegin(), value_.arr.cend());
 }
 
