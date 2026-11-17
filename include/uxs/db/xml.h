@@ -64,7 +64,7 @@ struct lexer {
     using string_view_type = std::basic_string_view<CharT>;
     basic_ibuf<CharT>& in;
     unsigned ln = 1;
-    basic_inline_dynbuffer<CharT> stash;
+    basic_dynbuffer<CharT> stash;
     explicit lexer(basic_ibuf<CharT>& in) : in(in) {}
     lex_token_t lex(string_view_type& lval);
 };

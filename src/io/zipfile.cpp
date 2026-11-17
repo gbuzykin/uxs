@@ -109,7 +109,7 @@ int zipfile::write(const void* /*data*/, std::size_t /*sz*/, std::size_t& /*n_wr
 
 template<typename NameCharT>
 bool zipfile::open(ziparch& arch, const NameCharT* fname, iomode mode) {
-    inline_dynbuffer fname_buf;
+    dynbuffer fname_buf;
     utf_string_adapter<char>{}.append(fname_buf, fname);
     fname_buf += '\0';
     return open(arch, fname_buf.data(), mode);

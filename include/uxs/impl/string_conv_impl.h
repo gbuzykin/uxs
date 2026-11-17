@@ -987,7 +987,7 @@ struct print_float_functor {
             fp.generate(out.endp(), len, uppercase, dec_point, std::forward<Args>(args)...);
             out.advance(len);
         } else {
-            basic_inline_dynbuffer<CharT> buf;
+            basic_dynbuffer<CharT> buf;
             buf.reserve(len);
             if (prefix.len) { *buf.data() = prefix.chars[0]; }
             fp.generate(buf.data(), len, uppercase, dec_point, std::forward<Args>(args)...);
@@ -1023,7 +1023,7 @@ void fmt_float_common(basic_membuffer<CharT>& out, std::uint64_t u64, unsigned b
         fp.generate(out.endp(), len, uppercase, dec_point);
         out.advance(len);
     } else {
-        basic_inline_dynbuffer<CharT> buf;
+        basic_dynbuffer<CharT> buf;
         buf.reserve(len);
         if (negative) { *buf.data() = '-'; }
         fp.generate(buf.data(), len, uppercase, dec_point);

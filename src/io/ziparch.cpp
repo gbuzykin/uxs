@@ -155,7 +155,7 @@ bool ziparch::stat_file(std::uint64_t /*index*/, zipfile_info& /*info*/) const {
 
 template<typename NameCharT>
 bool ziparch::open(const NameCharT* name, iomode mode) {
-    inline_dynbuffer name_buf;
+    dynbuffer name_buf;
     utf_string_adapter<char>{}.append(name_buf, name);
     name_buf += '\0';
     return open(name_buf.data(), mode);
@@ -164,7 +164,7 @@ bool ziparch::open(const NameCharT* name, iomode mode) {
 template<typename NameCharT>
 std::int64_t ziparch::add_file(const NameCharT* fname, const void* data, std::size_t sz, zipfile_compression compr,
                                unsigned level) {
-    inline_dynbuffer fname_buf;
+    dynbuffer fname_buf;
     utf_string_adapter<char>{}.append(fname_buf, fname);
     fname_buf += '\0';
     return add_file(fname_buf.data(), data, sz, compr, level);
@@ -172,7 +172,7 @@ std::int64_t ziparch::add_file(const NameCharT* fname, const void* data, std::si
 
 template<typename NameCharT>
 bool ziparch::stat_file(const NameCharT* fname, zipfile_info& info) const {
-    inline_dynbuffer fname_buf;
+    dynbuffer fname_buf;
     utf_string_adapter<char>{}.append(fname_buf, fname);
     fname_buf += '\0';
     return stat_file(fname_buf.data(), info);

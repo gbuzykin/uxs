@@ -45,7 +45,7 @@ struct lexer {
     using string_view_type = std::basic_string_view<CharT>;
     basic_ibuf<CharT>& in;
     unsigned ln = 1;
-    basic_inline_dynbuffer<CharT> stash;
+    basic_dynbuffer<CharT> stash;
     explicit lexer(basic_ibuf<CharT>& in) : in(in) {}
     UXS_EXPORT token_t lex(string_view_type& lval);
 };
@@ -57,7 +57,7 @@ template<typename CharT, typename ValueFn, typename ArrItemFn, typename ObjItemF
 void parse(basic_ibuf<CharT>& in, ValueFn&& value_fn, ArrItemFn&& arr_item_fn, ObjItemFn&& obj_item_fn, PopFn&& pop_fn) {
     using string_view_type = std::basic_string_view<CharT>;
     detail::lexer<CharT> lexer(in);
-    inline_dynbuffer stack;
+    dynbuffer stack;
 
     const auto value_checked_fn = [&lexer, &value_fn](token_t tt, string_view_type sval) -> parse_step {
         if (tt >= token_t::null_value || tt == token_t('[') || tt == token_t('{')) { return value_fn(tt, sval); }
@@ -200,7 +200,7 @@ struct to_string_impl<db::basic_value<CharT, Alloc>, OutCharT> {
     template<typename StrTy, typename = std::enable_if_t<
                                  !std::is_convertible<StrTy&, basic_membuffer<typename StrTy::value_type>&>::value>>
     void operator()(StrTy& out, const db::basic_value<CharT, Alloc>& val) const {
-        basic_inline_dynbuffer<typename StrTy::value_type> buf;
+        basic_dynbuffer<typename StrTy::value_type> buf;
         db::json::detail::write_impl(buf, val);
         out.append(buf.data(), buf.size());
     }
