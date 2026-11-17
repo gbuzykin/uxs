@@ -21,7 +21,7 @@ class basic_devbuf : protected std::allocator_traits<Alloc>::template rebind_all
     using off_type = typename basic_iobuf<CharT>::off_type;
     using allocator_type = Alloc;
 
-    explicit basic_devbuf(iodevice& dev) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
+    explicit basic_devbuf(iodevice& dev) noexcept(std::is_nothrow_default_constructible<Alloc>::value)
         : alloc_type(), basic_iobuf<CharT>(iomode::none, iostate_bits::fail), dev_(&dev) {}
     basic_devbuf(iodevice& dev, const Alloc& al) noexcept
         : alloc_type(al), basic_iobuf<CharT>(iomode::none, iostate_bits::fail), dev_(&dev) {}

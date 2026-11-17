@@ -368,8 +368,7 @@ class flexarray_t {
     }
 
     static std::size_t max_size(const alloc_type& al) noexcept {
-        return (std::allocator_traits<alloc_type>::max_size(al) * sizeof(typename alloc_traits::value_type) -
-                offsetof(data_t, data_buf)) /
+        return (alloc_traits::max_size(al) * sizeof(typename alloc_traits::value_type) - offsetof(data_t, data_buf)) /
                sizeof(Ty);
     }
 
@@ -634,7 +633,7 @@ class object_item {
     }
 
     static std::size_t max_capacity(const alloc_type& al) noexcept {
-        return (std::allocator_traits<alloc_type>::max_size(al) * sizeof(typename alloc_traits::value_type) -
+        return (alloc_traits::max_size(al) * sizeof(typename alloc_traits::value_type) -
                 offsetof(object_item, key_chars_buf_)) /
                sizeof(char_type);
     }
@@ -1079,8 +1078,7 @@ class object_t {
     UXS_EXPORT std::pair<node_t*, list_links_t*> extract_impl(alloc_type& al, list_links_t* node);
 
     static std::size_t max_size(const alloc_type& al) noexcept {
-        return (std::allocator_traits<alloc_type>::max_size(al) * sizeof(typename alloc_traits::value_type) -
-                offsetof(data_t, data_buf)) /
+        return (alloc_traits::max_size(al) * sizeof(typename alloc_traits::value_type) - offsetof(data_t, data_buf)) /
                sizeof(list_links_t*);
     }
 
@@ -1503,19 +1501,18 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     using object_range = detail::object_range<object_iterator>;
     using const_object_range = detail::object_range<const_object_iterator>;
 
-    basic_value() noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
+    basic_value() noexcept(std::is_nothrow_default_constructible<Alloc>::value) : alloc_type(), type_(dtype::null) {
+        value_.null = nullptr;
+    }
+    basic_value(null_tag_t) noexcept(std::is_nothrow_default_constructible<Alloc>::value)
         : alloc_type(), type_(dtype::null) {
         value_.null = nullptr;
     }
-    basic_value(null_tag_t) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
-        : alloc_type(), type_(dtype::null) {
-        value_.null = nullptr;
-    }
-    basic_value(string_tag_t) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
+    basic_value(string_tag_t) noexcept(std::is_nothrow_default_constructible<Alloc>::value)
         : alloc_type(), type_(dtype::string) {
         value_.str.construct_empty();
     }
-    basic_value(array_tag_t) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
+    basic_value(array_tag_t) noexcept(std::is_nothrow_default_constructible<Alloc>::value)
         : alloc_type(), type_(dtype::array) {
         value_.arr.construct_empty();
     }
@@ -1629,7 +1626,7 @@ class basic_value : protected std::allocator_traits<Alloc>::template rebind_allo
     }
 
 #define UXS_DB_VALUE_IMPLEMENT_SCALAR_INIT(ty, id, field) \
-    basic_value(ty v) noexcept(std::is_nothrow_default_constructible<alloc_type>::value) : alloc_type(), type_(id) { \
+    basic_value(ty v) noexcept(std::is_nothrow_default_constructible<Alloc>::value) : alloc_type(), type_(id) { \
         value_.field = static_cast<decltype(value_.field)>(v); \
     } \
     basic_value(ty v, const Alloc& al) noexcept : alloc_type(al), type_(id) { \

@@ -10,6 +10,7 @@ template<typename CharT>
 class basic_iomembuffer : public basic_membuffer<CharT> {
  public:
     using size_type = typename basic_membuffer<CharT>::size_type;
+    using pointer = typename basic_membuffer<CharT>::pointer;
 
     explicit basic_iomembuffer(basic_iobuf<CharT>& out) noexcept
         : basic_membuffer<CharT>(out.first(), out.pos(), out.capacity(), try_grow_impl), out_(out) {}
@@ -19,15 +20,15 @@ class basic_iomembuffer : public basic_membuffer<CharT> {
  private:
     basic_iobuf<CharT>& out_;
 
-    void reset(CharT* data, size_type size, size_type capacity) noexcept {
+    void reset(pointer data, size_type size, size_type capacity) noexcept {
         basic_membuffer<CharT>::reset(data, size, capacity);
     }
 
     static size_type try_grow_impl(basic_membuffer<CharT>& buf, size_type /*extra*/, bool /*track_size*/) {
-        auto& iomembuf = static_cast<basic_iomembuffer&>(buf);
-        iomembuf.flush();
-        if (!iomembuf.out_.reserve().good()) { return 0; }
-        iomembuf.reset(iomembuf.out_.first(), iomembuf.out_.pos(), iomembuf.out_.capacity());
+        auto& self = static_cast<basic_iomembuffer&>(buf);
+        self.flush();
+        if (!self.out_.reserve().good()) { return 0; }
+        self.reset(self.out_.first(), self.out_.pos(), self.out_.capacity());
         return buf.avail();
     }
 };

@@ -47,7 +47,6 @@ bibuf& operator>>(bibuf& is, std::basic_string<CharT, Traits, Alloc>& s) {
         try {
             return is.read_with_endian(est::as_span(reinterpret_cast<std::uint8_t*>(p), sz * sizeof(CharT)),
                                        sizeof(CharT));
-
         } catch (...) {
             eptr = std::current_exception();
             return 0;

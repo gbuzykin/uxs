@@ -159,8 +159,8 @@ void basic_devbuf<CharT, Alloc>::freebuf() noexcept {
 }
 
 template<typename CharT, typename Alloc>
-const typename basic_devbuf<CharT, Alloc>::char_type* basic_devbuf<CharT, Alloc>::find_end_of_ctrlesc(
-    const char_type* first, const char_type* last) noexcept {
+auto basic_devbuf<CharT, Alloc>::find_end_of_ctrlesc(const char_type* first, const char_type* last) noexcept
+    -> const char_type* {
     if (first == last) { return first; }
     const char_type* p = first;
     if (*p == '[') {
@@ -333,7 +333,7 @@ void basic_devbuf<CharT, Alloc>::parse_ctrlesc(const char_type* first, const cha
             break;
         }
     }
-    dev_->ctrlesc_color(est::as_span(v.data(), n + 1));
+    dev_->apply_ctrlesc(est::as_span(v.data(), n + 1));
 }
 
 template<typename CharT, typename Alloc>
