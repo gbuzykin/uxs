@@ -313,13 +313,9 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
         std::size_t count;
     };
 
-    inline_dynarray<stack_item_t, 64> stack;
-
-    dynarray<value_type> val_stack;
-    dynarray<typename value_type::node_handle> node_stack;
-
-    val_stack.reserve(128);
-    node_stack.reserve(128);
+    dynarray<stack_item_t, 64> stack;
+    dynarray<value_type, 64> val_stack;
+    dynarray<typename value_type::node_handle, 64> node_stack;
 
     auto* item = &val_stack.emplace_back(al);
     stack.emplace_back(stack_item_t{false, 0});
@@ -505,7 +501,7 @@ template<typename OutCharT, typename CharT, typename Alloc>
 void write_impl(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>& v) {
     using value_type = basic_value<CharT, Alloc>;
 
-    inline_dynarray<detail::writer_stack_item_t<value_type>, 64> stack;
+    dynarray<detail::writer_stack_item_t<value_type>, 64> stack;
 
     const auto visitor = detail::make_value_visitor(out, stack);
     if (!v.visit(visitor)) { return; }
@@ -548,7 +544,7 @@ void write_formatted_impl(basic_membuffer<OutCharT>& out, const basic_value<Char
                           unsigned indent) {
     using value_type = basic_value<CharT, Alloc>;
 
-    inline_dynarray<detail::writer_stack_item_t<value_type>, 64> stack;
+    dynarray<detail::writer_stack_item_t<value_type>, 64> stack;
 
     const auto visitor = detail::make_value_visitor(out, stack);
     if (!v.visit(visitor)) { return; }

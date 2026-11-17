@@ -486,7 +486,7 @@ basic_value<CharT, Alloc> parser<InCharT>::parse(string_view_type root_element, 
     if (eof()) { detail::report_error(lexer_.ln, "no such element"); }
 
     basic_dynbuffer<InCharT> txt;
-    inline_dynarray<std::pair<value_type*, std::basic_string<InCharT>>, 64> stack;
+    dynarray<std::pair<value_type*, std::basic_string<InCharT>>, 64> stack;
 
     value_type val(al);
     stack.emplace_back(&val, root_element);
@@ -652,7 +652,7 @@ void write_impl(basic_membuffer<OutCharT>& out, const basic_value<CharT, Alloc>&
                 std::basic_string_view<CharT> element, xml_fmt_opts opts, unsigned indent) {
     using value_type = basic_value<CharT, Alloc>;
 
-    inline_dynarray<detail::writer_stack_item_t<value_type>, 64> stack;
+    dynarray<detail::writer_stack_item_t<value_type>, 64> stack;
 
     const auto visitor = detail::make_value_visitor(out, stack);
 
