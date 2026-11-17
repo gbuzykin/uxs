@@ -57,6 +57,22 @@ std::int8_t get_next_state(int state, CharT ch) noexcept {
 }
 
 template<typename CharT>
+token_t char_to_token_dispatch(CharT ch, std::true_type /* one byte */) noexcept {
+    return static_cast<token_t>(static_cast<std::uint8_t>(ch));
+}
+
+template<typename CharT>
+token_t char_to_token_dispatch(CharT ch, std::false_type /* one byte */) noexcept {
+    if (ch & ~0xff) { return token_t::wide_char; }
+    return static_cast<token_t>(static_cast<std::uint8_t>(ch));
+}
+
+template<typename CharT, typename = std::enable_if_t<std::is_integral<CharT>::value>>
+token_t char_to_token(CharT ch) noexcept {
+    return char_to_token_dispatch(ch, std::bool_constant<sizeof(CharT) == 1>());
+}
+
+template<typename CharT>
 token_t lexer<CharT>::lex(string_view_type& lval) {
     std::uint32_t lower_surrogate = 0;
     std::size_t surrogate_pair_pos = 0;
@@ -84,7 +100,7 @@ token_t lexer<CharT>::lex(string_view_type& lval) {
             state = get_next_state(lex_detail::sc_initial, *curr);
             if (state < 0) {  // process a single character
                 in.advance(1);
-                if (*curr != '\"') { return token_t(*curr); }
+                if (*curr != '\"') { return char_to_token(*curr); }
                 is_parsing_string = true;
                 continue;
             }
@@ -250,7 +266,7 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
     using value_type = basic_value<CharT, Alloc>;
     using string_view_type = std::basic_string_view<InCharT>;
 
-    static const auto token_to_value = [](token_t tt, string_view_type sval, value_type& val) {
+    static const auto token_to_value = +[](token_t tt, string_view_type sval, value_type& val) {
         switch (tt) {
             case token_t::null_value: val = null_tag; break;
             case token_t::true_value: val = true; break;
@@ -308,17 +324,12 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
         }
     };
 
-    struct stack_item_t {
-        bool is_object;
-        std::size_t count;
-    };
-
-    dynarray<stack_item_t, 64> stack;
+    dynarray<std::size_t, 64> stack;
     dynarray<value_type, 64> val_stack;
     dynarray<typename value_type::node_handle, 64> node_stack;
 
     auto* item = &val_stack.emplace_back(al);
-    stack.emplace_back(stack_item_t{false, 0});
+    stack.emplace_back(0);
 
     parse(
         in,
@@ -326,13 +337,13 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
             if (tt >= token_t::null_value) {
                 token_to_value(tt, sval, *item);
             } else {
-                stack.emplace_back(stack_item_t{tt == token_t::object, 0});
+                stack.emplace_back(0);
             }
             return parse_step::into;
         },
         [&stack, &val_stack, &al, &item]() {
             item = &val_stack.emplace_back(al);
-            ++stack.back().count;
+            ++stack.back();
         },
         [&stack, &node_stack, &al, &item](string_view_type key) {
             auto node = value_type::make_node(
@@ -343,22 +354,22 @@ basic_value<CharT, Alloc> parse(basic_ibuf<InCharT>& in, const Alloc& al) {
                 },
                 value_type(al));
             item = &node_stack.emplace_back(std::move(node))->value();
-            ++stack.back().count;
+            ++stack.back();
         },
-        [&stack, &val_stack, &node_stack] {
-            const bool is_object_parent = stack[stack.size() - 2].is_object;
-            if (stack.back().is_object) {
-                const std::size_t top = node_stack.size() - stack.back().count;
-                auto& parent = is_object_parent ? node_stack[top - 1]->value() : val_stack.back();
-                parent.append(object_tag, std::make_move_iterator(node_stack.end() - stack.back().count),
+        [&stack, &val_stack, &node_stack](token_t current_tt, token_t parent_tt) {
+            const std::size_t count = stack.back();
+            if (current_tt == token_t::object) {
+                const auto first = node_stack.end() - count;
+                auto& parent = parent_tt == token_t::object ? (*(first - 1))->value() : val_stack.back();
+                parent.append(object_tag, std::make_move_iterator(node_stack.end() - count),
                               std::make_move_iterator(node_stack.end()));
-                node_stack.resize(top);
+                node_stack.erase(first, node_stack.end());
             } else {
-                const std::size_t top = val_stack.size() - stack.back().count;
-                auto& parent = is_object_parent ? node_stack.back()->value() : val_stack[top - 1];
-                parent.append(array_tag, std::make_move_iterator(val_stack.end() - stack.back().count),
+                const auto first = val_stack.end() - count;
+                auto& parent = parent_tt == token_t::object ? node_stack.back()->value() : *(first - 1);
+                parent.append(array_tag, std::make_move_iterator(val_stack.end() - count),
                               std::make_move_iterator(val_stack.end()));
-                val_stack.resize(top);
+                val_stack.erase(first, val_stack.end());
             }
             stack.pop_back();
         });

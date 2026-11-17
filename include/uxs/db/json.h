@@ -10,11 +10,16 @@ namespace uxs {
 namespace db {
 namespace json {
 
-enum class token_t : int {
-    eof = 0,
+enum class token_t {
+    eof = '\0',
     array = '[',
+    array_close = ']',
     object = '{',
-    null_value = 256,
+    object_close = '}',
+    comma = ',',
+    colon = ':',
+    wide_char = 256,
+    null_value,
     true_value,
     false_value,
     integral_number,
@@ -60,69 +65,75 @@ void parse(basic_ibuf<CharT>& in, ValueFn&& value_fn, ArrItemFn&& arr_item_fn, O
     dynbuffer stack;
 
     const auto value_checked_fn = [&lexer, &value_fn](token_t tt, string_view_type sval) -> parse_step {
-        if (tt >= token_t::null_value || tt == token_t('[') || tt == token_t('{')) { return value_fn(tt, sval); }
+        if (tt >= token_t::null_value || tt == token_t::array || tt == token_t::object) { return value_fn(tt, sval); }
         detail::report_error(lexer.ln, "invalid value or unexpected character");
     };
 
     string_view_type lval;
-    auto tt = lexer.lex(lval);
-    if (value_checked_fn(tt, lval) != parse_step::into) { return; }
-    if (tt >= token_t::null_value) { return; }
+    auto current_tt = lexer.lex(lval);
+    if (value_checked_fn(current_tt, lval) != parse_step::into) { return; }
+    if (current_tt >= token_t::null_value) { return; }
 
     bool comma = false;
-    auto current = tt;
+
+    stack += static_cast<char>(token_t::eof);
 
 loop:
-    tt = lexer.lex(lval);
-    if (current == token_t('[')) {
-        if (comma || tt != token_t(']')) {
+    auto tt = lexer.lex(lval);
+    if (current_tt == token_t::array) {
+        if (comma || tt != token_t::array_close) {
             while (true) {
                 arr_item_fn();
                 const auto ret = value_checked_fn(tt, lval);
                 if (ret == parse_step::into) {
                     if (tt < token_t::null_value) {
-                        stack += '[', current = tt;
+                        stack += static_cast<char>(token_t::array);
+                        current_tt = tt;
                         comma = false;
                         goto loop;
                     }
                 } else if (ret == parse_step::stop) {
                     return;
                 }
-                if ((tt = lexer.lex(lval)) == token_t(']')) { break; }
-                if (tt != token_t(',')) { detail::report_error(lexer.ln, "expected `,` or `]`"); }
+                tt = lexer.lex(lval);
+                if (tt == token_t::array_close) { break; }
+                if (tt != token_t::comma) { detail::report_error(lexer.ln, "expected `,` or `]`"); }
                 tt = lexer.lex(lval);
             }
         }
-    } else if (comma || tt != token_t('}')) {
+    } else if (comma || tt != token_t::object_close) {
         while (true) {
             if (tt != token_t::string) { detail::report_error(lexer.ln, "expected valid string"); }
             obj_item_fn(lval);
-            if (lexer.lex(lval) != token_t(':')) { detail::report_error(lexer.ln, "expected `:`"); }
+            if (lexer.lex(lval) != token_t::colon) { detail::report_error(lexer.ln, "expected `:`"); }
             tt = lexer.lex(lval);
             const auto ret = value_checked_fn(tt, lval);
             if (ret == parse_step::into) {
                 if (tt < token_t::null_value) {
-                    stack += '{', current = tt;
+                    stack += static_cast<char>(token_t::object);
+                    current_tt = tt;
                     comma = false;
                     goto loop;
                 }
             } else if (ret == parse_step::stop) {
                 return;
             }
-            if ((tt = lexer.lex(lval)) == token_t('}')) { break; }
-            if (tt != token_t(',')) { detail::report_error(lexer.ln, "expected `,` or `}`"); }
+            tt = lexer.lex(lval);
+            if (tt == token_t::object_close) { break; }
+            if (tt != token_t::comma) { detail::report_error(lexer.ln, "expected `,` or `}`"); }
             tt = lexer.lex(lval);
         }
     }
 
     while (true) {
-        pop_fn();
-        if (stack.empty()) { return; }
-        current = token_t(stack.back());
+        auto parent_tt = static_cast<token_t>(stack.back());
+        pop_fn(current_tt, parent_tt);
+        if (parent_tt == token_t::eof) { return; }
+        current_tt = parent_tt;
         stack.pop_back();
-        const auto close_tt = current == token_t('[') ? token_t(']') : token_t('}');
-        if ((tt = lexer.lex(lval)) != close_tt) {
-            if (tt != token_t(',')) { detail::report_error(lexer.ln, "expected `,`, `]`, or `}`"); }
+        tt = lexer.lex(lval);
+        if (current_tt == token_t::array ? (tt != token_t::array_close) : (tt != token_t::object_close)) {
+            if (tt != token_t::comma) { detail::report_error(lexer.ln, "expected `,`, `]`, or `}`"); }
             comma = true;
             goto loop;
         }
