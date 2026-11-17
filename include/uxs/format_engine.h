@@ -184,7 +184,7 @@ class arg_store {
     void store_values(std::size_t i, std::size_t offset, const Ty& val, const Ts&... other) noexcept {
         static_assert(is_formattable<Ty, CharT>::value, "value of this type cannot be formatted");
         offset = est::align_up<arg_alignment<Ty, CharT>::value>{}(offset);
-        ::new (static_cast<void*>(reinterpret_cast<unsigned*>(&data_) + i)) unsigned(
+        ::new (reinterpret_cast<unsigned*>(&data_) + i) unsigned(
             static_cast<unsigned>(offset << 8) | static_cast<unsigned>(arg_type_index<Ty, CharT>::value));
         store_value(val, &data_[offset]);
         store_values(i + 1, offset + arg_size<Ty, CharT>::value, other...);

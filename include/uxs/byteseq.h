@@ -16,22 +16,22 @@ class basic_byteseq : protected std::allocator_traits<Alloc>::template rebind_al
     struct chunk_t {
         chunk_t* next;
         chunk_t* prev;
-        std::uint8_t* end;
+        std::uint8_t* endp;
         std::uint8_t* boundary;
         alignas(std::alignment_of<std::max_align_t>::value) std::uint8_t data_buf[1];
 
         const std::uint8_t* data() const noexcept { return data_buf; }
         std::uint8_t* data() noexcept { return data_buf; }
 
-        std::size_t size() const noexcept { return static_cast<std::size_t>(end - data()); }
+        std::size_t size() const noexcept { return static_cast<std::size_t>(endp - data()); }
         std::size_t capacity() const noexcept { return static_cast<std::size_t>(boundary - data()); }
-        std::size_t avail() const noexcept { return static_cast<std::size_t>(boundary - end); }
+        std::size_t avail() const noexcept { return static_cast<std::size_t>(boundary - endp); }
         static std::size_t get_alloc_sz(std::size_t cap) noexcept {
             return (offsetof(chunk_t, data_buf) + cap + sizeof(typename alloc_traits::value_type) - 1) /
                    sizeof(typename alloc_traits::value_type);
         }
         static std::size_t max_size(const alloc_type& al) noexcept {
-            return (std::allocator_traits<alloc_type>::max_size(al) * sizeof(typename alloc_traits::value_type) -
+            return (alloc_traits::max_size(al) * sizeof(typename alloc_traits::value_type) -
                     offsetof(chunk_t, data_buf));
         }
         static chunk_t* alloc(alloc_type& al, std::size_t cap);
@@ -44,7 +44,7 @@ class basic_byteseq : protected std::allocator_traits<Alloc>::template rebind_al
  public:
     using allocator_type = Alloc;
 
-    basic_byteseq() noexcept(std::is_nothrow_default_constructible<alloc_type>::value) : alloc_type() {}
+    basic_byteseq() noexcept(std::is_nothrow_default_constructible<Alloc>::value) : alloc_type() {}
     explicit basic_byteseq(est::span<const std::uint8_t> v) : alloc_type() { assign(v); }
     explicit basic_byteseq(const Alloc& al) noexcept : alloc_type(al) {}
     basic_byteseq(const Alloc& al, est::span<const std::uint8_t> v) : alloc_type(al) { assign(v); }
@@ -88,7 +88,7 @@ class basic_byteseq : protected std::allocator_traits<Alloc>::template rebind_al
         clear_and_reserve(max_size);
         if (head_) {
             size_ = fn(est::as_span(head_->data(), max_size));
-            head_->end = head_->data() + size_;
+            head_->endp = head_->data() + size_;
         }
         return *this;
     }
@@ -108,7 +108,7 @@ class basic_byteseq : protected std::allocator_traits<Alloc>::template rebind_al
     UXS_EXPORT basic_byteseq& assign(est::span<const std::uint8_t> v);
     UXS_EXPORT void copy_to_flat(est::span<std::uint8_t> dst) const;
 
-    UXS_EXPORT void resize(std::size_t size);
+    UXS_EXPORT void resize(std::size_t count);
     UXS_NODISCARD UXS_EXPORT basic_byteseq make_compressed(unsigned level = 0) const;
     UXS_NODISCARD UXS_EXPORT basic_byteseq make_uncompressed() const;
     UXS_EXPORT bool compress(unsigned level = 0);

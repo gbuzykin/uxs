@@ -22,8 +22,8 @@ class utf_string_adapter {
         std::basic_string<CharT> result;
         const auto sv = to_string_view(s);
         result.reserve(sv.size());
-        append_dispatch(result, sv.begin(), sv.end(), std::true_type(),
-                        std::is_same<string_char_type<StrLikeTy>, CharT>());
+        append_dispatch(result, sv.begin(), sv.end(), std::is_same<string_char_type<StrLikeTy>, CharT>(),
+                        std::true_type());
         return result;
     }
 
@@ -31,14 +31,14 @@ class utf_string_adapter {
              typename = std::enable_if_t<std::is_same<typename StrTy::value_type, CharT>::value>>
     void append(StrTy& out, const StrLikeTy& s) const {
         const auto sv = to_string_view(s);
-        append_dispatch(out, sv.begin(), sv.end(), std::true_type(), std::is_same<string_char_type<StrLikeTy>, CharT>());
+        append_dispatch(out, sv.begin(), sv.end(), std::is_same<string_char_type<StrLikeTy>, CharT>(), std::true_type());
     }
 
     template<typename StrTy, typename InputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value>,
              typename = std::enable_if_t<std::is_same<typename StrTy::value_type, CharT>::value>>
     void append(StrTy& out, InputIt first, InputIt last) {
-        append_dispatch(out, first, last, est::is_random_access_iterator<InputIt>(),
-                        std::is_same<est::iterator_value_t<InputIt>, CharT>());
+        append_dispatch(out, first, last, std::is_same<est::iterator_value_t<InputIt>, CharT>(),
+                        est::is_random_access_iterator<InputIt>());
     }
 
     template<typename InputIt, typename OutputIt, typename = std::enable_if_t<est::is_input_iterator<InputIt>::value>,
@@ -54,20 +54,20 @@ class utf_string_adapter {
 
  private:
     template<typename StrTy, typename InputIt>
-    static void append_dispatch(StrTy& out, InputIt first, InputIt last, std::true_type /* random access iterator */,
-                                std::true_type /* same char type */) {
+    static void append_dispatch(StrTy& out, InputIt first, InputIt last, std::true_type /* same char type */,
+                                std::true_type /* random access iterator */) {
         out.append(first, last);
     }
 
     template<typename StrTy, typename InputIt>
-    static void append_dispatch(StrTy& out, InputIt first, InputIt last, std::false_type /* random access iterator */,
-                                std::true_type /* same char type */) {
+    static void append_dispatch(StrTy& out, InputIt first, InputIt last, std::true_type /* same char type */,
+                                std::false_type /* random access iterator */) {
         for (; first != last; ++first) { out += *first; }
     }
 
     template<typename StrTy, typename InputIt, typename Bool>
-    static void append_dispatch(StrTy& out, InputIt first, InputIt last, Bool /* random access iterator */,
-                                std::false_type /* same char type */) {
+    static void append_dispatch(StrTy& out, InputIt first, InputIt last, std::false_type /* same char type */,
+                                Bool /* random access iterator */) {
         while (first != last) {
             std::uint32_t code = 0;
             first = utf_codec<est::iterator_value_t<InputIt>>{}.decode(first, last, code).iter;

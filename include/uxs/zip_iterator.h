@@ -38,7 +38,7 @@ class zip_iterator
     using difference_type = typename super::difference_type;
 
     UXS_CONSTEXPR zip_iterator() = default;
-    UXS_CONSTEXPR zip_iterator(Iters... its) : curr_(std::make_tuple(its...)) {}
+    explicit UXS_CONSTEXPR zip_iterator(Iters... its) : curr_(std::make_tuple(its...)) {}
 
     UXS_CONSTEXPR void increment() { increment_impl(std::index_sequence_for<Iters...>()); }
     UXS_CONSTEXPR void decrement() { decrement_impl(std::index_sequence_for<Iters...>()); }

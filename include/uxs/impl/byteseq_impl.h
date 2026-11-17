@@ -20,7 +20,7 @@ void basic_byteseq<Alloc>::clear() noexcept {
     delete_chunks();
     size_ = 0;
     dllist_make_cycle(head_);
-    head_->end = head_->data();
+    head_->endp = head_->data();
 }
 
 template<typename Alloc>
@@ -58,27 +58,27 @@ void basic_byteseq<Alloc>::copy_to_flat(est::span<std::uint8_t> v) const {
 }
 
 template<typename Alloc>
-void basic_byteseq<Alloc>::resize(std::size_t size) {
-    if (size > size_) {
+void basic_byteseq<Alloc>::resize(std::size_t count) {
+    if (count > size_) {
         if (!head_) { create_head_chunk(); }
-        while (size - size_ > head_->avail()) {
-            std::memset(head_->end, 0, head_->avail());
+        while (count - size_ > head_->avail()) {
+            std::memset(head_->endp, 0, head_->avail());
             create_next_chunk();
         }
-        const std::size_t extra = size - size_;
-        std::memset(head_->end, 0, extra);
-        head_->end += extra;
+        const std::size_t extra = count - size_;
+        std::memset(head_->endp, 0, extra);
+        head_->endp += extra;
     } else {
-        while (size_ - size > head_->size()) {
+        while (size_ - count > head_->size()) {
             chunk_t* prev = head_->prev;
             size_ -= head_->size();
             dllist_remove(head_);
             chunk_t::dealloc(*this, head_);
             head_ = prev;
         }
-        head_->end -= size_ - size;
+        head_->endp -= size_ - count;
     }
-    size_ = size;
+    size_ = count;
 }
 
 template<typename Alloc>
@@ -117,18 +117,18 @@ basic_byteseq<Alloc> basic_byteseq<Alloc>::make_compressed(unsigned level) const
         zstr.next_out = seq.head_->data();
 
         while (true) {
-            if (zstr.next_in == chunk->end && chunk != head_) {
+            if (zstr.next_in == chunk->endp && chunk != head_) {
                 chunk = chunk->next;
                 zstr.next_in = chunk->data();
             }
 
-            zstr.avail_in = static_cast<uInt>(std::min<std::size_t>(chunk->end - zstr.next_in, max_avail_count));
+            zstr.avail_in = static_cast<uInt>(std::min<std::size_t>(chunk->endp - zstr.next_in, max_avail_count));
             zstr.avail_out = static_cast<uInt>(seq.head_->boundary - zstr.next_out);
 
             const int ret = ::deflate(&zstr, zstr.avail_in ? Z_NO_FLUSH : Z_FINISH);
             if (ret != Z_OK) {
                 if (::deflateEnd(&zstr) == Z_OK && ret == Z_STREAM_END) {
-                    seq.head_->end = zstr.next_out;
+                    seq.head_->endp = zstr.next_out;
                     seq.size_ += seq.head_->size();
                     return seq;
                 }
@@ -165,18 +165,18 @@ basic_byteseq<Alloc> basic_byteseq<Alloc>::make_uncompressed() const {
         zstr.next_out = seq.head_->data();
 
         while (true) {
-            if (zstr.next_in == chunk->end && chunk != head_) {
+            if (zstr.next_in == chunk->endp && chunk != head_) {
                 chunk = chunk->next;
                 zstr.next_in = chunk->data();
             }
 
-            zstr.avail_in = static_cast<uInt>(std::min<std::size_t>(chunk->end - zstr.next_in, max_avail_count));
+            zstr.avail_in = static_cast<uInt>(std::min<std::size_t>(chunk->endp - zstr.next_in, max_avail_count));
             zstr.avail_out = static_cast<uInt>(seq.head_->boundary - zstr.next_out);
 
             const int ret = ::inflate(&zstr, zstr.avail_in ? Z_NO_FLUSH : Z_FINISH);
             if (ret != Z_OK) {
                 if (::inflateEnd(&zstr) == Z_OK && ret == Z_STREAM_END) {
-                    seq.head_->end = zstr.next_out;
+                    seq.head_->endp = zstr.next_out;
                     seq.size_ += seq.head_->size();
                     return seq;
                 }
@@ -235,7 +235,7 @@ void basic_byteseq<Alloc>::clear_and_reserve(std::size_t cap) {
             create_head(cap);
         } else {  // reuse head buffer
             dllist_make_cycle(head_);
-            head_->end = head_->data();
+            head_->endp = head_->data();
         }
     } else if (cap) {
         create_head(cap);
@@ -257,23 +257,23 @@ void basic_byteseq<Alloc>::create_head(std::size_t cap) {
     if (cap > chunk_t::max_size(*this)) { report_too_much_to_allocate_error(); }
     head_ = chunk_t::alloc(*this, cap);
     dllist_make_cycle(head_);
-    head_->end = head_->data();
+    head_->endp = head_->data();
 }
 
 template<typename Alloc>
 void basic_byteseq<Alloc>::create_head_chunk() {
     head_ = chunk_t::alloc(*this, min_chunk_size);
     dllist_make_cycle(head_);
-    head_->end = head_->data();
+    head_->endp = head_->data();
 }
 
 template<typename Alloc>
 void basic_byteseq<Alloc>::create_next_chunk() {
     size_ += head_->avail();
-    head_->end = head_->boundary;
+    head_->endp = head_->boundary;
     chunk_t* chunk = chunk_t::alloc(*this, std::max<std::size_t>(size_ >> 1, min_chunk_size));
     dllist_insert_after(head_, chunk);
-    chunk->end = chunk->data();
+    chunk->endp = chunk->data();
     head_ = chunk;
 }
 

@@ -20,6 +20,7 @@ class basic_string_view {
     static_assert(!std::is_array<CharT>::value && std::is_trivial<CharT>::value && std::is_standard_layout<CharT>::value,
                   "the character type of basic_string_view must be a non-array trivial standard-layout type");
 
+ private:
     struct iterator_traits {
         using value_type = CharT;
         using difference_type = std::ptrdiff_t;

@@ -83,7 +83,7 @@ std::int64_t sysfile::seek(std::int64_t off, seekdir dir) {
     return result < 0 ? -1 : result;
 }
 
-int sysfile::ctrlesc_color(est::span<const std::uint8_t> v) {
+int sysfile::apply_ctrlesc(est::span<const std::uint8_t> v) {
     dynbuffer buf;
     buf += "\033[";
     join_strings_append(buf, v, ';', [](membuffer& out, std::uint8_t x) { sconv::fmt_integer(out, x); });

@@ -96,7 +96,7 @@ void basic_byteseqdev<Alloc>::advance(std::size_t n) {
     const std::size_t chunk_pos = pos_ - pos0_;
     if (pos_ > seq_->size_) {
         assert(chunk_ == seq_->head_ && chunk_pos <= chunk_->capacity());
-        chunk_->end += pos_ - seq_->size_, seq_->size_ = pos_;
+        chunk_->endp += pos_ - seq_->size_, seq_->size_ = pos_;
     } else if (chunk_ != seq_->head_ && chunk_pos >= chunk_->size()) {
         assert(chunk_pos == chunk_->size());
         pos0_ += chunk_->size();

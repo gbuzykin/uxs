@@ -24,9 +24,9 @@ basic_oflatbuf<CharT, Alloc>& basic_oflatbuf<CharT, Alloc>::operator=(basic_ofla
 }
 
 template<typename CharT, typename Alloc>
-void basic_oflatbuf<CharT, Alloc>::reserve(size_type size) {
+void basic_oflatbuf<CharT, Alloc>::reserve(size_type count) {
     size_ = this->size();
-    if (size > this->capacity()) { grow(size - size_); }
+    if (count > this->capacity()) { grow(count - size_); }
 }
 
 template<typename CharT, typename Alloc>

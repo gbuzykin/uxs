@@ -355,7 +355,7 @@ struct print_functor {
 
 template<typename CharT, typename Ty, typename PrintFn>
 print_functor<CharT, Ty, PrintFn> make_print_functor(basic_membuffer<CharT>& out, Ty val, PrintFn print_fn) {
-    return print_functor<CharT, Ty, PrintFn>{out, val, std::move(print_fn)};
+    return {out, val, std::move(print_fn)};
 }
 
 // ---- binary
@@ -635,7 +635,8 @@ void fmt_dec(basic_membuffer<CharT>& out, Ty val, bool is_signed, fmt_opts fmt, 
             return fmt.width > len ? adjust_numeric(out, fn, len, prefix, fmt, grouping) : fn(len, prefix, grouping);
         }
     }
-    const auto fn = make_print_functor<CharT>(out, val, [](CharT* p, Ty val, unsigned pos) { gen_digits(p, val, pos); });
+    const auto fn = make_print_functor<CharT>(
+        out, val, +[](CharT* p, Ty val, unsigned pos) { gen_digits(p, val, pos); });
     return fmt.width > len ? adjust_numeric(out, fn, len, prefix, fmt) : fn(len, prefix);
 }
 

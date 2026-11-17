@@ -18,7 +18,7 @@ class basic_oflatbuf : protected std::allocator_traits<Alloc>::template rebind_a
     using off_type = typename basic_iobuf<CharT>::off_type;
     using allocator_type = Alloc;
 
-    basic_oflatbuf() noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
+    basic_oflatbuf() noexcept(std::is_nothrow_default_constructible<Alloc>::value)
         : alloc_type(), basic_iobuf<CharT>(iomode::out) {}
     explicit basic_oflatbuf(const Alloc& al) noexcept : alloc_type(al), basic_iobuf<CharT>(iomode::out) {}
     UXS_EXPORT ~basic_oflatbuf() override;
@@ -29,8 +29,8 @@ class basic_oflatbuf : protected std::allocator_traits<Alloc>::template rebind_a
     size_type size() const noexcept { return std::max(size_, this->pos()); }
     est::span<const char_type> view() const noexcept { return est::as_span(this->first(), size()); }
     allocator_type get_allocator() const noexcept { return allocator_type(*this); }
-    size_type max_size() const noexcept { return std::allocator_traits<alloc_type>::max_size(*this); }
-    UXS_EXPORT void reserve(size_type size);
+    size_type max_size() const noexcept { return alloc_traits::max_size(*this); }
+    UXS_EXPORT void reserve(size_type count);
 
  protected:
     UXS_EXPORT int overflow() override;
