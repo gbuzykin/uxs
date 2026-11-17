@@ -8,11 +8,13 @@
 
 namespace uxs {
 
-template<typename Ty, typename Alloc = std::allocator<Ty>>
-class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
+namespace detail {
+
+template<typename Ty, typename Alloc>
+class dynarray_base : protected std::allocator_traits<Alloc>::template rebind_alloc<Ty> {
  private:
     static_assert(std::is_same<std::remove_cv_t<Ty>, Ty>::value,
-                  "util::dynarray must have a non-const, non-volatile value type");
+                  "uxs::dynarray must have a non-const, non-volatile value type");
 
     using alloc_type = typename std::allocator_traits<Alloc>::template rebind_alloc<Ty>;
     using alloc_traits = std::allocator_traits<alloc_type>;
@@ -41,16 +43,10 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
-    dynarray() noexcept(std::is_nothrow_default_constructible<alloc_type>::value) : alloc_type() {}
-    explicit dynarray(const Alloc& alloc) noexcept : alloc_type(alloc) {}
-    explicit dynarray(size_type count, const Alloc& alloc = Alloc()) : alloc_type(alloc) { init(count); }
-    dynarray(size_type count, const value_type& val, const Alloc& alloc = Alloc()) : alloc_type(alloc) {
-        init(count, val);
-    }
-    ~dynarray() { tidy(); }
+    ~dynarray_base() { tidy(); }
 
-    dynarray(const dynarray&) = delete;
-    dynarray& operator=(const dynarray&) = delete;
+    dynarray_base(const dynarray_base&) = delete;
+    dynarray_base& operator=(const dynarray_base&) = delete;
 
     bool empty() const noexcept { return size_ == 0; }
     size_type size() const noexcept { return size_; }
@@ -138,14 +134,17 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
 
     template<typename... Args>
     iterator emplace(const_iterator pos, Args&&... args) {
-        const std::size_t n = static_cast<std::size_t>(pos - cbegin());
+        uxs_iterator_assert(pos.debug_begin() == data_ && pos.debug_end() == data_ + size_);
+        assert(data_ <= pos.ptr() && pos.ptr() <= data_ + size_);
+        const std::size_t n_pos = pos.ptr() - data_;
         emplace_back(std::forward<Args>(args)...);
-        if (n < size_ - 1) {
-            value_type t = std::move(data_[size_ - 1]);
-            for (std::size_t i = size_ - 1; i > n; --i) { data_[i] = std::move(data_[i - 1]); }
-            data_[n] = std::move(t);
+        if (n_pos != size_ - 1) {
+            Ty* last = data_ + size_;
+            Ty t(std::move(*(last - 1)));
+            std::move_backward(data_ + n_pos, last - 1, last);
+            data_[n_pos] = std::move(t);
         }
-        return iterator(data_ + n, data_, data_ + size_);
+        return iterator(data_ + n_pos, data_, data_ + size_);
     }
 
     iterator insert(const_iterator pos, const value_type& val) { return emplace(pos, val); }
@@ -158,21 +157,32 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
     }
 
     iterator erase(const_iterator pos) {
-        const std::size_t n = static_cast<std::size_t>(pos - cbegin());
-        assert(n < size_);
+        uxs_iterator_assert(pos.debug_begin() == data_ && pos.debug_end() == data_ + size_);
+        assert(data_ <= pos.ptr() && pos.ptr() < data_ + size_);
+        std::move(pos.ptr() + 1, data_ + size_, pos.ptr());
         --size_;
-        for (std::size_t i = n; i < size_; ++i) { data_[i] = std::move(data_[i + 1]); }
         alloc_traits::destroy(*this, data_ + size_);
-        return iterator(data_ + n, data_, data_ + size_);
+        return iterator(pos.ptr(), data_, data_ + size_);
+    }
+
+    iterator erase(const_iterator first, const_iterator last) {
+        uxs_iterator_assert(first.debug_begin() == data_ && first.debug_end() == data_ + size_);
+        uxs_iterator_assert(last.debug_begin() == data_ && last.debug_end() == data_ + size_);
+        assert(data_ <= first.ptr() && first.ptr() <= last.ptr() && last.ptr() <= data_ + size_);
+        std::move(last.ptr(), data_ + size_, first.ptr());
+        const auto count = last.ptr() - first.ptr();
+        size_ -= count;
+        destruct_items(data_ + size_, data_ + size_ + count);
+        return iterator(first.ptr(), data_, data_ + size_);
     }
 
  protected:
-    dynarray(Ty* data, size_type capacity) noexcept(std::is_nothrow_default_constructible<alloc_type>::value)
-        : alloc_type(), data_(data), capacity_(capacity) {
+    dynarray_base(Ty* data, size_type capacity) noexcept(std::is_nothrow_default_constructible<Alloc>::value)
+        : alloc_type(), data_(data), size_(0), capacity_(capacity) {
         assert(!(capacity & 1));
     }
-    dynarray(Ty* data, size_type capacity, const Alloc& alloc) noexcept
-        : alloc_type(alloc), data_(data), capacity_(capacity) {
+    dynarray_base(const Alloc& al, Ty* data, size_type capacity) noexcept
+        : alloc_type(al), data_(data), size_(0), capacity_(capacity) {
         assert(!(capacity & 1));
     }
 
@@ -236,14 +246,14 @@ class dynarray : protected std::allocator_traits<Alloc>::template rebind_alloc<T
     }
 
  private:
-    Ty* data_ = nullptr;
-    size_type size_ = 0;
-    size_type capacity_ = 0;
+    Ty* data_;
+    size_type size_;
+    size_type capacity_;
 };
 
 template<typename Ty, typename Alloc>
 template<typename... Args>
-void dynarray<Ty, Alloc>::init(size_type count, Args&&... args) {
+void dynarray_base<Ty, Alloc>::init(size_type count, Args&&... args) {
     if (count > capacity_) {
         if (count > max_size()) { report_too_much_to_allocate_error(); }
         capacity_ = (count & ~size_type(1)) + 1;  // Make new dynamic odd capacity
@@ -262,7 +272,7 @@ void dynarray<Ty, Alloc>::init(size_type count, Args&&... args) {
 
 template<typename Ty, typename Alloc>
 template<typename... Args>
-void dynarray<Ty, Alloc>::resize_impl(size_type size, Args&&... args) {
+void dynarray_base<Ty, Alloc>::resize_impl(size_type size, Args&&... args) {
     if (size <= size_) {
         destruct_items(data_ + size, data_ + size_);
     } else if (size <= capacity_) {
@@ -288,7 +298,7 @@ void dynarray<Ty, Alloc>::resize_impl(size_type size, Args&&... args) {
 }
 
 template<typename Ty, typename Alloc>
-auto dynarray<Ty, Alloc>::eval_new_capacity(size_type extra) const -> size_type {
+auto dynarray_base<Ty, Alloc>::eval_new_capacity(size_type extra) const -> size_type {
     const size_type size = size_;
     size_type delta_sz = std::max(extra, size >> 1);
     const size_type max_avail = max_size() - size;
@@ -301,8 +311,8 @@ auto dynarray<Ty, Alloc>::eval_new_capacity(size_type extra) const -> size_type 
 
 template<typename Ty, typename Alloc>
 template<typename Ty_>
-Ty_* dynarray<Ty, Alloc>::append_relocated_dispatch(size_type capacity, std::true_type /* trivially copyable */,
-                                                    std::true_type /* nothrow move constructible */) {
+Ty_* dynarray_base<Ty, Alloc>::append_relocated_dispatch(size_type capacity, std::true_type /* trivially copyable */,
+                                                         std::true_type /* nothrow move constructible */) {
     Ty* new_data = alloc_traits::allocate(*this, capacity);
     if (size_) { std::memcpy(new_data, data_, size_ * sizeof(Ty)); }
     return new_data;
@@ -310,8 +320,8 @@ Ty_* dynarray<Ty, Alloc>::append_relocated_dispatch(size_type capacity, std::tru
 
 template<typename Ty, typename Alloc>
 template<typename Ty_>
-Ty_* dynarray<Ty, Alloc>::append_relocated_dispatch(size_type capacity, std::false_type /* trivially copyable */,
-                                                    std::true_type /* nothrow move constructible */) {
+Ty_* dynarray_base<Ty, Alloc>::append_relocated_dispatch(size_type capacity, std::false_type /* trivially copyable */,
+                                                         std::true_type /* nothrow move constructible */) {
     Ty* new_data = alloc_traits::allocate(*this, capacity);
     Ty* dst = new_data;
     for (Ty* src = data_; src != data_ + size_; ++dst, ++src) { alloc_traits::construct(*this, dst, std::move(*src)); };
@@ -320,9 +330,9 @@ Ty_* dynarray<Ty, Alloc>::append_relocated_dispatch(size_type capacity, std::fal
 
 template<typename Ty, typename Alloc>
 template<typename AppendFn, typename... Args>
-Ty* dynarray<Ty, Alloc>::append_relocated_dispatch(size_type capacity, std::true_type /* trivially copyable */,
-                                                   std::true_type /* nothrow move constructible */,
-                                                   AppendFn&& append_fn, Args&&... args) {
+Ty* dynarray_base<Ty, Alloc>::append_relocated_dispatch(size_type capacity, std::true_type /* trivially copyable */,
+                                                        std::true_type /* nothrow move constructible */,
+                                                        AppendFn&& append_fn, Args&&... args) {
     Ty* new_data = alloc_traits::allocate(*this, capacity);
     Ty* dst_last = new_data + size_;
     try {
@@ -338,9 +348,9 @@ Ty* dynarray<Ty, Alloc>::append_relocated_dispatch(size_type capacity, std::true
 
 template<typename Ty, typename Alloc>
 template<typename AppendFn, typename... Args>
-Ty* dynarray<Ty, Alloc>::append_relocated_dispatch(size_type capacity, std::false_type /* trivially copyable */,
-                                                   std::true_type /* nothrow move constructible */,
-                                                   AppendFn&& append_fn, Args&&... args) {
+Ty* dynarray_base<Ty, Alloc>::append_relocated_dispatch(size_type capacity, std::false_type /* trivially copyable */,
+                                                        std::true_type /* nothrow move constructible */,
+                                                        AppendFn&& append_fn, Args&&... args) {
     Ty* new_data = alloc_traits::allocate(*this, capacity);
     Ty* dst_last = new_data + size_;
     try {
@@ -359,9 +369,9 @@ Ty* dynarray<Ty, Alloc>::append_relocated_dispatch(size_type capacity, std::fals
 
 template<typename Ty, typename Alloc>
 template<typename AppendFn, typename... Args>
-Ty* dynarray<Ty, Alloc>::append_relocated_dispatch(size_type capacity, std::false_type /* trivially copyable */,
-                                                   std::false_type /* nothrow move constructible */,
-                                                   AppendFn&& append_fn, Args&&... args) {
+Ty* dynarray_base<Ty, Alloc>::append_relocated_dispatch(size_type capacity, std::false_type /* trivially copyable */,
+                                                        std::false_type /* nothrow move constructible */,
+                                                        AppendFn&& append_fn, Args&&... args) {
     Ty* new_data = alloc_traits::allocate(*this, capacity);
     Ty* dst = new_data;
     Ty* dst_last = new_data + size_;
@@ -377,35 +387,55 @@ Ty* dynarray<Ty, Alloc>::append_relocated_dispatch(size_type capacity, std::fals
     }
 }
 
-template<typename Ty, std::size_t InlineBufSize = 0, typename Alloc = std::allocator<Ty>>
-class inline_dynarray : public dynarray<Ty, Alloc> {
- public:
-    using size_type = typename dynarray<Ty, Alloc>::size_type;
-    using value_type = typename dynarray<Ty, Alloc>::value_type;
+}  // namespace detail
 
-    inline_dynarray() noexcept(std::is_nothrow_default_constructible<dynarray<Ty, Alloc>>::value)
-        : dynarray<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), inline_buf_size) {}
-    explicit inline_dynarray(const Alloc& alloc) noexcept
-        : dynarray<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), inline_buf_size, alloc) {}
-    explicit inline_dynarray(size_type count, const Alloc& alloc = Alloc())
-        : dynarray<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), inline_buf_size, alloc) {
+template<typename Ty, std::size_t InStackBufSize = est::dynamic_extent, typename Alloc = std::allocator<Ty>>
+class dynarray : public detail::dynarray_base<Ty, Alloc> {
+ public:
+    using size_type = typename detail::dynarray_base<Ty, Alloc>::size_type;
+    using value_type = typename detail::dynarray_base<Ty, Alloc>::value_type;
+
+    dynarray() noexcept(std::is_nothrow_default_constructible<Alloc>::value)
+        : detail::dynarray_base<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), in_stack_buf_size) {}
+    explicit dynarray(const Alloc& al) noexcept
+        : detail::dynarray_base<Ty, Alloc>(al, reinterpret_cast<Ty*>(buf_), in_stack_buf_size) {}
+    explicit dynarray(size_type count, const Alloc& al = Alloc())
+        : detail::dynarray_base<Ty, Alloc>(al, reinterpret_cast<Ty*>(buf_), in_stack_buf_size) {
         this->init(count);
     }
-    inline_dynarray(size_type count, const value_type& val, const Alloc& alloc = Alloc())
-        : dynarray<Ty, Alloc>(reinterpret_cast<Ty*>(buf_), inline_buf_size, alloc) {
+    dynarray(size_type count, const value_type& val, const Alloc& al = Alloc())
+        : detail::dynarray_base<Ty, Alloc>(al, reinterpret_cast<Ty*>(buf_), in_stack_buf_size) {
         this->init(count, val);
     }
 
  private:
-    enum : unsigned {  // Always even
+    enum : unsigned {  // Must be even
 #if UXS_DEBUG_REDUCED_BUFFERS != 0
-        inline_buf_size = 2,
+        in_stack_buf_size = 2,
 #else   // UXS_DEBUG_REDUCED_BUFFERS != 0
-        inline_buf_size = InlineBufSize != 0 ? ((InlineBufSize + 1) & ~size_type(1)) : 16,
+        in_stack_buf_size = InStackBufSize != est::dynamic_extent ? ((InStackBufSize + 1) & ~size_type(1)) : 16,
 #endif  // UXS_DEBUG_REDUCED_BUFFERS != 0
     };
 
-    alignas(std::alignment_of<Ty>::value) std::uint8_t buf_[inline_buf_size * sizeof(Ty)];
+    alignas(std::alignment_of<Ty>::value) std::uint8_t buf_[in_stack_buf_size * sizeof(Ty)];
+};
+
+template<typename Ty, typename Alloc>
+class dynarray<Ty, 0, Alloc> : public detail::dynarray_base<Ty, Alloc> {
+ public:
+    using size_type = typename detail::dynarray_base<Ty, Alloc>::size_type;
+    using value_type = typename detail::dynarray_base<Ty, Alloc>::value_type;
+
+    dynarray() noexcept(std::is_nothrow_default_constructible<Alloc>::value)
+        : detail::dynarray_base<Ty, Alloc>(nullptr, 0) {}
+    explicit dynarray(const Alloc& al) noexcept : detail::dynarray_base<Ty, Alloc>(al, nullptr, 0) {}
+    explicit dynarray(size_type count, const Alloc& al = Alloc()) : detail::dynarray_base<Ty, Alloc>(al, nullptr, 0) {
+        this->init(count);
+    }
+    dynarray(size_type count, const value_type& val, const Alloc& al = Alloc())
+        : detail::dynarray_base<Ty, Alloc>(al, nullptr, 0) {
+        this->init(count, val);
+    }
 };
 
 }  // namespace uxs

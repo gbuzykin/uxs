@@ -549,7 +549,6 @@ struct pointer_traits<est::array_iterator<Traits, Const>> {
     using element_type = std::conditional_t<Const, const typename pointer::value_type, typename pointer::value_type>;
     using difference_type = typename pointer::difference_type;
     [[nodiscard]] static constexpr element_type* to_address(const pointer it) noexcept {
-        uxs_iterator_assert(it.debug_begin() <= it.ptr() && it.ptr() <= it.debug_end());
         return std::to_address(it.ptr());
     }
 };
