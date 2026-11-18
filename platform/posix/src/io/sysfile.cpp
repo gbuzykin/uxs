@@ -105,11 +105,6 @@ int sysfile::truncate() {
 
 int sysfile::flush() { return 0; }
 
-template<>
-UXS_EXPORT bool sysfile::remove(const char* fname) {
-    return ::unlink(fname) == 0;
-}
-
 template<typename NameCharT>
 bool sysfile::open(const NameCharT* fname, iomode mode) {
     dynbuffer fname_buf;
@@ -118,15 +113,6 @@ bool sysfile::open(const NameCharT* fname, iomode mode) {
     return open(fname_buf.data(), mode);
 }
 
-template<typename NameCharT>
-bool sysfile::remove(const NameCharT* fname) {
-    dynbuffer fname_buf;
-    utf_string_adapter<char>{}.append(fname_buf, fname);
-    fname_buf += '\0';
-    return remove(fname_buf.data());
-}
-
 #define UXS_SYSFILE_INSTANTIATE_IMPLEMENTATION(char_type) \
-    template UXS_EXPORT bool sysfile::open(const char_type*, iomode); \
-    template UXS_EXPORT bool sysfile::remove(const char_type*)
+    template UXS_EXPORT bool sysfile::open(const char_type*, iomode)
 UXS_SYSFILE_INSTANTIATE_IMPLEMENTATION(wchar_t);
