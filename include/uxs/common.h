@@ -25,45 +25,47 @@
 #    endif
 #endif  // !defined(UXS_HAS_BUILTIN)
 
-#if !defined(UXS_EXPORT_ALL_STUFF_FOR_GNUC)
-#    ifdef __GNUC__
-#        define UXS_EXPORT_ALL_STUFF_FOR_GNUC UXS_EXPORT
-#    else
-#        define UXS_EXPORT_ALL_STUFF_FOR_GNUC
-#    endif
-#endif  // !defined(UXS_EXPORT_ALL_STUFF_FOR_GNUC)
-
 #if !defined(UXS_CONSTEVAL)
 #    if __cplusplus >= 202002L && \
         (__GNUC__ >= 10 || __clang_major__ >= 12 || (_MSC_VER >= 1930 && defined(__cpp_consteval)))
 #        define UXS_CONSTEVAL     consteval
 #        define UXS_HAS_CONSTEVAL 1
 #    else
-#        define UXS_CONSTEVAL
+#        define UXS_CONSTEVAL inline
 #    endif
 #endif  // !defined(UXS_CONSTEVAL)
 
-#if !defined(UXS_CONSTEXPR)
-#    if __cplusplus < 201703L
-#        define UXS_CONSTEXPR inline
+#if !defined(UXS_CONSTINIT)
+#    if __cplusplus >= 202002L && \
+        (__GNUC__ >= 10 || __clang_major__ >= 12 || (_MSC_VER >= 1930 && defined(__cpp_constinit)))
+#        define UXS_CONSTINIT     constinit
+#        define UXS_HAS_CONSTINIT 1
 #    else
+#        define UXS_CONSTINIT
+#    endif
+#endif  // !defined(UXS_CONSTINIT)
+
+#if !defined(UXS_CONSTEXPR)
+#    if __cplusplus >= 201703L
 #        define UXS_CONSTEXPR constexpr
+#    else
+#        define UXS_CONSTEXPR inline
 #    endif
 #endif  // !defined(UXS_CONSTEXPR)
 
 #if !defined(UXS_CONSTEXPR_DATA)
-#    if __cplusplus < 201703L
-#        define UXS_CONSTEXPR_DATA const
-#    else
+#    if __cplusplus >= 201703L
 #        define UXS_CONSTEXPR_DATA constexpr
+#    else
+#        define UXS_CONSTEXPR_DATA const
 #    endif
 #endif  // !defined(UXS_CONSTEXPR_DATA)
 
 #if !defined(UXS_NODISCARD)
-#    if __cplusplus < 201703L
-#        define UXS_NODISCARD
-#    else
+#    if __cplusplus >= 201703L
 #        define UXS_NODISCARD [[nodiscard]]
+#    else
+#        define UXS_NODISCARD
 #    endif
 #endif  // !defined(UXS_NODISCARD)
 

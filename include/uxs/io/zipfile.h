@@ -5,7 +5,7 @@
 
 namespace uxs {
 
-class UXS_EXPORT_ALL_STUFF_FOR_GNUC zipfile : public iodevice {
+class UXS_EXPORT zipfile : public iodevice {
  public:
     zipfile() noexcept = default;
 
@@ -35,23 +35,23 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC zipfile : public iodevice {
     explicit operator bool() const noexcept { return zip_fdesc_ != nullptr; }
 
     template<typename NameCharT>
-    UXS_EXPORT bool open(ziparch& arch, const NameCharT* fname, iomode mode);
+    bool open(ziparch& arch, const NameCharT* fname, iomode mode);
 
     template<typename NameCharT>
     bool open(ziparch& arch, const NameCharT* fname, const char* mode) {
         return open(arch, fname, detail::iomode_from_str(mode, iomode::none));
     }
 
-    UXS_EXPORT bool open(ziparch& arch, std::uint64_t index, iomode mode);
+    bool open(ziparch& arch, std::uint64_t index, iomode mode);
     bool open(ziparch& arch, std::uint64_t index, const char* mode) {
         return open(arch, index, detail::iomode_from_str(mode, iomode::none));
     }
 
-    UXS_EXPORT void set_compression(zipfile_compression compr, unsigned level = 0);
-    UXS_EXPORT void close() noexcept;
+    void set_compression(zipfile_compression compr, unsigned level = 0);
+    void close() noexcept;
 
-    UXS_EXPORT int read(void* data, std::size_t sz, std::size_t& n_read) override;
-    UXS_EXPORT int write(const void* data, std::size_t sz, std::size_t& n_written) override;
+    int read(void* data, std::size_t sz, std::size_t& n_read) override;
+    int write(const void* data, std::size_t sz, std::size_t& n_written) override;
     int flush() override { return -1; }
 
  private:

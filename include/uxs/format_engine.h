@@ -697,7 +697,7 @@ class basic_format_parse_context : public fmt::parse_context_utils {
     std::size_t next_id_ = 0;
 };
 
-#if defined(UXS_HAS_CONSTEVAL)
+#if UXS_HAS_CONSTEVAL != 0
 template<typename CharT>
 class compile_parse_context : public fmt::parse_context_utils {
  public:
@@ -750,7 +750,7 @@ class compile_parse_context : public fmt::parse_context_utils {
         }
     }
 };
-#endif  // defined(UXS_HAS_CONSTEVAL)
+#endif  // UXS_HAS_CONSTEVAL != 0
 
 template<typename CharT>
 class basic_format_context {
@@ -803,14 +803,14 @@ class basic_format_string {
     using char_type = CharT;
     template<typename StrLikeTy, typename = std::enable_if_t<is_normal_string_like<StrLikeTy, char_type>::value>>
     UXS_CONSTEVAL basic_format_string(const StrLikeTy& fmt) noexcept : fmt_(fmt) {
-#if defined(UXS_HAS_CONSTEVAL)
+#if UXS_HAS_CONSTEVAL != 0
         using parse_context = compile_parse_context<char_type>;
         constexpr std::array<fmt::index_t, sizeof...(Args)> arg_types{fmt::arg_type_index<Args, char_type>::value...};
         constexpr std::array<typename parse_context::iterator (*)(parse_context&), sizeof...(Args)> parsers{
             parse_context::template parse_arg<Args>...};
         parse_context ctx(fmt_.begin(), fmt_.end(), arg_types);
         fmt::parse_format(ctx, [](auto&&...) {}, [&parsers](auto& ctx, std::size_t id) { return parsers[id](ctx); });
-#endif  // defined(UXS_HAS_CONSTEVAL)
+#endif  // UXS_HAS_CONSTEVAL != 0
     }
     basic_format_string(basic_runtime_format<char_type> fmt) noexcept : fmt_(fmt.str) {}
     std::basic_string_view<char_type> get() const noexcept { return fmt_; }

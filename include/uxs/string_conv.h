@@ -159,6 +159,9 @@ UXS_CONSTEXPR Ty from_string_errc(const StrLikeTy& s, sconv_errc& ec, Args&&... 
 namespace sconv {
 
 template<typename CharT>
+UXS_EXPORT unsigned fmt_index(CharT* p, std::size_t index);
+
+template<typename CharT>
 UXS_EXPORT void fmt_boolean(basic_membuffer<CharT>& out, bool val, fmt_opts fmt = {}, locale_ref loc = {});
 
 template<typename CharT, typename Ty>

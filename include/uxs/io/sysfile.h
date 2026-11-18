@@ -10,10 +10,10 @@ using file_desc_t = void*;
 using file_desc_t = int;
 #endif
 
-class UXS_EXPORT_ALL_STUFF_FOR_GNUC sysfile : public iodevice {
+class UXS_EXPORT sysfile : public iodevice {
  public:
-    UXS_EXPORT sysfile() noexcept;
-    UXS_EXPORT explicit sysfile(file_desc_t fd) noexcept;
+    sysfile() noexcept;
+    explicit sysfile(file_desc_t fd) noexcept;
 
     template<typename NameCharT>
     sysfile(const NameCharT* fname, iomode mode) : sysfile() {
@@ -33,31 +33,31 @@ class UXS_EXPORT_ALL_STUFF_FOR_GNUC sysfile : public iodevice {
         return *this;
     }
 
-    UXS_EXPORT bool valid() const noexcept;
+    bool valid() const noexcept;
     explicit operator bool() const noexcept { return valid(); }
 
-    UXS_EXPORT void attach(file_desc_t fd) noexcept;
-    UXS_EXPORT file_desc_t detach() noexcept;
+    void attach(file_desc_t fd) noexcept;
+    file_desc_t detach() noexcept;
 
     template<typename NameCharT>
-    UXS_EXPORT bool open(const NameCharT* fname, iomode mode);
+    bool open(const NameCharT* fname, iomode mode);
 
     template<typename NameCharT>
     bool open(const NameCharT* fname, const char* mode) {
         return open(fname, detail::iomode_from_str(mode, iomode::none));
     }
 
-    UXS_EXPORT void close() noexcept;
+    void close() noexcept;
 
-    UXS_EXPORT int read(void* data, std::size_t sz, std::size_t& n_read) override;
-    UXS_EXPORT int write(const void* data, std::size_t sz, std::size_t& n_written) override;
-    UXS_EXPORT std::int64_t seek(std::int64_t off, seekdir dir) override;
-    UXS_EXPORT int apply_ctrlesc(est::span<const std::uint8_t> v) override;
-    UXS_EXPORT int truncate() override;
-    UXS_EXPORT int flush() override;
+    int read(void* data, std::size_t sz, std::size_t& n_read) override;
+    int write(const void* data, std::size_t sz, std::size_t& n_written) override;
+    std::int64_t seek(std::int64_t off, seekdir dir) override;
+    int apply_ctrlesc(est::span<const std::uint8_t> v) override;
+    int truncate() override;
+    int flush() override;
 
     template<typename NameCharT>
-    UXS_EXPORT static bool remove(const NameCharT* fname);
+    static bool remove(const NameCharT* fname);
 
  private:
     file_desc_t fd_;

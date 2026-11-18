@@ -41,11 +41,11 @@ UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iostate_bits);
 enum class seekdir : std::uint8_t { beg = 0, end, curr };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(seekdir);
 
-class UXS_EXPORT_ALL_STUFF_FOR_GNUC iobuf_error : public std::runtime_error {
+class UXS_EXPORT iobuf_error : public std::runtime_error {
  public:
-    UXS_EXPORT explicit iobuf_error(const char* message);
-    UXS_EXPORT explicit iobuf_error(const std::string& message);
-    UXS_EXPORT const char* what() const noexcept override;
+    explicit iobuf_error(const char* message);
+    explicit iobuf_error(const std::string& message);
+    const char* what() const noexcept override;
 };
 
 class iostate {
