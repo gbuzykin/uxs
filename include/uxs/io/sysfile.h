@@ -56,9 +56,6 @@ class UXS_EXPORT sysfile : public iodevice {
     int truncate() override;
     int flush() override;
 
-    template<typename NameCharT>
-    static bool remove(const NameCharT* fname);
-
  private:
     file_desc_t fd_;
 };
