@@ -7,6 +7,12 @@
 
 using namespace uxs;
 
+std::error_code uxs::detail::make_iobuf_error_code() {
+    HRESULT ec = ::GetLastError();
+    if (ec != ERROR_SUCCESS) { return {static_cast<int>(ec), std::system_category()}; }
+    return uxs::make_error_code(uxs::iobuf_errc::failure);
+}
+
 sysfile::sysfile() noexcept : fd_(INVALID_HANDLE_VALUE) {}
 sysfile::sysfile(file_desc_t fd) noexcept : fd_(fd) {}
 
@@ -45,8 +51,7 @@ UXS_EXPORT bool sysfile::open(const wchar_t* fname, iomode mode) {
     } else {
         share_mode |= FILE_SHARE_WRITE;
     }
-    OFSTRUCT of;
-    std::memset(&of, 0, sizeof(of));
+    OFSTRUCT of{};
     attach(::CreateFileW(fname, access, share_mode, NULL, creat_disp, FILE_ATTRIBUTE_NORMAL, NULL));
     if (fd_ != INVALID_HANDLE_VALUE) {
         if (!!(mode & iomode::append)) {
@@ -77,8 +82,7 @@ int sysfile::write(const void* data, std::size_t sz, std::size_t& n_written) {
 }
 
 int sysfile::apply_ctrlesc(est::span<const std::uint8_t> v) {
-    CONSOLE_SCREEN_BUFFER_INFO info;
-    std::memset(&info, 0, sizeof(info));
+    CONSOLE_SCREEN_BUFFER_INFO info{};
     if (!::GetConsoleScreenBufferInfo(fd_, &info)) { return -1; }
     static constexpr std::array<WORD, 8> fg_color = {0,
                                                      FOREGROUND_RED,
@@ -111,7 +115,7 @@ int sysfile::apply_ctrlesc(est::span<const std::uint8_t> v) {
             info.wAttributes = (info.wAttributes & ~bg_color[7]) | bg_color[c - 100] | BACKGROUND_INTENSITY;
         }
     }
-    ::SetConsoleTextAttribute(fd_, info.wAttributes);
+    if (!::SetConsoleTextAttribute(fd_, info.wAttributes)) { return -1; }
     return 0;
 }
 
