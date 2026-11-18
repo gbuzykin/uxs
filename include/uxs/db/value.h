@@ -30,11 +30,11 @@ enum class dtype {
 template<typename CharT, typename Alloc>
 class basic_value;
 
-class UXS_EXPORT_ALL_STUFF_FOR_GNUC bad_value_access : public std::runtime_error {
+class UXS_EXPORT bad_value_access : public std::runtime_error {
  public:
-    UXS_EXPORT explicit bad_value_access(const char* message);
-    UXS_EXPORT explicit bad_value_access(const std::string& message);
-    UXS_EXPORT const char* what() const noexcept override;
+    explicit bad_value_access(const char* message);
+    explicit bad_value_access(const std::string& message);
+    const char* what() const noexcept override;
 };
 
 //-----------------------------------------------------------------------------
@@ -99,8 +99,8 @@ class flexarray_t {
 
     void construct_empty() noexcept { p_ = nullptr; }
     void construct_empty(alloc_type& al, std::size_t count) { p_ = count ? alloc_checked(al, 0, count) : nullptr; }
-    UXS_EXPORT void construct_from_view(alloc_type& al, const_view_type view, std::size_t extra);
-    UXS_EXPORT void construct_fill_value(alloc_type& al, std::size_t count, const Ty& v);
+    void construct_from_view(alloc_type& al, const_view_type view, std::size_t extra);
+    void construct_fill_value(alloc_type& al, std::size_t count, const Ty& v);
     void construct_from_initializer(alloc_type& al, std::initializer_list<Ty> init) {
         construct_from_view(al, const_view_type(init.begin(), init.size()), 0);
     }
@@ -128,8 +128,8 @@ class flexarray_t {
         }
     }
 
-    UXS_EXPORT void assign_view(alloc_type& al, const_view_type view);
-    UXS_EXPORT void append_view(alloc_type& al, const_view_type view);
+    void assign_view(alloc_type& al, const_view_type view);
+    void append_view(alloc_type& al, const_view_type view);
 
     template<typename InputIt>
     void assign_range(alloc_type& al, InputIt first, InputIt last) {
@@ -201,9 +201,9 @@ class flexarray_t {
 
     void clear(alloc_type& al) noexcept;
 
-    UXS_EXPORT void reserve(alloc_type& al, std::size_t size);
-    UXS_EXPORT void resize(alloc_type& al, std::size_t size, const Ty& v);
-    UXS_EXPORT Ty* erase(alloc_type& al, std::size_t pos);
+    void reserve(alloc_type& al, std::size_t size);
+    void resize(alloc_type& al, std::size_t size, const Ty& v);
+    Ty* erase(alloc_type& al, std::size_t pos);
 
     void ref() noexcept {
         if (p_) { ++p_->ref_count; }
@@ -355,9 +355,9 @@ class flexarray_t {
         for (; dst != dst_last; ++dst) { ::new (dst) Ty(v); }
     }
 
-    UXS_EXPORT void grow(alloc_type& al, std::size_t extra);
-    UXS_EXPORT void rotate_back(std::size_t pos) noexcept;
-    UXS_EXPORT void destruct(alloc_type& al) noexcept;
+    void grow(alloc_type& al, std::size_t extra);
+    void rotate_back(std::size_t pos) noexcept;
+    void destruct(alloc_type& al) noexcept;
 
     void reset(alloc_type& al, flexarray_t other) noexcept {
         unref(al);
@@ -374,7 +374,7 @@ class flexarray_t {
                sizeof(typename alloc_traits::value_type);
     }
 
-    UXS_NODISCARD UXS_EXPORT static data_t* alloc(alloc_type& al, std::size_t size, std::size_t cap);
+    UXS_NODISCARD static data_t* alloc(alloc_type& al, std::size_t size, std::size_t cap);
     UXS_NODISCARD static data_t* alloc_checked(alloc_type& al, std::size_t size, std::size_t cap) {
         if (cap > max_size(al)) { report_too_much_to_allocate_error(); }
         return alloc(al, size, cap);

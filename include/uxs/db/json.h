@@ -37,11 +37,11 @@ struct json_fmt_opts {
     unsigned indent_size = 2;
 };
 
-class UXS_EXPORT_ALL_STUFF_FOR_GNUC json_error : public std::runtime_error {
+class UXS_EXPORT json_error : public std::runtime_error {
  public:
-    UXS_EXPORT explicit json_error(const char* message);
-    UXS_EXPORT explicit json_error(const std::string& message);
-    UXS_EXPORT const char* what() const noexcept override;
+    explicit json_error(const char* message);
+    explicit json_error(const std::string& message);
+    const char* what() const noexcept override;
 };
 
 namespace detail {

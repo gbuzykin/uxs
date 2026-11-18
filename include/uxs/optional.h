@@ -12,9 +12,9 @@ struct nullopt_t {
 
 constexpr nullopt_t nullopt{0};
 
-class UXS_EXPORT_ALL_STUFF_FOR_GNUC bad_optional_access : public std::exception {
+class UXS_EXPORT bad_optional_access : public std::exception {
  public:
-    UXS_EXPORT const char* what() const noexcept override;
+    const char* what() const noexcept override;
 };
 
 namespace detail {

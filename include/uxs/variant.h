@@ -74,9 +74,9 @@ constexpr variant_id_t custom = variant_id_t::custom;
 constexpr variant_id_t max_type_id = static_cast<variant_id_t>(255);
 }  // namespace variant_id
 
-class UXS_EXPORT_ALL_STUFF_FOR_GNUC bad_variant_access : public std::exception {
+class UXS_EXPORT bad_variant_access : public std::exception {
  public:
-    UXS_EXPORT const char* what() const noexcept override;
+    const char* what() const noexcept override;
 };
 
 namespace detail {

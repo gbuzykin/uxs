@@ -29,22 +29,24 @@ struct random_generator {
         generator.seed(seed);
     }
 
+    std::uint64_t operator()() { return distribution(generator); }
+
     static guid::data64_t generate() {
         static bool is_initialized = false;
-        static spin_mutex lock;
+        static UXS_CONSTINIT spin_mutex lock;
         alignas(std::alignment_of<random_generator>::value) static std::uint8_t v[sizeof(random_generator)];
 
         std::lock_guard<spin_mutex> lk(lock);
 
-        auto& g = *reinterpret_cast<random_generator*>(&v);
         if (!is_initialized) {
             static_assert(std::is_trivially_destructible<random_generator>::value,
                           "random_generator must be trivially destructible");
-            ::new (&g) random_generator;
+            ::new (&v) random_generator;
             is_initialized = true;
         }
 
-        return {g.distribution(g.generator), g.distribution(g.generator)};
+        auto& generator = *reinterpret_cast<random_generator*>(&v);
+        return {generator(), generator()};
     }
 };
 

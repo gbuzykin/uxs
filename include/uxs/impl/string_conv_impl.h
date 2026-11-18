@@ -534,15 +534,15 @@ UXS_FORCE_INLINE unsigned fmt_dec_unsigned_len(Ty val) noexcept {
 }
 
 template<typename CharT>
-UXS_FORCE_INLINE void copy2(CharT* tgt, const char* src) {
+UXS_FORCE_INLINE void copy2(CharT* tgt, const char* src) noexcept {
     tgt[0] = src[0];
     tgt[1] = src[1];
 }
 
-UXS_FORCE_INLINE void copy2(char* tgt, const char* src) { std::memcpy(tgt, src, 2); }
+UXS_FORCE_INLINE void copy2(char* tgt, const char* src) noexcept { std::memcpy(tgt, src, 2); }
 
 template<unsigned N, typename Ty>
-UXS_FORCE_INLINE Ty divmod(Ty& v) {
+UXS_FORCE_INLINE Ty divmod(Ty& v) noexcept {
     const Ty mod = v % N;
     v /= N;
     return mod;
@@ -640,6 +640,13 @@ void fmt_dec(basic_membuffer<CharT>& out, Ty val, bool is_signed, fmt_opts fmt, 
 }
 
 // ---- integer
+
+template<typename CharT>
+unsigned fmt_index(CharT* p, std::size_t index) {
+    const unsigned len = fmt_dec_unsigned_len(index);
+    gen_digits(p, index, len);
+    return len;
+}
 
 template<typename CharT, typename Ty>
 void fmt_integer_common(basic_membuffer<CharT>& out, Ty val, bool is_signed) {
@@ -1114,6 +1121,7 @@ void fmt_float_common(basic_membuffer<CharT>& out, std::uint64_t u64, unsigned b
         char_type const*, char_type const*, unsigned, int) noexcept
 
 #define UXS_SCONV_FORMAT_INSTANTIATE_IMPLEMENTATION(char_type) \
+    template UXS_EXPORT unsigned uxs::sconv::fmt_index(char_type*, std::size_t); \
     template UXS_EXPORT void uxs::sconv::fmt_boolean(uxs::basic_membuffer<char_type>&, bool, uxs::fmt_opts, \
                                                      uxs::locale_ref); \
     template UXS_EXPORT void uxs::sconv::fmt_integer_common(uxs::basic_membuffer<char_type>&, std::uint32_t, bool); \

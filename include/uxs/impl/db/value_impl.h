@@ -830,9 +830,8 @@ template<typename CharT, typename Alloc, bool Const>
 void detail::value_iterator_proxy<CharT, Alloc, Const>::create_index_string() const noexcept {
     const std::size_t index = static_cast<const value_type*>(ptr_) - static_cast<const value_type*>(begin_);
     while (lock_.test_and_set(std::memory_order_acquire)) {}
-    char_type* end_p = to_chars(index_string_, index);
-    *end_p = '\0';
-    index_string_len_ = static_cast<std::uint8_t>(end_p - index_string_);
+    index_string_len_ = sconv::fmt_index(index_string_, index);
+    index_string_[index_string_len_] = '\0';
     lock_.clear(std::memory_order_release);
     index_cached_ = true;
 }
@@ -841,9 +840,8 @@ void detail::value_iterator_proxy<CharT, Alloc, Const>::create_index_string() co
 }  // namespace uxs
 
 #define UXS_DB_VALUE_INSTANTIATE_IMPLEMENTATION(char_type, alloc_type) \
-    template class uxs::db::detail::flexarray_t<char_type, alloc_type>; \
-    template class UXS_EXPORT_ALL_STUFF_FOR_GNUC \
-        uxs::db::detail::flexarray_t<uxs::db::basic_value<char_type, alloc_type>, alloc_type>; \
+    template class UXS_EXPORT uxs::db::detail::flexarray_t<char_type, alloc_type>; \
+    template class UXS_EXPORT uxs::db::detail::flexarray_t<uxs::db::basic_value<char_type, alloc_type>, alloc_type>; \
     template class uxs::db::detail::object_t<char_type, alloc_type>; \
     template class uxs::db::detail::object_item<char_type, alloc_type>; \
     template class uxs::db::detail::value_iterator_proxy<char_type, alloc_type, false>; \
