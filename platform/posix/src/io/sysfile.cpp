@@ -9,9 +9,15 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <cstdio>
 
 using namespace uxs;
+
+std::error_code uxs::detail::make_iobuf_error_code() {
+    if (errno != 0) { return {errno, std::generic_category()}; }
+    return uxs::make_error_code(uxs::iobuf_errc::failure);
+}
 
 sysfile::sysfile() noexcept : fd_(-1) {}
 sysfile::sysfile(file_desc_t fd) noexcept : fd_(fd) {}

@@ -45,7 +45,7 @@ basic_iobuf<CharT>& basic_iobuf<CharT>::flush() {
 
 template<typename CharT>
 void basic_iobuf<CharT>::truncate() {
-    if (!flush() || truncate_impl() < 0) { this->setstate(iostate_bits::bad); }
+    if (!this->good() || this->sync() < 0 || truncate_impl() < 0) { this->setstate(iostate_bits::bad); }
 }
 
 template<typename CharT>

@@ -2,8 +2,8 @@
 
 #include "uxs/utility.h"
 
-#include <stdexcept>
 #include <string>
+#include <system_error>
 
 namespace uxs {
 
@@ -41,7 +41,17 @@ UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iostate_bits);
 enum class seekdir : std::uint8_t { beg = 0, end, curr };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(seekdir);
 
-class UXS_EXPORT iobuf_error : public std::runtime_error {
+enum class iobuf_errc { failure = 1 };
+
+UXS_EXPORT const std::error_category& iobuf_category() noexcept;
+
+namespace detail {
+std::error_code make_iobuf_error_code();
+}
+
+inline std::error_code make_error_code(iobuf_errc e) { return {static_cast<int>(e), iobuf_category()}; }
+
+class UXS_EXPORT iobuf_error : public std::system_error {
  public:
     explicit iobuf_error(const char* message);
     explicit iobuf_error(const std::string& message);
@@ -62,17 +72,19 @@ class iostate {
     bool fail() const noexcept { return !!(state_ & (iostate_bits::fail | iostate_bits::bad)); }
     bool eof() const noexcept { return !!(state_ & iostate_bits::eof); }
     explicit operator bool() const noexcept { return !fail(); }
-    bool operator!() const noexcept { return fail(); }
 
     void setstate(iostate_bits bits) { clear(state_ | bits); }
-    void clear() { reset_state(iostate_bits::good); }
+    void clear() noexcept { state_ = iostate_bits::good; }
     void clear(iostate_bits bits) {
-        if (!!(bits & except_mask_)) { throw iobuf_error("iobuf error"); }
+        if (!!(bits & except_mask_)) { throw iobuf_error("iostate::clear"); }
         state_ = bits;
     }
 
     iostate_bits exceptions() const noexcept { return except_mask_; }
-    void exceptions(iostate_bits except_mask) noexcept { except_mask_ = except_mask; }
+    void exceptions(iostate_bits except_mask) {
+        if (!!(state_ & except_mask)) { throw iobuf_error("iostate::exceptions"); }
+        except_mask_ = except_mask;
+    }
 
  protected:
     void reset_mode(iomode mode) noexcept { mode_ = mode; }
