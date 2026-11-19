@@ -23,7 +23,7 @@ uxs::iomode uxs::detail::iomode_from_str(const char* mode, iomode default_mode) 
                 result |= iomode::z_compr;
                 const char level = *(mode + 1);
                 if (level >= '0' && level <= '9') {
-                    result |= static_cast<iomode>((level - '0') * static_cast<int>(iomode::z_compr_level));
+                    result |= static_cast<iomode>((level - '0') * static_cast<int>(iomode::compr_level));
                     ++mode;
                 }
             } break;

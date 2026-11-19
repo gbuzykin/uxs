@@ -32,7 +32,7 @@ void sysfile::attach(file_desc_t fd) noexcept {
 
 file_desc_t sysfile::detach() noexcept {
     const file_desc_t fd = fd_;
-    fd_ = -1;
+    fd_ = file_desc_t(-1);
     return fd;
 }
 
@@ -58,7 +58,7 @@ UXS_EXPORT bool sysfile::open(const char* fname, iomode mode) {
         return false;
     }
 
-    attach(::open(fname, O_LARGEFILE | oflag, S_IREAD | S_IWRITE));
+    attach(file_desc_t(::open(fname, O_LARGEFILE | oflag, S_IREAD | S_IWRITE)));
     return fd_ >= 0;
 }
 

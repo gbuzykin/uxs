@@ -26,7 +26,7 @@ void sysfile::attach(file_desc_t fd) noexcept {
 
 file_desc_t sysfile::detach() noexcept {
     file_desc_t fd = fd_;
-    fd_ = INVALID_HANDLE_VALUE;
+    fd_ = file_desc_t(INVALID_HANDLE_VALUE);
     return fd;
 }
 
@@ -52,7 +52,7 @@ UXS_EXPORT bool sysfile::open(const wchar_t* fname, iomode mode) {
         share_mode |= FILE_SHARE_WRITE;
     }
     OFSTRUCT of{};
-    attach(::CreateFileW(fname, access, share_mode, NULL, creat_disp, FILE_ATTRIBUTE_NORMAL, NULL));
+    attach(file_desc_t(::CreateFileW(fname, access, share_mode, NULL, creat_disp, FILE_ATTRIBUTE_NORMAL, NULL)));
     if (fd_ != INVALID_HANDLE_VALUE) {
         if (!!(mode & iomode::append)) {
             if (::SetFilePointer(fd_, 0, NULL, FILE_END) == INVALID_SET_FILE_POINTER) {
