@@ -95,8 +95,8 @@ void basic_devbuf<CharT, Alloc>::initbuf(iomode mode, size_type bufsz) {
 
 #if UXS_USE_ZLIB != 0
             if (!!(mode & iomode::z_compr)) {
-                const int level = static_cast<int>(mode & iomode::z_compr_level_mask) /
-                                  static_cast<int>(iomode::z_compr_level);
+                const int level = static_cast<int>(mode & iomode::compr_level_mask) /
+                                  static_cast<int>(iomode::compr_level);
                 ::deflateInit(&buf_->zstr, level > 0 ? level : Z_DEFAULT_COMPRESSION);
                 if (!mappable) {
                     const std::size_t tot_sz = buf_->sz;

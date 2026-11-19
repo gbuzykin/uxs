@@ -4,11 +4,19 @@
 
 namespace uxs {
 
-#if defined(WIN32)
-using file_desc_t = void*;
-#elif defined(__linux__)
-using file_desc_t = int;
-#endif
+class file_desc_t {
+ public:
+    file_desc_t() noexcept = default;
+    explicit file_desc_t(int h) noexcept : h(h) {}
+    explicit file_desc_t(void* h) noexcept : h(reinterpret_cast<std::intptr_t>(h)) {}
+    operator int() const noexcept { return static_cast<int>(h); }
+    operator void*() const noexcept { return reinterpret_cast<void*>(h); }
+    friend bool operator==(file_desc_t lhs, file_desc_t rhs) noexcept { return lhs.h == rhs.h; }
+    friend bool operator!=(file_desc_t lhs, file_desc_t rhs) noexcept { return !(lhs == rhs); }
+
+ private:
+    std::intptr_t h;
+};
 
 class UXS_EXPORT sysfile : public iodevice {
  public:

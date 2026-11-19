@@ -13,10 +13,13 @@ struct stdfile_buffers {
     UINT prev_output_cp;
     static stdfile_buffers& instance();
     stdfile_buffers()
-        : out(::GetStdHandle(STD_OUTPUT_HANDLE), iomode::out | iomode::append | iomode::cr_lf | iomode::ctrl_esc),
-          in(::GetStdHandle(STD_INPUT_HANDLE), iomode::in | iomode::cr_lf, &out),
-          log(::GetStdHandle(STD_ERROR_HANDLE), iomode::out | iomode::append | iomode::cr_lf | iomode::ctrl_esc, &out),
-          err(::GetStdHandle(STD_ERROR_HANDLE), iomode::out | iomode::append | iomode::cr_lf | iomode::ctrl_esc, &log),
+        : out(file_desc_t(::GetStdHandle(STD_OUTPUT_HANDLE)),
+              iomode::out | iomode::append | iomode::cr_lf | iomode::ctrl_esc),
+          in(file_desc_t(::GetStdHandle(STD_INPUT_HANDLE)), iomode::in | iomode::cr_lf, &out),
+          log(file_desc_t(::GetStdHandle(STD_ERROR_HANDLE)),
+              iomode::out | iomode::append | iomode::cr_lf | iomode::ctrl_esc, &out),
+          err(file_desc_t(::GetStdHandle(STD_ERROR_HANDLE)),
+              iomode::out | iomode::append | iomode::cr_lf | iomode::ctrl_esc, &log),
           prev_cp(::GetConsoleCP()), prev_output_cp(::GetConsoleOutputCP()) {
         ::SetConsoleCP(CP_UTF8);
         ::SetConsoleOutputCP(CP_UTF8);

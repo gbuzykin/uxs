@@ -7,7 +7,7 @@
 
 namespace uxs {
 
-enum class iomode : std::uint16_t {
+enum class iomode : unsigned {
     none = 0,
     in = est::bit(0),
     out = est::bit(1),
@@ -21,12 +21,12 @@ enum class iomode : std::uint16_t {
 #else   // defined(WIN32)
     text = 0,
 #endif  // defined(WIN32)
-    z_compr = est::bit(7),
-    z_compr_level = est::bit(8),
-    z_compr_level_mask = est::genmask(11, 8),
-    ctrl_esc = est::bit(12),
-    skip_ctrl_esc = est::bit(13) | est::bit(12),
-    invert_endian = est::bit(15),
+    invert_endian = est::bit(7),
+    z_compr = est::bit(8),
+    compr_level = est::bit(12),
+    compr_level_mask = est::genmask(15, 12),
+    ctrl_esc = est::bit(16),
+    skip_ctrl_esc = est::bit(17) | est::bit(16),
 };
 UXS_IMPLEMENT_BITWISE_OPS_FOR_ENUM(iomode);
 
