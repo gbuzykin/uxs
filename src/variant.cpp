@@ -1,5 +1,7 @@
 #include "uxs/variant.h"
 
+#include "uxs/raii_caller.h"
+
 using namespace uxs;
 
 const char* bad_variant_access::what() const noexcept { return "bad variant access"; }
@@ -22,15 +24,18 @@ variant::variant(variant_id_t type, const variant& v) : vtable_(get_vtable(type)
         void* tgt = vtable_->construct_default(&data_);
         if (!v.vtable_) { return; }
         assert(vtable_ && v.vtable_);
-        std::unique_ptr<void, void (*)(void*)> destroy_guard(&data_, vtable_->destroy);
-        if (vtable_->type > v.vtable_->type) {
-            if (vtable_->convert_from) {
-                vtable_->convert_from(v.vtable_->type, tgt, v.vtable_->get_value_const_ptr(&v.data_));
+        try {
+            if (vtable_->type > v.vtable_->type) {
+                if (vtable_->convert_from) {
+                    vtable_->convert_from(v.vtable_->type, tgt, v.vtable_->get_value_const_ptr(&v.data_));
+                }
+            } else if (v.vtable_->convert_to) {
+                v.vtable_->convert_to(vtable_->type, tgt, v.vtable_->get_value_const_ptr(&v.data_));
             }
-        } else if (v.vtable_->convert_to) {
-            v.vtable_->convert_to(vtable_->type, tgt, v.vtable_->get_value_const_ptr(&v.data_));
+        } catch (...) {
+            vtable_->destroy(&data_);
+            throw;
         }
-        destroy_guard.release();
     }
 }
 
@@ -82,7 +87,7 @@ bool variant::convert(variant_id_t type) {
             assert(vtable_ && tgt_vtable);
             detail::variant_storage_t tmp;
             void* tgt = tgt_vtable->construct_default(&tmp);
-            std::unique_ptr<void, void (*)(void*)> destroy_guard(&tmp, tgt_vtable->destroy);
+            const auto destroy_guard = make_raii_caller(tgt_vtable->destroy, &tmp);
             if (vtable_->type > tgt_vtable->type) {
                 if (!vtable_->convert_to ||
                     !vtable_->convert_to(tgt_vtable->type, tgt, vtable_->get_value_const_ptr(&data_))) {
@@ -111,13 +116,13 @@ bool variant::is_equal_to(const variant& v) const {
     if (vtable_->type > v.vtable_->type) {
         if (vtable_->convert_from) {
             void* tgt = vtable_->construct_default(&tmp);
-            std::unique_ptr<void, void (*)(void*)> destroy_guard(&tmp, vtable_->destroy);
+            const auto destroy_guard = make_raii_caller(vtable_->destroy, &tmp);
             return vtable_->convert_from(v.vtable_->type, tgt, v.vtable_->get_value_const_ptr(&v.data_)) &&
                    vtable_->is_equal(&tmp, &data_);
         }
     } else if (v.vtable_->convert_from) {
         void* tgt = v.vtable_->construct_default(&tmp);
-        std::unique_ptr<void, void (*)(void*)> destroy_guard(&tmp, v.vtable_->destroy);
+        const auto destroy_guard = make_raii_caller(v.vtable_->destroy, &tmp);
         return v.vtable_->convert_from(vtable_->type, tgt, vtable_->get_value_const_ptr(&data_)) &&
                v.vtable_->is_equal(&tmp, &v.data_);
     }
